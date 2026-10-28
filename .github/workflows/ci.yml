@@ -70,6 +70,9 @@ jobs:
       - name: Build APK and run lint
         working-directory: android
         run: ./gradlew assembleDebug lintDebug --console=plain
+      - name: Show lint findings
+        if: failure()
+        run: find android -path '*lint_intermediate_text_report*' -name '*.txt' -exec cat {} +
       - name: Check 16 KB alignment of the packaged APK
         run: |
           apk=android/app/build/outputs/apk/debug/app-debug.apk

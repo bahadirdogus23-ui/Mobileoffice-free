@@ -37,9 +37,9 @@ import androidx.compose.ui.unit.dp
 /** Spreadsheet types the picker offers (the engine also sniffs content, so a wrong type still opens). */
 internal val SPREADSHEET_TYPES = arrayOf(
     "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-    "application/vnd.ms-excel.sheet.macroEnabled.12",
+    "application/vnd.ms-excel.sheet.macroenabled.12",
     "application/vnd.ms-excel",
-    "application/vnd.ms-excel.sheet.binary.macroEnabled.12",
+    "application/vnd.ms-excel.sheet.binary.macroenabled.12",
     "application/vnd.oasis.opendocument.spreadsheet",
     "text/csv",
     "text/comma-separated-values",

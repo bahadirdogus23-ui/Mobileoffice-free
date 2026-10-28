@@ -6,7 +6,7 @@ fn sample_docx() -> Vec<u8> {
 }
 
 fn ink(r: &Raster) -> usize {
-    r.pixels.chunks_exact(4).filter(|p| p[0] < 128 && p[1] < 128 && p[2] < 128).count()
+    r.pixels.as_chunks::<4>().0.iter().filter(|p| p[0] < 128 && p[1] < 128 && p[2] < 128).count()
 }
 
 #[test]

@@ -8,7 +8,7 @@ enum class DocumentKind(val extensions: Set<String>, val mimeTypes: Set<String>)
         setOf("docx", "docm", "dotx", "dotm", "doc", "dot", "odt", "rtf", "md", "html", "htm"),
         setOf(
             "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-            "application/vnd.ms-word.document.macroEnabled.12",
+            "application/vnd.ms-word.document.macroenabled.12",
             "application/vnd.openxmlformats-officedocument.wordprocessingml.template",
             "application/msword",
             "application/vnd.oasis.opendocument.text",
@@ -21,9 +21,9 @@ enum class DocumentKind(val extensions: Set<String>, val mimeTypes: Set<String>)
         setOf("xlsx", "xlsm", "xltx", "xltm", "xls", "xlsb", "ods", "csv", "tsv"),
         setOf(
             "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-            "application/vnd.ms-excel.sheet.macroEnabled.12",
+            "application/vnd.ms-excel.sheet.macroenabled.12",
             "application/vnd.ms-excel",
-            "application/vnd.ms-excel.sheet.binary.macroEnabled.12",
+            "application/vnd.ms-excel.sheet.binary.macroenabled.12",
             "application/vnd.oasis.opendocument.spreadsheet",
             "text/csv",
             "text/comma-separated-values",
