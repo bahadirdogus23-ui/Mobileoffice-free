@@ -37,6 +37,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -81,6 +82,8 @@ fun DocumentKind.color(): Color = when (this) {
     DocumentKind.SLIDES -> Color(0xFFD0581F)
     DocumentKind.PDF -> Color(0xFFD03A35)
     DocumentKind.CAD -> Color(0xFF0E8FA8)
+    DocumentKind.IMAGE -> Color(0xFF8E44AD)
+    DocumentKind.TEXT -> Color(0xFF546E7A)
     DocumentKind.OTHER -> Color(0xFF6B7280)
 }
 
@@ -90,6 +93,8 @@ private fun DocumentKind.badge(): String = when (this) {
     DocumentKind.SLIDES -> "P"
     DocumentKind.PDF -> "PDF"
     DocumentKind.CAD -> "DWG"
+    DocumentKind.IMAGE -> "IMG"
+    DocumentKind.TEXT -> "TXT"
     DocumentKind.OTHER -> "?"
 }
 
@@ -114,6 +119,7 @@ fun HomeScreen(onOpen: (Uri) -> Unit, onNewSheet: () -> Unit, engineVersion: Str
     var refresh by remember { mutableIntStateOf(0) }
     var tab by rememberSaveable { mutableIntStateOf(0) }
     var source by rememberSaveable { mutableIntStateOf(0) } // 0: all documents, 1: recently opened
+    var query by rememberSaveable { mutableStateOf("") }
     val pick = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
         if (uri != null) onOpen(uri)
     }
@@ -149,7 +155,8 @@ fun HomeScreen(onOpen: (Uri) -> Unit, onNewSheet: () -> Unit, engineVersion: Str
     } else {
         files.map { HomeItem(it.uri, it.name, it.kind, it.size, it.openedAt, it.progress) }
     }
-    val shown = items.filter { current.kind == null || it.kind == current.kind }
+    val needle = query.trim().searchFold()
+    val shown = items.filter { (current.kind == null || it.kind == current.kind) && (needle.isEmpty() || needle in it.name.searchFold()) }
 
     Scaffold(
         bottomBar = {
@@ -183,6 +190,18 @@ fun HomeScreen(onOpen: (Uri) -> Unit, onNewSheet: () -> Unit, engineVersion: Str
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.padding(horizontal = 20.dp, vertical = 4.dp),
             )
+            OutlinedTextField(
+                value = query,
+                onValueChange = { query = it },
+                placeholder = { Text(stringResource(R.string.search_files)) },
+                singleLine = true,
+                trailingIcon = if (query.isNotEmpty()) {
+                    { IconButton(onClick = { query = "" }) { Text("✕") } }
+                } else {
+                    null
+                },
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
+            )
             PrimaryTabRow(selectedTabIndex = source) {
                 Tab(selected = source == 0, onClick = { source = 0 }, text = { Text(stringResource(R.string.all_documents)) })
                 Tab(selected = source == 1, onClick = { source = 1 }, text = { Text(stringResource(R.string.recently_opened)) })
@@ -203,7 +222,14 @@ fun HomeScreen(onOpen: (Uri) -> Unit, onNewSheet: () -> Unit, engineVersion: Str
                     Text(stringResource(R.string.new_spreadsheet))
                 }
             }
-            if (shown.isEmpty() && !(source == 0 && access && device == null)) {
+            if (shown.isEmpty() && needle.isNotEmpty()) {
+                Text(
+                    stringResource(R.string.no_search_results, query.trim()),
+                    style = MaterialTheme.typography.bodyMedium,
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier.fillMaxWidth().padding(32.dp),
+                )
+            } else if (shown.isEmpty() && !(source == 0 && access && device == null)) {
                 EmptyState(engineVersion)
             } else {
                 LazyColumn(Modifier.fillMaxSize()) {

@@ -69,7 +69,7 @@ jobs:
       - uses: gradle/actions/setup-gradle@v4
       - name: Build APK and run lint
         working-directory: android
-        run: ./gradlew assembleDebug lintDebug --console=plain
+        run: ./gradlew assembleDebug testDebugUnitTest lintDebug --console=plain
       - name: Show lint findings
         if: failure()
         run: find android -path '*lint_intermediate_text_report*' -name '*.txt' -exec cat {} +

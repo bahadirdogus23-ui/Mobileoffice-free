@@ -70,7 +70,7 @@ class CadViewModel(app: Application) : AndroidViewModel(app) {
                     doc = null
                     val info = FileInfo.of(resolver, uri)
                     val bytes = resolver.openInputStream(uri)?.use { it.readBytes() } ?: error("no data")
-                    val next = CadDocument.open(info.name, bytes)
+                    val next = CadDocument.open(info.typedName, bytes)
                     doc = next
                     recents.remember(uri, info.name, DocumentKind.CAD, info.size)
                     CadUiState(uri, info.name, next.spaceNames(), 0, next.layers(), dark = true, notes = next.notes())

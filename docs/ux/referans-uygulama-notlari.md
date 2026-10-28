@@ -9,6 +9,7 @@ Proje sahibinin paylaştığı ekran görüntülerinden alınacaklar ve bizim fa
 | Altta **Ev / Word / Excel / PPoint / PDF** sekmeleri | Var (Faz 0): `HomeScreen`, sekme başına filtre |
 | Satırda küçük resim, ad, **tür · boyut · tarih** | Tür rozeti + tür · boyut · tarih var; sayfa küçük resmi Faz 1 |
 | **"Görüntülenen %50"** okuma ilerlemesi | Var: Word görüntüleyici kaydırma konumunu kaydediyor |
+| Arama | Var: dosya adında arama, Türkçe karakter duyarsız ("isik" → "Işık") |
 | Satır menüsü (⋮) | Var: Paylaş, Listeden kaldır; Yıldızla, Yeniden adlandır Faz 1 |
 | Görüntüleyicide başlık + **"1/2"** sayfa sayacı | Var (Word, PDF, sunum); sayaca dokununca "Sayfaya git" |
 | Alt çubuk: **Okuma · Sayfalar · Paylaş · Dönüştür · Diğer** | Okuma, Sayfaya git, Yazdır, Paylaş var; Dönüştür Faz 2 |

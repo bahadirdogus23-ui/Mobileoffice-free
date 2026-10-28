@@ -201,6 +201,7 @@ fun PagedScreen(vm: PagedViewModel, state: PagedUiState, reading: ReadingSetting
             val widthPx = constraints.maxWidth
             val renderPx = (widthPx * zoom).roundToInt().coerceAtMost(maxOf(widthPx, MAX_RENDER_WIDTH))
             val heightPx = constraints.maxHeight.toFloat()
+            val contentWidth = maxWidth * zoom
             Box(
                 Modifier.fillMaxSize().graphicsLayer {
                     scaleX = pinch
@@ -211,7 +212,7 @@ fun PagedScreen(vm: PagedViewModel, state: PagedUiState, reading: ReadingSetting
                 LazyColumn(
                     state = list,
                     verticalArrangement = Arrangement.spacedBy(8.dp),
-                    modifier = Modifier.fillMaxHeight().horizontalScroll(hScroll).width(maxWidth * zoom),
+                    modifier = Modifier.fillMaxHeight().horizontalScroll(hScroll).width(contentWidth),
                 ) {
                     items(state.pages.size, key = { it }) { i ->
                         val (w, h) = state.pages[i]

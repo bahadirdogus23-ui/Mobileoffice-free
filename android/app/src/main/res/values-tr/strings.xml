@@ -47,4 +47,16 @@
     <string name="go">Git</string>
     <string name="cancel">İptal</string>
     <string name="print">Yazdır</string>
+    <string name="rotate">Döndür</string>
+    <string name="search">Ara</string>
+    <string name="search_in_text">Metinde ara</string>
+    <string name="search_files">Dosya adında ara</string>
+    <string name="no_matches">Yok</string>
+    <string name="wrap_on">Kaydır</string>
+    <string name="wrap_off">Kaydırma</string>
+    <string name="night_short">Gece</string>
+    <string name="day_short">Gündüz</string>
+    <string name="text_info">%1$s · %2$d satır</string>
+    <string name="text_truncated">Dosya çok büyük; ilk %1$d MB gösteriliyor.</string>
+    <string name="no_search_results">“%1$s” adlı dosya bulunamadı.</string>
 </resources>

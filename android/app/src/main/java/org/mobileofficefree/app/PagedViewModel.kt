@@ -89,7 +89,7 @@ abstract class PagedViewModel(app: Application, private val kind: DocumentKind) 
                 runCatching {
                     release()
                     val info = FileInfo.of(resolver, uri)
-                    val pages = load(uri, info.name)
+                    val pages = load(uri, info.typedName)
                     recents.remember(uri, info.name, kind, info.size)
                     PagedUiState(uri, info.name, pages)
                 }

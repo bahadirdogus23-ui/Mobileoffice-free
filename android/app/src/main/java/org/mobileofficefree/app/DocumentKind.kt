@@ -44,18 +44,34 @@ enum class DocumentKind(val extensions: Set<String>, val mimeTypes: Set<String>)
         setOf("dwg", "dxf"),
         setOf("image/vnd.dwg", "application/acad", "application/x-dwg", "image/vnd.dxf", "application/dxf"),
     ),
+    IMAGE(
+        setOf("jpg", "jpeg", "png", "webp", "gif", "bmp", "heic", "heif", "avif"),
+        setOf("image/jpeg", "image/png", "image/webp", "image/gif", "image/bmp", "image/x-ms-bmp", "image/heic", "image/heif", "image/avif"),
+    ),
+    TEXT(
+        setOf("txt", "log", "json", "xml", "ini", "conf", "cfg", "yaml", "yml", "properties", "sql", "srt", "vtt", "nfo"),
+        setOf("text/plain", "application/json", "text/xml", "application/xml", "application/x-subrip", "text/vtt"),
+    ),
     OTHER(emptySet(), emptySet());
 
     companion object {
         fun of(name: String, mime: String?): DocumentKind {
             val ext = name.substringAfterLast('.', "").lowercase(Locale.ROOT)
+            val m = mime?.lowercase(Locale.ROOT)
             return entries.firstOrNull { ext in it.extensions }
-                ?: entries.firstOrNull { mime != null && mime.lowercase(Locale.ROOT) in it.mimeTypes }
-                ?: if (name.endsWith(".txt", ignoreCase = true) || mime == "text/plain") WORD else OTHER
+                ?: entries.firstOrNull { m != null && m in it.mimeTypes }
+                ?: if (m != null && m.startsWith("text/")) TEXT else OTHER
         }
 
         /** Everything the picker offers today. */
         val openableTypes: Array<String> =
-            (WORD.mimeTypes + SHEET.mimeTypes + PDF.mimeTypes + SLIDES.mimeTypes + CAD.mimeTypes + "text/plain" + "application/octet-stream").toTypedArray()
+            (entries.flatMap { it.mimeTypes } + "text/*" + "application/octet-stream").toTypedArray()
+
+        /**
+         * Extensions the home screen lists from the whole device. Photos are left to the gallery and
+         * configuration files to their apps; both still open from the picker and "Open with".
+         */
+        val listedExtensions: Set<String> =
+            WORD.extensions + SHEET.extensions + SLIDES.extensions + PDF.extensions + CAD.extensions + "txt"
     }
 }

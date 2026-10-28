@@ -48,4 +48,16 @@
     <string name="go">Go</string>
     <string name="cancel">Cancel</string>
     <string name="print">Print</string>
+    <string name="rotate">Rotate</string>
+    <string name="search">Search</string>
+    <string name="search_in_text">Search in text</string>
+    <string name="search_files">Search file names</string>
+    <string name="no_matches">None</string>
+    <string name="wrap_on">Wrap</string>
+    <string name="wrap_off">No wrap</string>
+    <string name="night_short">Night</string>
+    <string name="day_short">Day</string>
+    <string name="text_info">%1$s · %2$d lines</string>
+    <string name="text_truncated">The file is very large; showing the first %1$d MB.</string>
+    <string name="no_search_results">No file named “%1$s”.</string>
 </resources>

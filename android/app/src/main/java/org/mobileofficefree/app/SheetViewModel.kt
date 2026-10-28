@@ -79,11 +79,12 @@ class SheetViewModel(app: Application) : AndroidViewModel(app) {
             val result = withContext(engine) {
                 runCatching {
                     val info = FileInfo.of(resolver, uri)
-                    val name = info.name
+                    // The engine picks its reader (and later its writer) from the extension.
+                    val name = info.typedName
                     val bytes = resolver.openInputStream(uri)?.use { it.readBytes() }
                         ?: error("no data")
                     val state = replaceDocument(SheetDocument.open(name, bytes, null))
-                    RecentFiles(getApplication()).remember(uri, name, DocumentKind.SHEET, info.size)
+                    RecentFiles(getApplication()).remember(uri, info.name, DocumentKind.SHEET, info.size)
                     state to name
                 }
             }

@@ -31,7 +31,7 @@ import java.util.Locale
 
 /** Routes between the home screen and the open document, and shows one-shot messages. */
 @Composable
-fun AppRoot(sheet: SheetViewModel, word: WordViewModel, pdf: PdfViewModel, slides: SlidesViewModel, cad: CadViewModel, openRequest: Uri?, onOpenHandled: () -> Unit) {
+fun AppRoot(sheet: SheetViewModel, word: WordViewModel, pdf: PdfViewModel, slides: SlidesViewModel, cad: CadViewModel, image: ImageViewModel, text: TextViewModel, openRequest: Uri?, onOpenHandled: () -> Unit) {
     val context = LocalContext.current
     val resources = LocalResources.current
     val snackbar = remember { SnackbarHostState() }
@@ -46,8 +46,10 @@ fun AppRoot(sheet: SheetViewModel, word: WordViewModel, pdf: PdfViewModel, slide
             DocumentKind.SHEET -> sheet.open(uri)
             DocumentKind.PDF -> pdf.open(uri)
             DocumentKind.CAD -> cad.open(uri)
+            DocumentKind.IMAGE -> image.open(uri)
+            DocumentKind.TEXT -> text.open(uri)
             // DeckCraft reads PPTX/PPSX/POTX; legacy .ppt and .odp come with phase 4 (plan §6).
-            DocumentKind.SLIDES -> if (info.name.substringAfterLast('.').lowercase(Locale.ROOT) in setOf("pptx", "ppsx", "potx")) {
+            DocumentKind.SLIDES -> if (info.typedName.substringAfterLast('.').lowercase(Locale.ROOT) in setOf("pptx", "ppsx", "potx")) {
                 slides.open(uri)
             } else {
                 notice = resources.getString(R.string.coming_soon, info.name)
@@ -82,6 +84,18 @@ fun AppRoot(sheet: SheetViewModel, word: WordViewModel, pdf: PdfViewModel, slide
             cad.consumeError()
         }
     }
+    LaunchedEffect(image.error) {
+        image.error?.let {
+            snackbar.showSnackbar(resources.getString(R.string.open_failed, it))
+            image.consumeError()
+        }
+    }
+    LaunchedEffect(text.error) {
+        text.error?.let {
+            snackbar.showSnackbar(resources.getString(R.string.open_failed, it))
+            text.consumeError()
+        }
+    }
     LaunchedEffect(notice) {
         notice?.let {
             snackbar.showSnackbar(it)
@@ -96,12 +110,16 @@ fun AppRoot(sheet: SheetViewModel, word: WordViewModel, pdf: PdfViewModel, slide
             val pdfState = pdf.state
             val slidesState = slides.state
             val cadState = cad.state
+            val imageState = image.state
+            val textState = text.state
             when {
-                word.loading || pdf.loading || slides.loading || cad.loading || sheetScreen == Screen.Loading -> Loading()
+                word.loading || pdf.loading || slides.loading || cad.loading || image.loading || text.loading || sheetScreen == Screen.Loading -> Loading()
                 wordState != null -> PagedScreen(word, wordState, reading)
                 pdfState != null -> PagedScreen(pdf, pdfState, reading)
                 slidesState != null -> PagedScreen(slides, slidesState, reading)
                 cadState != null -> CadScreen(cad, cadState)
+                imageState != null -> ImageScreen(image, imageState)
+                textState != null -> TextScreen(text, textState, reading)
                 sheetScreen is Screen.Sheet -> SheetScreen(sheet, sheetScreen.state)
                 else -> HomeScreen(onOpen = openAny, onNewSheet = sheet::newBlank, engineVersion = sheet.engineVersion)
             }
