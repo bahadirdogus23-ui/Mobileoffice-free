@@ -39,10 +39,10 @@ import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.flow.debounce
 import kotlinx.coroutines.FlowPreview
 
-/** Pages one under another, fitted to the screen width, with a page counter and a bottom bar. */
+/** Word and PDF documents: pages one under another, fitted to the screen width, with a page counter. */
 @OptIn(ExperimentalMaterial3Api::class, FlowPreview::class)
 @Composable
-fun WordScreen(vm: WordViewModel, state: WordUiState) {
+fun PagedScreen(vm: PagedViewModel, state: PagedUiState) {
     val context = LocalContext.current
     val list = rememberLazyListState()
     val current by remember { derivedStateOf { list.firstVisibleItemIndex + 1 } }

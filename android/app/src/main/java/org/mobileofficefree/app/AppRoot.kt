@@ -30,7 +30,7 @@ import androidx.compose.ui.unit.dp
 
 /** Routes between the home screen and the open document, and shows one-shot messages. */
 @Composable
-fun AppRoot(sheet: SheetViewModel, word: WordViewModel, openRequest: Uri?, onOpenHandled: () -> Unit) {
+fun AppRoot(sheet: SheetViewModel, word: WordViewModel, pdf: PdfViewModel, openRequest: Uri?, onOpenHandled: () -> Unit) {
     val context = LocalContext.current
     val resources = LocalResources.current
     val snackbar = remember { SnackbarHostState() }
@@ -41,7 +41,8 @@ fun AppRoot(sheet: SheetViewModel, word: WordViewModel, openRequest: Uri?, onOpe
         when (info?.kind) {
             DocumentKind.WORD -> word.open(uri)
             DocumentKind.SHEET -> sheet.open(uri)
-            DocumentKind.PDF, DocumentKind.SLIDES -> notice = resources.getString(R.string.coming_soon, info.name)
+            DocumentKind.PDF -> pdf.open(uri)
+            DocumentKind.SLIDES -> notice = resources.getString(R.string.coming_soon, info.name)
             else -> notice = resources.getString(R.string.unsupported_file)
         }
     }
@@ -58,10 +59,12 @@ fun AppRoot(sheet: SheetViewModel, word: WordViewModel, openRequest: Uri?, onOpe
             sheet.consumeMessage()
         }
     }
-    LaunchedEffect(word.error) {
-        word.error?.let {
-            snackbar.showSnackbar(resources.getString(R.string.open_failed, it))
-            word.consumeError()
+    for (paged in listOf(word, pdf)) {
+        LaunchedEffect(paged, paged.error) {
+            paged.error?.let {
+                snackbar.showSnackbar(resources.getString(R.string.open_failed, it))
+                paged.consumeError()
+            }
         }
     }
     LaunchedEffect(notice) {
@@ -75,9 +78,11 @@ fun AppRoot(sheet: SheetViewModel, word: WordViewModel, openRequest: Uri?, onOpe
         Box(Modifier.padding(padding).fillMaxSize()) {
             val sheetScreen = sheet.screen
             val wordState = word.state
+            val pdfState = pdf.state
             when {
-                word.loading || sheetScreen == Screen.Loading -> Loading()
-                wordState != null -> WordScreen(word, wordState)
+                word.loading || pdf.loading || sheetScreen == Screen.Loading -> Loading()
+                wordState != null -> PagedScreen(word, wordState)
+                pdfState != null -> PagedScreen(pdf, pdfState)
                 sheetScreen is Screen.Sheet -> SheetScreen(sheet, sheetScreen.state)
                 else -> HomeScreen(onOpen = openAny, onNewSheet = sheet::newBlank, engineVersion = sheet.engineVersion)
             }

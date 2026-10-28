@@ -23,6 +23,7 @@ import androidx.compose.ui.platform.LocalContext
 class MainActivity : ComponentActivity() {
     private val sheet: SheetViewModel by viewModels()
     private val word: WordViewModel by viewModels()
+    private val pdf: PdfViewModel by viewModels()
 
     /** A file handed over by "Open with"; AppRoot routes it by type, then clears it. */
     private var openRequest by mutableStateOf<Uri?>(null)
@@ -32,7 +33,7 @@ class MainActivity : ComponentActivity() {
         enableEdgeToEdge()
         if (savedInstanceState == null) handle(intent)
         setContent {
-            MobileOfficeTheme { AppRoot(sheet, word, openRequest, onOpenHandled = { openRequest = null }) }
+            MobileOfficeTheme { AppRoot(sheet, word, pdf, openRequest, onOpenHandled = { openRequest = null }) }
         }
     }
 

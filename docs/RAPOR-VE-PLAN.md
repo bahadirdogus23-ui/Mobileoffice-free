@@ -908,7 +908,7 @@ Varsayım: Başlangıç Kasım 2026; 1–2 geliştirici + yapay zekâ destekli g
 | 7 | **Dağıtım kanalları** | Play / F-Droid / GitHub | Üçü birden; önce Play dahili test + GitHub, sonra F-Droid |
 | 8 | **v1 düzenleme kapsamı** | Tüm formatlar / modern formatlar | DOCX, XLSX, PPTX, PDF düzenlenir; eski formatlar (DOC, XLS, PPT) görüntülenir ve modern biçimde kopya olarak kaydedilir |
 | 9 | **Geliştirici hesabı türü** | Kişisel (kapalı test şartı) / kuruluş (D-U-N-S gerekir) | Kuruluş/dernek kurulacaksa kuruluş hesabı; değilse kişisel hesap + 12 kişilik test grubu hemen oluşturulmalı |
-| 10 | **PDF görüntüleme motoru** | PDFium (gömülü) / Android PdfRenderer / PdfCraft (hayro) | Faz 0 ölçümüne göre. Ön tercih gömülü PDFium: tüm sürümlerde aynı davranış. Android 15'te gelen PdfRenderer iyileştirmeleri Play sistem güncellemeleriyle yalnız Android 11'e kadar geriye taşındı |
+| 10 | **PDF görüntüleme motoru** | PDFium (gömülü) / Android PdfRenderer / PdfCraft (hayro) | **Karar verildi (28.10.2026): Faz 0–1'de Android PdfRenderer**, düzenleme araçları Faz 2'de PdfCraft. Bkz. [ADR-0003](adr/0003-pdf-goruntuleme.md) |
 
 ---
 
