@@ -12,5 +12,6 @@ Uygulamadaki **Ölçümler** ekranından alınır (ana ekran, sağ üst). Her sa
 - **dev.15 ile görülen ve düzeltilen sorunlar:**
   - Yakınlaştırınca sayfalar yanıp sönüyordu. Sayfa önbelleği Java yığınına göre ayarlanmıştı ve büyütülmüş bir sayfa önbelleğin tamamını dolduruyordu. Önbellek artık RAM'e göre ayarlanıyor.
   - Ekranın üstünde ve altında boşluk kalıyordu, çünkü kenar payları iki kez ekleniyordu.
+- dev.18'de kullanıcı tarafından doğrulandı: yanıp sönme ve kenar boşlukları düzeldi.
 - Sonraki sürümlerden itibaren işlemci başına ayrı APK var: arm64 için 45,9 MB.
 - Bekleyen ölçümler: eski/yavaş bir tablet ve 3–4 GB RAM'li bir telefon.
