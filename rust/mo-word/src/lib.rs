@@ -2,6 +2,9 @@
 //! renders pages (or parts of pages) to premultiplied RGBA, the layout Android's ARGB_8888
 //! `Bitmap` uses. Editing will go through WordCraft's command registry, as for spreadsheets.
 
+mod find;
+
+pub use find::{Hit, MAX_MATCHES, fold};
 use wordcraft_doc::Document;
 use wordcraft_layout::{DocLayout, LayoutCache, LayoutOptions};
 use wordcraft_render::{RenderOptions, render_page, render_region};

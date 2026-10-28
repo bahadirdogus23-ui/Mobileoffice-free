@@ -153,6 +153,17 @@ impl SheetDocument {
     }
 }
 
+/// One rectangle of search match number `index` on page `page`, in page points.
+#[derive(uniffi::Record)]
+pub struct SearchHit {
+    pub index: u32,
+    pub page: u32,
+    pub x: f32,
+    pub y: f32,
+    pub width: f32,
+    pub height: f32,
+}
+
 /// Page size in points (1/72 inch).
 #[derive(uniffi::Record)]
 pub struct PageSize {
@@ -212,6 +223,11 @@ impl WordDocument {
     /// The whole page at `scale` pixels per point; `dark` draws it for night reading.
     pub fn render_page(&self, page: u32, scale: f32, dark: bool) -> Result<Raster, MoError> {
         Ok(self.doc().render_page(page, scale, dark)?.into())
+    }
+
+    /// Where `query` appears in the body, ignoring case, accents and dotted/dotless i.
+    pub fn find(&self, query: String) -> Vec<SearchHit> {
+        self.doc().find(&query).into_iter().map(|h| SearchHit { index: h.index, page: h.page, x: h.x, y: h.y, width: h.w, height: h.h }).collect()
     }
 
     /// A `width`×`height` tile whose corner is pixel `(x, y)` of the page drawn at `scale`.

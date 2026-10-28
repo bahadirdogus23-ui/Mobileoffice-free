@@ -64,3 +64,28 @@ fn a_dark_page_has_dark_paper_and_light_text() {
     let bright = dark.pixels.as_chunks::<4>().0.iter().filter(|p| p[0] > 180 && p[1] > 180 && p[2] > 180).count();
     assert!(bright > 50, "text turns light: {bright}");
 }
+
+#[test]
+fn finds_text_ignoring_turkish_letter_forms() {
+    let md = "# İstanbul\n\nIŞIK ve ışık aynı kelime. Çağrı merkezi.\n";
+    let doc = WordDoc::open("a.md", md.as_bytes(), None).unwrap();
+    let hits = doc.find("isik");
+    let matches: std::collections::BTreeSet<u32> = hits.iter().map(|h| h.index).collect();
+    assert_eq!(matches.len(), 2, "{hits:?}");
+    assert!(hits.iter().all(|h| h.page == 0 && h.w > 1.0 && h.h > 1.0), "{hits:?}");
+    assert_eq!(doc.find("ISTANBUL").iter().map(|h| h.index).max(), Some(0));
+    assert!(!doc.find("cagri").is_empty());
+    assert!(doc.find("yok böyle bir şey").is_empty());
+    assert!(doc.find("   ").is_empty());
+}
+
+#[test]
+fn matches_sit_where_the_text_is_drawn() {
+    let doc = WordDoc::open("sample.docx", &sample_docx(), None).unwrap();
+    let hits = doc.find("the");
+    assert!(hits.len() > 5);
+    let (w, h) = doc.page_size(hits[0].page).unwrap();
+    for hit in &hits {
+        assert!(hit.x >= 0.0 && hit.y >= 0.0 && hit.x + hit.w <= w + 1.0 && hit.y + hit.h <= h + 1.0, "{hit:?}");
+    }
+}

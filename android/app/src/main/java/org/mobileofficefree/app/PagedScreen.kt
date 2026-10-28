@@ -2,6 +2,7 @@ package org.mobileofficefree.app
 
 import android.content.Intent
 import androidx.activity.compose.LocalActivity
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -16,6 +17,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxHeight
@@ -24,6 +26,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
@@ -53,9 +56,11 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.runtime.withFrameNanos
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.graphics.ColorMatrix
@@ -70,6 +75,7 @@ import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import kotlin.math.roundToInt
 import kotlin.math.sqrt
@@ -78,6 +84,8 @@ import kotlinx.coroutines.flow.debounce
 import kotlinx.coroutines.launch
 
 private const val MAX_ZOOM = 5f
+private val hitColor = Color(0x66FFD54F)
+private val currentHitColor = Color(0x99FF9800)
 private const val DOUBLE_TAP_ZOOM = 2.5f
 
 /** The widest page picture drawn; zooming further scales it up (sharp tiles come with the zoom work in phase 1). */
@@ -114,6 +122,8 @@ fun PagedScreen(vm: PagedViewModel, state: PagedUiState, reading: ReadingSetting
     val lastZoom = remember(state.uri) { floatArrayOf(1f) }
     var showReading by remember { mutableStateOf(false) }
     var showGoTo by remember { mutableStateOf(false) }
+    var showSearch by remember(state.uri) { mutableStateOf(false) }
+    val hitsByPage = remember(vm.found) { vm.found.groupBy { it.page } }
     val night = reading.night
     val invertOnScreen = night && !vm.drawsNight
 
@@ -158,6 +168,12 @@ fun PagedScreen(vm: PagedViewModel, state: PagedUiState, reading: ReadingSetting
                 }
             },
             actions = {
+                if (vm.searchable) {
+                    TextButton(onClick = {
+                        showSearch = !showSearch
+                        if (!showSearch) vm.search("")
+                    }) { Text(stringResource(R.string.search)) }
+                }
                 TextButton(onClick = { showGoTo = true }) {
                     Text(
                         stringResource(R.string.page_counter, current, state.pages.size),
@@ -166,6 +182,30 @@ fun PagedScreen(vm: PagedViewModel, state: PagedUiState, reading: ReadingSetting
                 }
             },
         )
+        if (showSearch) {
+            Row(Modifier.fillMaxWidth().padding(horizontal = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+                OutlinedTextField(
+                    value = vm.query,
+                    onValueChange = vm::search,
+                    placeholder = { Text(stringResource(R.string.search_in_text)) },
+                    singleLine = true,
+                    modifier = Modifier.weight(1f),
+                )
+                Text(
+                    when {
+                        vm.query.isBlank() -> ""
+                        vm.searching -> "…"
+                        vm.matchCount == 0 -> stringResource(R.string.no_matches)
+                        else -> stringResource(R.string.page_counter, vm.currentMatch + 1, vm.matchCount)
+                    },
+                    style = MaterialTheme.typography.labelMedium,
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier.widthIn(min = 56.dp).padding(horizontal = 4.dp),
+                )
+                TextButton(onClick = { vm.nextMatch(-1) }, enabled = vm.matchCount > 0) { Text("▲") }
+                TextButton(onClick = { vm.nextMatch(1) }, enabled = vm.matchCount > 0) { Text("▼") }
+            }
+        }
         BoxWithConstraints(
             Modifier
                 .weight(1f)
@@ -206,6 +246,14 @@ fun PagedScreen(vm: PagedViewModel, state: PagedUiState, reading: ReadingSetting
             val renderPx = minOf((widthPx * zoom).roundToInt(), maxOf(widthPx, MAX_RENDER_WIDTH), byMemory)
             val heightPx = constraints.maxHeight.toFloat()
             val contentWidth = maxWidth * zoom
+            // Bring the current match into view, a third of the way down the screen.
+            LaunchedEffect(vm.currentMatch, vm.found) {
+                val hit = vm.found.firstOrNull { it.index == vm.currentMatch } ?: return@LaunchedEffect
+                val (pw, _) = state.pages.getOrNull(hit.page) ?: return@LaunchedEffect
+                val pxPerPt = widthPx * zoom / pw
+                list.animateScrollToItem(hit.page, (hit.top * pxPerPt - heightPx / 3).roundToInt().coerceAtLeast(0))
+                hScroll.animateScrollTo((hit.left * pxPerPt - widthPx / 3f).roundToInt().coerceAtLeast(0))
+            }
             Box(
                 Modifier.fillMaxSize().graphicsLayer {
                     scaleX = pinch
@@ -235,6 +283,19 @@ fun PagedScreen(vm: PagedViewModel, state: PagedUiState, reading: ReadingSetting
                                     colorFilter = if (invertOnScreen) invertColors else null,
                                     modifier = Modifier.fillMaxSize(),
                                 )
+                            }
+                            hitsByPage[i]?.let { hits ->
+                                val current = vm.currentMatch
+                                Canvas(Modifier.fillMaxSize()) {
+                                    val k = size.width / w
+                                    for (h in hits) {
+                                        drawRect(
+                                            if (h.index == current) currentHitColor else hitColor,
+                                            topLeft = Offset(h.left * k, h.top * k),
+                                            size = Size((h.right - h.left) * k, (h.bottom - h.top) * k),
+                                        )
+                                    }
+                                }
                             }
                         }
                     }

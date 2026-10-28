@@ -5,7 +5,9 @@ import android.graphics.Bitmap
 import android.graphics.Color
 import android.graphics.pdf.PdfRenderer
 import android.net.Uri
+import android.os.Build
 import android.os.ParcelFileDescriptor
+import androidx.annotation.RequiresApi
 import androidx.core.graphics.createBitmap
 
 /**
@@ -54,6 +56,32 @@ class PdfViewModel(app: Application) : PagedViewModel(app, DocumentKind.PDF) {
         }
     }
 
+    /** PdfRenderer can search text from Android 15 on. */
+    override val searchable = Build.VERSION.SDK_INT >= Build.VERSION_CODES.VANILLA_ICE_CREAM
+
+    override fun findText(query: String): List<FoundRect> =
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.VANILLA_ICE_CREAM) searchPages(query) else emptyList()
+
+    @RequiresApi(Build.VERSION_CODES.VANILLA_ICE_CREAM)
+    private fun searchPages(query: String): List<FoundRect> {
+        val r = renderer ?: return emptyList()
+        val out = ArrayList<FoundRect>()
+        var index = 0
+        for (i in 0 until r.pageCount) {
+            val page = r.openPage(i)
+            try {
+                for (match in page.searchText(query)) {
+                    // Bounds are in page points, like the page sizes.
+                    for (b in match.bounds) out += FoundRect(index, i, b.left, b.top, b.right, b.bottom)
+                    if (++index >= MAX_MATCHES) return out
+                }
+            } finally {
+                page.close()
+            }
+        }
+        return out
+    }
+
     override fun release() {
         renderer?.close()
         renderer = null
@@ -61,3 +89,5 @@ class PdfViewModel(app: Application) : PagedViewModel(app, DocumentKind.PDF) {
         fd = null
     }
 }
+
+private const val MAX_MATCHES = 2_000

@@ -6,6 +6,7 @@ import android.net.Uri
 import android.os.SystemClock
 import android.util.LruCache
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
@@ -15,8 +16,13 @@ import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+
+/** One rectangle of search match [index] on page [page], in page points. */
+data class FoundRect(val index: Int, val page: Int, val left: Float, val top: Float, val right: Float, val bottom: Float)
 
 data class PagedUiState(
     val uri: Uri,
@@ -84,6 +90,57 @@ abstract class PagedViewModel(app: Application, private val kind: DocumentKind) 
         }
     }
 
+    /** Whether [findText] can search this kind of document (on this Android version). */
+    open val searchable: Boolean = false
+
+    /** Every place [query] appears, at most a couple of thousand matches. Runs on [engine]. */
+    protected open fun findText(query: String): List<FoundRect> = emptyList()
+
+    var query by mutableStateOf("")
+        private set
+    var found by mutableStateOf<List<FoundRect>>(emptyList())
+        private set
+    var matchCount by mutableIntStateOf(0)
+        private set
+    var currentMatch by mutableIntStateOf(0)
+        private set
+    var searching by mutableStateOf(false)
+        private set
+    private var searchJob: Job? = null
+
+    /** Searches as the person types, a moment after they stop. */
+    fun search(text: String) {
+        query = text
+        searchJob?.cancel()
+        if (text.isBlank()) {
+            clearSearch(keepQuery = true)
+            return
+        }
+        searchJob = viewModelScope.launch {
+            delay(300)
+            searching = true
+            val hits = withContext(engine) { runCatching { findText(text.trim()) }.getOrDefault(emptyList()) }
+            found = hits
+            matchCount = (hits.maxOfOrNull { it.index } ?: -1) + 1
+            currentMatch = 0
+            searching = false
+        }
+    }
+
+    fun nextMatch(step: Int) {
+        if (matchCount == 0) return
+        currentMatch = Math.floorMod(currentMatch + step, matchCount)
+    }
+
+    private fun clearSearch(keepQuery: Boolean = false) {
+        searchJob?.cancel()
+        if (!keepQuery) query = ""
+        found = emptyList()
+        matchCount = 0
+        currentMatch = 0
+        searching = false
+    }
+
     /** Opens [uri] (named [name]) and returns its page sizes in points. Runs on [engine]. */
     protected abstract fun load(uri: Uri, name: String): List<Pair<Float, Float>>
 
@@ -111,6 +168,7 @@ abstract class PagedViewModel(app: Application, private val kind: DocumentKind) 
             }
             loading = false
             clearPages()
+            clearSearch()
             result.fold(
                 onSuccess = { state = it },
                 onFailure = { error = it.message ?: it.javaClass.simpleName },
@@ -120,6 +178,7 @@ abstract class PagedViewModel(app: Application, private val kind: DocumentKind) 
 
     fun close() {
         state = null
+        clearSearch()
         clearPages()
         viewModelScope.launch(engine) { release() }
     }

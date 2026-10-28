@@ -18,6 +18,8 @@ class WordDocumentTest {
             val dark = r.pixels.toList().chunked(4).count { (it[0].toInt() and 0xff) < 128 }
             assertTrue(dark > 50, "text drawn: $dark dark pixels")
             assertFailsWith<MoException.NotFound> { doc.renderPage(3u, 1f, false) }
+            val hits = doc.find("ISTANBUL")
+            assertTrue(hits.isNotEmpty() && hits.all { it.page == 0u && it.width > 0f }, "$hits")
         }
     }
 }
