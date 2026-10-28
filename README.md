@@ -9,6 +9,8 @@ Android için **ücretsiz, reklamsız, hesapsız ve internetsiz** çalışan ofi
 
 **Durum:** Faz 0 (teknik doğrulama). Çalışan parçalar: Excel/CSV görüntüleme ve basit hücre düzenleme (GridCraft), Word görüntüleme (WordCraft), PDF görüntüleme (Android PdfRenderer), PowerPoint görüntüleme (DeckCraft), DWG/DXF görüntüleme (CADCraft: yakınlaştırma, katmanlar, düzen sekmeleri). Ayrıca görsel ve düz metin görüntüleyicileri; tüm sayfalı görüntüleyicilerde yakınlaştırma, sayfaya git, gece modu, ekranı açık tut, ses tuşlarıyla sayfa çevirme ve yazdırma; ana ekranda Türkçe karakter duyarsız dosya adı araması. Kapsamlı rapor ve proje planı: [docs/RAPOR-VE-PLAN.md](docs/RAPOR-VE-PLAN.md)
 
+**Test sürümünü indir:** [MobileOffice-Free.apk](https://github.com/bahadirdogus23-ui/Mobileoffice-free/releases/download/gelistirme/MobileOffice-Free.apk). CI her başarılı derlemede bu dosyayı yeniler ([sürüm sayfası](https://github.com/bahadirdogus23-ui/Mobileoffice-free/releases/tag/gelistirme)). Bu bir geliştirme sürümüdür; kurmak için telefonda bilinmeyen kaynaklardan yüklemeye izin verin. Sonraki test sürümleri bunun üzerine kurulur.
+
 ## İlkeler
 
 1. Ücretsiz ve reklamsız, her zaman

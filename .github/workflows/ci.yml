@@ -6,6 +6,9 @@ on:
   pull_request:
   workflow_dispatch:
 
+permissions:
+  contents: read
+
 concurrency:
   group: ci-${{ github.ref }}
   cancel-in-progress: true
@@ -89,3 +92,38 @@ jobs:
           name: lint-report
           path: android/app/build/reports/lint-results-debug.html
           if-no-files-found: ignore
+
+  # Every green push replaces the APK on the "gelistirme" pre-release, so there is one fixed link:
+  # https://github.com/<owner>/<repo>/releases/download/gelistirme/MobileOffice-Free.apk
+  release:
+    name: Publish test build
+    needs: [rust, android]
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: ${{ github.repository }}
+      TAG: gelistirme
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: mobileoffice-debug-apk
+      - name: Update the pre-release
+        run: |
+          mv app-debug.apk MobileOffice-Free.apk
+          notes="Otomatik test sürümü 0.1.0-dev.${GITHUB_RUN_NUMBER} (${GITHUB_SHA::7}, ${GITHUB_REF_NAME}).
+          Bu bir geliştirme sürümüdür; hata içerebilir. Kurmak için telefonda bilinmeyen kaynaklardan
+          yüklemeye izin verin. Sonraki test sürümleri bunun üzerine kurulur.
+
+          Automatic test build; it may have bugs."
+          if gh release view "$TAG" > /dev/null 2>&1; then
+            gh api -X PATCH "repos/$GH_REPO/git/refs/tags/$TAG" -f sha="$GITHUB_SHA" -F force=true > /dev/null
+            gh release upload "$TAG" MobileOffice-Free.apk --clobber
+            gh release edit "$TAG" --notes "$notes"
+          else
+            gh release create "$TAG" MobileOffice-Free.apk --target "$GITHUB_SHA" --prerelease \
+              --title "Geliştirme sürümü (test)" --notes "$notes"
+          fi
+          echo "https://github.com/$GH_REPO/releases/download/$TAG/MobileOffice-Free.apk" >> "$GITHUB_STEP_SUMMARY"

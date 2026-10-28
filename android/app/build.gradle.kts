@@ -12,8 +12,21 @@ android {
         applicationId = "org.mobileofficefree.app"
         minSdk = 26
         targetSdk = 36
-        versionCode = 1
-        versionName = "0.1.0"
+        // CI builds count up, so each test build installs over the previous one.
+        val build = providers.environmentVariable("GITHUB_RUN_NUMBER").orNull?.toIntOrNull()
+        versionCode = build ?: 1
+        versionName = if (build != null) "0.1.0-dev.$build" else "0.1.0"
+    }
+
+    signingConfigs {
+        // A fixed debug key in the repository, so test builds from any machine update each other.
+        // It signs nothing but debug builds; store releases use a private key kept out of the repo.
+        getByName("debug") {
+            storeFile = file("debug.keystore")
+            storePassword = "android"
+            keyAlias = "androiddebugkey"
+            keyPassword = "android"
+        }
     }
 
     buildTypes {
