@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">MobileOffice</string>
+    <string name="home_tagline">Open, edit and share your documents. Free, no ads, no account, no internet.</string>
+    <string name="open_spreadsheet">Open spreadsheet</string>
+    <string name="new_spreadsheet">New spreadsheet</string>
+    <string name="privacy_note">This app has no internet permission: your files never leave your device.</string>
+    <string name="engine_version">Engine %1$s</string>
+    <string name="loading">Opening…</string>
+    <string name="back">Back</string>
+    <string name="save_as">Save as…</string>
+    <string name="saved">Saved</string>
+    <string name="save_failed">Could not save: %1$s</string>
+    <string name="open_failed">Could not open the file: %1$s</string>
+    <string name="formula_hint">Value or formula</string>
+    <string name="cell_update_failed">Could not change the cell: %1$s</string>
+    <string name="import_notes">Import notes</string>
+    <string name="ok">OK</string>
+    <string name="new_workbook_name">Book1.xlsx</string>
+</resources>

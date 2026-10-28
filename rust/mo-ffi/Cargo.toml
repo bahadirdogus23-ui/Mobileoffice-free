@@ -1,0 +1,19 @@
+[package]
+name = "mo-ffi"
+description = "MobileOffice native library: UniFFI interface the Android app calls"
+version = "0.1.0"
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+publish = false
+
+[lib]
+# cdylib: libmo_ffi.so for Android; lib: lets uniffi-bindgen and tests link it.
+crate-type = ["cdylib", "lib"]
+name = "mo_ffi"
+
+[dependencies]
+mo-grid = { workspace = true }
+uniffi = { workspace = true }
+thiserror = { workspace = true }

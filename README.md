@@ -7,7 +7,7 @@ Android için **ücretsiz, reklamsız, hesapsız ve internetsiz** çalışan ofi
 - DWG ve DXF çizimlerini görüntüleme
 - Görsel, metin, arşiv ve e-kitap dosyalarını açma; Türkiye'ye özgü UYAP UDF ve e-Fatura XML desteği
 
-**Durum:** Planlama aşaması. Kapsamlı rapor ve proje planı: [docs/RAPOR-VE-PLAN.md](docs/RAPOR-VE-PLAN.md)
+**Durum:** Faz 0 (teknik doğrulama). İlk çalışan parça: Excel/CSV görüntüleme ve basit hücre düzenleme (GridCraft motoru). Kapsamlı rapor ve proje planı: [docs/RAPOR-VE-PLAN.md](docs/RAPOR-VE-PLAN.md)
 
 ## İlkeler
 
@@ -24,6 +24,20 @@ Android için **ücretsiz, reklamsız, hesapsız ve internetsiz** çalışan ofi
 - Hızlı PDF görüntüleme: PDFium
 
 Ayrıntılar, yol haritası, riskler ve karar bekleyen konular rapordadır.
+
+## Derleme
+
+Gerekenler: Rust (1.95+), JDK 17+, Android SDK, Android NDK (28.2.13676358 önerilir) ve `cargo-ndk`.
+
+```sh
+rustup target add aarch64-linux-android armv7-linux-androideabi x86_64-linux-android
+cargo install cargo-ndk
+scripts/build-native.sh            # libmo_ffi.so + Kotlin bağlamaları
+cd android && ./gradlew assembleDebug
+```
+
+Her push'ta CI APK'yı derler; Actions sayfasındaki `mobileoffice-debug-apk` dosyası telefona kurulabilir.
+Katkı kuralları: [AGENTS.md](AGENTS.md).
 
 ## Lisans
 

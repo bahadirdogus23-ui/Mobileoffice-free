@@ -1,0 +1,10 @@
+[net]
+# Use the git CLI so git dependencies go through the configured proxy and credentials.
+git-fetch-with-cli = true
+
+# Google Play requires 16 KB-aligned native libraries for apps targeting Android 15+.
+# NDK r28+ already links this way; the flag keeps it true for older NDKs too.
+[target.aarch64-linux-android]
+rustflags = ["-C", "link-arg=-Wl,-z,max-page-size=16384"]
+[target.x86_64-linux-android]
+rustflags = ["-C", "link-arg=-Wl,-z,max-page-size=16384"]

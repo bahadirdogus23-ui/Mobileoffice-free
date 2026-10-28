@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="home_tagline">Belgelerini aç, düzenle, paylaş. Ücretsiz, reklamsız, hesapsız, internetsiz.</string>
+    <string name="open_spreadsheet">Tablo aç</string>
+    <string name="new_spreadsheet">Yeni tablo</string>
+    <string name="privacy_note">Bu uygulamanın internet izni yok: dosyaların cihazından hiç çıkmaz.</string>
+    <string name="engine_version">Motor %1$s</string>
+    <string name="loading">Açılıyor…</string>
+    <string name="back">Geri</string>
+    <string name="save_as">Farklı kaydet…</string>
+    <string name="saved">Kaydedildi</string>
+    <string name="save_failed">Kaydedilemedi: %1$s</string>
+    <string name="open_failed">Dosya açılamadı: %1$s</string>
+    <string name="formula_hint">Değer veya formül</string>
+    <string name="cell_update_failed">Hücre değiştirilemedi: %1$s</string>
+    <string name="import_notes">İçe aktarma notları</string>
+    <string name="ok">Tamam</string>
+    <string name="new_workbook_name">Kitap1.xlsx</string>
+</resources>
