@@ -5,7 +5,7 @@ plugins {
 
 android {
     namespace = "org.mobileofficefree.app"
-    compileSdk = 36
+    compileSdk = 37
 
     defaultConfig {
         // Working id; it can still change before the first store release (docs/RAPOR-VE-PLAN.md §16).
