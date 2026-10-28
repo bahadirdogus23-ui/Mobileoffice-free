@@ -18,6 +18,22 @@ android {
         versionName = if (build != null) "0.1.0-dev.$build" else "0.1.0"
     }
 
+    // One APK per processor family, plus a universal one: a phone needs only its own engine build
+    // (the universal APK carries three and is about three times larger).
+    splits {
+        abi {
+            isEnable = true
+            reset()
+            include("arm64-v8a", "armeabi-v7a", "x86_64")
+            isUniversalApk = true
+        }
+    }
+
+    packaging {
+        // JNA ships its loader for processors we build no engine for; leave them out.
+        jniLibs.excludes += listOf("lib/armeabi/**", "lib/mips/**", "lib/mips64/**", "lib/x86/**")
+    }
+
     signingConfigs {
         // A fixed debug key in the repository, so test builds from any machine update each other.
         // It signs nothing but debug builds; store releases use a private key kept out of the repo.

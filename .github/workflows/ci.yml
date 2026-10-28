@@ -78,13 +78,15 @@ jobs:
         run: find android -path '*lint_intermediate_text_report*' -name '*.txt' -exec cat {} +
       - name: Check 16 KB alignment of the packaged APK
         run: |
-          apk=android/app/build/outputs/apk/debug/app-debug.apk
-          "$ANDROID_HOME/build-tools/36.0.0/zipalign" -c -P 16 -v 4 "$apk" | tail -3
-          ls -l "$apk"
+          for apk in android/app/build/outputs/apk/debug/*.apk; do
+            "$ANDROID_HOME/build-tools/36.0.0/zipalign" -c -P 16 -v 4 "$apk" | tail -1
+            "$ANDROID_HOME/build-tools/36.0.0/apksigner" verify --print-certs "$apk" | head -2
+          done
+          ls -l android/app/build/outputs/apk/debug/
       - uses: actions/upload-artifact@v4
         with:
           name: mobileoffice-debug-apk
-          path: android/app/build/outputs/apk/debug/app-debug.apk
+          path: android/app/build/outputs/apk/debug/*.apk
           if-no-files-found: error
       - uses: actions/upload-artifact@v4
         if: always()
@@ -112,18 +114,27 @@ jobs:
           name: mobileoffice-debug-apk
       - name: Update the pre-release
         run: |
-          mv app-debug.apk MobileOffice-Free.apk
+          # The plain name is the 64-bit ARM build, which nearly every phone from the last years is.
+          mv app-arm64-v8a-debug.apk MobileOffice-Free.apk
+          mv app-armeabi-v7a-debug.apk MobileOffice-Free-eski-32bit.apk
+          mv app-x86_64-debug.apk MobileOffice-Free-x86_64.apk
+          mv app-universal-debug.apk MobileOffice-Free-hepsi-bir-arada.apk
+          apks=(MobileOffice-Free*.apk)
           notes="Otomatik test sürümü 0.1.0-dev.${GITHUB_RUN_NUMBER} (${GITHUB_SHA::7}, ${GITHUB_REF_NAME}).
           Bu bir geliştirme sürümüdür; hata içerebilir. Kurmak için telefonda bilinmeyen kaynaklardan
           yüklemeye izin verin. Sonraki test sürümleri bunun üzerine kurulur.
 
+          Hangi dosya? Çoğu telefon için MobileOffice-Free.apk (64 bit ARM). Kurulmazsa eski telefonlar
+          için MobileOffice-Free-eski-32bit.apk, emin değilseniz MobileOffice-Free-hepsi-bir-arada.apk.
+          Gerekli: Android 8.0 veya üstü.
+
           Automatic test build; it may have bugs."
           if gh release view "$TAG" > /dev/null 2>&1; then
             gh api -X PATCH "repos/$GH_REPO/git/refs/tags/$TAG" -f sha="$GITHUB_SHA" -F force=true > /dev/null
-            gh release upload "$TAG" MobileOffice-Free.apk --clobber
+            gh release upload "$TAG" "${apks[@]}" --clobber
             gh release edit "$TAG" --notes "$notes"
           else
-            gh release create "$TAG" MobileOffice-Free.apk --target "$GITHUB_SHA" --prerelease \
+            gh release create "$TAG" "${apks[@]}" --target "$GITHUB_SHA" --prerelease \
               --title "Geliştirme sürümü (test)" --notes "$notes"
           fi
           echo "https://github.com/$GH_REPO/releases/download/$TAG/MobileOffice-Free.apk" >> "$GITHUB_STEP_SUMMARY"
