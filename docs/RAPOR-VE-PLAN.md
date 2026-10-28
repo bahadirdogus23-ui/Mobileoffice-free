@@ -813,7 +813,7 @@ Varsayım: Başlangıç Kasım 2026; 1–2 geliştirici + yapay zekâ destekli g
 
 **3. hafta: Ölçüm ve karar**
 
-- [ ] Düşük, orta ve üst segment birer telefonda ölçüm: `.so` boyutu (ABI başına), bellek, ilk sayfa süreleri
+- [ ] Düşük, orta ve üst segment birer telefonda ölçüm: `.so` boyutu (ABI başına), bellek, ilk sayfa süreleri (üst segment yapıldı: [olcumler.md](olcumler.md))
 - [x] 16 KB hizalama doğrulaması (CI her APK'da denetliyor; PDFium kullanılmadığı için ayrıca gerekmedi)
 - [ ] Türkçe karakter testi: "ğüşıöçİĞÜŞÖÇ" render, arama ve IME (render ve dosya adı/metin araması testli; IME düzenleme fazında)
 - [ ] Karar toplantısı ve ADR'ler:
