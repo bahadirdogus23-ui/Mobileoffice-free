@@ -38,6 +38,9 @@ fun AppRoot(sheet: SheetViewModel, word: WordViewModel, pdf: PdfViewModel, slide
     val reading = remember { ReadingSettings(context) }
     var notice by remember { mutableStateOf<String?>(null) }
     var cadNotesSeen by remember(cad.state?.uri) { mutableStateOf(false) }
+    var showDiagnostics by remember { mutableStateOf(false) }
+    // A crash report from the last run, offered once for sharing.
+    var crashReport by remember { mutableStateOf(Diagnostics.takeCrashReport(context)) }
 
     val openAny: (Uri) -> Unit = { uri ->
         val info = runCatching { FileInfo.of(context.contentResolver, uri) }.getOrNull()
@@ -131,7 +134,13 @@ fun AppRoot(sheet: SheetViewModel, word: WordViewModel, pdf: PdfViewModel, slide
                 sheetScreen is Screen.Sheet -> SheetScreen(sheet, sheetScreen.state)
                 // Below the viewers: closing a file opened from the archive comes back to its list.
                 archiveState != null -> ArchiveScreen(archive, archiveState, onOpen = openAny)
-                else -> HomeScreen(onOpen = openAny, onNewSheet = sheet::newBlank, engineVersion = sheet.engineVersion)
+                showDiagnostics -> DiagnosticsScreen(onBack = { showDiagnostics = false })
+                else -> HomeScreen(
+                    onOpen = openAny,
+                    onNewSheet = sheet::newBlank,
+                    onDiagnostics = { showDiagnostics = true },
+                    engineVersion = sheet.engineVersion,
+                )
             }
         }
     }
@@ -142,6 +151,20 @@ fun AppRoot(sheet: SheetViewModel, word: WordViewModel, pdf: PdfViewModel, slide
             confirmButton = { TextButton(onClick = { cadNotesSeen = true }) { Text(stringResource(R.string.ok)) } },
             title = { Text(stringResource(R.string.import_notes)) },
             text = { Text(notes.take(5).joinToString("\n\n")) },
+        )
+    }
+    crashReport?.let { report ->
+        AlertDialog(
+            onDismissRequest = { crashReport = null },
+            title = { Text(stringResource(R.string.crash_title)) },
+            text = { Text(stringResource(R.string.crash_body)) },
+            confirmButton = {
+                TextButton(onClick = {
+                    crashReport = null
+                    shareText(context, report)
+                }) { Text(stringResource(R.string.share)) }
+            },
+            dismissButton = { TextButton(onClick = { crashReport = null }) { Text(stringResource(R.string.close)) } },
         )
     }
     if (sheet.importNotes.isNotEmpty()) {

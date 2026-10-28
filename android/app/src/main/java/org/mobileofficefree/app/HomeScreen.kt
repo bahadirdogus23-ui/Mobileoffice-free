@@ -41,6 +41,7 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -111,7 +112,7 @@ private data class HomeItem(
 )
 
 @Composable
-fun HomeScreen(onOpen: (Uri) -> Unit, onNewSheet: () -> Unit, engineVersion: String) {
+fun HomeScreen(onOpen: (Uri) -> Unit, onNewSheet: () -> Unit, onDiagnostics: () -> Unit, engineVersion: String) {
     val context = LocalContext.current
     val recents = remember { RecentFiles(context) }
     // Re-read whenever the home screen comes back (it leaves composition while a document is open).
@@ -194,12 +195,15 @@ fun HomeScreen(onOpen: (Uri) -> Unit, onNewSheet: () -> Unit, engineVersion: Str
         },
     ) { padding ->
         Column(Modifier.padding(padding).fillMaxSize()) {
-            Text(
-                stringResource(R.string.app_name),
-                style = MaterialTheme.typography.headlineSmall,
-                fontWeight = FontWeight.SemiBold,
-                modifier = Modifier.padding(start = 20.dp, top = 16.dp, end = 20.dp),
-            )
+            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(start = 20.dp, top = 16.dp, end = 8.dp)) {
+                Text(
+                    stringResource(R.string.app_name),
+                    style = MaterialTheme.typography.headlineSmall,
+                    fontWeight = FontWeight.SemiBold,
+                    modifier = Modifier.weight(1f),
+                )
+                TextButton(onClick = onDiagnostics) { Text(stringResource(R.string.diagnostics)) }
+            }
             Text(
                 stringResource(R.string.home_tagline),
                 style = MaterialTheme.typography.bodySmall,

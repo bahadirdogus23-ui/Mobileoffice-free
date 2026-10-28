@@ -3,6 +3,7 @@ package org.mobileofficefree.app
 import android.app.Application
 import android.graphics.Bitmap
 import android.net.Uri
+import android.os.SystemClock
 import android.util.LruCache
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateMapOf
@@ -56,6 +57,8 @@ abstract class PagedViewModel(app: Application, private val kind: DocumentKind) 
     private var generation = 0
 
     private var renderNight = false
+    /** When the open document was ready, until its first page is drawn (for [Diagnostics]). */
+    @Volatile private var firstPageFrom = 0L
 
     /** Whether [renderPage] draws night pages itself (true) or the screen should invert its colours. */
     open val drawsNight: Boolean = false
@@ -84,12 +87,15 @@ abstract class PagedViewModel(app: Application, private val kind: DocumentKind) 
     fun open(uri: Uri) {
         val resolver = getApplication<Application>().contentResolver
         loading = true
+        val started = SystemClock.elapsedRealtime()
         viewModelScope.launch {
             val result = withContext(engine) {
                 runCatching {
                     release()
                     val info = FileInfo.of(resolver, uri)
                     val pages = load(uri, info.typedName)
+                    Diagnostics.record("${kind.name} ${info.typedName.substringAfterLast('.')} açma (${pages.size} sayfa, ${sizeLabel(info.size)})", started)
+                    firstPageFrom = SystemClock.elapsedRealtime()
                     recents.remember(uri, info.name, kind, info.size)
                     PagedUiState(uri, info.name, pages)
                 }
@@ -140,6 +146,10 @@ abstract class PagedViewModel(app: Application, private val kind: DocumentKind) 
                 if (gen != generation) return@launch
                 pending.remove(index)
                 if (bmp != null) {
+                    if (index == 0 && firstPageFrom != 0L) {
+                        Diagnostics.record("${kind.name} ilk sayfa ${bmp.width}px", firstPageFrom)
+                        firstPageFrom = 0L
+                    }
                     cache.put(index, bmp)
                     shown[index] = bmp
                     fresh += index
@@ -176,3 +186,5 @@ abstract class PagedViewModel(app: Application, private val kind: DocumentKind) 
         fun cacheBytes(): Int = (Runtime.getRuntime().maxMemory() / 8).toInt()
     }
 }
+
+internal fun sizeLabel(bytes: Long) = if (bytes < 0) "?" else "%.1f MB".format(java.util.Locale.ROOT, bytes / (1024.0 * 1024.0))

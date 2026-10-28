@@ -3,6 +3,7 @@ package org.mobileofficefree.app
 import android.app.Application
 import android.content.ContentResolver
 import android.net.Uri
+import android.os.SystemClock
 import android.provider.OpenableColumns
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateMapOf
@@ -75,6 +76,7 @@ class SheetViewModel(app: Application) : AndroidViewModel(app) {
     fun open(uri: Uri) {
         val resolver = getApplication<Application>().contentResolver
         screen = Screen.Loading
+        val started = SystemClock.elapsedRealtime()
         viewModelScope.launch {
             val result = withContext(engine) {
                 runCatching {
@@ -84,6 +86,7 @@ class SheetViewModel(app: Application) : AndroidViewModel(app) {
                     val bytes = resolver.openInputStream(uri)?.use { it.readBytes() }
                         ?: error("no data")
                     val state = replaceDocument(SheetDocument.open(name, bytes, null))
+                    Diagnostics.record("SHEET ${name.substringAfterLast('.')} açma (${sizeLabel(info.size)})", started)
                     RecentFiles(getApplication()).remember(uri, info.name, DocumentKind.SHEET, info.size)
                     state to name
                 }
@@ -103,6 +106,7 @@ class SheetViewModel(app: Application) : AndroidViewModel(app) {
 
     fun newBlank() {
         screen = Screen.Loading
+        val started = SystemClock.elapsedRealtime()
         viewModelScope.launch {
             val name = text(R.string.new_workbook_name)
             screen = Screen.Sheet(withContext(engine) { replaceDocument(SheetDocument.blank()) }.copy(fileName = name))

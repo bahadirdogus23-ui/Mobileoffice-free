@@ -69,4 +69,10 @@
         <item quantity="one">%1$d file</item>
         <item quantity="other">%1$d files</item>
     </plurals>
+    <string name="diagnostics">Measurements</string>
+    <string name="diagnostics_hint">Your phone, the app size, memory and how long files opened in this session took. Tap “Share” to send it to the developers; the app itself never goes online.</string>
+    <string name="refresh">Refresh</string>
+    <string name="crash_title">The app closed unexpectedly</string>
+    <string name="crash_body">Sorry about that. Would you like to send the error report to the developers? It only has the phone model, Android version and the technical details of the error, none of your documents. You pick the app to send it with.</string>
+    <string name="close">Close</string>
 </resources>

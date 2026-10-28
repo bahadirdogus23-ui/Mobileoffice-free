@@ -68,4 +68,10 @@
         <item quantity="one">%1$d dosya</item>
         <item quantity="other">%1$d dosya</item>
     </plurals>
+    <string name="diagnostics">Ölçümler</string>
+    <string name="diagnostics_hint">Telefonun, uygulamanın boyutu, bellek ve bu oturumda açılan dosyaların süreleri. Geliştiricilere iletmek için “Paylaş”a dokun; uygulama internete hiç bağlanmaz.</string>
+    <string name="refresh">Yenile</string>
+    <string name="crash_title">Uygulama beklenmedik şekilde kapandı</string>
+    <string name="crash_body">Bunun için özür dileriz. Hata raporunu geliştiricilere iletmek ister misin? Rapor yalnızca telefon modelini, Android sürümünü ve hatanın teknik ayrıntısını içerir; belgelerinin içeriği yoktur. Göndermek için kullanacağın uygulamayı sen seçersin.</string>
+    <string name="close">Kapat</string>
 </resources>

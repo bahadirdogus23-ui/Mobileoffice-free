@@ -3,6 +3,7 @@ package org.mobileofficefree.app
 import android.app.Application
 import android.graphics.Bitmap
 import android.net.Uri
+import android.os.SystemClock
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
@@ -63,6 +64,7 @@ class CadViewModel(app: Application) : AndroidViewModel(app) {
     fun open(uri: Uri) {
         val resolver = getApplication<Application>().contentResolver
         loading = true
+        val started = SystemClock.elapsedRealtime()
         viewModelScope.launch {
             val result = withContext(engine) {
                 runCatching {
@@ -71,6 +73,7 @@ class CadViewModel(app: Application) : AndroidViewModel(app) {
                     val info = FileInfo.of(resolver, uri)
                     val bytes = resolver.openInputStream(uri)?.use { it.readBytes() } ?: error("no data")
                     val next = CadDocument.open(info.typedName, bytes)
+                    Diagnostics.record("CAD ${info.typedName.substringAfterLast('.')} açma (${sizeLabel(info.size)})", started)
                     doc = next
                     recents.remember(uri, info.name, DocumentKind.CAD, info.size)
                     CadUiState(uri, info.name, next.spaceNames(), 0, next.layers(), dark = true, notes = next.notes())
