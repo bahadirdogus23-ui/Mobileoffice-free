@@ -191,11 +191,14 @@ abstract class PagedViewModel(app: Application, private val kind: DocumentKind) 
     }
 
     private companion object {
-        /** A twelfth of the phone's RAM, between 64 and 384 MB. */
+        /**
+         * A 24th of the phone's RAM, between 48 and 256 MB: on an 11 GB phone a twelfth (384 MB)
+         * pushed the app to 470 MB while scrolling a long PDF, more than reading needs.
+         */
         fun cacheBytes(app: Application): Int {
             val am = app.getSystemService(android.app.ActivityManager::class.java)
             val ram = android.app.ActivityManager.MemoryInfo().also { am?.getMemoryInfo(it) }.totalMem
-            return (ram / 12).coerceIn(64L shl 20, 384L shl 20).toInt()
+            return (ram / 24).coerceIn(48L shl 20, 256L shl 20).toInt()
         }
     }
 }
