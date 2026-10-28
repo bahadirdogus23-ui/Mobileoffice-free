@@ -3,6 +3,30 @@
 version = 4
 
 [[package]]
+name = "acadrust"
+version = "0.6.8"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "eb201e11e1c75584e4deefc2b30afb83e2f34d16338733439d38664cb9599929"
+dependencies = [
+ "anyhow",
+ "bitflags 2.13.2",
+ "byteorder",
+ "encoding_rs",
+ "flate2",
+ "foldhash",
+ "indexmap",
+ "itoa",
+ "memmap2",
+ "nom",
+ "oem_cp",
+ "once_cell",
+ "rayon",
+ "ryu",
+ "thiserror",
+ "web-time",
+]
+
+[[package]]
 name = "adler2"
 version = "2.0.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -223,6 +247,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "byteorder"
+version = "1.5.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "1fd0f2584146f6f2ef48085050886acf353beff7305ebd1ae69500e27c67f64b"
+
+[[package]]
 name = "byteorder-lite"
 version = "0.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -233,6 +263,97 @@ name = "bytes"
 version = "1.12.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "fc652a48c352aef3ea3aed32080501cf3ef6ed5da78602a020c991775b0aff04"
+
+[[package]]
+name = "cadcraft-color"
+version = "0.13.0"
+source = "git+https://github.com/storytold/cadcraft?rev=56542407292b911ad30523cfcfa987923fe2f8e2#56542407292b911ad30523cfcfa987923fe2f8e2"
+dependencies = [
+ "serde",
+]
+
+[[package]]
+name = "cadcraft-doc"
+version = "0.13.0"
+source = "git+https://github.com/storytold/cadcraft?rev=56542407292b911ad30523cfcfa987923fe2f8e2#56542407292b911ad30523cfcfa987923fe2f8e2"
+dependencies = [
+ "cadcraft-color",
+ "cadcraft-geom",
+ "serde",
+ "serde_json",
+ "thiserror",
+]
+
+[[package]]
+name = "cadcraft-dwg"
+version = "0.13.0"
+source = "git+https://github.com/storytold/cadcraft?rev=56542407292b911ad30523cfcfa987923fe2f8e2#56542407292b911ad30523cfcfa987923fe2f8e2"
+dependencies = [
+ "acadrust",
+]
+
+[[package]]
+name = "cadcraft-dxf"
+version = "0.13.0"
+source = "git+https://github.com/storytold/cadcraft?rev=56542407292b911ad30523cfcfa987923fe2f8e2#56542407292b911ad30523cfcfa987923fe2f8e2"
+dependencies = [
+ "encoding_rs",
+ "log",
+ "thiserror",
+]
+
+[[package]]
+name = "cadcraft-fonts"
+version = "0.13.0"
+source = "git+https://github.com/storytold/cadcraft?rev=56542407292b911ad30523cfcfa987923fe2f8e2#56542407292b911ad30523cfcfa987923fe2f8e2"
+dependencies = [
+ "cadcraft-geom",
+ "harfrust 0.14.0",
+ "skrifa 0.48.0",
+ "unicode-bidi",
+]
+
+[[package]]
+name = "cadcraft-geom"
+version = "0.13.0"
+source = "git+https://github.com/storytold/cadcraft?rev=56542407292b911ad30523cfcfa987923fe2f8e2#56542407292b911ad30523cfcfa987923fe2f8e2"
+dependencies = [
+ "serde",
+]
+
+[[package]]
+name = "cadcraft-io"
+version = "0.13.0"
+source = "git+https://github.com/storytold/cadcraft?rev=56542407292b911ad30523cfcfa987923fe2f8e2#56542407292b911ad30523cfcfa987923fe2f8e2"
+dependencies = [
+ "cadcraft-color",
+ "cadcraft-doc",
+ "cadcraft-dwg",
+ "cadcraft-dxf",
+ "cadcraft-fonts",
+ "cadcraft-geom",
+ "cadcraft-render",
+ "craft-pdf",
+ "miniz_oxide 0.9.1",
+ "quick-xml 0.42.0",
+ "serde",
+ "serde_json",
+ "thiserror",
+]
+
+[[package]]
+name = "cadcraft-render"
+version = "0.13.0"
+source = "git+https://github.com/storytold/cadcraft?rev=56542407292b911ad30523cfcfa987923fe2f8e2#56542407292b911ad30523cfcfa987923fe2f8e2"
+dependencies = [
+ "cadcraft-color",
+ "cadcraft-doc",
+ "cadcraft-fonts",
+ "cadcraft-geom",
+ "lyon_tessellation",
+ "rayon",
+ "tiny-skia",
+]
 
 [[package]]
 name = "camino"
@@ -579,7 +700,7 @@ version = "0.11.1"
 source = "git+https://github.com/storytold/deckcraft?rev=55e5ee56b4b2c64973b78fda4182a78f9766fa62#55e5ee56b4b2c64973b78fda4182a78f9766fa62"
 dependencies = [
  "epaint_default_fonts",
- "harfrust",
+ "harfrust 0.13.3",
  "kurbo",
  "log",
  "skrifa 0.47.0",
@@ -721,7 +842,7 @@ dependencies = [
  "deckcraft-geom",
  "deckcraft-model",
  "log",
- "quick-xml",
+ "quick-xml 0.41.0",
  "thiserror",
  "zip",
 ]
@@ -903,6 +1024,12 @@ checksum = "98de4bbd547a563b716d8dfa9aad1cb19bfab00f4fa09a6a4ed21dbcf44ce9c4"
 dependencies = [
  "num-traits",
 ]
+
+[[package]]
+name = "float_next_after"
+version = "1.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "8bf7cc16383c4b8d58b9905a8509f02926ce3058053c056376248d958c9df1e8"
 
 [[package]]
 name = "fnv"
@@ -1146,7 +1273,7 @@ dependencies = [
  "gridcraft-core",
  "gridcraft-formula",
  "gridcraft-model",
- "quick-xml",
+ "quick-xml 0.41.0",
  "sha1",
  "sha2",
  "thiserror",
@@ -1183,6 +1310,18 @@ dependencies = [
  "bytemuck",
  "once_cell",
  "read-fonts 0.43.3",
+ "smallvec",
+]
+
+[[package]]
+name = "harfrust"
+version = "0.14.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "86aa776d6d32b072119e1f1650f4db843ff4382a4aaa6a2c9c4e35703cd377cb"
+dependencies = [
+ "bitflags 2.13.2",
+ "bytemuck",
+ "read-fonts 0.45.1",
  "smallvec",
 ]
 
@@ -1436,10 +1575,51 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f9f8bd3e56ce4dfc153cf470fffbfa98c7620958b312ca5c3a4b8d5181fd13c6"
 
 [[package]]
+name = "lyon_geom"
+version = "1.0.20"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d82dd26aa4dc0b5b70b9115de59824842bcb43cf4a28e1b1e6d0ad148c93f93e"
+dependencies = [
+ "arrayvec",
+ "euclid",
+ "num-traits",
+]
+
+[[package]]
+name = "lyon_path"
+version = "1.0.19"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "5c463f9c428b7fc5ec885dcd39ce4aa61e29111d0e33483f6f98c74e89d8621e"
+dependencies = [
+ "lyon_geom",
+ "num-traits",
+]
+
+[[package]]
+name = "lyon_tessellation"
+version = "1.0.23"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "fd4872650e70dc907dd4f7ebc449d7d657a0d2658e423b2e724970870bbbf75b"
+dependencies = [
+ "float_next_after",
+ "lyon_path",
+ "num-traits",
+]
+
+[[package]]
 name = "memchr"
 version = "2.8.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "cf8baf1c55e62ffcace7a9f06f4bd9cd3f0c4beb022d3b367256b91b87513d98"
+
+[[package]]
+name = "memmap2"
+version = "0.9.12"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "6b0ca1155a9ecc25aa12e8313a119f32edf0255fea2f44839c4ac0a12b2ac157"
+dependencies = [
+ "libc",
+]
 
 [[package]]
 name = "minimal-lexical"
@@ -1468,6 +1648,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "mo-cad"
+version = "0.1.0"
+dependencies = [
+ "cadcraft-color",
+ "cadcraft-doc",
+ "cadcraft-geom",
+ "cadcraft-io",
+ "cadcraft-render",
+ "thiserror",
+]
+
+[[package]]
 name = "mo-deck"
 version = "0.1.0"
 dependencies = [
@@ -1482,6 +1674,7 @@ dependencies = [
 name = "mo-ffi"
 version = "0.1.0"
 dependencies = [
+ "mo-cad",
  "mo-deck",
  "mo-grid",
  "mo-word",
@@ -1544,6 +1737,16 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "071dfc062690e90b734c0b2273ce72ad0ffa95f0c74596bc250dcfd960262841"
 dependencies = [
  "autocfg",
+ "libm",
+]
+
+[[package]]
+name = "oem_cp"
+version = "2.1.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "8c7959d3349f484aec36462f98226983578bf7d33f9b034c32967489c7000e1f"
+dependencies = [
+ "phf",
 ]
 
 [[package]]
@@ -1591,6 +1794,24 @@ name = "percent-encoding"
 version = "2.3.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "9b4f627cb1b25917193a259e49bdad08f671f8d9708acfd5fe0a8c1455d87220"
+
+[[package]]
+name = "phf"
+version = "0.11.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "1fd6780a80ae0c52cc120a26a1a42c1ae51b247a253e4e06113d23d2c2edd078"
+dependencies = [
+ "phf_shared",
+]
+
+[[package]]
+name = "phf_shared"
+version = "0.11.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "67eabc2ef2a60eb7faa00097bd1ffdb5bd28e62bf39990626a582201b7a754e5"
+dependencies = [
+ "siphasher",
+]
 
 [[package]]
 name = "pin-project-lite"
@@ -1652,6 +1873,15 @@ name = "quick-xml"
 version = "0.41.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e660451e55124f798a69a5af3f49ccfbefbd41910eefd25caf2393e1f3473ec1"
+dependencies = [
+ "memchr",
+]
+
+[[package]]
+name = "quick-xml"
+version = "0.42.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "41b1177fdf999d2321d3fb46ff47159d9c1fb9ad66a4879f8c50a0b504615e9b"
 dependencies = [
  "memchr",
 ]
@@ -1738,6 +1968,19 @@ dependencies = [
  "bytemuck",
  "font-types 0.12.7",
  "once_cell",
+]
+
+[[package]]
+name = "read-fonts"
+version = "0.45.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "4edc8db0d972de88e53a085b1f01fb3fbdae7bb0cb7a0ce2b2f8285a412fe3ef"
+dependencies = [
+ "bytemuck",
+ "foldhash",
+ "font-types 0.12.7",
+ "once_cell",
+ "yoke",
 ]
 
 [[package]]
@@ -1980,6 +2223,16 @@ checksum = "526e654b303ff4ad73a5a40b25de2b3ce3d039c5e3b6da5f89ae6e57004cb40f"
 dependencies = [
  "bytemuck",
  "read-fonts 0.44.0",
+]
+
+[[package]]
+name = "skrifa"
+version = "0.48.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "a5213b4825bac3587046330052d61bfac7bd3bd0d203c758d7c2ef726fcea034"
+dependencies = [
+ "bytemuck",
+ "read-fonts 0.45.1",
 ]
 
 [[package]]
@@ -2331,6 +2584,21 @@ dependencies = [
  "quick-error",
  "weezl",
  "zune-jpeg",
+]
+
+[[package]]
+name = "tiny-skia"
+version = "0.12.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "47ffee5eaaf5527f630fb0e356b90ebdec84d5d18d937c5e440350f88c5a91ea"
+dependencies = [
+ "arrayref",
+ "arrayvec",
+ "bytemuck",
+ "cfg-if",
+ "log",
+ "png",
+ "tiny-skia-path",
 ]
 
 [[package]]
@@ -2842,7 +3110,7 @@ dependencies = [
  "getrandom 0.3.4",
  "hmac",
  "log",
- "quick-xml",
+ "quick-xml 0.41.0",
  "sha1",
  "sha2",
  "thiserror",
@@ -2888,7 +3156,7 @@ version = "0.11.0"
 source = "git+https://github.com/storytold/wordcraft?rev=c4fafc215490a0186ee750454b1ce73a9823daed#c4fafc215490a0186ee750454b1ce73a9823daed"
 dependencies = [
  "brotli-decompressor",
- "harfrust",
+ "harfrust 0.13.3",
  "kurbo",
  "log",
  "skrifa 0.47.0",
@@ -2909,7 +3177,7 @@ dependencies = [
  "image",
  "js-sys",
  "log",
- "quick-xml",
+ "quick-xml 0.41.0",
  "wordcraft-doc",
  "wordcraft-geom",
  "zip",

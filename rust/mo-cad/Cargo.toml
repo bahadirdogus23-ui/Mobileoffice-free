@@ -1,0 +1,17 @@
+[package]
+name = "mo-cad"
+description = "MobileOffice CAD viewing bridge over the CADCraft engine (DWG/DXF, view only)"
+version = "0.1.0"
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+publish = false
+
+[dependencies]
+cadcraft-io = { workspace = true }
+cadcraft-render = { workspace = true }
+cadcraft-doc = { workspace = true }
+cadcraft-geom = { workspace = true }
+cadcraft-color = { workspace = true }
+thiserror = { workspace = true }

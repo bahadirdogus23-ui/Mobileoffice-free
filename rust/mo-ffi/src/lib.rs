@@ -7,6 +7,7 @@
 
 use std::sync::{Mutex, MutexGuard};
 
+use mo_cad::{CadDoc, CadError};
 use mo_deck::{DeckDoc, DeckError};
 use mo_grid::{GridDoc, GridError};
 use mo_word::{WordDoc, WordError};
@@ -51,6 +52,15 @@ impl From<DeckError> for MoError {
         match e {
             DeckError::Open(m) => MoError::Open(m),
             e @ DeckError::NoSlide(_) => MoError::NotFound(e.to_string()),
+        }
+    }
+}
+
+impl From<CadError> for MoError {
+    fn from(e: CadError) -> MoError {
+        match e {
+            CadError::Open(m) => MoError::Open(m),
+            e => MoError::NotFound(e.to_string()),
         }
     }
 }
@@ -249,5 +259,81 @@ impl SlidesDocument {
     /// A `width`×`height` tile whose corner is pixel `(x, y)` of the slide drawn at `scale`.
     pub fn render_tile(&self, slide: u32, scale: f32, x: f32, y: f32, width: u32, height: u32) -> Result<Raster, MoError> {
         Ok(self.doc.render_tile(slide, scale, x, y, width, height)?.into())
+    }
+}
+
+/// A CAD layer for the layer panel; `color` is 0xRRGGBB.
+#[derive(uniffi::Record)]
+pub struct CadLayer {
+    pub name: String,
+    pub visible: bool,
+    pub color: u32,
+}
+
+/// A rectangle in drawing units.
+#[derive(uniffi::Record)]
+pub struct CadExtents {
+    pub min_x: f64,
+    pub min_y: f64,
+    pub max_x: f64,
+    pub max_y: f64,
+}
+
+/// A DXF or DWG drawing open in the CADCraft viewer (view only).
+#[derive(uniffi::Object)]
+pub struct CadDocument {
+    doc: Mutex<CadDoc>,
+}
+
+impl CadDocument {
+    fn doc(&self) -> MutexGuard<'_, CadDoc> {
+        self.doc.lock().unwrap_or_else(std::sync::PoisonError::into_inner)
+    }
+}
+
+#[uniffi::export]
+impl CadDocument {
+    /// Opens DXF (R12–2018) or DWG (R13–2018) bytes; `name` is the file name.
+    #[uniffi::constructor]
+    pub fn open(name: String, bytes: Vec<u8>) -> Result<Self, MoError> {
+        Ok(CadDocument { doc: Mutex::new(CadDoc::open(&name, &bytes)?) })
+    }
+
+    /// What reading the file could not keep.
+    pub fn notes(&self) -> Vec<String> {
+        self.doc().notes()
+    }
+
+    /// "Model", then the paper-space layouts in tab order.
+    pub fn space_names(&self) -> Vec<String> {
+        self.doc().space_names()
+    }
+
+    pub fn layers(&self) -> Vec<CadLayer> {
+        self.doc()
+            .layers()
+            .into_iter()
+            .map(|l| CadLayer {
+                name: l.name,
+                visible: l.visible,
+                color: (u32::from(l.color.0) << 16) | (u32::from(l.color.1) << 8) | u32::from(l.color.2),
+            })
+            .collect()
+    }
+
+    pub fn set_layer_visible(&self, name: String, visible: bool) -> Result<(), MoError> {
+        Ok(self.doc().set_layer_visible(&name, visible)?)
+    }
+
+    pub fn extents(&self, space: u32) -> Result<CadExtents, MoError> {
+        let e = self.doc().extents(space)?;
+        Ok(CadExtents { min_x: e.min_x, min_y: e.min_y, max_x: e.max_x, max_y: e.max_y })
+    }
+
+    /// Draws a `width`×`height` view centred on (`center_x`, `center_y`) at `scale` pixels per unit.
+    #[allow(clippy::too_many_arguments)]
+    pub fn render(&self, space: u32, center_x: f64, center_y: f64, scale: f64, width: u32, height: u32, dark: bool) -> Result<Raster, MoError> {
+        let r = self.doc().render(space, center_x, center_y, scale, width, height, dark)?;
+        Ok(Raster { width: r.width, height: r.height, pixels: r.pixels })
     }
 }

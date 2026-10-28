@@ -33,4 +33,7 @@
     <string name="all_files_title">Telefondaki tüm belgeleri göster</string>
     <string name="all_files_body">Telefonundaki bütün Word, Excel, PowerPoint ve PDF dosyalarını listelemek için “Tüm dosyalara erişim” iznini ver. Uygulamanın internet izni yok: dosyaların cihazından hiç çıkmaz.</string>
     <string name="all_files_button">İzin ver</string>
+    <string name="cad_layers">Katmanlar</string>
+    <string name="cad_dark_sheet">Koyu zemin</string>
+    <string name="cad_white_sheet">Beyaz zemin</string>
 </resources>

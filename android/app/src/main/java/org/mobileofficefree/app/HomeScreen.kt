@@ -80,6 +80,7 @@ fun DocumentKind.color(): Color = when (this) {
     DocumentKind.SHEET -> Color(0xFF1E8E4E)
     DocumentKind.SLIDES -> Color(0xFFD0581F)
     DocumentKind.PDF -> Color(0xFFD03A35)
+    DocumentKind.CAD -> Color(0xFF0E8FA8)
     DocumentKind.OTHER -> Color(0xFF6B7280)
 }
 
@@ -88,6 +89,7 @@ private fun DocumentKind.badge(): String = when (this) {
     DocumentKind.SHEET -> "X"
     DocumentKind.SLIDES -> "P"
     DocumentKind.PDF -> "PDF"
+    DocumentKind.CAD -> "DWG"
     DocumentKind.OTHER -> "?"
 }
 

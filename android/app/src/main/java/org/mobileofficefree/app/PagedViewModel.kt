@@ -11,6 +11,7 @@ import androidx.compose.runtime.setValue
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import kotlinx.coroutines.CoroutineDispatcher
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.launch
@@ -130,7 +131,8 @@ abstract class PagedViewModel(app: Application, private val kind: DocumentKind) 
 
     override fun onCleared() {
         // The engine thread may be busy; release on it so a render in progress finishes first.
-        viewModelScope.launch(engine) { release() }
+        // viewModelScope is already cancelled here, so this runs in a scope of its own.
+        CoroutineScope(engine).launch { release() }
     }
 
     private companion object {

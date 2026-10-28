@@ -34,4 +34,7 @@
     <string name="all_files_title">Show all documents on this phone</string>
     <string name="all_files_body">To list every Word, Excel, PowerPoint and PDF file on your phone, allow “All files access”. The app has no internet permission: your files never leave your device.</string>
     <string name="all_files_button">Allow access</string>
+    <string name="cad_layers">Layers</string>
+    <string name="cad_dark_sheet">Dark sheet</string>
+    <string name="cad_white_sheet">White sheet</string>
 </resources>

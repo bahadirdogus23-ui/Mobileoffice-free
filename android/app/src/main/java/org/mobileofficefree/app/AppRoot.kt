@@ -31,11 +31,12 @@ import java.util.Locale
 
 /** Routes between the home screen and the open document, and shows one-shot messages. */
 @Composable
-fun AppRoot(sheet: SheetViewModel, word: WordViewModel, pdf: PdfViewModel, slides: SlidesViewModel, openRequest: Uri?, onOpenHandled: () -> Unit) {
+fun AppRoot(sheet: SheetViewModel, word: WordViewModel, pdf: PdfViewModel, slides: SlidesViewModel, cad: CadViewModel, openRequest: Uri?, onOpenHandled: () -> Unit) {
     val context = LocalContext.current
     val resources = LocalResources.current
     val snackbar = remember { SnackbarHostState() }
     var notice by remember { mutableStateOf<String?>(null) }
+    var cadNotesSeen by remember(cad.state?.uri) { mutableStateOf(false) }
 
     val openAny: (Uri) -> Unit = { uri ->
         val info = runCatching { FileInfo.of(context.contentResolver, uri) }.getOrNull()
@@ -43,6 +44,7 @@ fun AppRoot(sheet: SheetViewModel, word: WordViewModel, pdf: PdfViewModel, slide
             DocumentKind.WORD -> word.open(uri)
             DocumentKind.SHEET -> sheet.open(uri)
             DocumentKind.PDF -> pdf.open(uri)
+            DocumentKind.CAD -> cad.open(uri)
             // DeckCraft reads PPTX/PPSX/POTX; legacy .ppt and .odp come with phase 4 (plan §6).
             DocumentKind.SLIDES -> if (info.name.substringAfterLast('.').lowercase(Locale.ROOT) in setOf("pptx", "ppsx", "potx")) {
                 slides.open(uri)
@@ -73,6 +75,12 @@ fun AppRoot(sheet: SheetViewModel, word: WordViewModel, pdf: PdfViewModel, slide
             }
         }
     }
+    LaunchedEffect(cad.error) {
+        cad.error?.let {
+            snackbar.showSnackbar(resources.getString(R.string.open_failed, it))
+            cad.consumeError()
+        }
+    }
     LaunchedEffect(notice) {
         notice?.let {
             snackbar.showSnackbar(it)
@@ -86,17 +94,27 @@ fun AppRoot(sheet: SheetViewModel, word: WordViewModel, pdf: PdfViewModel, slide
             val wordState = word.state
             val pdfState = pdf.state
             val slidesState = slides.state
+            val cadState = cad.state
             when {
-                word.loading || pdf.loading || slides.loading || sheetScreen == Screen.Loading -> Loading()
+                word.loading || pdf.loading || slides.loading || cad.loading || sheetScreen == Screen.Loading -> Loading()
                 wordState != null -> PagedScreen(word, wordState)
                 pdfState != null -> PagedScreen(pdf, pdfState)
                 slidesState != null -> PagedScreen(slides, slidesState)
+                cadState != null -> CadScreen(cad, cadState)
                 sheetScreen is Screen.Sheet -> SheetScreen(sheet, sheetScreen.state)
                 else -> HomeScreen(onOpen = openAny, onNewSheet = sheet::newBlank, engineVersion = sheet.engineVersion)
             }
         }
     }
 
+    cad.state?.notes?.takeIf { it.isNotEmpty() && !cadNotesSeen }?.let { notes ->
+        AlertDialog(
+            onDismissRequest = { cadNotesSeen = true },
+            confirmButton = { TextButton(onClick = { cadNotesSeen = true }) { Text(stringResource(R.string.ok)) } },
+            title = { Text(stringResource(R.string.import_notes)) },
+            text = { Text(notes.take(5).joinToString("\n\n")) },
+        )
+    }
     if (sheet.importNotes.isNotEmpty()) {
         AlertDialog(
             onDismissRequest = sheet::dismissImportNotes,

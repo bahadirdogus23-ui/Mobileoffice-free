@@ -40,6 +40,10 @@ enum class DocumentKind(val extensions: Set<String>, val mimeTypes: Set<String>)
         ),
     ),
     PDF(setOf("pdf"), setOf("application/pdf")),
+    CAD(
+        setOf("dwg", "dxf"),
+        setOf("image/vnd.dwg", "application/acad", "application/x-dwg", "image/vnd.dxf", "application/dxf"),
+    ),
     OTHER(emptySet(), emptySet());
 
     companion object {
@@ -52,6 +56,6 @@ enum class DocumentKind(val extensions: Set<String>, val mimeTypes: Set<String>)
 
         /** Everything the picker offers today. */
         val openableTypes: Array<String> =
-            (WORD.mimeTypes + SHEET.mimeTypes + PDF.mimeTypes + SLIDES.mimeTypes + "text/plain").toTypedArray()
+            (WORD.mimeTypes + SHEET.mimeTypes + PDF.mimeTypes + SLIDES.mimeTypes + CAD.mimeTypes + "text/plain" + "application/octet-stream").toTypedArray()
     }
 }
