@@ -17,17 +17,17 @@ class ReadingSettings(context: Context) {
     var volumeKeys by mutableStateOf(prefs.getBoolean(VOLUME_KEYS, false))
         private set
 
-    fun setNight(on: Boolean) {
+    fun updateNight(on: Boolean) {
         night = on
         prefs.edit { putBoolean(NIGHT, on) }
     }
 
-    fun setKeepScreenOn(on: Boolean) {
+    fun updateKeepScreenOn(on: Boolean) {
         keepScreenOn = on
         prefs.edit { putBoolean(KEEP_ON, on) }
     }
 
-    fun setVolumeKeys(on: Boolean) {
+    fun updateVolumeKeys(on: Boolean) {
         volumeKeys = on
         prefs.edit { putBoolean(VOLUME_KEYS, on) }
     }

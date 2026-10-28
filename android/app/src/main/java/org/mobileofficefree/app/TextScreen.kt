@@ -165,7 +165,7 @@ fun TextScreen(vm: TextViewModel, state: TextUiState, reading: ReadingSettings) 
             TextButton(onClick = { wrap = !wrap }) {
                 Text(stringResource(if (wrap) R.string.wrap_off else R.string.wrap_on))
             }
-            TextButton(onClick = { reading.setNight(!night) }) { Text(stringResource(if (night) R.string.day_short else R.string.night_short)) }
+            TextButton(onClick = { reading.updateNight(!night) }) { Text(stringResource(if (night) R.string.day_short else R.string.night_short)) }
             TextButton(onClick = {
                 val send = Intent(Intent.ACTION_SEND)
                     .setType(context.contentResolver.getType(state.uri) ?: "text/plain")
