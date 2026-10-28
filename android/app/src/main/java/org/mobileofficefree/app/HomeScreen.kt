@@ -84,10 +84,11 @@ fun DocumentKind.color(): Color = when (this) {
     DocumentKind.CAD -> Color(0xFF0E8FA8)
     DocumentKind.IMAGE -> Color(0xFF8E44AD)
     DocumentKind.TEXT -> Color(0xFF546E7A)
+    DocumentKind.ARCHIVE -> Color(0xFF8D6E63)
     DocumentKind.OTHER -> Color(0xFF6B7280)
 }
 
-private fun DocumentKind.badge(): String = when (this) {
+internal fun DocumentKind.badge(): String = when (this) {
     DocumentKind.WORD -> "W"
     DocumentKind.SHEET -> "X"
     DocumentKind.SLIDES -> "P"
@@ -95,6 +96,7 @@ private fun DocumentKind.badge(): String = when (this) {
     DocumentKind.CAD -> "DWG"
     DocumentKind.IMAGE -> "IMG"
     DocumentKind.TEXT -> "TXT"
+    DocumentKind.ARCHIVE -> "ZIP"
     DocumentKind.OTHER -> "?"
 }
 
@@ -120,6 +122,14 @@ fun HomeScreen(onOpen: (Uri) -> Unit, onNewSheet: () -> Unit, engineVersion: Str
     var tab by rememberSaveable { mutableIntStateOf(0) }
     var source by rememberSaveable { mutableIntStateOf(0) } // 0: all documents, 1: recently opened
     var query by rememberSaveable { mutableStateOf("") }
+    val folderAccess = remember { FolderAccess(context) }
+    var folders by remember { mutableStateOf(folderAccess.all()) }
+    val pickFolder = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocumentTree()) { tree ->
+        if (tree != null) {
+            folderAccess.add(tree)
+            folders = folderAccess.all()
+        }
+    }
     val pick = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
         if (uri != null) onOpen(uri)
     }
@@ -144,13 +154,19 @@ fun HomeScreen(onOpen: (Uri) -> Unit, onNewSheet: () -> Unit, engineVersion: Str
         refresh++
         onPauseOrDispose { }
     }
-    LaunchedEffect(access, refresh) {
-        if (access) device = withContext(Dispatchers.IO) { runCatching { DeviceFiles.scan(context) }.getOrNull() }
+    // With "All files access" the whole device is listed; without it, the folders the person picked.
+    val listsDevice = access || folders.isNotEmpty()
+    LaunchedEffect(access, folders, refresh) {
+        device = when {
+            access -> withContext(Dispatchers.IO) { runCatching { DeviceFiles.scan(context) }.getOrNull() }
+            folders.isNotEmpty() -> withContext(Dispatchers.IO) { runCatching { folderAccess.scan() }.getOrNull() }
+            else -> null
+        }
     }
 
     val current = HomeTab.entries[tab]
     val progressOf = files.associate { it.uri to it.progress }
-    val items = if (source == 0 && access) {
+    val items = if (source == 0 && listsDevice) {
         device.orEmpty().map { HomeItem(it.uri, it.name, it.kind, it.size, it.modifiedAt, progressOf[it.uri] ?: 0) }
     } else {
         files.map { HomeItem(it.uri, it.name, it.kind, it.size, it.openedAt, it.progress) }
@@ -213,7 +229,24 @@ fun HomeScreen(onOpen: (Uri) -> Unit, onNewSheet: () -> Unit, engineVersion: Str
                         Spacer(Modifier.height(4.dp))
                         Text(stringResource(R.string.all_files_body), style = MaterialTheme.typography.bodyMedium)
                         Spacer(Modifier.height(12.dp))
-                        Button(onClick = askAccess) { Text(stringResource(R.string.all_files_button)) }
+                        Row {
+                            Button(onClick = askAccess) { Text(stringResource(R.string.all_files_button)) }
+                            Spacer(Modifier.width(8.dp))
+                            OutlinedButton(onClick = { pickFolder.launch(null) }) { Text(stringResource(R.string.pick_folder)) }
+                        }
+                        for (tree in folders) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Text(
+                                    stringResource(R.string.folder_label, folderAccess.label(tree)),
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    modifier = Modifier.weight(1f),
+                                )
+                                IconButton(onClick = {
+                                    folderAccess.remove(tree)
+                                    folders = folderAccess.all()
+                                }) { Text("✕") }
+                            }
+                        }
                     }
                 }
             }
@@ -229,7 +262,7 @@ fun HomeScreen(onOpen: (Uri) -> Unit, onNewSheet: () -> Unit, engineVersion: Str
                     textAlign = TextAlign.Center,
                     modifier = Modifier.fillMaxWidth().padding(32.dp),
                 )
-            } else if (shown.isEmpty() && !(source == 0 && access && device == null)) {
+            } else if (shown.isEmpty() && !(source == 0 && listsDevice && device == null)) {
                 EmptyState(engineVersion)
             } else {
                 LazyColumn(Modifier.fillMaxSize()) {
@@ -244,7 +277,7 @@ fun HomeScreen(onOpen: (Uri) -> Unit, onNewSheet: () -> Unit, engineVersion: Str
                                     .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
                                 context.startActivity(Intent.createChooser(send, f.name))
                             },
-                            onForget = if (source == 1 || !access) {
+                            onForget = if (source == 1 || !listsDevice) {
                                 {
                                     recents.forget(f.uri)
                                     files = recents.all()
@@ -307,7 +340,7 @@ private fun DocumentRow(file: HomeItem, onOpen: () -> Unit, onShare: () -> Unit,
 }
 
 @Composable
-private fun KindBadge(text: String, color: Color, small: Boolean = false) {
+internal fun KindBadge(text: String, color: Color, small: Boolean = false) {
     val side = if (small) 26.dp else 44.dp
     Box(
         Modifier.size(side).background(color, RoundedCornerShape(if (small) 6.dp else 10.dp)),

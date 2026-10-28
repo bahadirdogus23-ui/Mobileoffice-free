@@ -43,6 +43,8 @@ class RecentFiles(context: Context) {
     }
 
     fun remember(uri: Uri, name: String, kind: DocumentKind, size: Long) {
+        // Files unpacked from an archive live in the cache only while it is open.
+        if (uri.authority == ArchiveFiles.authority(app)) return
         runCatching {
             app.contentResolver.takePersistableUriPermission(uri, Intent.FLAG_GRANT_READ_URI_PERMISSION)
         }

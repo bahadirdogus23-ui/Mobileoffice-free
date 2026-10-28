@@ -31,7 +31,7 @@ import java.util.Locale
 
 /** Routes between the home screen and the open document, and shows one-shot messages. */
 @Composable
-fun AppRoot(sheet: SheetViewModel, word: WordViewModel, pdf: PdfViewModel, slides: SlidesViewModel, cad: CadViewModel, image: ImageViewModel, text: TextViewModel, openRequest: Uri?, onOpenHandled: () -> Unit) {
+fun AppRoot(sheet: SheetViewModel, word: WordViewModel, pdf: PdfViewModel, slides: SlidesViewModel, cad: CadViewModel, image: ImageViewModel, text: TextViewModel, archive: ArchiveViewModel, openRequest: Uri?, onOpenHandled: () -> Unit) {
     val context = LocalContext.current
     val resources = LocalResources.current
     val snackbar = remember { SnackbarHostState() }
@@ -48,6 +48,7 @@ fun AppRoot(sheet: SheetViewModel, word: WordViewModel, pdf: PdfViewModel, slide
             DocumentKind.CAD -> cad.open(uri)
             DocumentKind.IMAGE -> image.open(uri)
             DocumentKind.TEXT -> text.open(uri)
+            DocumentKind.ARCHIVE -> archive.open(uri)
             // DeckCraft reads PPTX/PPSX/POTX; legacy .ppt and .odp come with phase 4 (plan §6).
             DocumentKind.SLIDES -> if (info.typedName.substringAfterLast('.').lowercase(Locale.ROOT) in setOf("pptx", "ppsx", "potx")) {
                 slides.open(uri)
@@ -90,6 +91,12 @@ fun AppRoot(sheet: SheetViewModel, word: WordViewModel, pdf: PdfViewModel, slide
             image.consumeError()
         }
     }
+    LaunchedEffect(archive.error) {
+        archive.error?.let {
+            snackbar.showSnackbar(resources.getString(R.string.open_failed, it))
+            archive.consumeError()
+        }
+    }
     LaunchedEffect(text.error) {
         text.error?.let {
             snackbar.showSnackbar(resources.getString(R.string.open_failed, it))
@@ -112,8 +119,9 @@ fun AppRoot(sheet: SheetViewModel, word: WordViewModel, pdf: PdfViewModel, slide
             val cadState = cad.state
             val imageState = image.state
             val textState = text.state
+            val archiveState = archive.state
             when {
-                word.loading || pdf.loading || slides.loading || cad.loading || image.loading || text.loading || sheetScreen == Screen.Loading -> Loading()
+                word.loading || pdf.loading || slides.loading || cad.loading || image.loading || text.loading || archive.loading || sheetScreen == Screen.Loading -> Loading()
                 wordState != null -> PagedScreen(word, wordState, reading)
                 pdfState != null -> PagedScreen(pdf, pdfState, reading)
                 slidesState != null -> PagedScreen(slides, slidesState, reading)
@@ -121,6 +129,8 @@ fun AppRoot(sheet: SheetViewModel, word: WordViewModel, pdf: PdfViewModel, slide
                 imageState != null -> ImageScreen(image, imageState)
                 textState != null -> TextScreen(text, textState, reading)
                 sheetScreen is Screen.Sheet -> SheetScreen(sheet, sheetScreen.state)
+                // Below the viewers: closing a file opened from the archive comes back to its list.
+                archiveState != null -> ArchiveScreen(archive, archiveState, onOpen = openAny)
                 else -> HomeScreen(onOpen = openAny, onNewSheet = sheet::newBlank, engineVersion = sheet.engineVersion)
             }
         }

@@ -52,6 +52,7 @@ enum class DocumentKind(val extensions: Set<String>, val mimeTypes: Set<String>)
         setOf("txt", "log", "json", "xml", "ini", "conf", "cfg", "yaml", "yml", "properties", "sql", "srt", "vtt", "nfo"),
         setOf("text/plain", "application/json", "text/xml", "application/xml", "application/x-subrip", "text/vtt"),
     ),
+    ARCHIVE(setOf("zip"), setOf("application/zip", "application/x-zip-compressed")),
     OTHER(emptySet(), emptySet());
 
     companion object {
@@ -72,6 +73,6 @@ enum class DocumentKind(val extensions: Set<String>, val mimeTypes: Set<String>)
          * configuration files to their apps; both still open from the picker and "Open with".
          */
         val listedExtensions: Set<String> =
-            WORD.extensions + SHEET.extensions + SLIDES.extensions + PDF.extensions + CAD.extensions + "txt"
+            WORD.extensions + SHEET.extensions + SLIDES.extensions + PDF.extensions + CAD.extensions + ARCHIVE.extensions + "txt"
     }
 }

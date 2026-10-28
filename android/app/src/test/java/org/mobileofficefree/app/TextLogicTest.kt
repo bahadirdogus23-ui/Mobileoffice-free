@@ -60,7 +60,7 @@ class TextLogicTest {
         assertEquals("xlsx", sniff(zip("[Content_Types].xml", "xl/workbook.xml")))
         assertEquals("pptx", sniff(zip("[Content_Types].xml", "ppt/presentation.xml")))
         assertNull(sniff("just text".toByteArray()))
-        assertNull(sniff(zip("readme.txt")))
+        assertEquals("zip", sniff(zip("readme.txt")))
         assertNull(sniff(byteArrayOf(1, 2)))
     }
 

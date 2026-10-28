@@ -67,7 +67,7 @@ data class FileInfo(val name: String, val size: Long, val mime: String?, val kin
         private fun zipKind(input: java.io.InputStream): String? {
             ZipInputStream(input).use { zip ->
                 repeat(64) {
-                    val e = zip.nextEntry ?: return null
+                    val e = zip.nextEntry ?: return "zip"
                     when {
                         e.name == "mimetype" -> return when (zip.readBytes().decodeToString().trim()) {
                             "application/vnd.oasis.opendocument.text" -> "odt"
@@ -81,7 +81,8 @@ data class FileInfo(val name: String, val size: Long, val mime: String?, val kin
                     }
                 }
             }
-            return null
+            // A ZIP of something else: show what is inside.
+            return "zip"
         }
     }
 }

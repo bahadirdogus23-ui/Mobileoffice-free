@@ -29,6 +29,7 @@ class MainActivity : ComponentActivity() {
     private val cad: CadViewModel by viewModels()
     private val image: ImageViewModel by viewModels()
     private val text: TextViewModel by viewModels()
+    private val archive: ArchiveViewModel by viewModels()
 
     /** A file handed over by "Open with"; AppRoot routes it by type, then clears it. */
     private var openRequest by mutableStateOf<Uri?>(null)
@@ -38,7 +39,7 @@ class MainActivity : ComponentActivity() {
         enableEdgeToEdge()
         if (savedInstanceState == null) handle(intent)
         setContent {
-            MobileOfficeTheme { AppRoot(sheet, word, pdf, slides, cad, image, text, openRequest, onOpenHandled = { openRequest = null }) }
+            MobileOfficeTheme { AppRoot(sheet, word, pdf, slides, cad, image, text, archive, openRequest, onOpenHandled = { openRequest = null }) }
         }
     }
 

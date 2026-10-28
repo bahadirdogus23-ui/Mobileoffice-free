@@ -31,7 +31,7 @@
     <string name="all_documents">Tüm belgeler</string>
     <string name="recently_opened">Son açılanlar</string>
     <string name="all_files_title">Telefondaki tüm belgeleri göster</string>
-    <string name="all_files_body">Telefonundaki bütün Word, Excel, PowerPoint ve PDF dosyalarını listelemek için “Tüm dosyalara erişim” iznini ver. Uygulamanın internet izni yok: dosyaların cihazından hiç çıkmaz.</string>
+    <string name="all_files_body">Telefonundaki bütün Word, Excel, PowerPoint ve PDF dosyalarını listelemek için “Tüm dosyalara erişim” iznini ver ya da yalnızca seçtiğin klasörleri listele. Uygulamanın internet izni yok: dosyaların cihazından hiç çıkmaz.</string>
     <string name="all_files_button">İzin ver</string>
     <string name="cad_layers">Katmanlar</string>
     <string name="cad_dark_sheet">Koyu zemin</string>
@@ -59,4 +59,7 @@
     <string name="text_info">%1$s · %2$d satır</string>
     <string name="text_truncated">Dosya çok büyük; ilk %1$d MB gösteriliyor.</string>
     <string name="no_search_results">“%1$s” adlı dosya bulunamadı.</string>
+    <string name="archive_info">%1$d dosya</string>
+    <string name="pick_folder">Klasör seç</string>
+    <string name="folder_label">📁 %1$s</string>
 </resources>
