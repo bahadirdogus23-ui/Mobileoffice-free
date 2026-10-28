@@ -11,6 +11,7 @@ import android.os.Environment
 import android.provider.MediaStore
 import android.provider.Settings
 import androidx.core.content.ContextCompat
+import androidx.core.net.toUri
 
 /** A document found on the device's shared storage. */
 data class DeviceFile(val uri: Uri, val name: String, val kind: DocumentKind, val size: Long, val modifiedAt: Long)
@@ -32,7 +33,7 @@ object DeviceFiles {
 
     /** Android 11+: the system screen where the person turns on "All files access" for this app. */
     fun accessSettingsIntent(context: Context): Intent =
-        Intent(Settings.ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION, Uri.parse("package:${context.packageName}"))
+        Intent(Settings.ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION, "package:${context.packageName}".toUri())
 
     fun fallbackSettingsIntent(): Intent = Intent(Settings.ACTION_MANAGE_ALL_FILES_ACCESS_PERMISSION)
 

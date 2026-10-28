@@ -3,6 +3,7 @@ package org.mobileofficefree.app
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
+import androidx.core.content.edit
 import org.json.JSONArray
 import org.json.JSONObject
 
@@ -74,7 +75,7 @@ class RecentFiles(context: Context) {
                     .put("progress", it.progress),
             )
         }
-        prefs.edit().putString(KEY, arr.toString()).apply()
+        prefs.edit { putString(KEY, arr.toString()) }
     }
 
     private companion object {

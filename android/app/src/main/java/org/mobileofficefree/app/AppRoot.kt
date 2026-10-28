@@ -24,6 +24,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 
@@ -31,6 +32,7 @@ import androidx.compose.ui.unit.dp
 @Composable
 fun AppRoot(sheet: SheetViewModel, word: WordViewModel, openRequest: Uri?, onOpenHandled: () -> Unit) {
     val context = LocalContext.current
+    val resources = LocalResources.current
     val snackbar = remember { SnackbarHostState() }
     var notice by remember { mutableStateOf<String?>(null) }
 
@@ -39,8 +41,8 @@ fun AppRoot(sheet: SheetViewModel, word: WordViewModel, openRequest: Uri?, onOpe
         when (info?.kind) {
             DocumentKind.WORD -> word.open(uri)
             DocumentKind.SHEET -> sheet.open(uri)
-            DocumentKind.PDF, DocumentKind.SLIDES -> notice = context.getString(R.string.coming_soon, info.name)
-            else -> notice = context.getString(R.string.unsupported_file)
+            DocumentKind.PDF, DocumentKind.SLIDES -> notice = resources.getString(R.string.coming_soon, info.name)
+            else -> notice = resources.getString(R.string.unsupported_file)
         }
     }
 
@@ -58,7 +60,7 @@ fun AppRoot(sheet: SheetViewModel, word: WordViewModel, openRequest: Uri?, onOpe
     }
     LaunchedEffect(word.error) {
         word.error?.let {
-            snackbar.showSnackbar(context.getString(R.string.open_failed, it))
+            snackbar.showSnackbar(resources.getString(R.string.open_failed, it))
             word.consumeError()
         }
     }

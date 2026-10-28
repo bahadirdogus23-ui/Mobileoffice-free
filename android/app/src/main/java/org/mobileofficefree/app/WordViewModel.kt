@@ -5,6 +5,7 @@ import android.graphics.Bitmap
 import android.net.Uri
 import android.util.LruCache
 import androidx.compose.runtime.getValue
+import androidx.core.graphics.createBitmap
 import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
@@ -123,7 +124,7 @@ class WordViewModel(app: Application) : AndroidViewModel(app) {
         val size = d.pageSize(index.toUInt())
         val raster = d.renderPage(index.toUInt(), widthPx / size.width)
         // The engine's premultiplied RGBA is exactly ARGB_8888's memory layout.
-        return Bitmap.createBitmap(raster.width.toInt(), raster.height.toInt(), Bitmap.Config.ARGB_8888).apply {
+        return createBitmap(raster.width.toInt(), raster.height.toInt()).apply {
             copyPixelsFromBuffer(ByteBuffer.wrap(raster.pixels))
         }
     }

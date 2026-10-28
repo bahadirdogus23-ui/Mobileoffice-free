@@ -1,8 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="app_name">MobileOffice</string>
+    <string name="app_name" translatable="false">MobileOffice</string>
     <string name="home_tagline">Open, edit and share your documents. Free, no ads, no account, no internet.</string>
-    <string name="open_spreadsheet">Open spreadsheet</string>
     <string name="new_spreadsheet">New spreadsheet</string>
     <string name="privacy_note">This app has no internet permission: your files never leave your device.</string>
     <string name="engine_version">Engine %1$s</string>
