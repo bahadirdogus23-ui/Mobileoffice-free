@@ -1,6 +1,6 @@
 [workspace]
 resolver = "3"
-members = ["mo-grid", "mo-word", "mo-ffi", "uniffi-bindgen"]
+members = ["mo-grid", "mo-word", "mo-deck", "mo-ffi", "uniffi-bindgen"]
 
 [workspace.package]
 edition = "2024"
@@ -14,12 +14,17 @@ wordcraft-engine = { git = "https://github.com/storytold/wordcraft", rev = "c4fa
 wordcraft-layout = { git = "https://github.com/storytold/wordcraft", rev = "c4fafc215490a0186ee750454b1ce73a9823daed" }
 wordcraft-render = { git = "https://github.com/storytold/wordcraft", rev = "c4fafc215490a0186ee750454b1ce73a9823daed" }
 wordcraft-doc = { git = "https://github.com/storytold/wordcraft", rev = "c4fafc215490a0186ee750454b1ce73a9823daed" }
+deckcraft-pptx = { git = "https://github.com/storytold/deckcraft", rev = "55e5ee56b4b2c64973b78fda4182a78f9766fa62" }
+deckcraft-render = { git = "https://github.com/storytold/deckcraft", rev = "55e5ee56b4b2c64973b78fda4182a78f9766fa62" }
+deckcraft-model = { git = "https://github.com/storytold/deckcraft", rev = "55e5ee56b4b2c64973b78fda4182a78f9766fa62" }
+deckcraft-engine = { git = "https://github.com/storytold/deckcraft", rev = "55e5ee56b4b2c64973b78fda4182a78f9766fa62" }
 gridcraft-engine = { git = "https://github.com/storytold/gridcraft", rev = "11bb67386c9bb19b0717e21e98adc608162ae2e5" }
 uniffi = "0.32"
 serde_json = "1"
 thiserror = "2"
 mo-grid = { path = "mo-grid" }
 mo-word = { path = "mo-word" }
+mo-deck = { path = "mo-deck" }
 
 [profile.release]
 opt-level = "s"

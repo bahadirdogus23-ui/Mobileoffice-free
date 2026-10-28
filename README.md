@@ -7,7 +7,7 @@ Android için **ücretsiz, reklamsız, hesapsız ve internetsiz** çalışan ofi
 - DWG ve DXF çizimlerini görüntüleme
 - Görsel, metin, arşiv ve e-kitap dosyalarını açma; Türkiye'ye özgü UYAP UDF ve e-Fatura XML desteği
 
-**Durum:** Faz 0 (teknik doğrulama). Çalışan parçalar: Excel/CSV görüntüleme ve basit hücre düzenleme (GridCraft), Word görüntüleme (WordCraft), PDF görüntüleme (Android PdfRenderer). Kapsamlı rapor ve proje planı: [docs/RAPOR-VE-PLAN.md](docs/RAPOR-VE-PLAN.md)
+**Durum:** Faz 0 (teknik doğrulama). Çalışan parçalar: Excel/CSV görüntüleme ve basit hücre düzenleme (GridCraft), Word görüntüleme (WordCraft), PDF görüntüleme (Android PdfRenderer), PowerPoint görüntüleme (DeckCraft). Kapsamlı rapor ve proje planı: [docs/RAPOR-VE-PLAN.md](docs/RAPOR-VE-PLAN.md)
 
 ## İlkeler
 

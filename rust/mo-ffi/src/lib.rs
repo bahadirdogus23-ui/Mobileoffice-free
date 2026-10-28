@@ -7,6 +7,7 @@
 
 use std::sync::{Mutex, MutexGuard};
 
+use mo_deck::{DeckDoc, DeckError};
 use mo_grid::{GridDoc, GridError};
 use mo_word::{WordDoc, WordError};
 
@@ -41,6 +42,15 @@ impl From<WordError> for MoError {
         match e {
             WordError::Open(m) => MoError::Open(m),
             e @ WordError::NoPage(_) => MoError::NotFound(e.to_string()),
+        }
+    }
+}
+
+impl From<DeckError> for MoError {
+    fn from(e: DeckError) -> MoError {
+        match e {
+            DeckError::Open(m) => MoError::Open(m),
+            e @ DeckError::NoSlide(_) => MoError::NotFound(e.to_string()),
         }
     }
 }
@@ -154,6 +164,12 @@ impl From<mo_word::Raster> for Raster {
     }
 }
 
+impl From<mo_deck::Raster> for Raster {
+    fn from(r: mo_deck::Raster) -> Raster {
+        Raster { width: r.width, height: r.height, pixels: r.pixels }
+    }
+}
+
 /// A word-processing document (DOCX, DOC, ODT, RTF, …) open in the WordCraft engine.
 #[derive(uniffi::Object)]
 pub struct WordDocument {
@@ -191,5 +207,47 @@ impl WordDocument {
     /// A `width`×`height` tile whose corner is pixel `(x, y)` of the page drawn at `scale`.
     pub fn render_tile(&self, page: u32, scale: f32, x: f32, y: f32, width: u32, height: u32) -> Result<Raster, MoError> {
         Ok(self.doc().render_tile(page, scale, x, y, width, height)?.into())
+    }
+}
+
+/// A presentation (PPTX, PPSX, POTX) open in the DeckCraft renderer.
+#[derive(uniffi::Object)]
+pub struct SlidesDocument {
+    doc: DeckDoc,
+}
+
+#[uniffi::export]
+impl SlidesDocument {
+    #[uniffi::constructor]
+    pub fn open(bytes: Vec<u8>) -> Result<Self, MoError> {
+        Ok(SlidesDocument { doc: DeckDoc::open(&bytes)? })
+    }
+
+    pub fn warnings(&self) -> Vec<String> {
+        self.doc.warnings().to_vec()
+    }
+
+    pub fn slide_count(&self) -> u32 {
+        self.doc.slide_count()
+    }
+
+    /// Slide size in points (the same for every slide).
+    pub fn slide_size(&self) -> PageSize {
+        let (width, height) = self.doc.slide_size();
+        PageSize { width, height }
+    }
+
+    pub fn notes(&self, slide: u32) -> Result<String, MoError> {
+        Ok(self.doc.notes(slide)?)
+    }
+
+    /// The whole slide at `scale` pixels per point.
+    pub fn render_slide(&self, slide: u32, scale: f32) -> Result<Raster, MoError> {
+        Ok(self.doc.render_slide(slide, scale)?.into())
+    }
+
+    /// A `width`×`height` tile whose corner is pixel `(x, y)` of the slide drawn at `scale`.
+    pub fn render_tile(&self, slide: u32, scale: f32, x: f32, y: f32, width: u32, height: u32) -> Result<Raster, MoError> {
+        Ok(self.doc.render_tile(slide, scale, x, y, width, height)?.into())
     }
 }

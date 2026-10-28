@@ -1,0 +1,21 @@
+[package]
+name = "mo-deck"
+description = "MobileOffice presentation bridge over the DeckCraft engine"
+version = "0.1.0"
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+publish = false
+
+[dependencies]
+# Only the PPTX reader and the slide renderer: viewing needs neither the editing engine nor the
+# audio/video codecs, so they stay out of the app.
+deckcraft-pptx = { workspace = true }
+deckcraft-render = { workspace = true }
+deckcraft-model = { workspace = true }
+thiserror = { workspace = true }
+
+[dev-dependencies]
+# The engine's built-in sample deck gives the tests a real presentation.
+deckcraft-engine = { workspace = true }

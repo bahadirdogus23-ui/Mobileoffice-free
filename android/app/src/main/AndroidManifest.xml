@@ -30,7 +30,7 @@
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
-            <!-- "Open with" for documents, spreadsheets and PDFs (more formats join as their viewers land). -->
+            <!-- "Open with" for documents, spreadsheets, presentations and PDFs (more formats join as their viewers land). -->
             <intent-filter>
                 <action android:name="android.intent.action.VIEW" />
                 <action android:name="android.intent.action.EDIT" />
@@ -53,6 +53,9 @@
                 <data android:mimeType="text/rtf" />
                 <data android:mimeType="text/markdown" />
                 <data android:mimeType="application/pdf" />
+                <data android:mimeType="application/vnd.openxmlformats-officedocument.presentationml.presentation" />
+                <data android:mimeType="application/vnd.openxmlformats-officedocument.presentationml.slideshow" />
+                <data android:mimeType="application/vnd.openxmlformats-officedocument.presentationml.template" />
             </intent-filter>
         </activity>
     </application>

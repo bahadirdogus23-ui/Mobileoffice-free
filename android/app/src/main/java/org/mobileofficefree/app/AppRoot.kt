@@ -27,10 +27,11 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
+import java.util.Locale
 
 /** Routes between the home screen and the open document, and shows one-shot messages. */
 @Composable
-fun AppRoot(sheet: SheetViewModel, word: WordViewModel, pdf: PdfViewModel, openRequest: Uri?, onOpenHandled: () -> Unit) {
+fun AppRoot(sheet: SheetViewModel, word: WordViewModel, pdf: PdfViewModel, slides: SlidesViewModel, openRequest: Uri?, onOpenHandled: () -> Unit) {
     val context = LocalContext.current
     val resources = LocalResources.current
     val snackbar = remember { SnackbarHostState() }
@@ -42,7 +43,12 @@ fun AppRoot(sheet: SheetViewModel, word: WordViewModel, pdf: PdfViewModel, openR
             DocumentKind.WORD -> word.open(uri)
             DocumentKind.SHEET -> sheet.open(uri)
             DocumentKind.PDF -> pdf.open(uri)
-            DocumentKind.SLIDES -> notice = resources.getString(R.string.coming_soon, info.name)
+            // DeckCraft reads PPTX/PPSX/POTX; legacy .ppt and .odp come with phase 4 (plan §6).
+            DocumentKind.SLIDES -> if (info.name.substringAfterLast('.').lowercase(Locale.ROOT) in setOf("pptx", "ppsx", "potx")) {
+                slides.open(uri)
+            } else {
+                notice = resources.getString(R.string.coming_soon, info.name)
+            }
             else -> notice = resources.getString(R.string.unsupported_file)
         }
     }
@@ -59,7 +65,7 @@ fun AppRoot(sheet: SheetViewModel, word: WordViewModel, pdf: PdfViewModel, openR
             sheet.consumeMessage()
         }
     }
-    for (paged in listOf(word, pdf)) {
+    for (paged in listOf(word, pdf, slides)) {
         LaunchedEffect(paged, paged.error) {
             paged.error?.let {
                 snackbar.showSnackbar(resources.getString(R.string.open_failed, it))
@@ -79,10 +85,12 @@ fun AppRoot(sheet: SheetViewModel, word: WordViewModel, pdf: PdfViewModel, openR
             val sheetScreen = sheet.screen
             val wordState = word.state
             val pdfState = pdf.state
+            val slidesState = slides.state
             when {
-                word.loading || pdf.loading || sheetScreen == Screen.Loading -> Loading()
+                word.loading || pdf.loading || slides.loading || sheetScreen == Screen.Loading -> Loading()
                 wordState != null -> PagedScreen(word, wordState)
                 pdfState != null -> PagedScreen(pdf, pdfState)
+                slidesState != null -> PagedScreen(slides, slidesState)
                 sheetScreen is Screen.Sheet -> SheetScreen(sheet, sheetScreen.state)
                 else -> HomeScreen(onOpen = openAny, onNewSheet = sheet::newBlank, engineVersion = sheet.engineVersion)
             }
