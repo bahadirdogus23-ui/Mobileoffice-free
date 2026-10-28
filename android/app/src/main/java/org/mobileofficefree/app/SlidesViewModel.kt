@@ -20,7 +20,7 @@ class SlidesViewModel(app: Application) : PagedViewModel(app, DocumentKind.SLIDE
         return List(next.slideCount().toInt()) { size.width to size.height }
     }
 
-    override fun renderPage(index: Int, widthPx: Int): Bitmap? {
+    override fun renderPage(index: Int, widthPx: Int, night: Boolean): Bitmap? {
         val d = doc ?: return null
         val raster = d.renderSlide(index.toUInt(), widthPx / d.slideSize().width)
         // The renderer's premultiplied RGBA is exactly ARGB_8888's memory layout.

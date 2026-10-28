@@ -209,14 +209,15 @@ impl WordDocument {
         Ok(PageSize { width, height })
     }
 
-    /// The whole page at `scale` pixels per point.
-    pub fn render_page(&self, page: u32, scale: f32) -> Result<Raster, MoError> {
-        Ok(self.doc().render_page(page, scale)?.into())
+    /// The whole page at `scale` pixels per point; `dark` draws it for night reading.
+    pub fn render_page(&self, page: u32, scale: f32, dark: bool) -> Result<Raster, MoError> {
+        Ok(self.doc().render_page(page, scale, dark)?.into())
     }
 
     /// A `width`×`height` tile whose corner is pixel `(x, y)` of the page drawn at `scale`.
-    pub fn render_tile(&self, page: u32, scale: f32, x: f32, y: f32, width: u32, height: u32) -> Result<Raster, MoError> {
-        Ok(self.doc().render_tile(page, scale, x, y, width, height)?.into())
+    #[allow(clippy::too_many_arguments)]
+    pub fn render_tile(&self, page: u32, scale: f32, x: f32, y: f32, width: u32, height: u32, dark: bool) -> Result<Raster, MoError> {
+        Ok(self.doc().render_tile(page, scale, x, y, width, height, dark)?.into())
     }
 }
 

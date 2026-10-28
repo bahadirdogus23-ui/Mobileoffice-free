@@ -37,4 +37,15 @@
     <string name="cad_layers">Layers</string>
     <string name="cad_dark_sheet">Dark sheet</string>
     <string name="cad_white_sheet">White sheet</string>
+    <string name="reading">Reading</string>
+    <string name="night_mode">Night mode</string>
+    <string name="night_mode_hint">Shows pages on a dark background, easy on the eyes.</string>
+    <string name="keep_screen_on">Keep screen on</string>
+    <string name="volume_keys">Turn pages with volume keys</string>
+    <string name="volume_keys_hint">Volume down: next page, volume up: previous page</string>
+    <string name="go_to_page">Go to page</string>
+    <string name="page_number_range">Page (1–%1$d)</string>
+    <string name="go">Go</string>
+    <string name="cancel">Cancel</string>
+    <string name="print">Print</string>
 </resources>

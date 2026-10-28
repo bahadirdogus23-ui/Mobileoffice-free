@@ -15,7 +15,7 @@ fn docx_lays_out_into_pages_and_renders() {
     assert!(doc.page_count() >= 2, "{}", doc.page_count());
     let (w, h) = doc.page_size(0).unwrap();
     assert!(w > 500.0 && h > 700.0, "{w}×{h}");
-    let r = doc.render_page(0, 1.0).unwrap();
+    let r = doc.render_page(0, 1.0, false).unwrap();
     assert_eq!((r.width, r.height), (w.ceil() as u32, h.ceil() as u32));
     assert_eq!(r.pixels.len(), (r.width * r.height * 4) as usize);
     assert!(ink(&r) > 1000, "page 1 has text");
@@ -24,8 +24,8 @@ fn docx_lays_out_into_pages_and_renders() {
 #[test]
 fn a_tile_matches_the_same_area_of_the_whole_page() {
     let doc = WordDoc::open("sample.docx", &sample_docx(), None).unwrap();
-    let whole = doc.render_page(0, 2.0).unwrap();
-    let tile = doc.render_tile(0, 2.0, 200.0, 300.0, 64, 48).unwrap();
+    let whole = doc.render_page(0, 2.0, false).unwrap();
+    let tile = doc.render_tile(0, 2.0, 200.0, 300.0, 64, 48, false).unwrap();
     assert_eq!((tile.width, tile.height), (64, 48));
     let mut differ = 0;
     for y in 0..48 {
@@ -43,12 +43,24 @@ fn turkish_text_renders_with_bundled_fonts() {
     let md = "# Dilekçe\n\nİstanbul Şişli Belediyesi'ne; ğüşıöç ĞÜŞİÖÇ.\n";
     let doc = WordDoc::open("dilekce.md", md.as_bytes(), None).unwrap();
     assert_eq!(doc.page_count(), 1);
-    assert!(ink(&doc.render_page(0, 1.0).unwrap()) > 200);
+    assert!(ink(&doc.render_page(0, 1.0, false).unwrap()) > 200);
 }
 
 #[test]
 fn bad_input_and_bad_pages_are_errors() {
     assert!(matches!(WordDoc::open("x.docx", b"PK\x03\x04 broken", None), Err(WordError::Open(_))));
     let doc = WordDoc::open("a.txt", b"merhaba", None).unwrap();
-    assert!(matches!(doc.render_page(5, 1.0), Err(WordError::NoPage(5))));
+    assert!(matches!(doc.render_page(5, 1.0, false), Err(WordError::NoPage(5))));
+}
+
+#[test]
+fn a_dark_page_has_dark_paper_and_light_text() {
+    let doc = WordDoc::open("a.txt", "Gece modu: ğüşıöç İĞÜŞÖÇ".as_bytes(), None).unwrap();
+    let light = doc.render_page(0, 1.0, false).unwrap();
+    let dark = doc.render_page(0, 1.0, true).unwrap();
+    let corner = |r: &Raster| r.pixels[..3].to_vec();
+    assert!(corner(&light).iter().all(|&v| v > 240), "{:?}", corner(&light));
+    assert!(corner(&dark).iter().all(|&v| v < 80), "{:?}", corner(&dark));
+    let bright = dark.pixels.as_chunks::<4>().0.iter().filter(|p| p[0] > 180 && p[1] > 180 && p[2] > 180).count();
+    assert!(bright > 50, "text turns light: {bright}");
 }

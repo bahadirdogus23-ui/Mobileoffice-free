@@ -56,21 +56,27 @@ impl WordDoc {
         Ok((p.w, p.h))
     }
 
-    /// The whole page at `scale` pixels per point.
-    pub fn render_page(&self, page: u32, scale: f32) -> Result<Raster, WordError> {
+    /// The whole page at `scale` pixels per point. A `dark` page has its colours' lightness
+    /// inverted (white paper turns dark grey, black text light) while pictures stay as they are.
+    pub fn render_page(&self, page: u32, scale: f32, dark: bool) -> Result<Raster, WordError> {
         let p = self.layout.pages.get(page as usize).ok_or(WordError::NoPage(page))?;
-        let r = render_page(&self.doc, p, scale, &RenderOptions::default());
+        let r = render_page(&self.doc, p, scale, &options(dark));
         Ok(Raster { width: r.width, height: r.height, pixels: r.pixels })
     }
 
     /// A `width`×`height` tile of the page at `scale`, whose top-left corner is pixel `(x, y)` of
     /// the whole page at that scale. Zoomed-in views draw only the tiles on screen.
-    pub fn render_tile(&self, page: u32, scale: f32, x: f32, y: f32, width: u32, height: u32) -> Result<Raster, WordError> {
+    #[allow(clippy::too_many_arguments)]
+    pub fn render_tile(&self, page: u32, scale: f32, x: f32, y: f32, width: u32, height: u32, dark: bool) -> Result<Raster, WordError> {
         let p = self.layout.pages.get(page as usize).ok_or(WordError::NoPage(page))?;
         let view = kurbo_affine(scale, x, y);
-        let r = render_region(&self.doc, p, width, height, view, &RenderOptions::default());
+        let r = render_region(&self.doc, p, width, height, view, &options(dark));
         Ok(Raster { width: r.width, height: r.height, pixels: r.pixels })
     }
+}
+
+fn options(dark: bool) -> RenderOptions {
+    RenderOptions { dark, ..RenderOptions::default() }
 }
 
 /// Page points → tile pixels: scale, then move the tile's corner to the origin.

@@ -35,6 +35,7 @@ fun AppRoot(sheet: SheetViewModel, word: WordViewModel, pdf: PdfViewModel, slide
     val context = LocalContext.current
     val resources = LocalResources.current
     val snackbar = remember { SnackbarHostState() }
+    val reading = remember { ReadingSettings(context) }
     var notice by remember { mutableStateOf<String?>(null) }
     var cadNotesSeen by remember(cad.state?.uri) { mutableStateOf(false) }
 
@@ -97,9 +98,9 @@ fun AppRoot(sheet: SheetViewModel, word: WordViewModel, pdf: PdfViewModel, slide
             val cadState = cad.state
             when {
                 word.loading || pdf.loading || slides.loading || cad.loading || sheetScreen == Screen.Loading -> Loading()
-                wordState != null -> PagedScreen(word, wordState)
-                pdfState != null -> PagedScreen(pdf, pdfState)
-                slidesState != null -> PagedScreen(slides, slidesState)
+                wordState != null -> PagedScreen(word, wordState, reading)
+                pdfState != null -> PagedScreen(pdf, pdfState, reading)
+                slidesState != null -> PagedScreen(slides, slidesState, reading)
                 cadState != null -> CadScreen(cad, cadState)
                 sheetScreen is Screen.Sheet -> SheetScreen(sheet, sheetScreen.state)
                 else -> HomeScreen(onOpen = openAny, onNewSheet = sheet::newBlank, engineVersion = sheet.engineVersion)

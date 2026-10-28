@@ -37,7 +37,9 @@ class PdfViewModel(app: Application) : PagedViewModel(app, DocumentKind.PDF) {
         }
     }
 
-    override fun renderPage(index: Int, widthPx: Int): Bitmap? {
+    override val printsOriginal = true
+
+    override fun renderPage(index: Int, widthPx: Int, night: Boolean): Bitmap? {
         val r = renderer ?: return null
         val page = r.openPage(index)
         try {

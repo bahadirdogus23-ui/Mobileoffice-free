@@ -10,9 +10,9 @@ Proje sahibinin paylaştığı ekran görüntülerinden alınacaklar ve bizim fa
 | Satırda küçük resim, ad, **tür · boyut · tarih** | Tür rozeti + tür · boyut · tarih var; sayfa küçük resmi Faz 1 |
 | **"Görüntülenen %50"** okuma ilerlemesi | Var: Word görüntüleyici kaydırma konumunu kaydediyor |
 | Satır menüsü (⋮) | Var: Paylaş, Listeden kaldır; Yıldızla, Yeniden adlandır Faz 1 |
-| Görüntüleyicide başlık + **"1/2"** sayfa sayacı | Var (Word) |
-| Alt çubuk: **Okuma · Sayfalar · Paylaş · Dönüştür · Diğer** | Paylaş var; diğerleri Faz 1 |
-| Okuma ayarları: gece modu, sayfa numarası, ekranı açık tut, döndürme kilidi, dikey/yatay kaydırma, ses tuşlarıyla sayfa çevirme | Faz 1 iş listesine alındı |
+| Görüntüleyicide başlık + **"1/2"** sayfa sayacı | Var (Word, PDF, sunum); sayaca dokununca "Sayfaya git" |
+| Alt çubuk: **Okuma · Sayfalar · Paylaş · Dönüştür · Diğer** | Okuma, Sayfaya git, Yazdır, Paylaş var; Dönüştür Faz 2 |
+| Okuma ayarları: gece modu, sayfa numarası, ekranı açık tut, döndürme kilidi, dikey/yatay kaydırma, ses tuşlarıyla sayfa çevirme | Gece modu, ekranı açık tut, ses tuşları var; iki parmakla ve çift dokunarak yakınlaştırma var; döndürme kilidi ve yatay kaydırma Faz 1 |
 | Sayfalar: sayfaya git, küçük resimler, kelime/karakter sayısı | Faz 1 (WordCraft kelime sayımı hazır) |
 | Diğer: yazdır, yıldızla, kısayol, Drive'a kaydet, sil, özellikler | Faz 1; "Drive'a kaydet" yerine sistem paylaşımı (internet izni yok) |
 

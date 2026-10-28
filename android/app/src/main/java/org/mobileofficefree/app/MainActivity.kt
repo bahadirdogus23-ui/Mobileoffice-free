@@ -4,6 +4,7 @@ import android.content.Intent
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
+import android.view.KeyEvent
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
@@ -37,6 +38,22 @@ class MainActivity : ComponentActivity() {
         setContent {
             MobileOfficeTheme { AppRoot(sheet, word, pdf, slides, cad, openRequest, onOpenHandled = { openRequest = null }) }
         }
+    }
+
+    /** Set while a viewer turns pages with the volume keys; called with +1 (next) or -1 (previous). */
+    var volumeKeyHandler: ((Int) -> Unit)? = null
+
+    override fun dispatchKeyEvent(event: KeyEvent): Boolean {
+        val handler = volumeKeyHandler
+        val step = when (event.keyCode) {
+            KeyEvent.KEYCODE_VOLUME_DOWN -> 1
+            KeyEvent.KEYCODE_VOLUME_UP -> -1
+            else -> 0
+        }
+        if (handler == null || step == 0) return super.dispatchKeyEvent(event)
+        // Consume the key-up too, so the volume does not change.
+        if (event.action == KeyEvent.ACTION_DOWN) handler(step)
+        return true
     }
 
     override fun onNewIntent(intent: Intent) {

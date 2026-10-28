@@ -19,10 +19,13 @@ class WordViewModel(app: Application) : PagedViewModel(app, DocumentKind.WORD) {
         return (0u until next.pageCount()).map { next.pageSize(it).let { s -> s.width to s.height } }
     }
 
-    override fun renderPage(index: Int, widthPx: Int): Bitmap? {
+    /** WordCraft draws real dark pages: text and shapes flip lightness, pictures keep their colours. */
+    override val drawsNight = true
+
+    override fun renderPage(index: Int, widthPx: Int, night: Boolean): Bitmap? {
         val d = doc ?: return null
         val size = d.pageSize(index.toUInt())
-        val raster = d.renderPage(index.toUInt(), widthPx / size.width)
+        val raster = d.renderPage(index.toUInt(), widthPx / size.width, night)
         // The engine's premultiplied RGBA is exactly ARGB_8888's memory layout.
         return createBitmap(raster.width.toInt(), raster.height.toInt()).apply {
             copyPixelsFromBuffer(ByteBuffer.wrap(raster.pixels))

@@ -12,12 +12,12 @@ class WordDocumentTest {
         WordDocument.open("dilekce.md", md, null).use { doc ->
             assertEquals(1u, doc.pageCount())
             val size = doc.pageSize(0u)
-            val r = doc.renderPage(0u, 0.5f)
+            val r = doc.renderPage(0u, 0.5f, false)
             assertEquals(Math.ceil(size.width * 0.5).toUInt(), r.width)
             assertEquals((r.width * r.height * 4u).toInt(), r.pixels.size)
             val dark = r.pixels.toList().chunked(4).count { (it[0].toInt() and 0xff) < 128 }
             assertTrue(dark > 50, "text drawn: $dark dark pixels")
-            assertFailsWith<MoException.NotFound> { doc.renderPage(3u, 1f) }
+            assertFailsWith<MoException.NotFound> { doc.renderPage(3u, 1f, false) }
         }
     }
 }

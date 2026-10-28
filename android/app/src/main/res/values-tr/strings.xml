@@ -36,4 +36,15 @@
     <string name="cad_layers">Katmanlar</string>
     <string name="cad_dark_sheet">Koyu zemin</string>
     <string name="cad_white_sheet">Beyaz zemin</string>
+    <string name="reading">Okuma</string>
+    <string name="night_mode">Gece modu</string>
+    <string name="night_mode_hint">Sayfaları koyu zeminde gösterir; gözü yormaz.</string>
+    <string name="keep_screen_on">Ekranı açık tut</string>
+    <string name="volume_keys">Ses tuşlarıyla sayfa çevir</string>
+    <string name="volume_keys_hint">Ses kısma: sonraki sayfa, ses açma: önceki sayfa</string>
+    <string name="go_to_page">Sayfaya git</string>
+    <string name="page_number_range">Sayfa (1–%1$d)</string>
+    <string name="go">Git</string>
+    <string name="cancel">İptal</string>
+    <string name="print">Yazdır</string>
 </resources>
