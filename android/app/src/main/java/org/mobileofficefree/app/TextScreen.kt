@@ -40,6 +40,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.SpanStyle
@@ -82,7 +83,7 @@ fun TextScreen(vm: TextViewModel, state: TextUiState, reading: ReadingSettings) 
                 Column {
                     Text(state.fileName, maxLines = 1)
                     Text(
-                        stringResource(R.string.text_info, state.encoding, state.lineCount),
+                        pluralStringResource(R.plurals.text_info, state.lineCount, state.encoding, state.lineCount),
                         style = MaterialTheme.typography.bodySmall,
                     )
                 }

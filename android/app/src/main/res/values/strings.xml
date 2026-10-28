@@ -57,10 +57,16 @@
     <string name="wrap_off">No wrap</string>
     <string name="night_short">Night</string>
     <string name="day_short">Day</string>
-    <string name="text_info">%1$s · %2$d lines</string>
     <string name="text_truncated">The file is very large; showing the first %1$d MB.</string>
     <string name="no_search_results">No file named “%1$s”.</string>
-    <string name="archive_info">%1$d files</string>
     <string name="pick_folder">Pick a folder</string>
     <string name="folder_label">📁 %1$s</string>
+    <plurals name="text_info">
+        <item quantity="one">%1$s · %2$d line</item>
+        <item quantity="other">%1$s · %2$d lines</item>
+    </plurals>
+    <plurals name="archive_info">
+        <item quantity="one">%1$d file</item>
+        <item quantity="other">%1$d files</item>
+    </plurals>
 </resources>

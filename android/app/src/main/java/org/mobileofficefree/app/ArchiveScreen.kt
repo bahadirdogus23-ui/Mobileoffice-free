@@ -25,6 +25,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -39,7 +40,7 @@ fun ArchiveScreen(vm: ArchiveViewModel, state: ArchiveUiState, onOpen: (android.
             title = {
                 Column {
                     Text(state.fileName, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                    Text(stringResource(R.string.archive_info, state.entries.size), style = MaterialTheme.typography.bodySmall)
+                    Text(pluralStringResource(R.plurals.archive_info, state.entries.size, state.entries.size), style = MaterialTheme.typography.bodySmall)
                 }
             },
             navigationIcon = {

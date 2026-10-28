@@ -46,17 +46,22 @@ class MainActivity : ComponentActivity() {
     /** Set while a viewer turns pages with the volume keys; called with +1 (next) or -1 (previous). */
     var volumeKeyHandler: ((Int) -> Unit)? = null
 
-    override fun dispatchKeyEvent(event: KeyEvent): Boolean {
+    override fun onKeyDown(keyCode: Int, event: KeyEvent): Boolean {
         val handler = volumeKeyHandler
-        val step = when (event.keyCode) {
-            KeyEvent.KEYCODE_VOLUME_DOWN -> 1
-            KeyEvent.KEYCODE_VOLUME_UP -> -1
-            else -> 0
-        }
-        if (handler == null || step == 0) return super.dispatchKeyEvent(event)
-        // Consume the key-up too, so the volume does not change.
-        if (event.action == KeyEvent.ACTION_DOWN) handler(step)
+        val step = volumeStep(keyCode)
+        if (handler == null || step == 0) return super.onKeyDown(keyCode, event)
+        handler(step)
         return true
+    }
+
+    // Consume the key-up too, so the volume does not change while pages turn.
+    override fun onKeyUp(keyCode: Int, event: KeyEvent): Boolean =
+        if (volumeKeyHandler != null && volumeStep(keyCode) != 0) true else super.onKeyUp(keyCode, event)
+
+    private fun volumeStep(keyCode: Int) = when (keyCode) {
+        KeyEvent.KEYCODE_VOLUME_DOWN -> 1
+        KeyEvent.KEYCODE_VOLUME_UP -> -1
+        else -> 0
     }
 
     override fun onNewIntent(intent: Intent) {
