@@ -72,6 +72,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import kotlin.math.roundToInt
+import kotlin.math.sqrt
 import kotlinx.coroutines.FlowPreview
 import kotlinx.coroutines.flow.debounce
 import kotlinx.coroutines.launch
@@ -199,7 +200,10 @@ fun PagedScreen(vm: PagedViewModel, state: PagedUiState, reading: ReadingSetting
                 },
         ) {
             val widthPx = constraints.maxWidth
-            val renderPx = (widthPx * zoom).roundToInt().coerceAtMost(maxOf(widthPx, MAX_RENDER_WIDTH))
+            // As sharp as the zoom asks, within MAX_RENDER_WIDTH and the memory one page may take.
+            val tallest = remember(state) { state.pages.maxOf { (w, h) -> h / w }.coerceAtLeast(0.1f) }
+            val byMemory = sqrt(vm.maxPageBytes / (4.0 * tallest)).toInt()
+            val renderPx = minOf((widthPx * zoom).roundToInt(), maxOf(widthPx, MAX_RENDER_WIDTH), byMemory)
             val heightPx = constraints.maxHeight.toFloat()
             val contentWidth = maxWidth * zoom
             Box(

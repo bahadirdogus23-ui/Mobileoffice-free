@@ -5,6 +5,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
@@ -113,7 +114,9 @@ fun AppRoot(sheet: SheetViewModel, word: WordViewModel, pdf: PdfViewModel, slide
         }
     }
 
-    Scaffold(snackbarHost = { SnackbarHost(snackbar) }) { padding ->
+    // No insets here: each screen's top bar keeps clear of the status bar and its bottom bar (or
+    // padding) of the navigation bar. Adding them here as well left empty bands at the top and bottom.
+    Scaffold(contentWindowInsets = WindowInsets(0, 0, 0, 0), snackbarHost = { SnackbarHost(snackbar) }) { padding ->
         Box(Modifier.padding(padding).fillMaxSize()) {
             val sheetScreen = sheet.screen
             val wordState = word.state

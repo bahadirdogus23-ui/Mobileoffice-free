@@ -65,7 +65,16 @@ abstract class PagedViewModel(app: Application, private val kind: DocumentKind) 
 
     /** Whether printing sends the file itself (a PDF) rather than pages drawn by [renderPage]. */
     open val printsOriginal: Boolean = false
-    private val cache = object : LruCache<Int, Bitmap>(cacheBytes()) {
+    /** Memory for page pictures. Since Android 8 bitmaps live outside the Java heap, so this follows the phone's RAM. */
+    private val cacheBudget = cacheBytes(app)
+
+    /**
+     * The largest one page picture may be: a sixth of [cacheBudget], so the pages on screen always
+     * fit together. (When they did not, they pushed each other out and the screen flickered.)
+     */
+    val maxPageBytes: Long get() = cacheBudget / 6L
+
+    private val cache = object : LruCache<Int, Bitmap>(cacheBudget) {
         override fun sizeOf(key: Int, value: Bitmap) = value.byteCount
         override fun entryRemoved(evicted: Boolean, key: Int, old: Bitmap, new: Bitmap?) {
             if (evicted) {
@@ -182,8 +191,12 @@ abstract class PagedViewModel(app: Application, private val kind: DocumentKind) 
     }
 
     private companion object {
-        /** An eighth of the heap for page pictures. */
-        fun cacheBytes(): Int = (Runtime.getRuntime().maxMemory() / 8).toInt()
+        /** A twelfth of the phone's RAM, between 64 and 384 MB. */
+        fun cacheBytes(app: Application): Int {
+            val am = app.getSystemService(android.app.ActivityManager::class.java)
+            val ram = android.app.ActivityManager.MemoryInfo().also { am?.getMemoryInfo(it) }.totalMem
+            return (ram / 12).coerceIn(64L shl 20, 384L shl 20).toInt()
+        }
     }
 }
 
