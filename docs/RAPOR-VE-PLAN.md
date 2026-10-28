@@ -799,25 +799,25 @@ Varsayım: Başlangıç Kasım 2026; 1–2 geliştirici + yapay zekâ destekli g
 
 **1. hafta: Altyapı**
 
-- [ ] Depo iskeleti (`android/`, `rust/`, `docs/`), temel CI ve `AGENTS.md`/`CLAUDE.md` kuralları
-- [ ] Rust Android hedefleri (aarch64, armv7, x86_64), cargo-ndk, NDK r28+
-- [ ] ArtCraft depolarını belirli commit'lere sabitleme (Cargo git rev)
-- [ ] En az bağımlılıklı motorla başlama: GridCraft (XLSX → hücre değerleri) + UniFFI "merhaba dünya"
+- [x] Depo iskeleti (`android/`, `rust/`, `docs/`), temel CI ve `AGENTS.md`/`CLAUDE.md` kuralları
+- [x] Rust Android hedefleri (aarch64, armv7, x86_64), cargo-ndk, NDK r28+
+- [x] ArtCraft depolarını belirli commit'lere sabitleme (Cargo git rev)
+- [x] En az bağımlılıklı motorla başlama: GridCraft (XLSX → hücre değerleri) + UniFFI "merhaba dünya"
 
 **2. hafta: Her formatta ilk görüntü**
 
-- [ ] WordCraft: DOCX sayfasını `Bitmap`'e çizme (kopyasız JNI)
-- [ ] DeckCraft: PPTX slaytını çizme (video kodekleri kapalı)
-- [ ] PDF: PDFium, Android PdfRenderer ve PdfCraft (hayro) hız/doğruluk karşılaştırması
-- [ ] CADCraft: DWG ve DXF çizim listesini ekranda çizme
+- [x] WordCraft: DOCX sayfasını `Bitmap`'e çizme (şimdilik bir kopya ile; kopyasız yol ölçümden sonra)
+- [x] DeckCraft: PPTX slaytını çizme (video kodekleri kapalı)
+- [ ] PDF: PDFium, Android PdfRenderer ve PdfCraft (hayro) hız/doğruluk karşılaştırması (görüntüleme için şimdilik PdfRenderer seçildi, ADR-0003; ölçüm cihazda yapılacak)
+- [x] CADCraft: DWG ve DXF çizim listesini ekranda çizme
 
 **3. hafta: Ölçüm ve karar**
 
 - [ ] Düşük, orta ve üst segment birer telefonda ölçüm: `.so` boyutu (ABI başına), bellek, ilk sayfa süreleri
-- [ ] 16 KB hizalama doğrulaması (PDFium hazır derlemeleri dahil)
-- [ ] Türkçe karakter testi: "ğüşıöçİĞÜŞÖÇ" render, arama ve IME
+- [x] 16 KB hizalama doğrulaması (CI her APK'da denetliyor; PDFium kullanılmadığı için ayrıca gerekmedi)
+- [ ] Türkçe karakter testi: "ğüşıöçİĞÜŞÖÇ" render, arama ve IME (render ve dosya adı/metin araması testli; IME düzenleme fazında)
 - [ ] Karar toplantısı ve ADR'ler:
-  - [ ] 0001: mimari
+  - [x] 0001: mimari
   - [ ] 0002: PDF motoru
   - [ ] 0003: süreç yalıtımı
   - [ ] 0004: lisans
