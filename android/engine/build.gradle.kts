@@ -20,6 +20,8 @@ android {
 dependencies {
     // UniFFI's Kotlin bindings call native code through JNA.
     implementation(libs.jna) { artifact { type = "aar" } }
+    // The bindings mark their API 34+ cleaner with @RequiresApi.
+    implementation(libs.androidx.annotation)
 }
 
 val nativeOutputs = listOf("src/main/jniLibs", "src/main/java/org/mobileofficefree/engine/mo_ffi.kt")

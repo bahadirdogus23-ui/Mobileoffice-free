@@ -15,5 +15,6 @@ name = "mo_ffi"
 
 [dependencies]
 mo-grid = { workspace = true }
+mo-word = { workspace = true }
 uniffi = { workspace = true }
 thiserror = { workspace = true }

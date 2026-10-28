@@ -1,3 +1,4 @@
 [bindings.kotlin]
 package_name = "org.mobileofficefree.engine"
 cdylib_name = "mo_ffi"
+android = true

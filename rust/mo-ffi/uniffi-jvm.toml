@@ -1,0 +1,4 @@
+# Override for the desktop JVM smoke test (tools/jvm-smoke): the same bindings without
+# Android-only classes (android.os.Build, androidx.annotation).
+[crates.mo_ffi.bindings.kotlin]
+android = false

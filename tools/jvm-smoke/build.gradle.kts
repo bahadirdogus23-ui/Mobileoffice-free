@@ -10,10 +10,12 @@ val nativeDir = repoRoot.resolve("rust/target/debug")
 val generateBindings by tasks.registering(Exec::class) {
     workingDir = repoRoot.resolve("rust")
     inputs.file(nativeDir.resolve("libmo_ffi.so"))
+    inputs.files(repoRoot.resolve("rust/mo-ffi/uniffi.toml"), repoRoot.resolve("rust/mo-ffi/uniffi-jvm.toml"))
     outputs.dir(bindings)
     commandLine(
         "cargo", "run", "-q", "-p", "uniffi-bindgen", "--", "generate",
         "--library", "target/debug/libmo_ffi.so", "--language", "kotlin", "--no-format",
+        "--config", "mo-ffi/uniffi-jvm.toml",
         "--out-dir", bindings.get().asFile.absolutePath,
     )
 }

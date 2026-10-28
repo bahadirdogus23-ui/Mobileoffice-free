@@ -17,4 +17,22 @@
     <string name="import_notes">Import notes</string>
     <string name="ok">OK</string>
     <string name="new_workbook_name">Book1.xlsx</string>
+    <string name="tab_home">Home</string>
+    <string name="tab_word">Word</string>
+    <string name="tab_excel">Excel</string>
+    <string name="tab_powerpoint">PowerPoint</string>
+    <string name="tab_pdf">PDF</string>
+    <string name="open_file">Open file</string>
+    <string name="coming_soon">%1$s: this format opens in an upcoming version.</string>
+    <string name="unsupported_file">This file type is not supported yet.</string>
+    <string name="viewed_percent">Viewed %1$d%%</string>
+    <string name="share">Share</string>
+    <string name="remove_from_list">Remove from list</string>
+    <string name="no_recent_files">No files yet. Tap “Open file”, or open a document from another app with “Open with”.</string>
+    <string name="page_counter">%1$d/%2$d</string>
+    <string name="all_documents">All documents</string>
+    <string name="recently_opened">Recently opened</string>
+    <string name="all_files_title">Show all documents on this phone</string>
+    <string name="all_files_body">To list every Word, Excel, PowerPoint and PDF file on your phone, allow “All files access”. The app has no internet permission: your files never leave your device.</string>
+    <string name="all_files_button">Allow access</string>
 </resources>

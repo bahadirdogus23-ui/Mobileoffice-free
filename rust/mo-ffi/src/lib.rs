@@ -8,6 +8,7 @@
 use std::sync::{Mutex, MutexGuard};
 
 use mo_grid::{GridDoc, GridError};
+use mo_word::{WordDoc, WordError};
 
 uniffi::setup_scaffolding!();
 
@@ -31,6 +32,15 @@ impl From<GridError> for MoError {
             GridError::Command(m) => MoError::Command(m),
             GridError::Save(m) => MoError::Save(m),
             e @ GridError::NoSheet(_) => MoError::NotFound(e.to_string()),
+        }
+    }
+}
+
+impl From<WordError> for MoError {
+    fn from(e: WordError) -> MoError {
+        match e {
+            WordError::Open(m) => MoError::Open(m),
+            e @ WordError::NoPage(_) => MoError::NotFound(e.to_string()),
         }
     }
 }
@@ -120,5 +130,66 @@ impl SheetDocument {
     /// Encodes the workbook as `file_name`'s extension says (.xlsx by default).
     pub fn save(&self, file_name: String) -> Result<Vec<u8>, MoError> {
         Ok(self.doc().save(&file_name)?)
+    }
+}
+
+/// Page size in points (1/72 inch).
+#[derive(uniffi::Record)]
+pub struct PageSize {
+    pub width: f32,
+    pub height: f32,
+}
+
+/// Premultiplied RGBA8 pixels, row by row: what an ARGB_8888 `Bitmap` holds in memory.
+#[derive(uniffi::Record)]
+pub struct Raster {
+    pub width: u32,
+    pub height: u32,
+    pub pixels: Vec<u8>,
+}
+
+impl From<mo_word::Raster> for Raster {
+    fn from(r: mo_word::Raster) -> Raster {
+        Raster { width: r.width, height: r.height, pixels: r.pixels }
+    }
+}
+
+/// A word-processing document (DOCX, DOC, ODT, RTF, …) open in the WordCraft engine.
+#[derive(uniffi::Object)]
+pub struct WordDocument {
+    doc: Mutex<WordDoc>,
+}
+
+impl WordDocument {
+    fn doc(&self) -> MutexGuard<'_, WordDoc> {
+        self.doc.lock().unwrap_or_else(std::sync::PoisonError::into_inner)
+    }
+}
+
+#[uniffi::export]
+impl WordDocument {
+    /// Opens DOCX/DOCM/DOTX, DOC, ODT, RTF, HTML, Markdown or text bytes.
+    #[uniffi::constructor]
+    pub fn open(name: String, bytes: Vec<u8>, password: Option<String>) -> Result<Self, MoError> {
+        Ok(WordDocument { doc: Mutex::new(WordDoc::open(&name, &bytes, password.as_deref())?) })
+    }
+
+    pub fn page_count(&self) -> u32 {
+        self.doc().page_count()
+    }
+
+    pub fn page_size(&self, page: u32) -> Result<PageSize, MoError> {
+        let (width, height) = self.doc().page_size(page)?;
+        Ok(PageSize { width, height })
+    }
+
+    /// The whole page at `scale` pixels per point.
+    pub fn render_page(&self, page: u32, scale: f32) -> Result<Raster, MoError> {
+        Ok(self.doc().render_page(page, scale)?.into())
+    }
+
+    /// A `width`×`height` tile whose corner is pixel `(x, y)` of the page drawn at `scale`.
+    pub fn render_tile(&self, page: u32, scale: f32, x: f32, y: f32, width: u32, height: u32) -> Result<Raster, MoError> {
+        Ok(self.doc().render_tile(page, scale, x, y, width, height)?.into())
     }
 }

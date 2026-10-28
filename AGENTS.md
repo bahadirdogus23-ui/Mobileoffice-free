@@ -14,7 +14,8 @@ User-facing text is Turkish first, English second; code, comments and commit mes
 
 ## Invariants
 
-1. **No internet permission, no analytics, no Google Play services.** The manifest declares no permissions.
+1. **No internet permission, no analytics, no Google Play services.** The only permissions are storage access for
+   listing the person's documents (ADR-0002); everything works without them.
 2. **Engines are reached only through `mo-*` bridges, and edits only through engine commands** (`execute(id, json)`).
    Do not reimplement in Kotlin what an engine command already does.
 3. **Engine calls run on one thread per document** (see `SheetViewModel.engine`). Never call an engine from the UI thread.

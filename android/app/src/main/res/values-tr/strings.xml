@@ -16,4 +16,22 @@
     <string name="import_notes">İçe aktarma notları</string>
     <string name="ok">Tamam</string>
     <string name="new_workbook_name">Kitap1.xlsx</string>
+    <string name="tab_home">Ev</string>
+    <string name="tab_word">Word</string>
+    <string name="tab_excel">Excel</string>
+    <string name="tab_powerpoint">PowerPoint</string>
+    <string name="tab_pdf">PDF</string>
+    <string name="open_file">Dosya aç</string>
+    <string name="coming_soon">%1$s: bu biçim yakında gelecek sürümde açılacak.</string>
+    <string name="unsupported_file">Bu dosya türü henüz desteklenmiyor.</string>
+    <string name="viewed_percent">Görüntülenen %%%1$d</string>
+    <string name="share">Paylaş</string>
+    <string name="remove_from_list">Listeden kaldır</string>
+    <string name="no_recent_files">Henüz dosya yok. “Dosya aç”a dokun ya da başka bir uygulamadan “Birlikte aç” ile bir belge aç.</string>
+    <string name="page_counter">%1$d/%2$d</string>
+    <string name="all_documents">Tüm belgeler</string>
+    <string name="recently_opened">Son açılanlar</string>
+    <string name="all_files_title">Telefondaki tüm belgeleri göster</string>
+    <string name="all_files_body">Telefonundaki bütün Word, Excel, PowerPoint ve PDF dosyalarını listelemek için “Tüm dosyalara erişim” iznini ver. Uygulamanın internet izni yok: dosyaların cihazından hiç çıkmaz.</string>
+    <string name="all_files_button">İzin ver</string>
 </resources>

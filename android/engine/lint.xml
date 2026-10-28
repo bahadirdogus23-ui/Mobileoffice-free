@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<lint>
+    <!-- UniFFI's generated bindings pick the API 34+ SystemCleaner behind a Build.VERSION check and
+         fall back to JNA's cleaner below it; lint cannot see the guard inside the generated classes. -->
+    <issue id="NewApi">
+        <ignore path="src/main/java/org/mobileofficefree/engine/mo_ffi.kt" />
+    </issue>
+</lint>

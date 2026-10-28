@@ -1,0 +1,17 @@
+[package]
+name = "mo-word"
+description = "MobileOffice word-processing bridge over the WordCraft engine"
+version = "0.1.0"
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+publish = false
+
+[dependencies]
+wordcraft-engine = { workspace = true }
+wordcraft-layout = { workspace = true }
+wordcraft-render = { workspace = true }
+wordcraft-doc = { workspace = true }
+thiserror = { workspace = true }
+kurbo = "0.13"

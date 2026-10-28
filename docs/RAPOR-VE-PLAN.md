@@ -903,7 +903,7 @@ Varsayım: Başlangıç Kasım 2026; 1–2 geliştirici + yapay zekâ destekli g
 | 2 | **Lisans** | (a) Uygulama GPL-3.0-or-later + Rust tarafı MIT/Apache; (b) her şey MIT/Apache | Ücretsiz ve açık kalmayı güvenceye almak için (a). ArtCraft ile ortak bir mobil arayüz hedeflenirse (b) |
 | 3 | **ArtCraft ile işbirliği** | Bağımsız çalışmak / iletişim kurup katkı vermek | Faz 0'da Discord'da tanışma; yamaları upstream'e gönderme |
 | 4 | **Minimum Android sürümü** | API 23 (AndroidX varsayılanı, kullanıcıların ~%99'u) / API 26 (Android 8.0) | API 26; Faz 0'da cihaz dağılımına bakıp gerekirse 23'e inme |
-| 5 | **"Tüm dosyalara erişim" izni** | İstemek (Play'de "belge yönetimi" beyanı ve onayı gerekir) / istememek | Play sürümünde v1'de istememek (SAF + son dosyalar + klasör izinleri); F-Droid sürümünde isteğe bağlı "tüm belgeleri tara" |
+| 5 | **"Tüm dosyalara erişim" izni** | İstemek / istememek | **Karar verildi (28.10.2026): istenir**, Play'de "belge yönetimi" beyanıyla. İzinsiz de her şey çalışır. Bkz. [ADR-0002](adr/0002-tum-dosyalara-erisim.md) |
 | 6 | **İnternet izni** | Hiç istememek / bulut entegrasyonu için istemek | Hiç istememek. Bulut dosyalarına erişim Drive/OneDrive/Dropbox/Nextcloud uygulamalarının SAF sağlayıcılarıyla |
 | 7 | **Dağıtım kanalları** | Play / F-Droid / GitHub | Üçü birden; önce Play dahili test + GitHub, sonra F-Droid |
 | 8 | **v1 düzenleme kapsamı** | Tüm formatlar / modern formatlar | DOCX, XLSX, PPTX, PDF düzenlenir; eski formatlar (DOC, XLS, PPT) görüntülenir ve modern biçimde kopya olarak kaydedilir |

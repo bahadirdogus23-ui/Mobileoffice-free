@@ -78,10 +78,13 @@ class SheetViewModel(app: Application) : AndroidViewModel(app) {
         viewModelScope.launch {
             val result = withContext(engine) {
                 runCatching {
-                    val name = displayName(resolver, uri)
+                    val info = FileInfo.of(resolver, uri)
+                    val name = info.name
                     val bytes = resolver.openInputStream(uri)?.use { it.readBytes() }
                         ?: error("no data")
-                    replaceDocument(SheetDocument.open(name, bytes, null)) to name
+                    val state = replaceDocument(SheetDocument.open(name, bytes, null))
+                    RecentFiles(getApplication()).remember(uri, name, DocumentKind.SHEET, info.size)
+                    state to name
                 }
             }
             result.fold(

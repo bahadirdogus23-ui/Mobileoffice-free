@@ -2,41 +2,28 @@ package org.mobileofficefree.app
 
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
-import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Button
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.PrimaryScrollableTabRow
-import androidx.compose.material3.Scaffold
-import androidx.compose.material3.SnackbarHost
-import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Tab
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -45,11 +32,10 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.input.ImeAction
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 
 /** Spreadsheet types the picker offers (the engine also sniffs content, so a wrong type still opens). */
-private val SPREADSHEET_TYPES = arrayOf(
+internal val SPREADSHEET_TYPES = arrayOf(
     "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
     "application/vnd.ms-excel.sheet.macroEnabled.12",
     "application/vnd.ms-excel",
@@ -60,84 +46,9 @@ private val SPREADSHEET_TYPES = arrayOf(
     "text/tab-separated-values",
 )
 
-@Composable
-fun AppRoot(vm: SheetViewModel) {
-    val snackbar = remember { SnackbarHostState() }
-    LaunchedEffect(vm.message) {
-        vm.message?.let {
-            snackbar.showSnackbar(it)
-            vm.consumeMessage()
-        }
-    }
-    Scaffold(snackbarHost = { SnackbarHost(snackbar) }) { padding ->
-        Box(Modifier.padding(padding).fillMaxSize()) {
-            when (val s = vm.screen) {
-                Screen.Home -> HomeScreen(vm)
-                Screen.Loading -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        CircularProgressIndicator()
-                        Spacer(Modifier.height(12.dp))
-                        Text(stringResource(R.string.loading))
-                    }
-                }
-                is Screen.Sheet -> SheetScreen(vm, s.state)
-            }
-        }
-    }
-    if (vm.importNotes.isNotEmpty()) {
-        AlertDialog(
-            onDismissRequest = vm::dismissImportNotes,
-            confirmButton = { TextButton(onClick = vm::dismissImportNotes) { Text(stringResource(R.string.ok)) } },
-            title = { Text(stringResource(R.string.import_notes)) },
-            text = { Text(vm.importNotes.take(5).joinToString("\n\n")) },
-        )
-    }
-}
-
-@Composable
-private fun HomeScreen(vm: SheetViewModel) {
-    val pick = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
-        if (uri != null) vm.open(uri)
-    }
-    Column(
-        Modifier.fillMaxSize().padding(24.dp),
-        verticalArrangement = Arrangement.Center,
-        horizontalAlignment = Alignment.CenterHorizontally,
-    ) {
-        Text(stringResource(R.string.app_name), style = MaterialTheme.typography.headlineLarge)
-        Spacer(Modifier.height(8.dp))
-        Text(
-            stringResource(R.string.home_tagline),
-            style = MaterialTheme.typography.bodyLarge,
-            textAlign = TextAlign.Center,
-        )
-        Spacer(Modifier.height(32.dp))
-        Button(onClick = { pick.launch(SPREADSHEET_TYPES) }, Modifier.fillMaxWidth()) {
-            Text(stringResource(R.string.open_spreadsheet))
-        }
-        Spacer(Modifier.height(12.dp))
-        OutlinedButton(onClick = vm::newBlank, Modifier.fillMaxWidth()) {
-            Text(stringResource(R.string.new_spreadsheet))
-        }
-        Spacer(Modifier.height(32.dp))
-        Text(
-            stringResource(R.string.privacy_note),
-            style = MaterialTheme.typography.bodySmall,
-            textAlign = TextAlign.Center,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
-        Spacer(Modifier.height(4.dp))
-        Text(
-            stringResource(R.string.engine_version, vm.engineVersion),
-            style = MaterialTheme.typography.labelSmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
-    }
-}
-
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun SheetScreen(vm: SheetViewModel, state: SheetUiState) {
+internal fun SheetScreen(vm: SheetViewModel, state: SheetUiState) {
     val saveAs = rememberLauncherForActivityResult(
         ActivityResultContracts.CreateDocument(SPREADSHEET_TYPES[0]),
     ) { uri -> if (uri != null) vm.saveTo(uri) }
