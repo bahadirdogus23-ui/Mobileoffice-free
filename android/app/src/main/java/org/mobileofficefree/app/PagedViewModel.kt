@@ -230,6 +230,39 @@ abstract class PagedViewModel(app: Application, private val kind: DocumentKind) 
     /** Page [index] drawn [widthPx] wide in normal colours, for printing; the caller owns the bitmap. */
     suspend fun renderForPrint(index: Int, widthPx: Int): Bitmap? = withContext(engine) { renderPage(index, widthPx, false) }
 
+    /** Small page pictures for the "Pages" panel, kept apart from the full-size ones. */
+    private val thumbs = mutableStateMapOf<Int, Bitmap>()
+    private val thumbsPending = HashSet<Int>()
+    private val thumbCache = object : LruCache<Int, Bitmap>(THUMB_CACHE_BYTES) {
+        override fun sizeOf(key: Int, value: Bitmap) = value.byteCount
+        override fun entryRemoved(evicted: Boolean, key: Int, old: Bitmap, new: Bitmap?) {
+            if (evicted) thumbs.remove(key)
+        }
+    }
+
+    /** Page [index] [THUMB_WIDTH] pixels wide if drawn; otherwise starts drawing it and returns null. */
+    fun thumbnail(index: Int): Bitmap? {
+        thumbs[index]?.let { return it }
+        if (thumbsPending.add(index)) {
+            val doc = state?.uri
+            viewModelScope.launch {
+                val bmp = withContext(engine) { runCatching { renderPage(index, THUMB_WIDTH, false) }.getOrNull() }
+                thumbsPending.remove(index)
+                if (bmp != null && doc == state?.uri) {
+                    thumbCache.put(index, bmp)
+                    thumbs[index] = bmp
+                }
+            }
+        }
+        return null
+    }
+
+    private fun clearThumbnails() {
+        thumbCache.evictAll()
+        thumbs.clear()
+        thumbsPending.clear()
+    }
+
     /** Marks every page out of date; their old pictures stay until the new ones arrive. */
     private fun invalidate() {
         generation++
@@ -239,6 +272,7 @@ abstract class PagedViewModel(app: Application, private val kind: DocumentKind) 
 
     private fun clearPages() {
         invalidate()
+        clearThumbnails()
         cache.evictAll()
         shown.clear()
     }
@@ -250,6 +284,9 @@ abstract class PagedViewModel(app: Application, private val kind: DocumentKind) 
     }
 
     private companion object {
+        const val THUMB_WIDTH = 240
+        const val THUMB_CACHE_BYTES = 24 shl 20
+
         /**
          * A 24th of the phone's RAM, between 48 and 256 MB: on an 11 GB phone a twelfth (384 MB)
          * pushed the app to 470 MB while scrolling a long PDF, more than reading needs.

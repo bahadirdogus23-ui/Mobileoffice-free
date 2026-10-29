@@ -5,6 +5,7 @@ import androidx.activity.compose.LocalActivity
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
@@ -17,6 +18,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.aspectRatio
@@ -28,6 +30,9 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardOptions
@@ -122,6 +127,7 @@ fun PagedScreen(vm: PagedViewModel, state: PagedUiState, reading: ReadingSetting
     val lastZoom = remember(state.uri) { floatArrayOf(1f) }
     var showReading by remember { mutableStateOf(false) }
     var showGoTo by remember { mutableStateOf(false) }
+    var showPages by remember { mutableStateOf(false) }
     var showSearch by remember(state.uri) { mutableStateOf(false) }
     val hitsByPage = remember(vm.found) { vm.found.groupBy { it.page } }
     val night = reading.night
@@ -304,7 +310,7 @@ fun PagedScreen(vm: PagedViewModel, state: PagedUiState, reading: ReadingSetting
         }
         BottomAppBar {
             TextButton(onClick = { showReading = true }) { Text(stringResource(R.string.reading)) }
-            TextButton(onClick = { showGoTo = true }) { Text(stringResource(R.string.go_to_page)) }
+            TextButton(onClick = { showPages = true }) { Text(stringResource(R.string.pages)) }
             TextButton(onClick = { DocumentPrinter.print(context, vm, state) }) { Text(stringResource(R.string.print)) }
             TextButton(onClick = {
                 val send = Intent(Intent.ACTION_SEND)
@@ -327,6 +333,59 @@ fun PagedScreen(vm: PagedViewModel, state: PagedUiState, reading: ReadingSetting
             SettingRow(stringResource(R.string.keep_screen_on), null, reading.keepScreenOn, reading::updateKeepScreenOn)
             SettingRow(stringResource(R.string.volume_keys), stringResource(R.string.volume_keys_hint), reading.volumeKeys, reading::updateVolumeKeys)
             Spacer(Modifier.height(24.dp))
+        }
+    }
+
+    if (showPages) {
+        ModalBottomSheet(onDismissRequest = { showPages = false }) {
+            Row(Modifier.fillMaxWidth().padding(horizontal = 24.dp), verticalAlignment = Alignment.CenterVertically) {
+                Text(stringResource(R.string.pages), style = MaterialTheme.typography.titleLarge, modifier = Modifier.weight(1f))
+                TextButton(onClick = {
+                    showPages = false
+                    showGoTo = true
+                }) { Text(stringResource(R.string.go_to_page)) }
+            }
+            val grid = rememberLazyGridState(initialFirstVisibleItemIndex = (current - 1).coerceAtLeast(0))
+            LazyVerticalGrid(
+                columns = GridCells.Adaptive(96.dp),
+                state = grid,
+                contentPadding = PaddingValues(16.dp),
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
+                items(state.pages.size, key = { it }) { i ->
+                    val (w, h) = state.pages[i]
+                    Column(
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        modifier = Modifier.clickable {
+                            showPages = false
+                            scope.launch { list.scrollToItem(i) }
+                        },
+                    ) {
+                        Box(
+                            Modifier
+                                .fillMaxWidth()
+                                .aspectRatio(w / h)
+                                .background(if (invertOnScreen) Color.Black else Color.White)
+                                .border(
+                                    if (i + 1 == current) 3.dp else 1.dp,
+                                    if (i + 1 == current) MaterialTheme.colorScheme.primary else Color(0x33000000),
+                                ),
+                        ) {
+                            vm.thumbnail(i)?.let { bmp ->
+                                Image(
+                                    bmp.asImageBitmap(),
+                                    contentDescription = null,
+                                    contentScale = ContentScale.FillWidth,
+                                    colorFilter = if (invertOnScreen) invertColors else null,
+                                    modifier = Modifier.fillMaxSize(),
+                                )
+                            }
+                        }
+                        Text("${i + 1}", style = MaterialTheme.typography.labelMedium, modifier = Modifier.padding(top = 4.dp))
+                    }
+                }
+            }
         }
     }
 

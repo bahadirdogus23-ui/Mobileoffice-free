@@ -75,4 +75,5 @@
     <string name="crash_title">The app closed unexpectedly</string>
     <string name="crash_body">Sorry about that. Would you like to send the error report to the developers? It only has the phone model, Android version and the technical details of the error, none of your documents. You pick the app to send it with.</string>
     <string name="close">Close</string>
+    <string name="pages">Pages</string>
 </resources>

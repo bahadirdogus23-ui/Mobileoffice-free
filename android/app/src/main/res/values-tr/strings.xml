@@ -74,4 +74,5 @@
     <string name="crash_title">Uygulama beklenmedik şekilde kapandı</string>
     <string name="crash_body">Bunun için özür dileriz. Hata raporunu geliştiricilere iletmek ister misin? Rapor yalnızca telefon modelini, Android sürümünü ve hatanın teknik ayrıntısını içerir; belgelerinin içeriği yoktur. Göndermek için kullanacağın uygulamayı sen seçersin.</string>
     <string name="close">Kapat</string>
+    <string name="pages">Sayfalar</string>
 </resources>
