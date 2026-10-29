@@ -75,4 +75,10 @@
     <string name="crash_body">Bunun için özür dileriz. Hata raporunu geliştiricilere iletmek ister misin? Rapor yalnızca telefon modelini, Android sürümünü ve hatanın teknik ayrıntısını içerir; belgelerinin içeriği yoktur. Göndermek için kullanacağın uygulamayı sen seçersin.</string>
     <string name="close">Kapat</string>
     <string name="pages">Sayfalar</string>
+    <string name="read_aloud">Sesli oku</string>
+    <string name="read_aloud_hint">Bu sayfadan başlayarak telefonun Türkçe sesiyle okur</string>
+    <string name="read_aloud_page">Sesli okunuyor: sayfa %1$d</string>
+    <string name="read_aloud_no_engine">Telefonda metin okuma motoru yok.</string>
+    <string name="read_aloud_no_voice">Telefonda Türkçe (veya telefon dilinde) ses yüklü değil. Ayarlar › Metin okuma çıkışı\'ndan ses indirebilirsin.</string>
+    <string name="stop">Durdur</string>
 </resources>

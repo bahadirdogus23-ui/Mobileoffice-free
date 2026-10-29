@@ -89,3 +89,14 @@ fn matches_sit_where_the_text_is_drawn() {
         assert!(hit.x >= 0.0 && hit.y >= 0.0 && hit.x + hit.w <= w + 1.0 && hit.y + hit.h <= h + 1.0, "{hit:?}");
     }
 }
+
+#[test]
+fn page_texts_follow_the_pages() {
+    let doc = WordDoc::open("sample.docx", &sample_docx(), None).unwrap();
+    let texts = doc.page_texts();
+    assert_eq!(texts.len(), doc.page_count() as usize);
+    assert!(texts[0].len() > 100, "{}", texts[0]);
+    assert!(texts.iter().skip(1).any(|t| !t.is_empty()));
+    let one = WordDoc::open("a.md", "Merhaba dünya.\n\nİkinci paragraf.\n".as_bytes(), None).unwrap();
+    assert_eq!(one.page_texts(), vec!["Merhaba dünya.\nİkinci paragraf.".to_string()]);
+}

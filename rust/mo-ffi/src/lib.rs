@@ -225,6 +225,11 @@ impl WordDocument {
         Ok(self.doc().render_page(page, scale, dark)?.into())
     }
 
+    /// The body text starting on each page, for reading aloud.
+    pub fn page_texts(&self) -> Vec<String> {
+        self.doc().page_texts()
+    }
+
     /// Where `query` appears in the body, ignoring case, accents and dotted/dotless i.
     pub fn find(&self, query: String) -> Vec<SearchHit> {
         self.doc().find(&query).into_iter().map(|h| SearchHit { index: h.index, page: h.page, x: h.x, y: h.y, width: h.w, height: h.h }).collect()

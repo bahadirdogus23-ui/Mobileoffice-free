@@ -45,6 +45,7 @@ import androidx.compose.material3.ListItem
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -133,6 +134,12 @@ fun PagedScreen(vm: PagedViewModel, state: PagedUiState, reading: ReadingSetting
     val night = reading.night
     val invertOnScreen = night && !vm.drawsNight
 
+    // Follow the page being read aloud.
+    LaunchedEffect(vm.readingPage) {
+        if (vm.readingPage >= 0) list.animateScrollToItem(vm.readingPage)
+    }
+    // Leaving the document stops the voice.
+    DisposableEffect(state.uri) { onDispose { vm.stopReading() } }
     LaunchedEffect(state.uri) {
         snapshotFlow { list.firstVisibleItemIndex }.debounce(500).collect(vm::reportPosition)
     }
@@ -210,6 +217,25 @@ fun PagedScreen(vm: PagedViewModel, state: PagedUiState, reading: ReadingSetting
                 )
                 TextButton(onClick = { vm.nextMatch(-1) }, enabled = vm.matchCount > 0) { Text("▲") }
                 TextButton(onClick = { vm.nextMatch(1) }, enabled = vm.matchCount > 0) { Text("▼") }
+            }
+        }
+        if (vm.readingPage >= 0 || vm.readAloudProblem != null) {
+            Surface(color = MaterialTheme.colorScheme.secondaryContainer, modifier = Modifier.fillMaxWidth()) {
+                Row(Modifier.padding(start = 16.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        when (vm.readAloudProblem) {
+                            ReadAloud.Problem.NoEngine -> stringResource(R.string.read_aloud_no_engine)
+                            ReadAloud.Problem.NoVoice -> stringResource(R.string.read_aloud_no_voice)
+                            null -> stringResource(R.string.read_aloud_page, vm.readingPage + 1)
+                        },
+                        style = MaterialTheme.typography.bodyMedium,
+                        modifier = Modifier.weight(1f),
+                    )
+                    TextButton(onClick = {
+                        vm.stopReading()
+                        vm.dismissReadAloudProblem()
+                    }) { Text(stringResource(if (vm.readAloudProblem != null) R.string.close else R.string.stop)) }
+                }
             }
         }
         BoxWithConstraints(
@@ -329,6 +355,16 @@ fun PagedScreen(vm: PagedViewModel, state: PagedUiState, reading: ReadingSetting
                 style = MaterialTheme.typography.titleLarge,
                 modifier = Modifier.padding(horizontal = 24.dp, vertical = 8.dp),
             )
+            if (vm.canReadAloud) {
+                ListItem(
+                    headlineContent = { Text(stringResource(R.string.read_aloud)) },
+                    supportingContent = { Text(stringResource(R.string.read_aloud_hint)) },
+                    modifier = Modifier.clickable {
+                        showReading = false
+                        vm.startReading(current - 1)
+                    },
+                )
+            }
             SettingRow(stringResource(R.string.night_mode), stringResource(R.string.night_mode_hint), reading.night, reading::updateNight)
             SettingRow(stringResource(R.string.keep_screen_on), null, reading.keepScreenOn, reading::updateKeepScreenOn)
             SettingRow(stringResource(R.string.volume_keys), stringResource(R.string.volume_keys_hint), reading.volumeKeys, reading::updateVolumeKeys)

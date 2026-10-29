@@ -141,6 +141,46 @@ abstract class PagedViewModel(app: Application, private val kind: DocumentKind) 
         searching = false
     }
 
+    /** Whether [pageTexts] gives text to read aloud. */
+    open val canReadAloud: Boolean = false
+
+    /** The text starting on each page. Runs on [engine]. */
+    protected open fun pageTexts(): List<String> = emptyList()
+
+    /** The page being read aloud, or -1 when not reading. */
+    var readingPage by mutableIntStateOf(-1)
+        private set
+    var readAloudProblem by mutableStateOf<ReadAloud.Problem?>(null)
+        private set
+    private var voice: ReadAloud? = null
+
+    fun startReading(fromPage: Int) {
+        readAloudProblem = null
+        readingPage = fromPage
+        val v = voice ?: ReadAloud(
+            getApplication<Application>(),
+            onPage = { readingPage = it },
+            onDone = { readingPage = -1 },
+            onProblem = {
+                readAloudProblem = it
+                readingPage = -1
+            },
+        ).also { voice = it }
+        viewModelScope.launch {
+            val texts = withContext(engine) { runCatching { pageTexts() }.getOrDefault(emptyList()) }
+            if (readingPage >= 0) v.speak(texts, fromPage)
+        }
+    }
+
+    fun stopReading() {
+        voice?.stop()
+        readingPage = -1
+    }
+
+    fun dismissReadAloudProblem() {
+        readAloudProblem = null
+    }
+
     /** Opens [uri] (named [name]) and returns its page sizes in points. Runs on [engine]. */
     protected abstract fun load(uri: Uri, name: String): List<Pair<Float, Float>>
 
@@ -177,6 +217,7 @@ abstract class PagedViewModel(app: Application, private val kind: DocumentKind) 
     }
 
     fun close() {
+        stopReading()
         state = null
         clearSearch()
         clearPages()
@@ -278,6 +319,7 @@ abstract class PagedViewModel(app: Application, private val kind: DocumentKind) 
     }
 
     override fun onCleared() {
+        voice?.shutdown()
         // The engine thread may be busy; release on it so a render in progress finishes first.
         // viewModelScope is already cancelled here, so this runs in a scope of its own.
         CoroutineScope(engine).launch { release() }

@@ -76,4 +76,10 @@
     <string name="crash_body">Sorry about that. Would you like to send the error report to the developers? It only has the phone model, Android version and the technical details of the error, none of your documents. You pick the app to send it with.</string>
     <string name="close">Close</string>
     <string name="pages">Pages</string>
+    <string name="read_aloud">Read aloud</string>
+    <string name="read_aloud_hint">Reads from this page on with the phone\'s voice</string>
+    <string name="read_aloud_page">Reading aloud: page %1$d</string>
+    <string name="read_aloud_no_engine">This phone has no text-to-speech engine.</string>
+    <string name="read_aloud_no_voice">No Turkish (or phone language) voice is installed. You can download one in Settings › Text-to-speech output.</string>
+    <string name="stop">Stop</string>
 </resources>

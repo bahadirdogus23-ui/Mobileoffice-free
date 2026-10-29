@@ -43,6 +43,30 @@ pub fn fold(c: char) -> char {
 }
 
 impl WordDoc {
+    /// The body text that starts on each page, paragraph by paragraph, for reading aloud.
+    /// A paragraph that runs over a page break is counted on the page it starts on.
+    pub fn page_texts(&self) -> Vec<String> {
+        let mut out = vec![String::new(); self.layout.pages.len()];
+        for path in self.doc.para_paths(StoryRef::Body) {
+            let Some(p) = self.doc.para(StoryRef::Body, &path) else { continue };
+            // Objects (pictures, fields) sit in the text as control characters; readers skip them.
+            let text: String = p.text.chars().filter(|c| !c.is_control()).collect();
+            if text.trim().is_empty() {
+                continue;
+            }
+            let a = Pos::new(StoryRef::Body, path.clone(), 0);
+            let b = Pos::new(StoryRef::Body, path.clone(), p.text.len());
+            let page = self.layout.selection_rects(&self.doc, &a, &b, 0).first().map_or(0, |(pg, _)| *pg);
+            if let Some(slot) = out.get_mut(page) {
+                if !slot.is_empty() {
+                    slot.push('\n');
+                }
+                slot.push_str(text.trim());
+            }
+        }
+        out
+    }
+
     /// Every place `query` appears in the body text, as rectangles on the pages.
     pub fn find(&self, query: &str) -> Vec<Hit> {
         let needle: Vec<char> = query.trim().chars().map(fold).collect();

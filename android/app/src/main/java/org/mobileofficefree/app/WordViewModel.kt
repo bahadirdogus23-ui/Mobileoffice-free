@@ -34,6 +34,10 @@ class WordViewModel(app: Application) : PagedViewModel(app, DocumentKind.WORD) {
 
     override val searchable = true
 
+    override val canReadAloud = true
+
+    override fun pageTexts(): List<String> = doc?.pageTexts().orEmpty()
+
     override fun findText(query: String): List<FoundRect> =
         doc?.find(query).orEmpty().map { FoundRect(it.index.toInt(), it.page.toInt(), it.x, it.y, it.x + it.width, it.y + it.height) }
 
