@@ -49,3 +49,11 @@ fn bad_input_is_an_error_not_a_crash() {
     assert!(matches!(doc.execute("cell.set", "{not json"), Err(GridError::Command(_))));
     assert_eq!(doc.used_size(9), Err(GridError::NoSheet(9)));
 }
+
+#[test]
+fn exports_a_pdf() {
+    let bytes = "Ad;Tutar\nŞişli;1250\n".as_bytes();
+    let mut doc = GridDoc::open("a.csv", bytes, None).unwrap();
+    let pdf = doc.export_pdf(true).unwrap();
+    assert!(pdf.starts_with(b"%PDF"), "{:?}", &pdf[..8.min(pdf.len())]);
+}

@@ -141,6 +141,41 @@ abstract class PagedViewModel(app: Application, private val kind: DocumentKind) 
         searching = false
     }
 
+    /** What this document can be converted to ("Dönüştür"); empty hides the button. */
+    open val exportFormats: List<ExportFormat> = emptyList()
+
+    /** The document in format [ext]. Runs on [engine]. */
+    protected open fun export(ext: String, name: String): ByteArray = error("cannot convert")
+
+    /** One-off messages for the person (saved, failed). */
+    var notice by mutableStateOf<String?>(null)
+        private set
+
+    fun consumeNotice() {
+        notice = null
+    }
+
+    /** Writes the document converted to [format] into the new file [uri]; the original is not touched. */
+    fun exportTo(uri: Uri, format: ExportFormat) {
+        val app = getApplication<Application>()
+        val name = state?.fileName ?: return
+        viewModelScope.launch {
+            val started = SystemClock.elapsedRealtime()
+            val result = withContext(engine) {
+                runCatching {
+                    val bytes = export(format.ext, convertedName(name, format.ext))
+                    // "wt" truncates: without it some providers leave an old file's tail behind.
+                    app.contentResolver.openOutputStream(uri, "wt")?.use { it.write(bytes) } ?: error("cannot write")
+                }
+            }
+            if (result.isSuccess) Diagnostics.record("${kind.name} → ${format.ext}", started)
+            notice = result.fold(
+                onSuccess = { app.getString(R.string.saved) },
+                onFailure = { app.getString(R.string.save_failed, it.message ?: it.javaClass.simpleName) },
+            )
+        }
+    }
+
     /** Whether [pageTexts] gives text to read aloud. */
     open val canReadAloud: Boolean = false
 

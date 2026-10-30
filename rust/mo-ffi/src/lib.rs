@@ -42,6 +42,7 @@ impl From<WordError> for MoError {
     fn from(e: WordError) -> MoError {
         match e {
             WordError::Open(m) => MoError::Open(m),
+            WordError::Save(m) => MoError::Save(m),
             e @ WordError::NoPage(_) => MoError::NotFound(e.to_string()),
         }
     }
@@ -51,6 +52,7 @@ impl From<DeckError> for MoError {
     fn from(e: DeckError) -> MoError {
         match e {
             DeckError::Open(m) => MoError::Open(m),
+            DeckError::Export(m) => MoError::Save(m),
             e @ DeckError::NoSlide(_) => MoError::NotFound(e.to_string()),
         }
     }
@@ -148,6 +150,11 @@ impl SheetDocument {
     }
 
     /// Encodes the workbook as `file_name`'s extension says (.xlsx by default).
+    /// The workbook as a PDF following each sheet's Page Setup; every sheet when `all_sheets`.
+    pub fn export_pdf(&self, all_sheets: bool) -> Result<Vec<u8>, MoError> {
+        Ok(self.doc().export_pdf(all_sheets)?)
+    }
+
     pub fn save(&self, file_name: String) -> Result<Vec<u8>, MoError> {
         Ok(self.doc().save(&file_name)?)
     }
@@ -225,6 +232,11 @@ impl WordDocument {
         Ok(self.doc().render_page(page, scale, dark)?.into())
     }
 
+    /// The document in the format `file_name`'s extension names (pdf, docx, odt, rtf, txt, md, html).
+    pub fn export(&self, file_name: String) -> Result<Vec<u8>, MoError> {
+        Ok(self.doc().export(&file_name)?)
+    }
+
     /// The body text starting on each page, for reading aloud.
     pub fn page_texts(&self) -> Vec<String> {
         self.doc().page_texts()
@@ -274,6 +286,11 @@ impl SlidesDocument {
     }
 
     /// The whole slide at `scale` pixels per point.
+    /// The presentation as a PDF, one slide per page.
+    pub fn export_pdf(&self) -> Result<Vec<u8>, MoError> {
+        Ok(self.doc.export_pdf()?)
+    }
+
     pub fn render_slide(&self, slide: u32, scale: f32) -> Result<Raster, MoError> {
         Ok(self.doc.render_slide(slide, scale)?.into())
     }

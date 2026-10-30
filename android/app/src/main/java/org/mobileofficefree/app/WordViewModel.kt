@@ -36,6 +36,10 @@ class WordViewModel(app: Application) : PagedViewModel(app, DocumentKind.WORD) {
 
     override val canReadAloud = true
 
+    override val exportFormats = WORD_FORMATS
+
+    override fun export(ext: String, name: String): ByteArray = doc?.export(name) ?: error("no document")
+
     override fun pageTexts(): List<String> = doc?.pageTexts().orEmpty()
 
     override fun findText(query: String): List<FoundRect> =

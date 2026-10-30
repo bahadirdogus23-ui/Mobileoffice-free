@@ -13,6 +13,8 @@ use wordcraft_render::{RenderOptions, render_page, render_region};
 pub enum WordError {
     #[error("{0}")]
     Open(String),
+    #[error("{0}")]
+    Save(String),
     #[error("page {0} does not exist")]
     NoPage(u32),
 }
@@ -42,6 +44,12 @@ impl WordDoc {
         let mut cache = LayoutCache::new();
         let layout = wordcraft_layout::layout(&doc, &mut cache, &LayoutOptions::default());
         WordDoc { doc, cache, layout }
+    }
+
+    /// The document written in the format `file_name`'s extension names: pdf, docx, odt, rtf,
+    /// txt, md, html… (anything WordCraft writes).
+    pub fn export(&self, file_name: &str) -> Result<Vec<u8>, WordError> {
+        wordcraft_engine::io::save_bytes(file_name, &self.doc).map_err(WordError::Save)
     }
 
     /// Lays the document out again (after an edit).

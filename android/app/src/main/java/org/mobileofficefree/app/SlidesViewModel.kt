@@ -29,6 +29,10 @@ class SlidesViewModel(app: Application) : PagedViewModel(app, DocumentKind.SLIDE
         }
     }
 
+    override val exportFormats = listOf(PDF_FORMAT)
+
+    override fun export(ext: String, name: String): ByteArray = doc?.exportPdf() ?: error("no document")
+
     override fun release() {
         doc?.close()
         doc = null

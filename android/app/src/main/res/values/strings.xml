@@ -82,4 +82,6 @@
     <string name="read_aloud_no_engine">This phone has no text-to-speech engine.</string>
     <string name="read_aloud_no_voice">No Turkish (or phone language) voice is installed. You can download one in Settings › Text-to-speech output.</string>
     <string name="stop">Stop</string>
+    <string name="convert">Convert</string>
+    <string name="convert_to">Convert to</string>
 </resources>

@@ -11,6 +11,8 @@ pub enum DeckError {
     Open(String),
     #[error("slide {0} does not exist")]
     NoSlide(u32),
+    #[error("{0}")]
+    Export(String),
 }
 
 /// A slide picture: `width`×`height` premultiplied RGBA8, row by row.
@@ -26,6 +28,11 @@ pub struct DeckDoc {
 }
 
 impl DeckDoc {
+    /// The presentation as a PDF, one slide per page, with real text and shapes.
+    pub fn export_pdf(&self) -> Result<Vec<u8>, DeckError> {
+        deckcraft_pdf::export(&self.pres, &Default::default()).map_err(|e| DeckError::Export(e.to_string()))
+    }
+
     /// Opens PPTX, PPSX or POTX bytes.
     pub fn open(bytes: &[u8]) -> Result<DeckDoc, DeckError> {
         if deckcraft_pptx::is_encrypted(bytes) {

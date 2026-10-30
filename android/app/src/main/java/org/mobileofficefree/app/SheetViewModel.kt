@@ -195,6 +195,23 @@ class SheetViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
+    /** Writes the workbook as a PDF (every sheet, each with its Page Setup) into the new file [uri]. */
+    fun exportPdfTo(uri: Uri) {
+        val resolver = getApplication<Application>().contentResolver
+        viewModelScope.launch {
+            val result = withContext(engine) {
+                runCatching {
+                    val bytes = (doc ?: error("no document")).exportPdf(true)
+                    resolver.openOutputStream(uri, "wt")?.use { it.write(bytes) } ?: error("cannot write")
+                }
+            }
+            message = result.fold(
+                onSuccess = { text(R.string.saved) },
+                onFailure = { text(R.string.save_failed, it.message ?: "") },
+            )
+        }
+    }
+
     /** The text of a cell if its block is loaded; otherwise asks for the block and returns null. */
     fun cellText(sheet: Int, row: Int, col: Int): String? {
         val br = row / BLOCK_ROWS

@@ -17,6 +17,7 @@ wordcraft-doc = { git = "https://github.com/storytold/wordcraft", rev = "c4fafc2
 deckcraft-pptx = { git = "https://github.com/storytold/deckcraft", rev = "55e5ee56b4b2c64973b78fda4182a78f9766fa62" }
 deckcraft-render = { git = "https://github.com/storytold/deckcraft", rev = "55e5ee56b4b2c64973b78fda4182a78f9766fa62" }
 deckcraft-model = { git = "https://github.com/storytold/deckcraft", rev = "55e5ee56b4b2c64973b78fda4182a78f9766fa62" }
+deckcraft-pdf = { git = "https://github.com/storytold/deckcraft", rev = "55e5ee56b4b2c64973b78fda4182a78f9766fa62" }
 deckcraft-engine = { git = "https://github.com/storytold/deckcraft", rev = "55e5ee56b4b2c64973b78fda4182a78f9766fa62" }
 cadcraft-io = { git = "https://github.com/storytold/cadcraft", rev = "56542407292b911ad30523cfcfa987923fe2f8e2" }
 cadcraft-render = { git = "https://github.com/storytold/cadcraft", rev = "56542407292b911ad30523cfcfa987923fe2f8e2" }

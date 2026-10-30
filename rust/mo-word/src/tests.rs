@@ -100,3 +100,12 @@ fn page_texts_follow_the_pages() {
     let one = WordDoc::open("a.md", "Merhaba dünya.\n\nİkinci paragraf.\n".as_bytes(), None).unwrap();
     assert_eq!(one.page_texts(), vec!["Merhaba dünya.\nİkinci paragraf.".to_string()]);
 }
+
+#[test]
+fn exports_pdf_and_other_word_formats() {
+    let doc = WordDoc::open("a.md", "# Başlık\n\nİçerik ğüşıöç.\n".as_bytes(), None).unwrap();
+    assert!(doc.export("a.pdf").unwrap().starts_with(b"%PDF"));
+    assert!(doc.export("a.docx").unwrap().starts_with(b"PK"));
+    assert!(doc.export("a.rtf").unwrap().starts_with(b"{\\rtf"));
+    assert!(String::from_utf8(doc.export("a.txt").unwrap()).unwrap().contains("ğüşıöç"));
+}

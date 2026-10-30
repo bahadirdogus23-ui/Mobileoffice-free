@@ -1,7 +1,9 @@
 package org.mobileofficefree.app
 
 import android.content.Intent
+import android.widget.Toast
 import androidx.activity.compose.LocalActivity
+import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
@@ -129,6 +131,19 @@ fun PagedScreen(vm: PagedViewModel, state: PagedUiState, reading: ReadingSetting
     var showReading by remember { mutableStateOf(false) }
     var showGoTo by remember { mutableStateOf(false) }
     var showPages by remember { mutableStateOf(false) }
+    var showConvert by remember { mutableStateOf(false) }
+    var converting by remember { mutableStateOf<ExportFormat?>(null) }
+    val createFile = rememberLauncherForActivityResult(CreateFile()) { uri ->
+        val format = converting
+        if (uri != null && format != null) vm.exportTo(uri, format)
+        converting = null
+    }
+    LaunchedEffect(vm.notice) {
+        vm.notice?.let {
+            Toast.makeText(context, it, Toast.LENGTH_LONG).show()
+            vm.consumeNotice()
+        }
+    }
     var showSearch by remember(state.uri) { mutableStateOf(false) }
     val hitsByPage = remember(vm.found) { vm.found.groupBy { it.page } }
     val night = reading.night
@@ -335,16 +350,22 @@ fun PagedScreen(vm: PagedViewModel, state: PagedUiState, reading: ReadingSetting
             }
         }
         BottomAppBar {
-            TextButton(onClick = { showReading = true }) { Text(stringResource(R.string.reading)) }
-            TextButton(onClick = { showPages = true }) { Text(stringResource(R.string.pages)) }
-            TextButton(onClick = { DocumentPrinter.print(context, vm, state) }) { Text(stringResource(R.string.print)) }
-            TextButton(onClick = {
-                val send = Intent(Intent.ACTION_SEND)
-                    .setType(context.contentResolver.getType(state.uri) ?: "*/*")
-                    .putExtra(Intent.EXTRA_STREAM, state.uri)
-                    .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-                context.startActivity(Intent.createChooser(send, state.fileName))
-            }) { Text(stringResource(R.string.share)) }
+            // Scrolls sideways when the buttons do not fit (narrow phones, large text).
+            Row(Modifier.horizontalScroll(rememberScrollState())) {
+                TextButton(onClick = { showReading = true }) { Text(stringResource(R.string.reading)) }
+                TextButton(onClick = { showPages = true }) { Text(stringResource(R.string.pages)) }
+                if (vm.exportFormats.isNotEmpty()) {
+                    TextButton(onClick = { showConvert = true }) { Text(stringResource(R.string.convert)) }
+                }
+                TextButton(onClick = { DocumentPrinter.print(context, vm, state) }) { Text(stringResource(R.string.print)) }
+                TextButton(onClick = {
+                    val send = Intent(Intent.ACTION_SEND)
+                        .setType(context.contentResolver.getType(state.uri) ?: "*/*")
+                        .putExtra(Intent.EXTRA_STREAM, state.uri)
+                        .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                    context.startActivity(Intent.createChooser(send, state.fileName))
+                }) { Text(stringResource(R.string.share)) }
+            }
         }
     }
 
@@ -368,6 +389,28 @@ fun PagedScreen(vm: PagedViewModel, state: PagedUiState, reading: ReadingSetting
             SettingRow(stringResource(R.string.night_mode), stringResource(R.string.night_mode_hint), reading.night, reading::updateNight)
             SettingRow(stringResource(R.string.keep_screen_on), null, reading.keepScreenOn, reading::updateKeepScreenOn)
             SettingRow(stringResource(R.string.volume_keys), stringResource(R.string.volume_keys_hint), reading.volumeKeys, reading::updateVolumeKeys)
+            Spacer(Modifier.height(24.dp))
+        }
+    }
+
+    if (showConvert) {
+        ModalBottomSheet(onDismissRequest = { showConvert = false }) {
+            Text(
+                stringResource(R.string.convert_to),
+                style = MaterialTheme.typography.titleLarge,
+                modifier = Modifier.padding(horizontal = 24.dp, vertical = 8.dp),
+            )
+            for (format in vm.exportFormats) {
+                ListItem(
+                    headlineContent = { Text(format.label) },
+                    supportingContent = { Text(convertedName(state.fileName, format.ext)) },
+                    modifier = Modifier.clickable {
+                        showConvert = false
+                        converting = format
+                        createFile.launch(CreateFile.Request(convertedName(state.fileName, format.ext), format.mime))
+                    },
+                )
+            }
             Spacer(Modifier.height(24.dp))
         }
     }

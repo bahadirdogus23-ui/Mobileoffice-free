@@ -81,4 +81,6 @@
     <string name="read_aloud_no_engine">Telefonda metin okuma motoru yok.</string>
     <string name="read_aloud_no_voice">Telefonda Türkçe (veya telefon dilinde) ses yüklü değil. Ayarlar › Metin okuma çıkışı\'ndan ses indirebilirsin.</string>
     <string name="stop">Durdur</string>
+    <string name="convert">Dönüştür</string>
+    <string name="convert_to">Şuna dönüştür</string>
 </resources>

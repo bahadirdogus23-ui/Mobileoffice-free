@@ -47,3 +47,11 @@ fn non_pptx_input_is_an_error() {
     let deck = DeckDoc::from_presentation(Presentation::default());
     assert!(matches!(deck.render_slide(3, 1.0), Err(DeckError::NoSlide(3))));
 }
+
+#[test]
+fn exports_a_pdf() {
+    let deck = DeckDoc::open(&sample_pptx()).unwrap();
+    let pdf = deck.export_pdf().unwrap();
+    assert!(pdf.starts_with(b"%PDF"));
+    assert!(pdf.len() > 1000, "{} bytes", pdf.len());
+}

@@ -1665,6 +1665,7 @@ version = "0.1.0"
 dependencies = [
  "deckcraft-engine",
  "deckcraft-model",
+ "deckcraft-pdf",
  "deckcraft-pptx",
  "deckcraft-render",
  "thiserror",

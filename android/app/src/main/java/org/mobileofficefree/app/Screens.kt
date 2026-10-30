@@ -53,6 +53,7 @@ internal fun SheetScreen(vm: SheetViewModel, state: SheetUiState) {
     val saveAs = rememberLauncherForActivityResult(
         ActivityResultContracts.CreateDocument(SPREADSHEET_TYPES[0]),
     ) { uri -> if (uri != null) vm.saveTo(uri) }
+    val savePdf = rememberLauncherForActivityResult(CreateFile()) { uri -> if (uri != null) vm.exportPdfTo(uri) }
 
     Column(Modifier.fillMaxSize().navigationBarsPadding()) {
         TopAppBar(
@@ -63,6 +64,9 @@ internal fun SheetScreen(vm: SheetViewModel, state: SheetUiState) {
                 }
             },
             actions = {
+                TextButton(onClick = { savePdf.launch(CreateFile.Request(convertedName(state.fileName, "pdf"), "application/pdf")) }) {
+                    Text("PDF")
+                }
                 TextButton(onClick = { saveAs.launch(saveName(state.fileName)) }) {
                     Text(stringResource(R.string.save_as))
                 }
