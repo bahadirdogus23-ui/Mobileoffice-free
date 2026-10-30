@@ -48,3 +48,31 @@ class CreateFile : ActivityResultContract<CreateFile.Request, Uri?>() {
 
 /** [fileName] with its extension changed to [ext]: "Rapor.doc" → "Rapor.pdf". */
 fun convertedName(fileName: String, ext: String): String = fileName.substringBeforeLast('.') + "." + ext
+
+/** Paper sizes offered for text documents, in points. */
+enum class Paper(val label: String, val widthPt: Float, val heightPt: Float) {
+    A4("A4", 595.28f, 841.89f),
+    A5("A5", 419.53f, 595.28f),
+    A3("A3", 841.89f, 1190.55f),
+    LETTER("Letter", 612f, 792f),
+}
+
+/** Fonts bundled with the engine (OFL), so the result looks the same on every phone. */
+enum class TextFont(val family: String) {
+    SANS("Source Sans 3"),
+    SERIF("Source Serif 4"),
+    MONO("JetBrains Mono"),
+}
+
+/** How plain text is laid out when it becomes a PDF or a word-processing document. */
+data class TextPageSetup(
+    val paper: Paper = Paper.A4,
+    val landscape: Boolean = false,
+    /** 36 pt = 1.27 cm (narrow), 72 pt = 2.54 cm (normal), 108 pt = 3.81 cm (wide). */
+    val marginPt: Float = 72f,
+    val font: TextFont = TextFont.SANS,
+    val sizePt: Float = 11f,
+)
+
+/** Formats with pages, which ask for a [TextPageSetup] first. */
+fun ExportFormat.hasPages(): Boolean = ext in setOf("pdf", "docx", "odt", "rtf")

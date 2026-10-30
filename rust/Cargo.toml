@@ -14,6 +14,7 @@ wordcraft-engine = { git = "https://github.com/storytold/wordcraft", rev = "c4fa
 wordcraft-layout = { git = "https://github.com/storytold/wordcraft", rev = "c4fafc215490a0186ee750454b1ce73a9823daed" }
 wordcraft-render = { git = "https://github.com/storytold/wordcraft", rev = "c4fafc215490a0186ee750454b1ce73a9823daed" }
 wordcraft-fonts = { git = "https://github.com/storytold/wordcraft", rev = "c4fafc215490a0186ee750454b1ce73a9823daed" }
+wordcraft-formats = { git = "https://github.com/storytold/wordcraft", rev = "c4fafc215490a0186ee750454b1ce73a9823daed" }
 wordcraft-doc = { git = "https://github.com/storytold/wordcraft", rev = "c4fafc215490a0186ee750454b1ce73a9823daed" }
 deckcraft-pptx = { git = "https://github.com/storytold/deckcraft", rev = "55e5ee56b4b2c64973b78fda4182a78f9766fa62" }
 deckcraft-render = { git = "https://github.com/storytold/deckcraft", rev = "55e5ee56b4b2c64973b78fda4182a78f9766fa62" }

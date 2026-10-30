@@ -161,6 +161,17 @@ impl SheetDocument {
     }
 }
 
+/// Page setup for turning plain text into a document, in points (1/72 inch).
+#[derive(uniffi::Record)]
+pub struct TextPage {
+    pub width_pt: f32,
+    pub height_pt: f32,
+    pub landscape: bool,
+    pub margin_pt: f32,
+    pub font: String,
+    pub size_pt: f32,
+}
+
 /// One rectangle of search match number `index` on page `page`, in page points.
 #[derive(uniffi::Record)]
 pub struct SearchHit {
@@ -217,6 +228,20 @@ impl WordDocument {
     #[uniffi::constructor]
     pub fn open(name: String, bytes: Vec<u8>, password: Option<String>) -> Result<Self, MoError> {
         Ok(WordDocument { doc: Mutex::new(WordDoc::open(&name, &bytes, password.as_deref())?) })
+    }
+
+    /// Plain text laid out on `page`, one paragraph per line, for converting to PDF, DOCX…
+    #[uniffi::constructor]
+    pub fn from_text(bytes: Vec<u8>, page: TextPage) -> Self {
+        let page = mo_word::TextPage {
+            width_pt: page.width_pt,
+            height_pt: page.height_pt,
+            landscape: page.landscape,
+            margin_pt: page.margin_pt,
+            font: page.font,
+            size_pt: page.size_pt,
+        };
+        WordDocument { doc: Mutex::new(WordDoc::from_text(&bytes, &page)) }
     }
 
     pub fn page_count(&self) -> u32 {

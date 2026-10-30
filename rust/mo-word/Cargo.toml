@@ -13,5 +13,9 @@ wordcraft-engine = { workspace = true }
 wordcraft-layout = { workspace = true }
 wordcraft-render = { workspace = true }
 wordcraft-doc = { workspace = true }
+wordcraft-formats = { workspace = true }
 thiserror = { workspace = true }
 kurbo = "0.13"
+
+[dev-dependencies]
+zip = { version = "3", default-features = false, features = ["deflate"] }

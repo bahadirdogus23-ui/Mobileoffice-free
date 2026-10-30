@@ -112,4 +112,11 @@
     <string name="text_current_encoding">Current encoding</string>
     <string name="text_unencodable">“%1$s” cannot be written in %2$s. You can choose UTF-8.</string>
     <string name="text_save_in_archive">A file opened from an archive cannot be saved in place; use Convert › Save with another encoding to keep a copy.</string>
+    <string name="page_setup_for">%1$s · Page setup</string>
+    <string name="text_font">Font</string>
+    <string name="text_font_sans">Sans</string>
+    <string name="text_font_serif">Serif</string>
+    <string name="text_font_mono">Monospace (code, logs)</string>
+    <string name="text_size">Size</string>
+    <string name="continue_to_save">Continue: choose where to save</string>
 </resources>

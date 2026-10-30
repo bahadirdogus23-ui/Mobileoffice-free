@@ -7,6 +7,7 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -26,7 +27,9 @@ import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.BottomAppBar
+import androidx.compose.material3.Button
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -87,11 +90,13 @@ fun TextScreen(vm: TextViewModel, state: TextUiState, reading: ReadingSettings) 
     val matchesByLine = remember(vm.matches) { vm.matches.withIndex().groupBy({ it.value.line }, { it.index to it.value }) }
 
     var showConvert by remember { mutableStateOf(false) }
+    var pageSetupFor by remember { mutableStateOf<ExportFormat?>(null) }
+    var pageSetup by remember { mutableStateOf(TextPageSetup()) }
     // A conversion or a re-encoded copy waits for the person to pick where it goes.
     var target by remember { mutableStateOf<Any?>(null) }
     val createFile = rememberLauncherForActivityResult(CreateFile()) { uri ->
         when (val t = target) {
-            is ExportFormat -> if (uri != null) vm.exportTo(uri, t)
+            is ExportFormat -> if (uri != null) vm.exportTo(uri, t, pageSetup)
             is TextEncoding -> if (uri != null) vm.saveAs(uri, t)
         }
         target = null
@@ -244,8 +249,12 @@ fun TextScreen(vm: TextViewModel, state: TextUiState, reading: ReadingSettings) 
                         supportingContent = { Text(convertedName(state.fileName, format.ext)) },
                         modifier = Modifier.clickable {
                             showConvert = false
-                            target = format
-                            createFile.launch(CreateFile.Request(convertedName(state.fileName, format.ext), format.mime))
+                            if (format.hasPages()) {
+                                pageSetupFor = format
+                            } else {
+                                target = format
+                                createFile.launch(CreateFile.Request(convertedName(state.fileName, format.ext), format.mime))
+                            }
                         },
                     )
                 }
@@ -269,6 +278,20 @@ fun TextScreen(vm: TextViewModel, state: TextUiState, reading: ReadingSettings) 
                 Spacer(Modifier.height(24.dp))
             }
         }
+    }
+
+    pageSetupFor?.let { format ->
+        TextPageSetupSheet(
+            setup = pageSetup,
+            onChange = { pageSetup = it },
+            onDismiss = { pageSetupFor = null },
+            onContinue = {
+                pageSetupFor = null
+                target = format
+                createFile.launch(CreateFile.Request(convertedName(state.fileName, format.ext), format.mime))
+            },
+            title = format.label,
+        )
     }
 
     vm.pendingLeave?.let {
@@ -295,4 +318,51 @@ private fun highlight(text: String, hits: List<Pair<Int, TextMatch>>?, current: 
             addStyle(SpanStyle(background = if (index == current) currentHitColor else hitColor), m.start, m.end)
         }
     }
+}
+
+/** Paper, orientation, margins, font and size for text becoming a PDF or a document. */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun TextPageSetupSheet(setup: TextPageSetup, onChange: (TextPageSetup) -> Unit, onDismiss: () -> Unit, onContinue: () -> Unit, title: String) {
+    ModalBottomSheet(onDismissRequest = onDismiss) {
+        Column(Modifier.padding(horizontal = 24.dp).verticalScroll(rememberScrollState())) {
+            Text(stringResource(R.string.page_setup_for, title), style = MaterialTheme.typography.titleLarge)
+            SetupRow(stringResource(R.string.pdf_paper)) {
+                for (p in Paper.entries) SetupChip(p.label, setup.paper == p) { onChange(setup.copy(paper = p)) }
+            }
+            SetupRow(stringResource(R.string.pdf_orientation)) {
+                SetupChip(stringResource(R.string.pdf_portrait), !setup.landscape) { onChange(setup.copy(landscape = false)) }
+                SetupChip(stringResource(R.string.pdf_landscape), setup.landscape) { onChange(setup.copy(landscape = true)) }
+            }
+            SetupRow(stringResource(R.string.pdf_margins)) {
+                SetupChip(stringResource(R.string.pdf_margins_narrow), setup.marginPt == 36f) { onChange(setup.copy(marginPt = 36f)) }
+                SetupChip(stringResource(R.string.pdf_margins_normal), setup.marginPt == 72f) { onChange(setup.copy(marginPt = 72f)) }
+                SetupChip(stringResource(R.string.pdf_margins_wide), setup.marginPt == 108f) { onChange(setup.copy(marginPt = 108f)) }
+            }
+            SetupRow(stringResource(R.string.text_font)) {
+                SetupChip(stringResource(R.string.text_font_sans), setup.font == TextFont.SANS) { onChange(setup.copy(font = TextFont.SANS)) }
+                SetupChip(stringResource(R.string.text_font_serif), setup.font == TextFont.SERIF) { onChange(setup.copy(font = TextFont.SERIF)) }
+                SetupChip(stringResource(R.string.text_font_mono), setup.font == TextFont.MONO) { onChange(setup.copy(font = TextFont.MONO)) }
+            }
+            SetupRow(stringResource(R.string.text_size)) {
+                for (size in listOf(9f, 10f, 11f, 12f, 14f, 16f)) {
+                    SetupChip("${size.toInt()} pt", setup.sizePt == size) { onChange(setup.copy(sizePt = size)) }
+                }
+            }
+            Button(onClick = onContinue, modifier = Modifier.fillMaxWidth().padding(vertical = 16.dp)) {
+                Text(stringResource(R.string.continue_to_save))
+            }
+        }
+    }
+}
+
+@Composable
+private fun SetupRow(title: String, chips: @Composable () -> Unit) {
+    Text(title, style = MaterialTheme.typography.labelLarge, modifier = Modifier.padding(top = 12.dp))
+    Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) { chips() }
+}
+
+@Composable
+private fun SetupChip(label: String, selected: Boolean, onClick: () -> Unit) {
+    FilterChip(selected = selected, onClick = onClick, label = { Text(label) })
 }

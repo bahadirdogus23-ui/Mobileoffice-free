@@ -114,3 +114,26 @@ fn exports_pdf_and_other_word_formats() {
     assert!(md.contains("# Başlık"), "{md}");
     assert!(doc.export("a.odt").unwrap().starts_with(b"PK"));
 }
+
+#[test]
+fn text_takes_the_page_setup_it_is_given() {
+    let page = TextPage { width_pt: 595.3, height_pt: 841.9, landscape: true, margin_pt: 36.0, font: "Source Serif 4".into(), size_pt: 14.0 };
+    let doc = WordDoc::from_text("Birinci satır ğüşıöç\nİkinci satır\n".as_bytes(), &page);
+    let (w, h) = doc.page_size(0).unwrap();
+    assert!((w - 841.9).abs() < 1.0 && (h - 595.3).abs() < 1.0, "landscape A4: {w}×{h}");
+    assert!(doc.export("a.pdf").unwrap().starts_with(b"%PDF"));
+    let docx = doc.export("a.docx").unwrap();
+    // The DOCX carries the chosen font and the 14 pt size (28 half-points) in its Normal style.
+    let styles = zip_entry(&docx, "word/styles.xml");
+    assert!(styles.contains("Source Serif 4") && styles.contains("w:val=\"28\""), "{}", &styles[..styles.len().min(400)]);
+    let portrait = WordDoc::from_text(b"x", &TextPage { landscape: false, ..page });
+    let (w, h) = portrait.page_size(0).unwrap();
+    assert!(w < h);
+}
+
+fn zip_entry(bytes: &[u8], name: &str) -> String {
+    let mut z = zip::ZipArchive::new(std::io::Cursor::new(bytes)).unwrap();
+    let mut s = String::new();
+    std::io::Read::read_to_string(&mut z.by_name(name).unwrap(), &mut s).unwrap();
+    s
+}

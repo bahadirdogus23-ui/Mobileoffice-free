@@ -1706,8 +1706,10 @@ dependencies = [
  "thiserror",
  "wordcraft-doc",
  "wordcraft-engine",
+ "wordcraft-formats",
  "wordcraft-layout",
  "wordcraft-render",
+ "zip",
 ]
 
 [[package]]

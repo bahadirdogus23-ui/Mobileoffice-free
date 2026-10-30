@@ -5,7 +5,7 @@
 mod find;
 
 pub use find::{Hit, MAX_MATCHES, fold};
-use wordcraft_doc::Document;
+use wordcraft_doc::{Document, SectionProps};
 use wordcraft_layout::{DocLayout, LayoutCache, LayoutOptions};
 use wordcraft_render::{RenderOptions, render_page, render_region};
 
@@ -17,6 +17,17 @@ pub enum WordError {
     Save(String),
     #[error("page {0} does not exist")]
     NoPage(u32),
+}
+
+/// Page setup for [`WordDoc::from_text`], in points (1/72 inch).
+#[derive(Debug, Clone, PartialEq)]
+pub struct TextPage {
+    pub width_pt: f32,
+    pub height_pt: f32,
+    pub landscape: bool,
+    pub margin_pt: f32,
+    pub font: String,
+    pub size_pt: f32,
 }
 
 /// A page picture: `width`×`height` premultiplied RGBA8, row by row.
@@ -38,6 +49,28 @@ impl WordDoc {
     pub fn open(name: &str, bytes: &[u8], password: Option<&str>) -> Result<WordDoc, WordError> {
         let (doc, _encrypted) = wordcraft_engine::io::open_bytes_with(name, bytes, password).map_err(WordError::Open)?;
         Ok(WordDoc::from_document(doc))
+    }
+
+    /// Plain text laid out on `page`: one paragraph per line, in `page.font` at `page.size_pt`.
+    /// The bytes may be UTF-8, UTF-16 with a BOM or a Windows code page (WordCraft decides).
+    pub fn from_text(bytes: &[u8], page: &TextPage) -> WordDoc {
+        let (long, short) = (page.width_pt.max(page.height_pt), page.width_pt.min(page.height_pt));
+        let sp = SectionProps {
+            page_w: if page.landscape { long } else { short },
+            page_h: if page.landscape { short } else { long },
+            landscape: page.landscape,
+            margin_top: page.margin_pt,
+            margin_bottom: page.margin_pt,
+            margin_left: page.margin_pt,
+            margin_right: page.margin_pt,
+            ..SectionProps::default()
+        };
+        let mut doc = wordcraft_formats::txt::import_on(bytes, &sp);
+        if let Some(normal) = doc.styles.get_mut("Normal") {
+            normal.chr.font = Some(page.font.clone());
+            normal.chr.size = Some(page.size_pt);
+        }
+        WordDoc::from_document(doc)
     }
 
     fn from_document(doc: Document) -> WordDoc {

@@ -15,6 +15,7 @@ import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import org.mobileofficefree.engine.TextPage
 import org.mobileofficefree.engine.WordDocument
 
 /** One line on screen: a whole line of the file, or a slice of a very long one. */
@@ -200,9 +201,9 @@ class TextViewModel(app: Application) : AndroidViewModel(app) {
 
     /**
      * Converts the current text to [format] (PDF, DOCX, HTML…) with the WordCraft engine, which
-     * reads each line as a paragraph, and writes it into the new file [uri].
+     * reads each line as a paragraph laid out on [setup]'s pages, and writes it into the new file [uri].
      */
-    fun exportTo(uri: Uri, format: ExportFormat) {
+    fun exportTo(uri: Uri, format: ExportFormat, setup: TextPageSetup) {
         val s = state ?: return
         val app = getApplication<Application>()
         val text = if (editing) draft.text else s.text
@@ -211,7 +212,8 @@ class TextViewModel(app: Application) : AndroidViewModel(app) {
             val started = SystemClock.elapsedRealtime()
             val result = withContext(converter) {
                 runCatching {
-                    val bytes = WordDocument.open("metin.txt", text.toByteArray(), null).use { it.export(convertedName(s.fileName, format.ext)) }
+                    val page = TextPage(setup.paper.widthPt, setup.paper.heightPt, setup.landscape, setup.marginPt, setup.font.family, setup.sizePt)
+                    val bytes = WordDocument.fromText(text.toByteArray(), page).use { it.export(convertedName(s.fileName, format.ext)) }
                     app.contentResolver.openOutputStream(uri, "wt")?.use { it.write(bytes) } ?: error("cannot write")
                 }
             }

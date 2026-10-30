@@ -111,4 +111,11 @@
     <string name="text_current_encoding">Şu anki kodlama</string>
     <string name="text_unencodable">“%1$s” karakteri %2$s kodlamasında yazılamıyor. UTF-8 seçebilirsin.</string>
     <string name="text_save_in_archive">Arşivden açılan dosya yerinde kaydedilemez; Dönüştür › Farklı kodlamayla kaydet ile bir kopya kaydet.</string>
+    <string name="page_setup_for">%1$s · Sayfa yapısı</string>
+    <string name="text_font">Yazı tipi</string>
+    <string name="text_font_sans">Düz (Sans)</string>
+    <string name="text_font_serif">Tırnaklı (Serif)</string>
+    <string name="text_font_mono">Eş aralıklı (kod, log)</string>
+    <string name="text_size">Punto</string>
+    <string name="continue_to_save">Devam: kaydedilecek yeri seç</string>
 </resources>
