@@ -10,7 +10,9 @@ use pdfcraft_cos::{CosError, Document, SaveOptions};
 use pdfcraft_organize as organize;
 
 mod form;
+mod text;
 pub use form::{FieldKind, FormField};
+pub use text::{Sensitive, fold, turkish_id_ok};
 
 #[derive(Debug, thiserror::Error, PartialEq, Eq)]
 pub enum PdfError {
@@ -32,6 +34,16 @@ pub struct PdfDoc {
     /// (page, index in its /Annots) of what [`PdfDoc::annotate`] added, newest last; cleared when
     /// pages move or go, which changes those positions.
     added: Vec<(usize, usize)>,
+    /// The text layer of the document as it is now; dropped on every change.
+    text: Option<pdfcraft_render::PageRenderer>,
+}
+
+/// One place a search or a black-out found: its page and one rectangle per line, as fractions
+/// of the displayed page (x right, y down): [left, top, right, bottom].
+#[derive(Clone, Debug, PartialEq)]
+pub struct TextHit {
+    pub page: u32,
+    pub rects: Vec<[f32; 4]>,
 }
 
 fn opening(e: CosError) -> PdfError {
@@ -49,7 +61,7 @@ fn edit<E: std::fmt::Display>(e: E) -> PdfError {
 impl PdfDoc {
     pub fn open(bytes: Vec<u8>, password: Option<&str>) -> Result<PdfDoc, PdfError> {
         let doc = Document::open_with_password(Arc::new(bytes), password).map_err(opening)?;
-        Ok(PdfDoc { doc, added: Vec::new() })
+        Ok(PdfDoc { doc, added: Vec::new(), text: None })
     }
 
     pub fn page_count(&self) -> Result<u32, PdfError> {
@@ -58,6 +70,7 @@ impl PdfDoc {
 
     /// Turns `pages` (0-based) by `degrees` (a multiple of 90, clockwise).
     pub fn rotate(&mut self, pages: &[u32], degrees: i32) -> Result<(), PdfError> {
+        self.text = None;
         self.refuse_restricted()?;
         organize::rotate_pages(&mut self.doc, &indices(pages), i64::from(degrees)).map_err(edit)
     }
@@ -69,6 +82,7 @@ impl PdfDoc {
 
     /// Removes `pages`; a document keeps at least one page.
     pub fn delete(&mut self, pages: &[u32]) -> Result<(), PdfError> {
+        self.text = None;
         self.refuse_restricted()?;
         if pages.len() as u32 >= self.page_count()? {
             return Err(PdfError::Edit("a PDF needs at least one page".into()));
@@ -79,6 +93,7 @@ impl PdfDoc {
 
     /// Moves `pages` so the first of them lands at position `to` (0-based, in the new order).
     pub fn move_pages(&mut self, pages: &[u32], to: u32) -> Result<(), PdfError> {
+        self.text = None;
         self.refuse_restricted()?;
         self.added.clear();
         organize::move_pages(&mut self.doc, &indices(pages), to as usize).map_err(edit)
@@ -86,6 +101,7 @@ impl PdfDoc {
 
     /// Appends all pages of another PDF (fields renamed where names clash).
     pub fn append(&mut self, other: Vec<u8>, password: Option<&str>) -> Result<(), PdfError> {
+        self.text = None;
         self.refuse_restricted()?;
         let src = Document::open_with_password(Arc::new(other), password).map_err(opening)?;
         let n = organize::page_count(&src).map_err(edit)?;
@@ -116,6 +132,7 @@ impl PdfDoc {
     /// fractions of the page as it is displayed (x right, y down, 0–1), so the caller need not know
     /// the page's boxes or rotation.
     pub fn sign(&mut self, page: u32, strokes: &[Vec<[f64; 2]>]) -> Result<(), PdfError> {
+        self.text = None;
         let strokes = self.user_strokes(page, strokes)?;
         let shape = annot::Shape::Signature { strokes };
         let style = annot::Style { width: 1.5, ..annot::Style::default_for(&shape) };
@@ -125,6 +142,7 @@ impl PdfDoc {
     /// Pen strokes on `page` (points as in [`PdfDoc::sign`]): `color` 0–1 RGB, `width` in points,
     /// `opacity` 0–1 (a highlighter is wide, yellow and see-through).
     pub fn draw(&mut self, page: u32, strokes: &[Vec<[f64; 2]>], color: [f64; 3], width: f64, opacity: f64) -> Result<(), PdfError> {
+        self.text = None;
         let strokes = self.user_strokes(page, strokes)?;
         let style = annot::Style { color, opacity, width, fill: None };
         self.annotate(page, annot::Shape::Ink { strokes }, style, String::new())
@@ -132,6 +150,7 @@ impl PdfDoc {
 
     /// A sticky note holding `text`, its corner at `at` (a fraction of the displayed page).
     pub fn note(&mut self, page: u32, at: [f64; 2], text: &str) -> Result<(), PdfError> {
+        self.text = None;
         let [x, y] = self.user_strokes(page, &[vec![at]])?[0][0];
         let shape = annot::Shape::Note { at: [x, y], icon: annot::NoteIcon::Comment };
         let style = annot::Style::default_for(&shape);
@@ -142,6 +161,7 @@ impl PdfDoc {
     /// since pages were last moved or removed); false when there is none. What the file
     /// already had is never removed.
     pub fn undo_annotation(&mut self) -> Result<bool, PdfError> {
+        self.text = None;
         let Some((page, index)) = self.added.pop() else { return Ok(false) };
         annot::delete_annotation(&mut self.doc, page, index).map_err(edit)?;
         Ok(true)
@@ -187,6 +207,7 @@ impl PdfDoc {
     /// Protects the next save with `password` (AES-256), every use allowed once it is open.
     /// `seed` is 32 random bytes for the keys.
     pub fn protect(&mut self, password: &str, seed: [u8; 32]) -> Result<(), PdfError> {
+        self.text = None;
         if password.is_empty() {
             return Err(PdfError::Edit("the password is empty".into()));
         }
@@ -204,6 +225,7 @@ impl PdfDoc {
 
     /// The next save asks for no password.
     pub fn unprotect(&mut self) -> Result<(), PdfError> {
+        self.text = None;
         self.refuse_restricted()?;
         self.doc.remove_encryption();
         Ok(())
@@ -242,17 +264,20 @@ impl PdfDoc {
     }
 
     pub fn set_text(&mut self, name: &str, text: &str) -> Result<(), PdfError> {
+        self.text = None;
         self.refuse_unfillable()?;
         form::set_text(&mut self.doc, name, text)
     }
 
     pub fn set_check(&mut self, name: &str, on: bool) -> Result<(), PdfError> {
+        self.text = None;
         self.refuse_unfillable()?;
         form::set_check(&mut self.doc, name, on)
     }
 
     /// Picks `value` (an export value from [`FormField::options`]; empty for none).
     pub fn set_choice(&mut self, name: &str, value: &str) -> Result<(), PdfError> {
+        self.text = None;
         self.refuse_unfillable()?;
         form::set_choice(&mut self.doc, name, value)
     }
@@ -262,6 +287,124 @@ impl PdfDoc {
             return Err(PdfError::Edit("the owner of this PDF does not allow filling in its form".into()));
         }
         Ok(())
+    }
+
+    /// Every place `query` occurs, ignoring case, Turkish i forms and accents (at most `limit`).
+    pub fn find_text(&mut self, query: &str, limit: usize) -> Result<Vec<TextHit>, PdfError> {
+        let query = query.to_string();
+        self.hits(limit, move |chars| text::find_folded(chars, &query))
+    }
+
+    /// The text of `page` in reading order (for reading aloud and copying).
+    pub fn page_text(&mut self, page: u32) -> Result<String, PdfError> {
+        let layer = self.text_layer()?;
+        Ok(layer.filtered_text(page as usize, Default::default()).map_err(PdfError::Edit)?.plain_text())
+    }
+
+    /// Marks for blacking out every place of `kinds` and of `words` (whole text, matched like a
+    /// search). Nothing is removed until [`PdfDoc::apply_redactions`]. Returns the places marked.
+    pub fn mark_redactions(&mut self, kinds: &[Sensitive], words: &[String]) -> Result<Vec<TextHit>, PdfError> {
+        self.refuse_restricted()?;
+        let kinds = kinds.to_vec();
+        let words: Vec<String> = words.iter().map(|w| w.trim().to_string()).filter(|w| !w.is_empty()).collect();
+        let hits = self.hits(usize::MAX, move |chars| {
+            let mut all: Vec<std::ops::Range<usize>> = kinds.iter().flat_map(|k| text::find_sensitive(*k, chars)).collect();
+            all.extend(words.iter().flat_map(|w| text::find_folded(chars, w)));
+            // One mark where finds overlap ("Şule" inside "sule@ornek.com").
+            all.sort_by_key(|r| (r.start, std::cmp::Reverse(r.end)));
+            let mut merged: Vec<std::ops::Range<usize>> = Vec::new();
+            for r in all {
+                match merged.last_mut() {
+                    Some(last) if r.start < last.end => last.end = last.end.max(r.end),
+                    _ => merged.push(r),
+                }
+            }
+            merged
+        })?;
+        for hit in &hits {
+            let quads: Vec<[f64; 8]> = hit
+                .rects
+                .iter()
+                .map(|r| {
+                    let mut q = [0.0; 8];
+                    for (i, p) in [[r[0], r[1]], [r[2], r[1]], [r[0], r[3]], [r[2], r[3]]].into_iter().enumerate() {
+                        let [x, y] = self.user_strokes(hit.page, &[vec![[f64::from(p[0]), f64::from(p[1])]]]).map(|s| s[0][0])?;
+                        q[2 * i] = x;
+                        q[2 * i + 1] = y;
+                    }
+                    Ok(q)
+                })
+                .collect::<Result<_, PdfError>>()?;
+            let shape = annot::Shape::Redact { quads, overlay: String::new(), look: Default::default() };
+            let style = annot::Style::default_for(&shape);
+            self.annotate(hit.page, shape, style, String::new())?;
+        }
+        self.text = None;
+        Ok(hits)
+    }
+
+    /// Drops every black-out mark not yet applied (the text under them stays).
+    pub fn clear_redaction_marks(&mut self) -> Result<u32, PdfError> {
+        self.text = None;
+        let n = pdfcraft_redact::clear_marks(&mut self.doc, None).map_err(edit)?;
+        // Undo positions no longer hold once marks are gone.
+        self.added.clear();
+        Ok(n as u32)
+    }
+
+    /// Black-out marks waiting to be applied.
+    pub fn redaction_marks(&self) -> u32 {
+        pdfcraft_redact::marks(&self.doc).len() as u32
+    }
+
+    /// Removes the text, pictures and drawings under every black-out mark for good and paints the
+    /// places black. Returns how many marks were applied.
+    pub fn apply_redactions(&mut self) -> Result<u32, PdfError> {
+        self.refuse_restricted()?;
+        self.text = None;
+        let report = pdfcraft_redact::apply(&mut self.doc, None).map_err(edit)?;
+        // Undo positions no longer hold: the marks are gone.
+        self.added.clear();
+        Ok(report.marks as u32)
+    }
+
+    /// Matches of `matcher` over each page's text, as page fractions.
+    fn hits(&mut self, limit: usize, matcher: impl Fn(&[char]) -> Vec<std::ops::Range<usize>>) -> Result<Vec<TextHit>, PdfError> {
+        let n = self.page_count()?;
+        let sizes: Vec<(f32, f32)> = (0..n).map(|p| self.view_size(p)).collect::<Result<_, _>>()?;
+        let layer = self.text_layer()?;
+        let mut out = Vec::new();
+        for page in 0..n {
+            // A page whose text can't be read is skipped, not an error for the whole document.
+            let Ok(text) = layer.filtered_text(page as usize, Default::default()) else { continue };
+            let (w, h) = sizes[page as usize];
+            for range in text.find_with(&matcher) {
+                let rects = text.line_rects(range).into_iter().map(|r| [r[0] / w, r[1] / h, r[2] / w, r[3] / h]).collect::<Vec<_>>();
+                if !rects.is_empty() {
+                    out.push(TextHit { page, rects });
+                    if out.len() >= limit {
+                        return Ok(out);
+                    }
+                }
+            }
+        }
+        Ok(out)
+    }
+
+    /// The page as displayed, in points: its crop box turned by /Rotate.
+    fn view_size(&self, page: u32) -> Result<(f32, f32), PdfError> {
+        let boxes = organize::page_boxes(&self.doc).map_err(edit)?;
+        let [x0, y0, x1, y1] = boxes.get(page as usize).ok_or_else(|| PdfError::Edit("no such page".into()))?[1];
+        let (w, h) = ((x1 - x0) as f32, (y1 - y0) as f32);
+        Ok(if organize::page_rotation(&self.doc, page as usize).map_err(edit)?.rem_euclid(180) == 90 { (h, w) } else { (w, h) })
+    }
+
+    fn text_layer(&mut self) -> Result<&mut pdfcraft_render::PageRenderer, PdfError> {
+        if self.text.is_none() {
+            let bytes = self.display_copy()?;
+            self.text = Some(pdfcraft_render::PageRenderer::new(Arc::new(bytes), Default::default()));
+        }
+        Ok(self.text.as_mut().expect("just set"))
     }
 
     /// The whole document written afresh (compressed object streams, a new cross-reference).

@@ -187,4 +187,31 @@
     <string name="note">Not</string>
     <string name="undo">Geri al</string>
     <string name="add">Ekle</string>
+    <string name="redact">Karart</string>
+    <string name="redact_title">Kişisel bilgileri karart</string>
+    <string name="redact_hint">Bulunan yerler önce işaretlenir. Siz karartana kadar hiçbir şey silinmez; karartma da yalnızca kaydedeceğiniz kopyada olur, açtığınız dosya olduğu gibi kalır.</string>
+    <string name="redact_turkish_id">T.C. kimlik numaraları</string>
+    <string name="redact_iban">IBAN\'lar</string>
+    <string name="redact_phone">Telefon numaraları</string>
+    <string name="redact_email">E-posta adresleri</string>
+    <string name="redact_words">Ayrıca şu kelimeler veya isimler</string>
+    <string name="redact_words_hint">Her satıra bir tane</string>
+    <string name="redact_find">Bul ve işaretle</string>
+    <string name="redact_apply">Kalıcı olarak karart</string>
+    <string name="redact_apply_short">Karart</string>
+    <string name="redact_confirm">İşaretli yerlerdeki yazı, resim ve çizimler yalnızca örtülmez, PDF\'ten silinir; bu kopyada geri alınamaz. Ardından yeni bir dosya olarak kaydedin.</string>
+    <plurals name="redact_marked">
+        <item quantity="one">%d yer işaretlendi</item>
+        <item quantity="other">%d yer işaretlendi</item>
+    </plurals>
+    <plurals name="redact_applied">
+        <item quantity="one">%d yer karartıldı. Saklamak için kaydedin.</item>
+        <item quantity="other">%d yer karartıldı. Saklamak için kaydedin.</item>
+    </plurals>
+    <plurals name="redact_waiting">
+        <item quantity="one">%d yer işaretli (sayfada kırmızı çerçeve).</item>
+        <item quantity="other">%d yer işaretli (sayfada kırmızı çerçeve).</item>
+    </plurals>
+    <string name="redact_before_save">İşaretli yerler henüz karartılmadı. Önce karartın; yoksa altlarındaki yazı da kaydedilir.</string>
+    <string name="redact_clear">İşaretleri kaldır</string>
 </resources>

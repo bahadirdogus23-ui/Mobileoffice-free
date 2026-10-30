@@ -188,4 +188,31 @@
     <string name="note">Note</string>
     <string name="undo">Undo</string>
     <string name="add">Add</string>
+    <string name="redact">Black out</string>
+    <string name="redact_title">Black out personal data</string>
+    <string name="redact_hint">Found places are marked first. Nothing is removed until you black them out, and then only in the copy you save; the opened file stays as it is.</string>
+    <string name="redact_turkish_id">Turkish ID numbers (T.C. kimlik no)</string>
+    <string name="redact_iban">IBANs</string>
+    <string name="redact_phone">Phone numbers</string>
+    <string name="redact_email">E-mail addresses</string>
+    <string name="redact_words">Also these words or names</string>
+    <string name="redact_words_hint">One per line</string>
+    <string name="redact_find">Find and mark</string>
+    <string name="redact_apply">Black out for good</string>
+    <string name="redact_apply_short">Black out</string>
+    <string name="redact_confirm">The text, pictures and drawings under the marks are removed from the PDF, not just covered; this cannot be undone in the copy. Save it as a new file afterwards.</string>
+    <plurals name="redact_marked">
+        <item quantity="one">%d place marked</item>
+        <item quantity="other">%d places marked</item>
+    </plurals>
+    <plurals name="redact_applied">
+        <item quantity="one">%d place blacked out. Save to keep it.</item>
+        <item quantity="other">%d places blacked out. Save to keep them.</item>
+    </plurals>
+    <plurals name="redact_waiting">
+        <item quantity="one">%d place is marked (red frame on the page).</item>
+        <item quantity="other">%d places are marked (red frames on the page).</item>
+    </plurals>
+    <string name="redact_before_save">Some places are marked but not yet blacked out. Black them out first, or the text under them is saved.</string>
+    <string name="redact_clear">Remove the marks</string>
 </resources>

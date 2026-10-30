@@ -203,3 +203,58 @@ fn draws_highlights_notes_and_undoes_only_its_own() {
     let annots = doc.doc.get(page).as_dict().and_then(|d| d.get(b"Annots").cloned()).map(|a| doc.doc.resolve(&a).as_array().map_or(0, Vec::len));
     assert_eq!(annots, Some(1));
 }
+
+/// A page with personal data on it, as a spreadsheet PDF would carry it.
+fn personal() -> Vec<u8> {
+    let mut d = gridcraft_pdf::PdfDoc::new();
+    let p = d.add_page(595.0, 842.0);
+    let lines = [
+        "Ad Soyad: Şule Yılmaz",
+        "TC Kimlik No: 10000000146",
+        "IBAN: TR33 0006 1005 1978 6457 8413 26",
+        "Telefon: 0532 123 45 67",
+        "E-posta: sule@ornek.com.tr",
+        "İSTANBUL",
+    ];
+    for (i, l) in lines.iter().enumerate() {
+        p.text(72.0, 100.0 + 24.0 * i as f32, 12.0, gridcraft_pdf::Font::Helvetica, [0, 0, 0], l);
+    }
+    d.finish()
+}
+
+#[test]
+fn finds_text_on_pages_ignoring_turkish_i() {
+    let mut doc = PdfDoc::open(personal(), None).unwrap();
+    let hits = doc.find_text("istanbul", 10).unwrap();
+    assert_eq!(hits.len(), 1);
+    let r = hits[0].rects[0];
+    // x from 72 pt of 595, y around the 6th line (220 pt of 842, y down).
+    assert!((0.11..0.13).contains(&r[0]) && r[1] > 0.22 && r[3] < 0.28, "{r:?}");
+    assert_eq!(doc.find_text("yilmaz", 10).unwrap().len(), 1);
+    assert!(doc.page_text(0).unwrap().contains("Şule Yılmaz"));
+}
+
+#[test]
+fn blacks_out_personal_data_for_good() {
+    let mut doc = PdfDoc::open(personal(), None).unwrap();
+    let marked = doc.mark_redactions(&[Sensitive::TurkishId, Sensitive::Iban, Sensitive::Phone, Sensitive::Email], &["Şule".into()]).unwrap();
+    assert_eq!(marked.len(), 5);
+    assert_eq!(doc.redaction_marks(), 5);
+    let mut undone = PdfDoc::open(doc.save().unwrap(), None).unwrap();
+    assert_eq!(undone.clear_redaction_marks().unwrap(), 5);
+    assert_eq!(undone.redaction_marks(), 0);
+    assert!(undone.page_text(0).unwrap().contains("10000000146"));
+    // Marked only: the text is still there until applied.
+    assert!(doc.page_text(0).unwrap().contains("10000000146"));
+    assert_eq!(doc.apply_redactions().unwrap(), 5);
+    if let Ok(path) = std::env::var("DUMP") {
+        std::fs::write(path, doc.save().unwrap()).unwrap();
+    }
+    let mut saved = reopened(doc.save().unwrap());
+    let text = saved.page_text(0).unwrap();
+    for gone in ["10000000146", "TR33", "0532", "sule@ornek", "Şule"] {
+        assert!(!text.contains(gone), "{gone} still in {text:?}");
+    }
+    assert!(text.contains("Yılmaz") && text.contains("İSTANBUL"), "{text:?}");
+    assert_eq!(saved.redaction_marks(), 0);
+}

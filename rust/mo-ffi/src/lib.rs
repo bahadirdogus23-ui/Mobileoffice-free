@@ -10,7 +10,7 @@ use std::sync::{Mutex, MutexGuard};
 use mo_cad::{CadDoc, CadError};
 use mo_deck::{DeckDoc, DeckError};
 use mo_grid::{GridDoc, GridError};
-use mo_pdf::{FieldKind, FormField, PdfDoc, PdfError};
+use mo_pdf::{FieldKind, FormField, PdfDoc, PdfError, Sensitive};
 use mo_word::{WordDoc, WordError};
 
 uniffi::setup_scaffolding!();
@@ -436,6 +436,41 @@ pub struct Pen {
     pub opacity: f64,
 }
 
+/// Personal data that can be found to black out.
+#[derive(uniffi::Enum)]
+pub enum SensitiveKind {
+    /// T.C. kimlik numarası (check digits verified).
+    TurkishId,
+    Iban,
+    Phone,
+    Email,
+}
+
+/// A rectangle as fractions of the displayed page (y down).
+#[derive(uniffi::Record)]
+pub struct PageRect {
+    pub left: f32,
+    pub top: f32,
+    pub right: f32,
+    pub bottom: f32,
+}
+
+/// One place found on a page: a rectangle per line it spans.
+#[derive(uniffi::Record)]
+pub struct PdfTextHit {
+    pub page: u32,
+    pub rects: Vec<PageRect>,
+}
+
+fn text_hits(hits: Vec<mo_pdf::TextHit>) -> Vec<PdfTextHit> {
+    hits.into_iter()
+        .map(|h| PdfTextHit {
+            page: h.page,
+            rects: h.rects.into_iter().map(|[left, top, right, bottom]| PageRect { left, top, right, bottom }).collect(),
+        })
+        .collect()
+}
+
 /// Flat `x, y` pairs as points.
 fn points(strokes: &[Vec<f64>]) -> Vec<Vec<[f64; 2]>> {
     strokes.iter().map(|s| s.as_chunks::<2>().0.to_vec()).collect()
@@ -614,6 +649,45 @@ impl PdfDocument {
     /// Picks `value` (an option's value; empty for none) in a radio group or choice field.
     pub fn set_choice(&self, name: String, value: String) -> Result<(), MoError> {
         Ok(self.doc().set_choice(&name, &value)?)
+    }
+
+    /// Every place `query` occurs (ignoring case, Turkish i forms and accents), at most `limit`.
+    pub fn find_text(&self, query: String, limit: u32) -> Result<Vec<PdfTextHit>, MoError> {
+        Ok(text_hits(self.doc().find_text(&query, limit as usize)?))
+    }
+
+    /// The text of `page` in reading order.
+    pub fn page_text(&self, page: u32) -> Result<String, MoError> {
+        Ok(self.doc().page_text(page)?)
+    }
+
+    /// Marks every place of `kinds` and `words` for blacking out; returns the places.
+    pub fn mark_redactions(&self, kinds: Vec<SensitiveKind>, words: Vec<String>) -> Result<Vec<PdfTextHit>, MoError> {
+        let kinds: Vec<Sensitive> = kinds
+            .into_iter()
+            .map(|k| match k {
+                SensitiveKind::TurkishId => Sensitive::TurkishId,
+                SensitiveKind::Iban => Sensitive::Iban,
+                SensitiveKind::Phone => Sensitive::Phone,
+                SensitiveKind::Email => Sensitive::Email,
+            })
+            .collect();
+        Ok(text_hits(self.doc().mark_redactions(&kinds, &words)?))
+    }
+
+    /// Drops the black-out marks not yet applied; returns how many.
+    pub fn clear_redaction_marks(&self) -> Result<u32, MoError> {
+        Ok(self.doc().clear_redaction_marks()?)
+    }
+
+    /// Black-out marks waiting to be applied.
+    pub fn redaction_marks(&self) -> u32 {
+        self.doc().redaction_marks()
+    }
+
+    /// Removes what is under every black-out mark for good; returns how many were applied.
+    pub fn apply_redactions(&self) -> Result<u32, MoError> {
+        Ok(self.doc().apply_redactions()?)
     }
 
     /// The whole document as a new file.

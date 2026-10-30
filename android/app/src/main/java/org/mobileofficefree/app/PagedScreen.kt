@@ -147,6 +147,7 @@ fun PagedScreen(vm: PagedViewModel, state: PagedUiState, reading: ReadingSetting
     var drawSignature by remember { mutableStateOf(false) }
     var showPassword by remember { mutableStateOf(false) }
     var showCompress by remember { mutableStateOf(false) }
+    var showRedact by remember { mutableStateOf(false) }
     // Annotating: the tool, strokes drawn but not yet written, the one under the finger, and
     // where a new note goes.
     var annotating by remember(state.uri) { mutableStateOf(false) }
@@ -168,6 +169,15 @@ fun PagedScreen(vm: PagedViewModel, state: PagedUiState, reading: ReadingSetting
     }
     val addPdf = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri -> if (uri != null) pdf?.appendPdf(uri) }
     val editedName = convertedName(state.fileName, "pdf").removeSuffix(".pdf") + "-duzenlendi.pdf"
+    // Marks not yet blacked out would be saved with the text still under them: black them out first.
+    val startSave = {
+        if ((pdf?.redactionMarks ?: 0) > 0) {
+            showRedact = true
+            Toast.makeText(context, R.string.redact_before_save, Toast.LENGTH_LONG).show()
+        } else {
+            saveEdited.launch(CreateFile.Request(editedName, "application/pdf"))
+        }
+    }
     val saveCompressed = rememberLauncherForActivityResult(CreateFile()) { uri -> pdf?.saveCompressed(uri) }
     LaunchedEffect(pdf?.compressed) {
         if (pdf?.compressed != null) saveCompressed.launch(CreateFile.Request(editedName.replace("-duzenlendi", "-kucuk"), "application/pdf"))
@@ -251,7 +261,7 @@ fun PagedScreen(vm: PagedViewModel, state: PagedUiState, reading: ReadingSetting
             },
             actions = {
                 if (pdf?.edited == true) {
-                    TextButton(onClick = { saveEdited.launch(CreateFile.Request(editedName, "application/pdf")) }, enabled = !pdf.busy && pending.isEmpty()) {
+                    TextButton(onClick = { startSave() }, enabled = !pdf.busy && pending.isEmpty()) {
                         Text(stringResource(R.string.save))
                     }
                 }
@@ -464,6 +474,7 @@ fun PagedScreen(vm: PagedViewModel, state: PagedUiState, reading: ReadingSetting
                     TextButton(onClick = { annotating = true }, enabled = !pdf.busy && !pdf.restricted && !annotating) { Text(stringResource(R.string.annotate)) }
                     TextButton(onClick = { drawSignature = true }, enabled = !pdf.busy && !pdf.restricted) { Text(stringResource(R.string.sign)) }
                     TextButton(onClick = { showPassword = true }, enabled = !pdf.busy && !pdf.restricted) { Text(stringResource(R.string.password)) }
+                    TextButton(onClick = { showRedact = true }, enabled = !pdf.busy && !pdf.restricted) { Text(stringResource(R.string.redact)) }
                     TextButton(onClick = { showCompress = true }, enabled = !pdf.busy) { Text(stringResource(R.string.compress)) }
                     TextButton(onClick = pdf::loadForm, enabled = !pdf.busy) { Text(stringResource(R.string.form_fill)) }
                 }
@@ -504,6 +515,20 @@ fun PagedScreen(vm: PagedViewModel, state: PagedUiState, reading: ReadingSetting
                 }) { Text(stringResource(R.string.add)) }
             },
             dismissButton = { TextButton(onClick = { notePlace = null }) { Text(stringResource(R.string.cancel)) } },
+        )
+    }
+
+    if (showRedact && pdf != null) {
+        RedactSheet(
+            marks = pdf.redactionMarks,
+            busy = pdf.busy,
+            onDismiss = { showRedact = false },
+            onMark = pdf::markRedactions,
+            onApply = {
+                showRedact = false
+                pdf.applyRedactions()
+            },
+            onClear = pdf::clearRedactionMarks,
         )
     }
 
@@ -716,8 +741,8 @@ fun PagedScreen(vm: PagedViewModel, state: PagedUiState, reading: ReadingSetting
             confirmButton = {
                 TextButton(onClick = {
                     vm.answerClose(null)
-                    closeAfterSave = true
-                    saveEdited.launch(CreateFile.Request(editedName, "application/pdf"))
+                    closeAfterSave = pdf?.redactionMarks == 0
+                    startSave()
                 }) { Text(stringResource(R.string.save)) }
             },
             dismissButton = {

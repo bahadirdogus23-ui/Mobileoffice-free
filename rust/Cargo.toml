@@ -30,6 +30,8 @@ pdfcraft-cos = { git = "https://github.com/storytold/pdfcraft", rev = "20eebc1c3
 pdfcraft-annot = { git = "https://github.com/storytold/pdfcraft", rev = "20eebc1c33ff7e6f42ac1c56bf95192f628a9d97" }
 pdfcraft-fonts = { git = "https://github.com/storytold/pdfcraft", rev = "20eebc1c33ff7e6f42ac1c56bf95192f628a9d97" }
 pdfcraft-forms = { git = "https://github.com/storytold/pdfcraft", rev = "20eebc1c33ff7e6f42ac1c56bf95192f628a9d97" }
+pdfcraft-redact = { git = "https://github.com/storytold/pdfcraft", rev = "20eebc1c33ff7e6f42ac1c56bf95192f628a9d97" }
+pdfcraft-render = { git = "https://github.com/storytold/pdfcraft", rev = "20eebc1c33ff7e6f42ac1c56bf95192f628a9d97" }
 pdfcraft-optimize = { git = "https://github.com/storytold/pdfcraft", rev = "20eebc1c33ff7e6f42ac1c56bf95192f628a9d97" }
 pdfcraft-organize = { git = "https://github.com/storytold/pdfcraft", rev = "20eebc1c33ff7e6f42ac1c56bf95192f628a9d97" }
 gridcraft-engine = { git = "https://github.com/storytold/gridcraft", rev = "11bb67386c9bb19b0717e21e98adc608162ae2e5" }
@@ -58,8 +60,13 @@ panic = "unwind"
 
 # WordCraft's PDF writer needs the same krilla revision its own workspace patches in.
 [patch.crates-io]
-# PdfCraft reads content streams with its own patched hayro-syntax (only PdfCraft uses it here).
+# PdfCraft reads PDFs with its own patched hayro and lopdf crates (only PdfCraft uses them here).
+hayro = { git = "https://github.com/storytold/pdfcraft", rev = "20eebc1c33ff7e6f42ac1c56bf95192f628a9d97" }
+hayro-cmap = { git = "https://github.com/storytold/pdfcraft", rev = "20eebc1c33ff7e6f42ac1c56bf95192f628a9d97" }
+hayro-interpret = { git = "https://github.com/storytold/pdfcraft", rev = "20eebc1c33ff7e6f42ac1c56bf95192f628a9d97" }
+hayro-postscript = { git = "https://github.com/storytold/pdfcraft", rev = "20eebc1c33ff7e6f42ac1c56bf95192f628a9d97" }
 hayro-syntax = { git = "https://github.com/storytold/pdfcraft", rev = "20eebc1c33ff7e6f42ac1c56bf95192f628a9d97" }
+lopdf = { git = "https://github.com/storytold/pdfcraft", rev = "20eebc1c33ff7e6f42ac1c56bf95192f628a9d97" }
 krilla = { git = "https://github.com/storytold/craft-libs", rev = "92d392cff132eaf53e13afff77f38b5c11b73aa0" }
 
 # GridCraft's PDF writer with Turkish letters in the standard fonts (vendor/gridcraft-pdf/PATCHES.md).

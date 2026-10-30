@@ -17,6 +17,8 @@ pdfcraft-fonts = { workspace = true }
 pdfcraft-forms = { workspace = true }
 pdfcraft-optimize = { workspace = true }
 pdfcraft-organize = { workspace = true }
+pdfcraft-redact = { workspace = true }
+pdfcraft-render = { workspace = true }
 thiserror = { workspace = true }
 ttf-parser = "0.25"
 wordcraft-fonts = { workspace = true }

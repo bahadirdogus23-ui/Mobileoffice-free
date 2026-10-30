@@ -5,10 +5,8 @@ import android.graphics.Bitmap
 import android.graphics.Color
 import android.graphics.pdf.PdfRenderer
 import android.net.Uri
-import android.os.Build
 import android.os.ParcelFileDescriptor
 import android.text.format.Formatter
-import androidx.annotation.RequiresApi
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
@@ -22,6 +20,7 @@ import org.mobileofficefree.engine.FormFieldKind
 import org.mobileofficefree.engine.MoException
 import org.mobileofficefree.engine.PdfDocument
 import org.mobileofficefree.engine.PdfFormField
+import org.mobileofficefree.engine.SensitiveKind
 
 /**
  * PDF viewing through Android's own PdfRenderer (PDFium inside, nothing added to the app);
@@ -344,30 +343,51 @@ class PdfViewModel(app: Application) : PagedViewModel(app, DocumentKind.PDF) {
         }
     }
 
-    /** PdfRenderer can search text from Android 15 on. */
-    override val searchable = Build.VERSION.SDK_INT >= Build.VERSION_CODES.VANILLA_ICE_CREAM
+    /**
+     * Search and reading aloud go through the engine's text layer: every Android version, and
+     * Turkish ı/İ and accents match their plain letters.
+     */
+    override val searchable = true
 
-    override fun findText(query: String): List<FoundRect> =
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.VANILLA_ICE_CREAM) searchPages(query) else emptyList()
-
-    @RequiresApi(Build.VERSION_CODES.VANILLA_ICE_CREAM)
-    private fun searchPages(query: String): List<FoundRect> {
-        val r = renderer ?: return emptyList()
-        val out = ArrayList<FoundRect>()
-        var index = 0
-        for (i in 0 until r.pageCount) {
-            val page = r.openPage(i)
-            try {
-                for (match in page.searchText(query)) {
-                    // Bounds are in page points, like the page sizes.
-                    for (b in match.bounds) out += FoundRect(index, i, b.left, b.top, b.right, b.bottom)
-                    if (++index >= MAX_MATCHES) return out
-                }
-            } finally {
-                page.close()
-            }
+    override fun findText(query: String): List<FoundRect> {
+        val sizes = state?.pages ?: return emptyList()
+        return editor().findText(query, MAX_MATCHES.toUInt()).flatMapIndexed { index, hit ->
+            val (w, h) = sizes.getOrNull(hit.page.toInt()) ?: return@flatMapIndexed emptyList()
+            hit.rects.map { r -> FoundRect(index, hit.page.toInt(), r.left * w, r.top * h, r.right * w, r.bottom * h) }
         }
-        return out
+    }
+
+    override val canReadAloud = true
+
+    override fun pageTexts(): List<String> {
+        val doc = editor()
+        return (0u until doc.pageCount()).map { runCatching { doc.pageText(it) }.getOrDefault("") }
+    }
+
+    /** Black-out marks waiting to be applied. */
+    var redactionMarks by mutableStateOf(0)
+        private set
+
+    /** Marks every place of [kinds] and [words] for blacking out. */
+    fun markRedactions(kinds: List<SensitiveKind>, words: List<String>) = edit { doc ->
+        val found = doc.markRedactions(kinds, words).size
+        redactionMarks = doc.redactionMarks().toInt()
+        tell(getApplication<Application>().resources.getQuantityString(R.plurals.redact_marked, found, found))
+    }
+
+    /** Drops the marks not yet applied. */
+    fun clearRedactionMarks() = edit { doc ->
+        doc.clearRedactionMarks()
+        redactionMarks = 0
+        added = 0
+    }
+
+    /** Removes what is under every mark for good (in the copy being edited). */
+    fun applyRedactions() = edit { doc ->
+        val n = doc.applyRedactions().toInt()
+        redactionMarks = 0
+        added = 0
+        tell(getApplication<Application>().resources.getQuantityString(R.plurals.redact_applied, n, n))
     }
 
     private fun closeRenderer() {
@@ -386,6 +406,7 @@ class PdfViewModel(app: Application) : PagedViewModel(app, DocumentKind.PDF) {
         viewModelScope.launch {
             edited = false
             added = 0
+            redactionMarks = 0
         }
     }
 }

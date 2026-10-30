@@ -4,6 +4,7 @@ import kotlin.test.assertFailsWith
 import org.mobileofficefree.engine.MoException
 import org.mobileofficefree.engine.PdfDocument
 import org.mobileofficefree.engine.Pen
+import org.mobileofficefree.engine.SensitiveKind
 import org.mobileofficefree.engine.SheetDocument
 
 class PdfDocumentTest {
@@ -71,6 +72,22 @@ class PdfDocumentTest {
             assertEquals(true, doc.undoAnnotation())
             assertEquals(true, doc.undoAnnotation())
             assertEquals(false, doc.undoAnnotation())
+        }
+    }
+
+    @Test
+    fun searchesAndBlacksOut() {
+        val bytes = SheetDocument.blank().use { sheet ->
+            sheet.execute("cell.set", """{"cell":"A1","input":"IBAN TR33 0006 1005 1978 6457 8413 26"}""")
+            sheet.execute("cell.set", """{"cell":"A2","input":"İSTANBUL"}""")
+            sheet.exportPdf(true, null, false)
+        }
+        PdfDocument.open(bytes, null).use { doc ->
+            assertEquals(1, doc.findText("istanbul", 10u).size)
+            assertEquals(1, doc.markRedactions(listOf(SensitiveKind.IBAN), emptyList()).size)
+            assertEquals(1u, doc.redactionMarks())
+            assertEquals(1u, doc.applyRedactions())
+            PdfDocument.open(doc.save(), null).use { assertEquals(false, it.pageText(0u).contains("TR33")) }
         }
     }
 }
