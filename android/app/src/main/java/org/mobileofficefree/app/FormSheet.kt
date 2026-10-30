@@ -13,6 +13,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.material3.Button
 import androidx.compose.material3.Checkbox
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
@@ -49,6 +50,7 @@ fun formChanges(fields: List<PdfFormField>, inputs: Map<String, FieldInput>): Ma
     }
 
 /** The form's fields one under another, page by page, to fill in; [onApply] gets the changes. */
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun FormSheet(fields: List<PdfFormField>, onDismiss: () -> Unit, onApply: (Map<String, FieldInput>) -> Unit) {
     val inputs = remember(fields) { mutableStateMapOf<String, FieldInput>() }
