@@ -154,7 +154,7 @@
     <string name="password">Parola</string>
     <string name="show">Göster</string>
     <string name="hide">Gizle</string>
-    <string name="open_file">Aç</string>
+    <string name="unlock_open">Aç</string>
     <string name="pdf_locked_title">Bu PDF parolayla korunuyor</string>
     <string name="pdf_locked_body">Açmak için parolayı girin.</string>
     <string name="wrong_password">Parola yanlış</string>

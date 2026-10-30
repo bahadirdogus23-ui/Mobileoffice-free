@@ -155,7 +155,7 @@
     <string name="password">Password</string>
     <string name="show">Show</string>
     <string name="hide">Hide</string>
-    <string name="open_file">Open</string>
+    <string name="unlock_open">Open</string>
     <string name="pdf_locked_title">This PDF is password-protected</string>
     <string name="pdf_locked_body">Enter the password to open it.</string>
     <string name="wrong_password">Wrong password</string>
