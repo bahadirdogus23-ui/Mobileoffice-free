@@ -108,4 +108,9 @@ fn exports_pdf_and_other_word_formats() {
     assert!(doc.export("a.docx").unwrap().starts_with(b"PK"));
     assert!(doc.export("a.rtf").unwrap().starts_with(b"{\\rtf"));
     assert!(String::from_utf8(doc.export("a.txt").unwrap()).unwrap().contains("ğüşıöç"));
+    let html = String::from_utf8(doc.export("a.html").unwrap()).unwrap();
+    assert!(html.contains("<h1") && html.contains("ğüşıöç"), "{html}");
+    let md = String::from_utf8(doc.export("a.md").unwrap()).unwrap();
+    assert!(md.contains("# Başlık"), "{md}");
+    assert!(doc.export("a.odt").unwrap().starts_with(b"PK"));
 }

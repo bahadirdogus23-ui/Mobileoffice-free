@@ -5,7 +5,7 @@
 //! does not cover for a viewer: opening from bytes, reading a window of cell texts, and saving to
 //! bytes. See docs/RAPOR-VE-PLAN.md §9.3.
 
-use std::sync::Arc;
+use std::sync::{Arc, Once};
 
 use gridcraft_engine::io::{self, FileKind};
 use gridcraft_engine::model::Workbook;
@@ -147,6 +147,7 @@ impl GridDoc {
     /// else the active one, only `range` of it if given ("A1:F40"); `fit_to_page` shrinks each
     /// sheet onto one page.
     pub fn export_pdf(&mut self, all_sheets: bool, range: Option<&str>, fit_to_page: bool) -> Result<Vec<u8>, GridError> {
+        register_pdf_fonts();
         let mut params = serde_json::json!({"sheets": if all_sheets { "all" } else { "active" }, "fitToPage": fit_to_page});
         if let Some(r) = range.map(str::trim).filter(|r| !r.is_empty()) {
             params["range"] = serde_json::json!(r);
@@ -167,3 +168,22 @@ fn is_delimited_text(name: &str) -> bool {
 
 #[cfg(test)]
 mod tests;
+
+/// Hands WordCraft's bundled fonts (OFL: Source Sans 3, Source Serif 4, JetBrains Mono) to the
+/// PDF writer once, so spreadsheet PDFs embed real fonts with every Turkish letter instead of
+/// relying on the viewer's standard fonts (some lack İ).
+fn register_pdf_fonts() {
+    static ONCE: Once = Once::new();
+    ONCE.call_once(|| {
+        // wordcraft-fonts' bundle order: Sans Regular, Semibold, Bold, Italic; Serif Regular,
+        // Italic, Semibold, Bold, BoldItalic; Inter ×3; JetBrains Mono.
+        let b = wordcraft_fonts::bundled();
+        if b.len() < 13 {
+            return;
+        }
+        let (sans, sans_bold, sans_it) = (b[0], b[2], b[3]);
+        let (serif, serif_it, serif_bold, serif_bold_it) = (b[4], b[5], b[7], b[8]);
+        let mono = b[12];
+        gridcraft_pdf::set_text_fonts([sans, sans_bold, sans_it, sans_bold, serif, serif_bold, serif_it, serif_bold_it, mono, mono, mono, mono]);
+    });
+}

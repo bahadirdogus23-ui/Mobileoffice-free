@@ -13,6 +13,7 @@ repository = "https://github.com/bahadirdogus23-ui/Mobileoffice-free"
 wordcraft-engine = { git = "https://github.com/storytold/wordcraft", rev = "c4fafc215490a0186ee750454b1ce73a9823daed" }
 wordcraft-layout = { git = "https://github.com/storytold/wordcraft", rev = "c4fafc215490a0186ee750454b1ce73a9823daed" }
 wordcraft-render = { git = "https://github.com/storytold/wordcraft", rev = "c4fafc215490a0186ee750454b1ce73a9823daed" }
+wordcraft-fonts = { git = "https://github.com/storytold/wordcraft", rev = "c4fafc215490a0186ee750454b1ce73a9823daed" }
 wordcraft-doc = { git = "https://github.com/storytold/wordcraft", rev = "c4fafc215490a0186ee750454b1ce73a9823daed" }
 deckcraft-pptx = { git = "https://github.com/storytold/deckcraft", rev = "55e5ee56b4b2c64973b78fda4182a78f9766fa62" }
 deckcraft-render = { git = "https://github.com/storytold/deckcraft", rev = "55e5ee56b4b2c64973b78fda4182a78f9766fa62" }
@@ -25,6 +26,8 @@ cadcraft-doc = { git = "https://github.com/storytold/cadcraft", rev = "565424072
 cadcraft-geom = { git = "https://github.com/storytold/cadcraft", rev = "56542407292b911ad30523cfcfa987923fe2f8e2" }
 cadcraft-color = { git = "https://github.com/storytold/cadcraft", rev = "56542407292b911ad30523cfcfa987923fe2f8e2" }
 gridcraft-engine = { git = "https://github.com/storytold/gridcraft", rev = "11bb67386c9bb19b0717e21e98adc608162ae2e5" }
+# Patched in from vendor/gridcraft-pdf (see the [patch] section below).
+gridcraft-pdf = { git = "https://github.com/storytold/gridcraft", rev = "11bb67386c9bb19b0717e21e98adc608162ae2e5" }
 uniffi = "0.32"
 serde_json = "1"
 thiserror = "2"
@@ -32,6 +35,10 @@ mo-grid = { path = "mo-grid" }
 mo-word = { path = "mo-word" }
 mo-deck = { path = "mo-deck" }
 mo-cad = { path = "mo-cad" }
+
+# Dependencies without debug info in dev builds: the engines' debug info filled tens of GB.
+[profile.dev.package."*"]
+debug = false
 
 [profile.release]
 opt-level = "s"

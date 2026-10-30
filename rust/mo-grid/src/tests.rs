@@ -52,15 +52,17 @@ fn bad_input_is_an_error_not_a_crash() {
 
 #[test]
 fn exports_a_pdf() {
-    let bytes = "Ad;Tutar\nŞişli;1250\n".as_bytes();
+    let bytes = "Ad;Tutar\nŞişli İzmir;1250\n".as_bytes();
     let mut doc = GridDoc::open("a.csv", bytes, None).unwrap();
     let pdf = doc.export_pdf(true, None, false).unwrap();
     assert!(pdf.starts_with(b"%PDF"), "{:?}", &pdf[..8.min(pdf.len())]);
-    // Turkish letters go through the standard fonts (vendor/gridcraft-pdf), not a CID font
-    // phones do not have: "Şişli" is \336i\376li in the page text.
+    // Turkish letters are single-byte codes of an embedded TrueType face (vendor/gridcraft-pdf),
+    // not a CID font phones do not have: "Şişli" is \336i\376li in the page text.
     let text = String::from_utf8_lossy(&pdf);
     assert!(!text.contains("STSong"));
     assert!(text.contains("\\336i\\376li"));
+    assert!(text.contains("/Subtype /TrueType /BaseFont /SourceSans3"), "fonts embedded");
+    assert!(text.contains("/FontFile2"));
 }
 
 #[test]

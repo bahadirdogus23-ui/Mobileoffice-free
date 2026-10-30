@@ -13,7 +13,10 @@
 #![deny(clippy::unwrap_used, clippy::expect_used, clippy::panic, clippy::unimplemented, clippy::todo, clippy::unreachable)]
 #![forbid(unsafe_code)]
 
+mod fonts;
 mod metrics;
+
+pub use fonts::{set_text_fonts, text_fonts_set};
 
 use std::fmt::Write as _;
 
@@ -120,6 +123,14 @@ impl Font {
 
     /// Advance width of a character in 1/1000 em.
     pub fn char_width(self, c: char) -> u16 {
+        // With embedded faces (fonts.rs), the width of the glyph actually drawn.
+        if !needs_cid(c)
+            && let Some(face) = fonts::face(self.index())
+            && let Some(w) = win_ansi(c).checked_sub(32).and_then(|k| face.widths.get(usize::from(k)))
+            && *w > 0
+        {
+            return *w;
+        }
         let table: Option<&[u16; 95]> = match self {
             Font::Helvetica | Font::HelveticaOblique => Some(&metrics::HELVETICA),
             Font::HelveticaBold | Font::HelveticaBoldOblique => Some(&metrics::HELVETICA_BOLD),
@@ -204,6 +215,18 @@ pub fn win_ansi(c: char) -> u8 {
         'Ÿ' => 0x9F,
         '\t' => b' ',
         _ => b'?',
+    }
+}
+
+/// The character code `b` stands for in [`TEXT_ENCODING`] (the inverse of [`win_ansi`]).
+pub(crate) fn code_char(b: u8) -> Option<char> {
+    if let Some((c, _)) = TURKISH.iter().find(|(_, t)| *t == b) {
+        return Some(*c);
+    }
+    match b {
+        0x20..=0x7E | 0xA0..=0xFF => Some(char::from(b)),
+        0x80..=0x9F => (0x80u32..=0x2122).filter_map(char::from_u32).find(|c| win_ansi(*c) == b && !c.is_ascii()),
+        _ => None,
     }
 }
 
@@ -722,7 +745,7 @@ impl PdfDoc {
             if *u {
                 font_ids[i] = next;
                 // The CID font also needs its descendant font and font descriptor.
-                next += if i == CID_FONT { 3 } else { 1 };
+                next += if i == CID_FONT || fonts::face(i).is_some() { 3 } else { 1 };
             }
         }
         let mut objects: Vec<(u32, Vec<u8>)> = Vec::new();
@@ -756,6 +779,35 @@ impl PdfDoc {
                         )
                         .into_bytes(),
                     ));
+                    continue;
+                }
+                if let Some(face) = fonts::face(i) {
+                    // An embedded TrueType face in the same encoding (fonts.rs).
+                    let (desc_id, file_id) = (id + 1, id + 2);
+                    let widths: Vec<String> = face.widths.iter().map(u16::to_string).collect();
+                    objects.push((
+                        *id,
+                        format!(
+                            "<< /Type /Font /Subtype /TrueType /BaseFont /{} /FirstChar 32 /LastChar 255 /Widths [{}] /Encoding {TEXT_ENCODING} /FontDescriptor {desc_id} 0 R >>",
+                            face.name,
+                            widths.join(" ")
+                        )
+                        .into_bytes(),
+                    ));
+                    let [x0, y0, x1, y1] = face.bbox;
+                    objects.push((
+                        desc_id,
+                        format!(
+                            "<< /Type /FontDescriptor /FontName /{} /Flags {} /FontBBox [{x0} {y0} {x1} {y1}] /ItalicAngle {} /Ascent {} /Descent {} /CapHeight {} /StemV 80 /FontFile2 {file_id} 0 R >>",
+                            face.name, face.flags, face.italic_angle, face.ascent, face.descent, face.cap_height
+                        )
+                        .into_bytes(),
+                    ));
+                    let data = face.compressed();
+                    let mut o = format!("<< /Length {} /Length1 {} /Filter /FlateDecode >>\nstream\n", data.len(), face.data.len()).into_bytes();
+                    o.extend_from_slice(data);
+                    o.extend_from_slice(b"\nendstream");
+                    objects.push((file_id, o));
                     continue;
                 }
                 let name = Font::ALL.get(i).copied().unwrap_or_default().base_name();

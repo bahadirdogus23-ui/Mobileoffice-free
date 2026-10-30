@@ -1262,6 +1262,10 @@ dependencies = [
 [[package]]
 name = "gridcraft-pdf"
 version = "0.12.1"
+dependencies = [
+ "miniz_oxide 0.8.9",
+ "ttf-parser",
+]
 
 [[package]]
 name = "gridcraft-xlsx"
@@ -1688,8 +1692,10 @@ version = "0.1.0"
 dependencies = [
  "encoding_rs",
  "gridcraft-engine",
+ "gridcraft-pdf",
  "serde_json",
  "thiserror",
+ "wordcraft-fonts",
 ]
 
 [[package]]

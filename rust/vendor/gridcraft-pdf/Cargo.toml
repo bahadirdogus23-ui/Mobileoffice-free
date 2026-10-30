@@ -9,6 +9,9 @@ license = "MIT OR Apache-2.0"
 description = "GridCraft's tiny self-contained PDF 1.7 writer (standard 14 fonts, vector drawing, RGBA images)"
 
 [dependencies]
+# For embedding TrueType faces (fonts.rs): reading their metrics and compressing them.
+ttf-parser = "0.25"
+miniz_oxide = "0.8"
 
 # Upstream's workspace lints, which this copy no longer inherits.
 [lints.rust]
