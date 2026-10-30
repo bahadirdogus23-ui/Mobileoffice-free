@@ -21,6 +21,17 @@ import org.mobileofficefree.engine.SheetDocument
 import org.mobileofficefree.engine.nativeVersion
 
 /** Everything the spreadsheet screen shows, apart from the cell texts (see [SheetViewModel.cellText]). */
+/** The "PDF" sheet's choices; margins are GridCraft's presets (normal, wide, narrow). */
+data class PdfSetup(
+    val allSheets: Boolean = true,
+    val range: String = "",
+    val landscape: Boolean = false,
+    val paper: String = "A4",
+    val margins: String = "normal",
+    val fitToPage: Boolean = false,
+    val gridlines: Boolean = false,
+)
+
 data class SheetUiState(
     val fileName: String,
     val sheetNames: List<String>,
@@ -195,13 +206,28 @@ class SheetViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
-    /** Writes the workbook as a PDF (every sheet, each with its Page Setup) into the new file [uri]. */
-    fun exportPdfTo(uri: Uri) {
+    /**
+     * Writes the workbook as a PDF into the new file [uri]. [setup] goes into the sheets' Page
+     * Setup through GridCraft's own commands (so a later "Save as" keeps it, as in Excel).
+     */
+    fun exportPdfTo(uri: Uri, setup: PdfSetup) {
         val resolver = getApplication<Application>().contentResolver
+        val current = (screen as? Screen.Sheet)?.state ?: return
         viewModelScope.launch {
             val result = withContext(engine) {
                 runCatching {
-                    val bytes = (doc ?: error("no document")).exportPdf(true)
+                    val d = doc ?: error("no document")
+                    val sheets = if (setup.allSheets) current.sheetNames.indices else listOf(current.sheet)
+                    for (i in sheets) {
+                        d.setActiveSheet(i.toUInt())
+                        d.execute("pageLayout.orientation", JSONObject().put("orientation", if (setup.landscape) "landscape" else "portrait").toString())
+                        d.execute("pageLayout.size", JSONObject().put("paper", setup.paper).toString())
+                        d.execute("pageLayout.margins", JSONObject().put("preset", setup.margins).toString())
+                        d.execute("pageLayout.printGridlines", JSONObject().put("on", setup.gridlines).toString())
+                    }
+                    d.setActiveSheet(current.sheet.toUInt())
+                    val range = setup.range.trim().takeIf { it.isNotEmpty() && !setup.allSheets }
+                    val bytes = d.exportPdf(setup.allSheets, range, setup.fitToPage)
                     resolver.openOutputStream(uri, "wt")?.use { it.write(bytes) } ?: error("cannot write")
                 }
             }

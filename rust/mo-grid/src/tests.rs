@@ -54,11 +54,26 @@ fn bad_input_is_an_error_not_a_crash() {
 fn exports_a_pdf() {
     let bytes = "Ad;Tutar\nŞişli;1250\n".as_bytes();
     let mut doc = GridDoc::open("a.csv", bytes, None).unwrap();
-    let pdf = doc.export_pdf(true).unwrap();
+    let pdf = doc.export_pdf(true, None, false).unwrap();
     assert!(pdf.starts_with(b"%PDF"), "{:?}", &pdf[..8.min(pdf.len())]);
     // Turkish letters go through the standard fonts (vendor/gridcraft-pdf), not a CID font
     // phones do not have: "Şişli" is \336i\376li in the page text.
     let text = String::from_utf8_lossy(&pdf);
     assert!(!text.contains("STSong"));
     assert!(text.contains("\\336i\\376li"));
+}
+
+#[test]
+fn pdf_follows_page_setup_commands_and_range() {
+    let bytes = "A;B;C\n1;2;3\n4;5;6\n".as_bytes();
+    let mut doc = GridDoc::open("a.csv", bytes, None).unwrap();
+    doc.execute("pageLayout.orientation", r#"{"orientation":"landscape"}"#).unwrap();
+    doc.execute("pageLayout.size", r#"{"paper":"A4"}"#).unwrap();
+    doc.execute("pageLayout.margins", r#"{"preset":"narrow"}"#).unwrap();
+    doc.execute("pageLayout.printGridlines", r#"{"on":true}"#).unwrap();
+    let pdf = doc.export_pdf(false, Some("A1:B2"), true).unwrap();
+    let text = String::from_utf8_lossy(&pdf);
+    // A4 landscape: 842 × 595 points.
+    assert!(text.contains("/MediaBox [0 0 841.89 595.28]"), "{}", &text[..text.len().min(2000)]);
+    assert!(doc.export_pdf(false, Some("bad range"), false).is_err());
 }

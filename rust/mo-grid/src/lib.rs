@@ -143,9 +143,14 @@ impl GridDoc {
     }
 
     /// Encodes the workbook in the format `file_name`'s extension names (.xlsx, .xlsm, .csv, .tsv…).
-    /// The workbook as a PDF, following each sheet's Page Setup; every sheet when `all_sheets`.
-    pub fn export_pdf(&mut self, all_sheets: bool) -> Result<Vec<u8>, GridError> {
-        let params = serde_json::json!({"sheets": if all_sheets { "all" } else { "active" }});
+    /// The workbook as a PDF, following each sheet's Page Setup: every sheet when `all_sheets`,
+    /// else the active one, only `range` of it if given ("A1:F40"); `fit_to_page` shrinks each
+    /// sheet onto one page.
+    pub fn export_pdf(&mut self, all_sheets: bool, range: Option<&str>, fit_to_page: bool) -> Result<Vec<u8>, GridError> {
+        let mut params = serde_json::json!({"sheets": if all_sheets { "all" } else { "active" }, "fitToPage": fit_to_page});
+        if let Some(r) = range.map(str::trim).filter(|r| !r.is_empty()) {
+            params["range"] = serde_json::json!(r);
+        }
         let out = self.session.execute("file.exportPdf", params).map_err(|e| GridError::Save(e.to_string()))?;
         out["base64"].as_str().and_then(io::base64_decode).ok_or_else(|| GridError::Save("no PDF produced".into()))
     }

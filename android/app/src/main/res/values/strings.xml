@@ -84,4 +84,22 @@
     <string name="stop">Stop</string>
     <string name="convert">Convert</string>
     <string name="convert_to">Convert to</string>
+    <string name="pdf_setup">Save as PDF</string>
+    <string name="pdf_what">What to save</string>
+    <string name="pdf_all_sheets">All sheets</string>
+    <string name="pdf_this_sheet">Only “%1$s”</string>
+    <string name="pdf_print_area">Print area</string>
+    <string name="pdf_print_area_hint">Leave empty for the whole used area</string>
+    <string name="pdf_orientation">Orientation</string>
+    <string name="pdf_portrait">Portrait</string>
+    <string name="pdf_landscape">Landscape</string>
+    <string name="pdf_paper">Paper</string>
+    <string name="pdf_margins">Margins</string>
+    <string name="pdf_margins_normal">Normal</string>
+    <string name="pdf_margins_wide">Wide</string>
+    <string name="pdf_margins_narrow">Narrow</string>
+    <string name="pdf_fit">Fit to page</string>
+    <string name="pdf_fit_hint">Each sheet is shrunk onto one page</string>
+    <string name="pdf_gridlines">Gridlines</string>
+    <string name="pdf_save">Save as PDF…</string>
 </resources>

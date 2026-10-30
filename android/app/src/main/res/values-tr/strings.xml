@@ -83,4 +83,22 @@
     <string name="stop">Durdur</string>
     <string name="convert">Dönüştür</string>
     <string name="convert_to">Şuna dönüştür</string>
+    <string name="pdf_setup">PDF olarak kaydet</string>
+    <string name="pdf_what">Ne kaydedilsin</string>
+    <string name="pdf_all_sheets">Tüm sayfalar</string>
+    <string name="pdf_this_sheet">Yalnız “%1$s”</string>
+    <string name="pdf_print_area">Yazdırma alanı</string>
+    <string name="pdf_print_area_hint">Boş bırakırsan dolu alanın tamamı</string>
+    <string name="pdf_orientation">Yön</string>
+    <string name="pdf_portrait">Dikey</string>
+    <string name="pdf_landscape">Yatay</string>
+    <string name="pdf_paper">Kağıt</string>
+    <string name="pdf_margins">Kenar boşlukları</string>
+    <string name="pdf_margins_normal">Normal</string>
+    <string name="pdf_margins_wide">Geniş</string>
+    <string name="pdf_margins_narrow">Dar</string>
+    <string name="pdf_fit">Sayfaya sığdır</string>
+    <string name="pdf_fit_hint">Her sayfa tek kağıda küçültülür</string>
+    <string name="pdf_gridlines">Kılavuz çizgileri</string>
+    <string name="pdf_save">PDF olarak kaydet…</string>
 </resources>

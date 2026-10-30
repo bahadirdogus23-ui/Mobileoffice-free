@@ -150,9 +150,10 @@ impl SheetDocument {
     }
 
     /// Encodes the workbook as `file_name`'s extension says (.xlsx by default).
-    /// The workbook as a PDF following each sheet's Page Setup; every sheet when `all_sheets`.
-    pub fn export_pdf(&self, all_sheets: bool) -> Result<Vec<u8>, MoError> {
-        Ok(self.doc().export_pdf(all_sheets)?)
+    /// The workbook as a PDF following each sheet's Page Setup: every sheet when `all_sheets`,
+    /// else the active one (only `range` of it, if given); `fit_to_page` puts each sheet on one page.
+    pub fn export_pdf(&self, all_sheets: bool, range: Option<String>, fit_to_page: bool) -> Result<Vec<u8>, MoError> {
+        Ok(self.doc().export_pdf(all_sheets, range.as_deref(), fit_to_page)?)
     }
 
     pub fn save(&self, file_name: String) -> Result<Vec<u8>, MoError> {
