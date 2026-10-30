@@ -56,4 +56,9 @@ fn exports_a_pdf() {
     let mut doc = GridDoc::open("a.csv", bytes, None).unwrap();
     let pdf = doc.export_pdf(true).unwrap();
     assert!(pdf.starts_with(b"%PDF"), "{:?}", &pdf[..8.min(pdf.len())]);
+    // Turkish letters go through the standard fonts (vendor/gridcraft-pdf), not a CID font
+    // phones do not have: "Şişli" is \336i\376li in the page text.
+    let text = String::from_utf8_lossy(&pdf);
+    assert!(!text.contains("STSong"));
+    assert!(text.contains("\\336i\\376li"));
 }

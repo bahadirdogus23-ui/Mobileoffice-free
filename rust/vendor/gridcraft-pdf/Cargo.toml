@@ -1,0 +1,21 @@
+[package]
+name = "gridcraft-pdf"
+# GridCraft's PDF writer at commit 11bb67386c9bb19b0717e21e98adc608162ae2e5, with Turkish letters
+# set through the standard fonts (see PATCHES.md). Same version as upstream so Cargo takes it in
+# place of the git crate.
+version = "0.12.1"
+edition = "2024"
+license = "MIT OR Apache-2.0"
+description = "GridCraft's tiny self-contained PDF 1.7 writer (standard 14 fonts, vector drawing, RGBA images)"
+
+[dependencies]
+
+# Upstream's workspace lints, which this copy no longer inherits.
+[lints.rust]
+unsafe_code = "forbid"
+
+[lints.clippy]
+dbg_macro = "warn"
+todo = "warn"
+too_many_arguments = "allow"
+type_complexity = "allow"

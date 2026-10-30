@@ -1,6 +1,6 @@
 [workspace]
 resolver = "3"
-members = ["mo-grid", "mo-word", "mo-deck", "mo-cad", "mo-ffi", "uniffi-bindgen"]
+members = ["mo-grid", "mo-word", "mo-deck", "mo-cad", "mo-ffi", "uniffi-bindgen", "vendor/gridcraft-pdf"]
 
 [workspace.package]
 edition = "2024"
@@ -44,3 +44,7 @@ panic = "unwind"
 # WordCraft's PDF writer needs the same krilla revision its own workspace patches in.
 [patch.crates-io]
 krilla = { git = "https://github.com/storytold/craft-libs", rev = "92d392cff132eaf53e13afff77f38b5c11b73aa0" }
+
+# GridCraft's PDF writer with Turkish letters in the standard fonts (vendor/gridcraft-pdf/PATCHES.md).
+[patch."https://github.com/storytold/gridcraft"]
+gridcraft-pdf = { path = "vendor/gridcraft-pdf" }

@@ -1262,7 +1262,6 @@ dependencies = [
 [[package]]
 name = "gridcraft-pdf"
 version = "0.12.1"
-source = "git+https://github.com/storytold/gridcraft?rev=11bb67386c9bb19b0717e21e98adc608162ae2e5#11bb67386c9bb19b0717e21e98adc608162ae2e5"
 
 [[package]]
 name = "gridcraft-xlsx"
