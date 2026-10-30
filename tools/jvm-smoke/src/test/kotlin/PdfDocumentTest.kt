@@ -46,4 +46,11 @@ class PdfDocumentTest {
             PdfDocument.open(doc.displayCopy(), null).use { assertEquals(false, it.isProtected()) }
         }
     }
+
+    @Test
+    fun compresses() {
+        PdfDocument.open(pdf(), null).use { doc ->
+            PdfDocument.open(doc.compress(true), null).use { assertEquals(1u, it.pageCount()) }
+        }
+    }
 }

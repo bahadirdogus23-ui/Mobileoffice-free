@@ -11,6 +11,7 @@ publish = false
 [dependencies]
 pdfcraft-annot = { workspace = true }
 pdfcraft-cos = { workspace = true }
+pdfcraft-optimize = { workspace = true }
 pdfcraft-organize = { workspace = true }
 thiserror = { workspace = true }
 

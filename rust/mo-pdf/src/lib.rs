@@ -1,5 +1,6 @@
 //! PDF page tools over the PdfCraft engine: rotate, delete, move and extract pages, combine
-//! files, put a hand-drawn signature on a page, and add or remove password protection. Viewing stays with Android's PdfRenderer (docs/adr/0003-pdf-goruntuleme.md); this bridge
+//! files, put a hand-drawn signature on a page, add or remove password protection, and make a
+//! smaller copy. Viewing stays with Android's PdfRenderer (docs/adr/0003-pdf-goruntuleme.md); this bridge
 //! edits the document's structure and writes a whole new file, never the opened one in place.
 
 use std::sync::Arc;
@@ -179,6 +180,15 @@ impl PdfDoc {
         }
         let mut copy = self.doc.clone();
         copy.remove_encryption();
+        pdfcraft_cos::write_full(&copy, &SaveOptions::default()).map_err(|e| PdfError::Save(e.to_string()))
+    }
+
+    /// A smaller copy: pictures resampled and recompressed (to 150 ppi, or 96 ppi `for_screen`),
+    /// thumbnails dropped, streams compressed. This document is unchanged.
+    pub fn compress(&self, for_screen: bool) -> Result<Vec<u8>, PdfError> {
+        let preset = if for_screen { pdfcraft_optimize::Preset::Mobile } else { pdfcraft_optimize::Preset::Standard };
+        let mut copy = self.doc.clone();
+        pdfcraft_optimize::optimize(&mut copy, &preset.settings()).map_err(edit)?;
         pdfcraft_cos::write_full(&copy, &SaveOptions::default()).map_err(|e| PdfError::Save(e.to_string()))
     }
 

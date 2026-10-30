@@ -7,6 +7,7 @@ import android.graphics.pdf.PdfRenderer
 import android.net.Uri
 import android.os.Build
 import android.os.ParcelFileDescriptor
+import android.text.format.Formatter
 import androidx.annotation.RequiresApi
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -108,6 +109,56 @@ class PdfViewModel(app: Application) : PagedViewModel(app, DocumentKind.PDF) {
 
     /** Writes a new PDF of just [pages] into [dest]. */
     fun extractTo(dest: Uri, pages: List<Int>) = write(dest) { it.extract(pages.map(Int::toUInt)) }
+
+    /** A smaller copy waiting for the file it goes into, with the sizes before and after. */
+    class Compressed(val bytes: ByteArray, val before: Long, val after: Long)
+
+    var compressed by mutableStateOf<Compressed?>(null)
+        private set
+
+    /** Makes a smaller copy into [compressed] (pictures to 96 ppi [forScreen], else 150). */
+    fun compress(forScreen: Boolean) {
+        val app = getApplication<Application>()
+        busy = true
+        viewModelScope.launch {
+            val result = withContext(engine) {
+                runCatching {
+                    val doc = editor()
+                    val out = doc.compress(forScreen)
+                    val uri = source ?: error("no document")
+                    val before = if (edited) doc.save().size.toLong() else FileInfo.of(app.contentResolver, uri).size
+                    Compressed(out, before, out.size.toLong())
+                }
+            }
+            busy = false
+            result.fold(
+                onSuccess = {
+                    // Not worth a new file unless it is clearly smaller.
+                    if (it.before > 0 && it.after > it.before * 0.95) tell(app.getString(R.string.compress_no_gain)) else compressed = it
+                },
+                onFailure = { tell(app.getString(R.string.pdf_edit_failed, it.message ?: it.javaClass.simpleName)) },
+            )
+        }
+    }
+
+    /** Writes [compressed] into [dest] (null: the person cancelled). */
+    fun saveCompressed(dest: Uri?) {
+        val c = compressed ?: return
+        compressed = null
+        if (dest == null) return
+        val app = getApplication<Application>()
+        viewModelScope.launch {
+            val result = withContext(engine) {
+                runCatching { app.contentResolver.openOutputStream(dest, "wt")?.use { it.write(c.bytes) } ?: error("cannot write") }
+            }
+            tell(
+                result.fold(
+                    onSuccess = { app.getString(R.string.compress_saved, Formatter.formatShortFileSize(app, c.before), Formatter.formatShortFileSize(app, c.after)) },
+                    onFailure = { app.getString(R.string.save_failed, it.message ?: "") },
+                ),
+            )
+        }
+    }
 
     /** Writes the edited document into the new file [dest]. */
     fun saveTo(dest: Uri) = write(dest, done = { edited = false }) { it.save() }

@@ -1769,6 +1769,7 @@ dependencies = [
  "gridcraft-pdf",
  "pdfcraft-annot",
  "pdfcraft-cos",
+ "pdfcraft-optimize",
  "pdfcraft-organize",
  "thiserror",
 ]
@@ -1929,6 +1930,21 @@ version = "0.14.0"
 source = "git+https://github.com/storytold/pdfcraft?rev=20eebc1c33ff7e6f42ac1c56bf95192f628a9d97#20eebc1c33ff7e6f42ac1c56bf95192f628a9d97"
 dependencies = [
  "pdfcraft-cos",
+]
+
+[[package]]
+name = "pdfcraft-optimize"
+version = "0.14.0"
+source = "git+https://github.com/storytold/pdfcraft?rev=20eebc1c33ff7e6f42ac1c56bf95192f628a9d97#20eebc1c33ff7e6f42ac1c56bf95192f628a9d97"
+dependencies = [
+ "image",
+ "pdfcraft-annot",
+ "pdfcraft-content",
+ "pdfcraft-cos",
+ "pdfcraft-filters",
+ "pdfcraft-model",
+ "thiserror",
+ "zune-jpeg",
 ]
 
 [[package]]

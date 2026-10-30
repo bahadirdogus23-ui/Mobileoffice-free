@@ -164,4 +164,13 @@
     <string name="unprotect_title">Parola kaldırılsın mı?</string>
     <string name="unprotect_body">Kaydedeceğiniz dosya parolasız açılır.</string>
     <string name="unprotect">Kaldır</string>
+    <string name="compress">Küçült</string>
+    <string name="compress_title">Dosyayı küçült</string>
+    <string name="compress_standard">Standart</string>
+    <string name="compress_standard_hint">Resimler 150 ppi; yazdırmak için hâlâ uygun</string>
+    <string name="compress_screen">En küçük</string>
+    <string name="compress_screen_hint">Resimler 96 ppi; ekranda okumak ve göndermek için</string>
+    <string name="compress_note">Yeni bir dosya kaydedilir; bu dosya olduğu gibi kalır.</string>
+    <string name="compress_no_gain">Bu dosya zaten küçük; belirgin biçimde küçültülemedi.</string>
+    <string name="compress_saved">Kaydedildi: %1$s → %2$s</string>
 </resources>

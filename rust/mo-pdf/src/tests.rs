@@ -130,3 +130,20 @@ fn respects_the_owners_restrictions() {
     assert!(!owner.is_restricted());
     owner.rotate(&[0], 90).unwrap();
 }
+
+#[test]
+fn compresses_a_photo_heavy_file() {
+    // A 1500 × 1500 px picture in a 200 pt box (540 ppi), written uncompressed.
+    let mut d = gridcraft_pdf::PdfDoc::new();
+    let p = d.add_page(595.0, 842.0);
+    let n = 1500u32;
+    let rgba: Vec<u8> = (0..n * n).flat_map(|i| [(i % n) as u8, (i / n) as u8, ((i * 7) % 251) as u8, 255]).collect();
+    p.image_rgba(100.0, 100.0, 200.0, 200.0, &rgba, n, n);
+    let big = d.finish();
+    let doc = PdfDoc::open(big.clone(), None).unwrap();
+    let small = doc.compress(false).unwrap();
+    let smaller = doc.compress(true).unwrap();
+    assert!(small.len() * 5 < big.len(), "{} → {}", big.len(), small.len());
+    assert!(smaller.len() <= small.len());
+    assert_eq!(reopened(small).page_count().unwrap(), 1);
+}

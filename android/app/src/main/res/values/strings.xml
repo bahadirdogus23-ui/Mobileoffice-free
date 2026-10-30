@@ -165,4 +165,13 @@
     <string name="unprotect_title">Remove the password?</string>
     <string name="unprotect_body">The file you save will open without a password.</string>
     <string name="unprotect">Remove</string>
+    <string name="compress">Shrink</string>
+    <string name="compress_title">Make the file smaller</string>
+    <string name="compress_standard">Standard</string>
+    <string name="compress_standard_hint">Pictures at 150 ppi; still fine for printing</string>
+    <string name="compress_screen">Smallest</string>
+    <string name="compress_screen_hint">Pictures at 96 ppi; for reading on a screen and sending</string>
+    <string name="compress_note">A new file is saved; this one stays as it is.</string>
+    <string name="compress_no_gain">This file is already small; it could not be made noticeably smaller.</string>
+    <string name="compress_saved">Saved: %1$s → %2$s</string>
 </resources>

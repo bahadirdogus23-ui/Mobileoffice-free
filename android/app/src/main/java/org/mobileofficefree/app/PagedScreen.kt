@@ -144,6 +144,7 @@ fun PagedScreen(vm: PagedViewModel, state: PagedUiState, reading: ReadingSetting
     var closeAfterSave by remember { mutableStateOf(false) }
     var drawSignature by remember { mutableStateOf(false) }
     var showPassword by remember { mutableStateOf(false) }
+    var showCompress by remember { mutableStateOf(false) }
     // A drawn signature waiting for a tap on the page it goes on.
     var placing by remember(state.uri) { mutableStateOf<Signature?>(null) }
     val extractFile = rememberLauncherForActivityResult(CreateFile()) { uri -> if (uri != null) pdf?.extractTo(uri, extractPages) }
@@ -154,6 +155,10 @@ fun PagedScreen(vm: PagedViewModel, state: PagedUiState, reading: ReadingSetting
     }
     val addPdf = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri -> if (uri != null) pdf?.appendPdf(uri) }
     val editedName = convertedName(state.fileName, "pdf").removeSuffix(".pdf") + "-duzenlendi.pdf"
+    val saveCompressed = rememberLauncherForActivityResult(CreateFile()) { uri -> pdf?.saveCompressed(uri) }
+    LaunchedEffect(pdf?.compressed) {
+        if (pdf?.compressed != null) saveCompressed.launch(CreateFile.Request(editedName.replace("-duzenlendi", "-kucuk"), "application/pdf"))
+    }
     var showConvert by remember { mutableStateOf(false) }
     var converting by remember { mutableStateOf<ExportFormat?>(null) }
     val createFile = rememberLauncherForActivityResult(CreateFile()) { uri ->
@@ -407,6 +412,7 @@ fun PagedScreen(vm: PagedViewModel, state: PagedUiState, reading: ReadingSetting
                 if (pdf != null) {
                     TextButton(onClick = { drawSignature = true }, enabled = !pdf.busy && !pdf.restricted) { Text(stringResource(R.string.sign)) }
                     TextButton(onClick = { showPassword = true }, enabled = !pdf.busy && !pdf.restricted) { Text(stringResource(R.string.password)) }
+                    TextButton(onClick = { showCompress = true }, enabled = !pdf.busy) { Text(stringResource(R.string.compress)) }
                 }
                 if (vm.exportFormats.isNotEmpty()) {
                     TextButton(onClick = { showConvert = true }) { Text(stringResource(R.string.convert)) }
@@ -420,6 +426,35 @@ fun PagedScreen(vm: PagedViewModel, state: PagedUiState, reading: ReadingSetting
                     context.startActivity(Intent.createChooser(send, state.fileName))
                 }) { Text(stringResource(R.string.share)) }
             }
+        }
+    }
+
+    if (showCompress && pdf != null) {
+        ModalBottomSheet(onDismissRequest = { showCompress = false }) {
+            Text(
+                stringResource(R.string.compress_title),
+                style = MaterialTheme.typography.titleLarge,
+                modifier = Modifier.padding(horizontal = 24.dp, vertical = 8.dp),
+            )
+            for ((forScreen, title, hint) in listOf(
+                Triple(false, R.string.compress_standard, R.string.compress_standard_hint),
+                Triple(true, R.string.compress_screen, R.string.compress_screen_hint),
+            )) {
+                ListItem(
+                    headlineContent = { Text(stringResource(title)) },
+                    supportingContent = { Text(stringResource(hint)) },
+                    modifier = Modifier.clickable {
+                        showCompress = false
+                        pdf.compress(forScreen)
+                    },
+                )
+            }
+            Text(
+                stringResource(R.string.compress_note),
+                style = MaterialTheme.typography.bodySmall,
+                modifier = Modifier.padding(horizontal = 24.dp, vertical = 8.dp),
+            )
+            Spacer(Modifier.height(24.dp))
         }
     }
 

@@ -508,6 +508,11 @@ impl PdfDocument {
         Ok(self.doc().display_copy()?)
     }
 
+    /// A smaller copy (pictures resampled to 150 ppi, or 96 `for_screen`); this one is unchanged.
+    pub fn compress(&self, for_screen: bool) -> Result<Vec<u8>, MoError> {
+        Ok(self.doc().compress(for_screen)?)
+    }
+
     /// The whole document as a new file.
     pub fn save(&self) -> Result<Vec<u8>, MoError> {
         Ok(self.doc().save()?)
