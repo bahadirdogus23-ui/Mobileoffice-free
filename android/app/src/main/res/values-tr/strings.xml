@@ -173,4 +173,6 @@
     <string name="compress_note">Yeni bir dosya kaydedilir; bu dosya olduğu gibi kalır.</string>
     <string name="compress_no_gain">Bu dosya zaten küçük; belirgin biçimde küçültülemedi.</string>
     <string name="compress_saved">Kaydedildi: %1$s → %2$s</string>
+    <string name="signature_saved">Kayıtlı imzalar</string>
+    <string name="signature_keep">Bu imzayı bu telefonda sakla</string>
 </resources>

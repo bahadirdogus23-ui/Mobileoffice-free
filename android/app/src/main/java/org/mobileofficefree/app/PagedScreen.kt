@@ -92,6 +92,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import kotlin.math.roundToInt
 import kotlin.math.sqrt
+import java.io.File
 import kotlinx.coroutines.FlowPreview
 import kotlinx.coroutines.flow.debounce
 import kotlinx.coroutines.launch
@@ -488,7 +489,7 @@ fun PagedScreen(vm: PagedViewModel, state: PagedUiState, reading: ReadingSetting
     }
 
     if (drawSignature) {
-        SignaturePad(onDismiss = { drawSignature = false }) {
+        SignaturePad(SavedSignatures(File(context.filesDir, "signatures.txt")), onDismiss = { drawSignature = false }) {
             drawSignature = false
             placing = it
         }

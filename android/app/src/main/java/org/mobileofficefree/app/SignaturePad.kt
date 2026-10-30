@@ -3,6 +3,16 @@ package org.mobileofficefree.app
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.material3.Checkbox
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.layout.Arrangement
@@ -35,14 +45,33 @@ import androidx.compose.ui.window.DialogProperties
 /** A hand-drawn signature: strokes of points in any one unit (the pad's pixels). */
 typealias Signature = List<List<Offset>>
 
-/** A white pad to draw a signature on with a finger; [onDone] gets the strokes. */
+/**
+ * A white pad to draw a signature on with a finger, above the signatures kept from before;
+ * [onDone] gets the strokes (a new one is kept when the person leaves "keep" ticked).
+ */
 @Composable
-fun SignaturePad(onDismiss: () -> Unit, onDone: (Signature) -> Unit) {
+fun SignaturePad(store: SavedSignatures, onDismiss: () -> Unit, onDone: (Signature) -> Unit) {
     val strokes = remember { mutableStateListOf<List<Offset>>() }
     val drawing = remember { mutableStateListOf<Offset>() }
+    val saved = remember { mutableStateListOf<Signature>().apply { addAll(store.load()) } }
+    var keep by remember { mutableStateOf(true) }
     Dialog(onDismissRequest = onDismiss, properties = DialogProperties(usePlatformDefaultWidth = false)) {
         Surface(shape = MaterialTheme.shapes.large, modifier = Modifier.fillMaxWidth().padding(16.dp)) {
             Column(Modifier.padding(16.dp)) {
+                if (saved.isNotEmpty()) {
+                    Text(stringResource(R.string.signature_saved), style = MaterialTheme.typography.titleMedium)
+                    Row(Modifier.horizontalScroll(rememberScrollState()).padding(vertical = 8.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        saved.forEachIndexed { i, sig ->
+                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                SignaturePreview(sig, Modifier.width(120.dp).height(56.dp).clickable { onDone(sig) })
+                                TextButton(onClick = {
+                                    store.remove(i)
+                                    saved.removeAt(i)
+                                }) { Text(stringResource(R.string.delete)) }
+                            }
+                        }
+                    }
+                }
                 Text(stringResource(R.string.signature_draw), style = MaterialTheme.typography.titleLarge)
                 Canvas(
                     Modifier
@@ -82,12 +111,45 @@ fun SignaturePad(onDismiss: () -> Unit, onDone: (Signature) -> Unit) {
                         drawPath(path, Color.Black, style = ink)
                     }
                 }
+                Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.clickable { keep = !keep }) {
+                    Checkbox(checked = keep, onCheckedChange = { keep = it })
+                    Text(stringResource(R.string.signature_keep))
+                }
                 Row(horizontalArrangement = Arrangement.End, modifier = Modifier.fillMaxWidth()) {
                     TextButton(onClick = { strokes.clear() }, enabled = strokes.isNotEmpty()) { Text(stringResource(R.string.clear)) }
                     TextButton(onClick = onDismiss) { Text(stringResource(R.string.cancel)) }
-                    TextButton(onClick = { onDone(strokes.toList()) }, enabled = strokes.isNotEmpty()) { Text(stringResource(R.string.done)) }
+                    TextButton(onClick = {
+                        val drawn = strokes.toList()
+                        if (keep) store.add(drawn)
+                        onDone(drawn)
+                    }, enabled = strokes.isNotEmpty()) { Text(stringResource(R.string.done)) }
                 }
             }
+        }
+    }
+}
+
+/** A kept signature drawn small, black on white. */
+@Composable
+private fun SignaturePreview(signature: Signature, modifier: Modifier) {
+    Canvas(modifier.background(Color.White).border(1.dp, Color(0x33000000)).padding(6.dp)) {
+        val points = signature.flatten()
+        if (points.isEmpty()) return@Canvas
+        val left = points.minOf { it.x }
+        val top = points.minOf { it.y }
+        val w = (points.maxOf { it.x } - left).coerceAtLeast(1e-3f)
+        val h = (points.maxOf { it.y } - top).coerceAtLeast(1e-3f)
+        val k = minOf(size.width / w, size.height / h)
+        val dx = (size.width - w * k) / 2
+        val dy = (size.height - h * k) / 2
+        val ink = Stroke(width = 1.5.dp.toPx(), cap = StrokeCap.Round, join = StrokeJoin.Round)
+        for (s in signature) {
+            if (s.isEmpty()) continue
+            val path = Path().apply {
+                moveTo((s[0].x - left) * k + dx, (s[0].y - top) * k + dy)
+                for (p in s.drop(1)) lineTo((p.x - left) * k + dx, (p.y - top) * k + dy)
+            }
+            drawPath(path, Color.Black, style = ink)
         }
     }
 }
@@ -117,3 +179,49 @@ fun placeSignature(signature: Signature, at: Offset, pageWidth: Float, pageHeigh
 }
 
 private const val PAD_ASPECT = 2.5f
+
+/**
+ * Signatures the person chose to keep, in the app's private files (never shared, gone with the
+ * app's data). One per line: strokes split by `;`, points `x,y` split by spaces, scaled to 0–1.
+ */
+class SavedSignatures(private val file: java.io.File) {
+    fun load(): List<Signature> = runCatching { decode(file.readText()) }.getOrDefault(emptyList())
+
+    /** Keeps [signature] first, at most [MAX] in all. */
+    fun add(signature: Signature) = write(listOf(normalized(signature)) + load().take(MAX - 1))
+
+    fun remove(index: Int) = write(load().filterIndexed { i, _ -> i != index })
+
+    private fun write(all: List<Signature>) {
+        runCatching { file.writeText(encode(all)) }
+    }
+
+    companion object {
+        const val MAX = 3
+
+        fun encode(all: List<Signature>): String = all.joinToString("\n") { sig ->
+            sig.filter { it.isNotEmpty() }.joinToString(";") { stroke -> stroke.joinToString(" ") { "${it.x},${it.y}" } }
+        }
+
+        fun decode(text: String): List<Signature> = text.lines().filter { it.isNotBlank() }.mapNotNull { line ->
+            runCatching {
+                line.split(';').map { stroke ->
+                    stroke.trim().split(' ').map { p ->
+                        val (x, y) = p.split(',')
+                        Offset(x.toFloat(), y.toFloat())
+                    }
+                }
+            }.getOrNull()
+        }
+
+        /** The drawing moved to the top left and scaled so its longer side is 1. */
+        fun normalized(signature: Signature): Signature {
+            val points = signature.flatten()
+            if (points.isEmpty()) return signature
+            val left = points.minOf { it.x }
+            val top = points.minOf { it.y }
+            val side = maxOf(points.maxOf { it.x } - left, points.maxOf { it.y } - top).coerceAtLeast(1e-3f)
+            return signature.filter { it.isNotEmpty() }.map { s -> s.map { Offset((it.x - left) / side, (it.y - top) / side) } }
+        }
+    }
+}

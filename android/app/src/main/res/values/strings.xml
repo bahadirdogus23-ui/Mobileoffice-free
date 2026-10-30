@@ -174,4 +174,6 @@
     <string name="compress_note">A new file is saved; this one stays as it is.</string>
     <string name="compress_no_gain">This file is already small; it could not be made noticeably smaller.</string>
     <string name="compress_saved">Saved: %1$s → %2$s</string>
+    <string name="signature_saved">Kept signatures</string>
+    <string name="signature_keep">Keep this signature on this phone</string>
 </resources>

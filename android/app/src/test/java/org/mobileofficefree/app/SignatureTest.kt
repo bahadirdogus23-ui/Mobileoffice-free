@@ -29,4 +29,31 @@ class SignatureTest {
         assertTrue(placed[0].all { it in 0.0..1.0 })
         assertTrue(placeSignature(emptyList(), Offset.Zero, 600f, 800f).isEmpty())
     }
+
+    @Test
+    fun keptSignaturesRoundTripScaledToOne() {
+        val drawn = listOf(listOf(Offset(100f, 50f), Offset(300f, 90f)), listOf(Offset(150f, 60f)))
+        val kept = SavedSignatures.normalized(drawn)
+        assertEquals(Offset(0f, 0f), kept[0][0])
+        assertEquals(Offset(1f, 0.2f), kept[0][1])
+        val back = SavedSignatures.decode(SavedSignatures.encode(listOf(kept, kept)))
+        assertEquals(listOf(kept, kept), back)
+        assertTrue(SavedSignatures.decode("bozuk;satır\n").isEmpty())
+    }
+
+    @Test
+    fun keepsAtMostThreeNewestFirst() {
+        val file = java.io.File.createTempFile("imza", ".txt")
+        try {
+            val store = SavedSignatures(file)
+            for (i in 1..4) store.add(listOf(listOf(Offset(0f, 0f), Offset(i.toFloat(), 1f))))
+            val all = store.load()
+            assertEquals(SavedSignatures.MAX, all.size)
+            assertEquals(Offset(1f, 0.25f), all[0][0][1])
+            store.remove(0)
+            assertEquals(2, store.load().size)
+        } finally {
+            file.delete()
+        }
+    }
 }
