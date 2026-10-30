@@ -53,6 +53,8 @@ enum class DocumentKind(val extensions: Set<String>, val mimeTypes: Set<String>)
         setOf("text/plain", "application/json", "text/xml", "application/xml", "application/x-subrip", "text/vtt"),
     ),
     ARCHIVE(setOf("zip"), setOf("application/zip", "application/x-zip-compressed")),
+    /** GİB e-Fatura / e-Arşiv / e-İrsaliye: XML files recognised by content (FileInfo). */
+    INVOICE(emptySet(), emptySet()),
     OTHER(emptySet(), emptySet());
 
     companion object {

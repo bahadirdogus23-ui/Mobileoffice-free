@@ -119,4 +119,13 @@
     <string name="text_size">Punto</string>
     <string name="continue_to_save">Devam: kaydedilecek yeri seç</string>
     <string name="udf_signed">Bu UDF belgesi e-imzalı. İmza bu uygulamada doğrulanmaz; geçerliliğini UYAP üzerinden kontrol edebilirsin.</string>
+    <string name="invoice_payable">Ödenecek tutar</string>
+    <string name="invoice_seller">Satıcı</string>
+    <string name="invoice_buyer">Alıcı</string>
+    <string name="invoice_date">Tarih</string>
+    <string name="invoice_vat">KDV</string>
+    <string name="invoice_base">matrah</string>
+    <string name="invoice_own_design">Satıcının fatura tasarımıyla gösteriliyor.</string>
+    <string name="invoice_plain_design">Faturada tasarım yok; sade görünüm.</string>
+    <string name="invoice_summary">Özet</string>
 </resources>

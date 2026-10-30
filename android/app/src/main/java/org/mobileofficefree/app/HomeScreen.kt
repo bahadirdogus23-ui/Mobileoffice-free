@@ -86,6 +86,7 @@ fun DocumentKind.color(): Color = when (this) {
     DocumentKind.IMAGE -> Color(0xFF8E44AD)
     DocumentKind.TEXT -> Color(0xFF546E7A)
     DocumentKind.ARCHIVE -> Color(0xFF8D6E63)
+    DocumentKind.INVOICE -> Color(0xFF3949AB)
     DocumentKind.OTHER -> Color(0xFF6B7280)
 }
 
@@ -98,6 +99,7 @@ internal fun DocumentKind.badge(): String = when (this) {
     DocumentKind.IMAGE -> "IMG"
     DocumentKind.TEXT -> "TXT"
     DocumentKind.ARCHIVE -> "ZIP"
+    DocumentKind.INVOICE -> "FTR"
     DocumentKind.OTHER -> "?"
 }
 

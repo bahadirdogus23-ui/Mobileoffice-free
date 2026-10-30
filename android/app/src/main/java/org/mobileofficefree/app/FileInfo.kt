@@ -27,6 +27,11 @@ data class FileInfo(val name: String, val size: Long, val mime: String?, val kin
             val mime = resolver.getType(uri)
             val byName = DocumentKind.of(shown, mime)
             val ext = shown.substringAfterLast('.', "").lowercase(Locale.ROOT)
+            // An XML file may be a GİB e-invoice: look at its first few KB.
+            if (byName == DocumentKind.TEXT && (ext == "xml" || mime?.endsWith("xml") == true)) {
+                val head = runCatching { resolver.openInputStream(uri)?.use { String(it.readNBytesUpTo(16 * 1024)) } }.getOrNull()
+                if (head != null && Invoices.looksLikeUbl(head)) return FileInfo(shown, size, mime, DocumentKind.INVOICE, shown)
+            }
             if (byName != DocumentKind.OTHER && ext in byName.extensions) return FileInfo(shown, size, mime, byName, shown)
             // The name has no usable extension: look inside.
             val sniffed = runCatching { resolver.openInputStream(uri)?.use(::sniff) }.getOrNull()
@@ -90,4 +95,16 @@ data class FileInfo(val name: String, val size: Long, val mime: String?, val kin
             return if (content) "udf" else "zip"
         }
     }
+}
+
+/** Up to [limit] bytes from the start of the stream. */
+private fun java.io.InputStream.readNBytesUpTo(limit: Int): ByteArray {
+    val buf = ByteArray(limit)
+    var n = 0
+    while (n < limit) {
+        val r = read(buf, n, limit - n)
+        if (r < 0) break
+        n += r
+    }
+    return buf.copyOf(n)
 }

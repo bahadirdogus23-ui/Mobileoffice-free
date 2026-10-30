@@ -120,4 +120,13 @@
     <string name="text_size">Size</string>
     <string name="continue_to_save">Continue: choose where to save</string>
     <string name="udf_signed">This UDF document is e-signed. The signature is not verified in this app; you can check it through UYAP.</string>
+    <string name="invoice_payable">Amount payable</string>
+    <string name="invoice_seller">Seller</string>
+    <string name="invoice_buyer">Buyer</string>
+    <string name="invoice_date">Date</string>
+    <string name="invoice_vat">VAT</string>
+    <string name="invoice_base">base</string>
+    <string name="invoice_own_design">Shown with the seller\'s invoice design.</string>
+    <string name="invoice_plain_design">The invoice has no design; plain view.</string>
+    <string name="invoice_summary">Summary</string>
 </resources>
