@@ -1,5 +1,6 @@
 package org.mobileofficefree.app
 
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.horizontalScroll
@@ -17,6 +18,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
@@ -65,7 +67,7 @@ internal val SPREADSHEET_TYPES = arrayOf(
 internal fun SheetScreen(vm: SheetViewModel, state: SheetUiState) {
     val saveAs = rememberLauncherForActivityResult(
         ActivityResultContracts.CreateDocument(SPREADSHEET_TYPES[0]),
-    ) { uri -> if (uri != null) vm.saveTo(uri) }
+    ) { uri -> if (uri != null) vm.saveTo(uri) else vm.saveCancelled() }
     var pdfSetup by remember { mutableStateOf(PdfSetup()) }
     var showPdf by remember { mutableStateOf(false) }
     val savePdf = rememberLauncherForActivityResult(CreateFile()) { uri -> if (uri != null) vm.exportPdfTo(uri, pdfSetup) }
@@ -74,7 +76,7 @@ internal fun SheetScreen(vm: SheetViewModel, state: SheetUiState) {
         TopAppBar(
             title = { Text(state.fileName, maxLines = 1) },
             navigationIcon = {
-                IconButton(onClick = vm::close) {
+                IconButton(onClick = vm::requestClose) {
                     Icon(painterResource(R.drawable.ic_arrow_back), contentDescription = stringResource(R.string.back))
                 }
             },
@@ -104,6 +106,27 @@ internal fun SheetScreen(vm: SheetViewModel, state: SheetUiState) {
                 }
             }
         }
+    }
+
+    BackHandler { vm.requestClose() }
+    if (vm.askClose) {
+        AlertDialog(
+            onDismissRequest = { vm.answerClose(null) },
+            title = { Text(stringResource(R.string.unsaved_title)) },
+            text = { Text(stringResource(R.string.unsaved_body)) },
+            confirmButton = {
+                TextButton(onClick = {
+                    vm.answerClose(true)
+                    saveAs.launch(saveName(state.fileName))
+                }) { Text(stringResource(R.string.save_as)) }
+            },
+            dismissButton = {
+                Row {
+                    TextButton(onClick = { vm.answerClose(null) }) { Text(stringResource(R.string.cancel)) }
+                    TextButton(onClick = { vm.answerClose(false) }) { Text(stringResource(R.string.discard)) }
+                }
+            },
+        )
     }
 
     if (showPdf) {

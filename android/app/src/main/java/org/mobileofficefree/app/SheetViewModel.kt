@@ -84,7 +84,34 @@ class SheetViewModel(app: Application) : AndroidViewModel(app) {
         importNotes = emptyList()
     }
 
+    /** Edits since the workbook was opened or last saved; closing asks first while true. */
+    private var unsaved = false
+    private var closeAfterSave = false
+    var askClose by mutableStateOf(false)
+        private set
+
+    /** Back or the arrow: closes, asking first when there are unsaved edits. */
+    fun requestClose() {
+        if (unsaved) askClose = true else close()
+    }
+
+    /** The answer to "save the changes?": [saveFirst] true means a "Save as" is starting, false discards, null stays. */
+    fun answerClose(saveFirst: Boolean?) {
+        askClose = false
+        when (saveFirst) {
+            true -> closeAfterSave = true
+            false -> close()
+            null -> Unit
+        }
+    }
+
+    /** "Save as" was cancelled: stay open. */
+    fun saveCancelled() {
+        closeAfterSave = false
+    }
+
     fun open(uri: Uri) {
+        unsaved = false
         val resolver = getApplication<Application>().contentResolver
         screen = Screen.Loading
         val started = SystemClock.elapsedRealtime()
@@ -116,6 +143,7 @@ class SheetViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     fun newBlank() {
+        unsaved = false
         screen = Screen.Loading
         val started = SystemClock.elapsedRealtime()
         viewModelScope.launch {
@@ -125,6 +153,8 @@ class SheetViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     fun close() {
+        unsaved = false
+        closeAfterSave = false
         val old = doc
         doc = null
         blocks.clear()
@@ -177,6 +207,7 @@ class SheetViewModel(app: Application) : AndroidViewModel(app) {
             }
             result.fold(
                 onSuccess = {
+                    unsaved = true
                     // A formula can change any cell: refetch everything visible.
                     blocks.clear()
                     pending.clear()
@@ -203,6 +234,11 @@ class SheetViewModel(app: Application) : AndroidViewModel(app) {
                 onSuccess = { text(R.string.saved) },
                 onFailure = { text(R.string.save_failed, it.message ?: "") },
             )
+            if (result.isSuccess) {
+                unsaved = false
+                if (closeAfterSave) close()
+            }
+            closeAfterSave = false
         }
     }
 

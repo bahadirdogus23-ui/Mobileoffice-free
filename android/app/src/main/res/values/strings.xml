@@ -102,4 +102,14 @@
     <string name="pdf_fit_hint">Each sheet is shrunk onto one page</string>
     <string name="pdf_gridlines">Gridlines</string>
     <string name="pdf_save">Save as PDF…</string>
+    <string name="save">Save</string>
+    <string name="done">Done</string>
+    <string name="edit">Edit</string>
+    <string name="discard">Don\'t save</string>
+    <string name="unsaved_title">Unsaved changes</string>
+    <string name="unsaved_body">Save the changes you made?</string>
+    <string name="text_save_encoding">Save with another encoding (TXT)</string>
+    <string name="text_current_encoding">Current encoding</string>
+    <string name="text_unencodable">“%1$s” cannot be written in %2$s. You can choose UTF-8.</string>
+    <string name="text_save_in_archive">A file opened from an archive cannot be saved in place; use Convert › Save with another encoding to keep a copy.</string>
 </resources>

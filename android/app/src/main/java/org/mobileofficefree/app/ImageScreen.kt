@@ -2,6 +2,7 @@ package org.mobileofficefree.app
 
 import android.content.Intent
 import android.text.format.Formatter
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.detectTapGestures
@@ -49,6 +50,7 @@ fun ImageScreen(vm: ImageViewModel, state: ImageUiState) {
     var shift by remember(state.uri) { mutableStateOf(Offset.Zero) }
     var quarterTurns by remember(state.uri) { mutableIntStateOf(0) }
     val bitmap = remember(state.bitmap) { state.bitmap.asImageBitmap() }
+    BackHandler { vm.close() }
 
     Column(Modifier.fillMaxSize()) {
         TopAppBar(

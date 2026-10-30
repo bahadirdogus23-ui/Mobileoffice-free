@@ -2,6 +2,7 @@ package org.mobileofficefree.app
 
 import android.content.Intent
 import android.widget.Toast
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.LocalActivity
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.compose.foundation.Canvas
@@ -149,6 +150,7 @@ fun PagedScreen(vm: PagedViewModel, state: PagedUiState, reading: ReadingSetting
     val night = reading.night
     val invertOnScreen = night && !vm.drawsNight
 
+    BackHandler { vm.close() }
     // Follow the page being read aloud.
     LaunchedEffect(vm.readingPage) {
         if (vm.readingPage >= 0) list.animateScrollToItem(vm.readingPage)

@@ -1,26 +1,39 @@
 package org.mobileofficefree.app
 
 import android.content.Intent
+import android.widget.Toast
+import androidx.activity.compose.BackHandler
+import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.selection.SelectionContainer
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.BottomAppBar
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.LinearProgressIndicator
+import androidx.compose.material3.ListItem
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -37,6 +50,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.painterResource
@@ -72,6 +86,24 @@ fun TextScreen(vm: TextViewModel, state: TextUiState, reading: ReadingSettings) 
     val digits = state.lineCount.toString().length
     val matchesByLine = remember(vm.matches) { vm.matches.withIndex().groupBy({ it.value.line }, { it.index to it.value }) }
 
+    var showConvert by remember { mutableStateOf(false) }
+    // A conversion or a re-encoded copy waits for the person to pick where it goes.
+    var target by remember { mutableStateOf<Any?>(null) }
+    val createFile = rememberLauncherForActivityResult(CreateFile()) { uri ->
+        when (val t = target) {
+            is ExportFormat -> if (uri != null) vm.exportTo(uri, t)
+            is TextEncoding -> if (uri != null) vm.saveAs(uri, t)
+        }
+        target = null
+    }
+    BackHandler { vm.requestClose() }
+    LaunchedEffect(vm.notice) {
+        vm.notice?.let {
+            Toast.makeText(context, it, Toast.LENGTH_LONG).show()
+            vm.consumeNotice()
+        }
+    }
+
     // Bring the current hit into view.
     LaunchedEffect(vm.currentMatch, vm.matches) {
         vm.matches.getOrNull(vm.currentMatch)?.let { list.scrollToItem((it.line - 2).coerceAtLeast(0)) }
@@ -83,19 +115,25 @@ fun TextScreen(vm: TextViewModel, state: TextUiState, reading: ReadingSettings) 
                 Column {
                     Text(state.fileName, maxLines = 1)
                     Text(
-                        pluralStringResource(R.plurals.text_info, state.lineCount, state.encoding, state.lineCount),
+                        pluralStringResource(R.plurals.text_info, state.lineCount, state.encoding.label, state.lineCount),
                         style = MaterialTheme.typography.bodySmall,
                     )
                 }
             },
             navigationIcon = {
-                IconButton(onClick = vm::close) {
+                IconButton(onClick = vm::requestClose) {
                     Icon(painterResource(R.drawable.ic_arrow_back), contentDescription = stringResource(R.string.back))
                 }
             },
             actions = {
-                TextButton(onClick = { fontSize = (fontSize - 2f).coerceAtLeast(8f) }) { Text("A−") }
-                TextButton(onClick = { fontSize = (fontSize + 2f).coerceAtMost(32f) }) { Text("A+") }
+                if (vm.editing) {
+                    TextButton(onClick = { vm.save() }, enabled = vm.dirty && !vm.busy) { Text(stringResource(R.string.save)) }
+                    TextButton(onClick = vm::finishEditing) { Text(stringResource(R.string.done)) }
+                } else {
+                    TextButton(onClick = { fontSize = (fontSize - 2f).coerceAtLeast(8f) }) { Text("A−") }
+                    TextButton(onClick = { fontSize = (fontSize + 2f).coerceAtMost(32f) }) { Text("A+") }
+                    if (state.editable) TextButton(onClick = vm::startEditing) { Text(stringResource(R.string.edit)) }
+                }
             },
         )
         if (state.truncated) {
@@ -107,7 +145,8 @@ fun TextScreen(vm: TextViewModel, state: TextUiState, reading: ReadingSettings) 
                 )
             }
         }
-        if (searching) {
+        if (vm.busy) LinearProgressIndicator(Modifier.fillMaxWidth())
+        if (searching && !vm.editing) {
             Row(Modifier.fillMaxWidth().padding(horizontal = 8.dp), verticalAlignment = Alignment.CenterVertically) {
                 OutlinedTextField(
                     value = vm.query,
@@ -136,7 +175,16 @@ fun TextScreen(vm: TextViewModel, state: TextUiState, reading: ReadingSettings) 
         val charWidth = with(LocalDensity.current) { rememberTextMeasurer().measure("0", style).size.width.toDp() }
         val longest = remember(state) { state.lines.maxOfOrNull { it.text.length } ?: 0 }
         val hScroll = rememberScrollState()
-        Box(Modifier.weight(1f).fillMaxWidth().background(paper)) {
+        if (vm.editing) {
+            // The whole text in one field; line numbers come back after "Done".
+            BasicTextField(
+                value = vm.draft,
+                onValueChange = vm::updateDraft,
+                textStyle = style,
+                cursorBrush = SolidColor(ink),
+                modifier = Modifier.weight(1f).fillMaxWidth().background(paper).padding(horizontal = 12.dp, vertical = 8.dp),
+            )
+        } else Box(Modifier.weight(1f).fillMaxWidth().background(paper)) {
             SelectionContainer {
                 LazyColumn(
                     state = list,
@@ -162,19 +210,80 @@ fun TextScreen(vm: TextViewModel, state: TextUiState, reading: ReadingSettings) 
             }
         }
         BottomAppBar {
-            TextButton(onClick = { searching = !searching; if (!searching) vm.search("") }) { Text(stringResource(R.string.search)) }
-            TextButton(onClick = { wrap = !wrap }) {
-                Text(stringResource(if (wrap) R.string.wrap_off else R.string.wrap_on))
+            Row(Modifier.horizontalScroll(rememberScrollState())) {
+                if (!vm.editing) {
+                    TextButton(onClick = { searching = !searching; if (!searching) vm.search("") }) { Text(stringResource(R.string.search)) }
+                    TextButton(onClick = { wrap = !wrap }) {
+                        Text(stringResource(if (wrap) R.string.wrap_off else R.string.wrap_on))
+                    }
+                }
+                TextButton(onClick = { reading.updateNight(!night) }) { Text(stringResource(if (night) R.string.day_short else R.string.night_short)) }
+                TextButton(onClick = { showConvert = true }) { Text(stringResource(R.string.convert)) }
+                TextButton(onClick = {
+                    val send = Intent(Intent.ACTION_SEND)
+                        .setType(context.contentResolver.getType(state.uri) ?: "text/plain")
+                        .putExtra(Intent.EXTRA_STREAM, state.uri)
+                        .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                    context.startActivity(Intent.createChooser(send, state.fileName))
+                }) { Text(stringResource(R.string.share)) }
             }
-            TextButton(onClick = { reading.updateNight(!night) }) { Text(stringResource(if (night) R.string.day_short else R.string.night_short)) }
-            TextButton(onClick = {
-                val send = Intent(Intent.ACTION_SEND)
-                    .setType(context.contentResolver.getType(state.uri) ?: "text/plain")
-                    .putExtra(Intent.EXTRA_STREAM, state.uri)
-                    .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-                context.startActivity(Intent.createChooser(send, state.fileName))
-            }) { Text(stringResource(R.string.share)) }
         }
+    }
+
+    if (showConvert) {
+        ModalBottomSheet(onDismissRequest = { showConvert = false }) {
+            Column(Modifier.verticalScroll(rememberScrollState())) {
+                Text(
+                    stringResource(R.string.convert_to),
+                    style = MaterialTheme.typography.titleLarge,
+                    modifier = Modifier.padding(horizontal = 24.dp, vertical = 8.dp),
+                )
+                for (format in TEXT_FORMATS) {
+                    ListItem(
+                        headlineContent = { Text(format.label) },
+                        supportingContent = { Text(convertedName(state.fileName, format.ext)) },
+                        modifier = Modifier.clickable {
+                            showConvert = false
+                            target = format
+                            createFile.launch(CreateFile.Request(convertedName(state.fileName, format.ext), format.mime))
+                        },
+                    )
+                }
+                HorizontalDivider()
+                Text(
+                    stringResource(R.string.text_save_encoding),
+                    style = MaterialTheme.typography.titleMedium,
+                    modifier = Modifier.padding(horizontal = 24.dp, vertical = 8.dp),
+                )
+                for (enc in TextEncoding.entries) {
+                    ListItem(
+                        headlineContent = { Text(enc.label) },
+                        supportingContent = if (enc == state.encoding) { { Text(stringResource(R.string.text_current_encoding)) } } else null,
+                        modifier = Modifier.clickable {
+                            showConvert = false
+                            target = enc
+                            createFile.launch(CreateFile.Request(state.fileName, "text/plain"))
+                        },
+                    )
+                }
+                Spacer(Modifier.height(24.dp))
+            }
+        }
+    }
+
+    vm.pendingLeave?.let {
+        AlertDialog(
+            onDismissRequest = { vm.answerLeave(null) },
+            title = { Text(stringResource(R.string.unsaved_title)) },
+            text = { Text(stringResource(R.string.unsaved_body)) },
+            confirmButton = { TextButton(onClick = { vm.answerLeave(true) }) { Text(stringResource(R.string.save)) } },
+            dismissButton = {
+                Row {
+                    TextButton(onClick = { vm.answerLeave(null) }) { Text(stringResource(R.string.cancel)) }
+                    TextButton(onClick = { vm.answerLeave(false) }) { Text(stringResource(R.string.discard)) }
+                }
+            },
+        )
     }
 }
 

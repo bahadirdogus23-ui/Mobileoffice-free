@@ -1,5 +1,6 @@
 package org.mobileofficefree.app
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.detectTapGestures
@@ -9,8 +10,8 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -54,6 +55,7 @@ import kotlinx.coroutines.flow.debounce
 @Composable
 fun CadScreen(vm: CadViewModel, state: CadUiState) {
     var showLayers by remember { mutableStateOf(false) }
+    BackHandler { vm.close() }
     // A sharp picture once the fingers rest; the last one is moved and scaled meanwhile.
     LaunchedEffect(Unit) {
         snapshotFlow { vm.view }.debounce(150).collect { vm.render() }

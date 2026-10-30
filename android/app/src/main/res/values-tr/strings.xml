@@ -101,4 +101,14 @@
     <string name="pdf_fit_hint">Her sayfa tek kağıda küçültülür</string>
     <string name="pdf_gridlines">Kılavuz çizgileri</string>
     <string name="pdf_save">PDF olarak kaydet…</string>
+    <string name="save">Kaydet</string>
+    <string name="done">Bitti</string>
+    <string name="edit">Düzenle</string>
+    <string name="discard">Kaydetme</string>
+    <string name="unsaved_title">Kaydedilmemiş değişiklikler</string>
+    <string name="unsaved_body">Yaptığın değişiklikler kaydedilsin mi?</string>
+    <string name="text_save_encoding">Farklı kodlamayla kaydet (TXT)</string>
+    <string name="text_current_encoding">Şu anki kodlama</string>
+    <string name="text_unencodable">“%1$s” karakteri %2$s kodlamasında yazılamıyor. UTF-8 seçebilirsin.</string>
+    <string name="text_save_in_archive">Arşivden açılan dosya yerinde kaydedilemez; Dönüştür › Farklı kodlamayla kaydet ile bir kopya kaydet.</string>
 </resources>

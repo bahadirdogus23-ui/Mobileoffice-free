@@ -19,6 +19,16 @@ val WORD_FORMATS = listOf(
     ExportFormat("txt", "text/plain", "TXT"),
 )
 
+/** Plain text can become any of these, through WordCraft (each line a paragraph). */
+val TEXT_FORMATS = listOf(
+    PDF_FORMAT,
+    ExportFormat("docx", "application/vnd.openxmlformats-officedocument.wordprocessingml.document", "Word (DOCX)"),
+    ExportFormat("html", "text/html", "HTML"),
+    ExportFormat("md", "text/markdown", "Markdown"),
+    ExportFormat("odt", "application/vnd.oasis.opendocument.text", "OpenDocument (ODT)"),
+    ExportFormat("rtf", "application/rtf", "RTF"),
+)
+
 /**
  * The system "Save as" screen for a new file: [Request.name] suggested, of type [Request.mime].
  * (The stock CreateDocument contract fixes the type when the screen is built; here each

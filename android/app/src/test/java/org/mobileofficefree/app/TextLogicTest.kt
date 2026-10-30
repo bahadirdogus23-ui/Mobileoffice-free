@@ -25,7 +25,7 @@ class TextLogicTest {
         val cp1254 = turkish.toByteArray(charset("windows-1254"))
         assertEquals(turkish to "Windows-1254", decodeText(cp1254))
         val bom = byteArrayOf(0xEF.toByte(), 0xBB.toByte(), 0xBF.toByte()) + "ğ".toByteArray()
-        assertEquals("ğ" to "UTF-8", decodeText(bom))
+        assertEquals("ğ" to "UTF-8 (BOM)", decodeText(bom))
         val utf16 = byteArrayOf(0xFF.toByte(), 0xFE.toByte()) + "İ".toByteArray(Charsets.UTF_16LE)
         assertEquals("İ" to "UTF-16", decodeText(utf16))
     }
@@ -74,5 +74,30 @@ class TextLogicTest {
             }
         }
         return out.toByteArray()
+    }
+
+    @Test
+    fun savesInTheEncodingItCameIn() {
+        val turkish = "Şişli'de ığdır çağrı İĞÜŞÖÇ"
+        for (enc in TextEncoding.entries) {
+            val (back, detected) = TextEncoding.detect(enc.encode(turkish))
+            assertEquals(turkish, back, enc.label)
+            // Without a BOM, Windows-1254 and ISO-8859-9 read back as Windows-1254 (same letters).
+            if (enc != TextEncoding.ISO_8859_9) assertEquals(enc, detected)
+        }
+    }
+
+    @Test
+    fun refusesLettersTheEncodingCannotHold() {
+        val failed = runCatching { TextEncoding.WINDOWS_1254.encode("Merhaba 😀") }.exceptionOrNull()
+        assertTrue(failed is UnencodableText)
+        assertEquals("Windows-1254", (failed as UnencodableText).encoding)
+    }
+
+    @Test
+    fun putsWindowsLineEndsBack() {
+        assertEquals("a\r\nb\r\n", withLineEnds("a\nb\n", crlf = true))
+        assertEquals("a\nb", withLineEnds("a\nb", crlf = false))
+        assertEquals("a\r\nb", withLineEnds("a\r\nb", crlf = true))
     }
 }
