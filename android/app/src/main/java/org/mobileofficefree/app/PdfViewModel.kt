@@ -16,6 +16,8 @@ import androidx.lifecycle.viewModelScope
 import java.io.File
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import java.security.SecureRandom
+import org.mobileofficefree.engine.MoException
 import org.mobileofficefree.engine.PdfDocument
 
 /**
@@ -23,6 +25,9 @@ import org.mobileofficefree.engine.PdfDocument
  * see docs/adr/0003-pdf-goruntuleme.md. Page tools (rotate, delete, combine, extract) go through
  * the PdfCraft engine: each edit writes the whole document to a cache file that the renderer
  * then shows; the opened file is never written, the person saves to a new one.
+ *
+ * Password-protected files are opened by the engine and shown from a copy without the password
+ * kept in the app's cache (PdfRenderer cannot open them); what the person saves keeps it.
  */
 class PdfViewModel(app: Application) : PagedViewModel(app, DocumentKind.PDF) {
     private var fd: ParcelFileDescriptor? = null
@@ -38,9 +43,55 @@ class PdfViewModel(app: Application) : PagedViewModel(app, DocumentKind.PDF) {
     var busy by mutableStateOf(false)
         private set
 
-    override val canEditPages = true
+    /** A file waiting for its password, and whether the last one tried was wrong. */
+    var locked by mutableStateOf<Uri?>(null)
+        private set
+    var wrongPassword by mutableStateOf(false)
+        private set
+    private var password: String? = null
+
+    /** The file (as it would be saved) asks for a password. */
+    var isProtected by mutableStateOf(false)
+        private set
+    /** The owner allows no changes with the password it was opened with. */
+    var restricted by mutableStateOf(false)
+        private set
+
+    override val canEditPages: Boolean get() = !restricted
     override val hasUnsavedChanges: Boolean get() = edited
-    override val printsOriginal: Boolean get() = !edited
+    override val printsOriginal: Boolean get() = !edited && !isProtected
+
+    /** Tries [locked] again with [pass]. */
+    fun unlock(pass: String) {
+        val uri = locked ?: return
+        locked = null
+        password = pass
+        open(uri)
+    }
+
+    fun cancelUnlock() {
+        locked = null
+        password = null
+    }
+
+    override fun openFailed(uri: Uri, e: Throwable): Boolean {
+        if (e !is MoException.NeedsPassword && e !is MoException.WrongPassword) return false
+        wrongPassword = e is MoException.WrongPassword
+        locked = uri
+        return true
+    }
+
+    /** Asks [pass] for opening the saved file (AES-256). */
+    fun protect(pass: String) = edit {
+        it.protect(pass, ByteArray(32).also(SecureRandom()::nextBytes))
+        isProtected = it.isProtected()
+    }
+
+    /** The saved file opens without a password. */
+    fun unprotect() = edit {
+        it.unprotect()
+        isProtected = it.isProtected()
+    }
 
     fun rotatePages(pages: List<Int>, degrees: Int) = edit { it.rotate(pages.map(Int::toUInt), degrees) }
 
@@ -64,7 +115,11 @@ class PdfViewModel(app: Application) : PagedViewModel(app, DocumentKind.PDF) {
     private fun editor(): PdfDocument = editor ?: run {
         val uri = source ?: error("no document")
         val bytes = getApplication<Application>().contentResolver.openInputStream(uri)?.use { it.readBytes() } ?: error("no data")
-        PdfDocument.open(bytes, null).also { editor = it }
+        PdfDocument.open(bytes, null).also {
+            editor = it
+            isProtected = it.isProtected()
+            restricted = it.isRestricted()
+        }
     }
 
     private fun edit(op: (PdfDocument) -> Unit) {
@@ -78,7 +133,7 @@ class PdfViewModel(app: Application) : PagedViewModel(app, DocumentKind.PDF) {
                     // A new cache file per edit: the renderer still has the previous one open.
                     val dir = File(app.cacheDir, "pdf-edit").apply { mkdirs() }
                     val file = File(dir, "edit-${++editCount}.pdf")
-                    file.writeBytes(doc.save())
+                    file.writeBytes(doc.displayCopy())
                     closeRenderer()
                     dir.listFiles()?.filter { it != file }?.forEach { it.delete() }
                     openRenderer(ParcelFileDescriptor.open(file, ParcelFileDescriptor.MODE_READ_ONLY))
@@ -113,8 +168,26 @@ class PdfViewModel(app: Application) : PagedViewModel(app, DocumentKind.PDF) {
 
     override fun load(uri: Uri, name: String): List<Pair<Float, Float>> {
         source = uri
-        val pfd = getApplication<Application>().contentResolver.openFileDescriptor(uri, "r") ?: error("no data")
-        return openRenderer(pfd)
+        isProtected = false
+        restricted = false
+        val app = getApplication<Application>()
+        val pfd = app.contentResolver.openFileDescriptor(uri, "r") ?: error("no data")
+        return try {
+            openRenderer(pfd)
+        } catch (_: SecurityException) {
+            // Encrypted: the engine opens it (asking for the password) and gives a copy to show.
+            val pass = password
+            password = null
+            val bytes = app.contentResolver.openInputStream(uri)?.use { it.readBytes() } ?: error("no data")
+            val doc = PdfDocument.open(bytes, pass)
+            editor = doc
+            isProtected = doc.isProtected()
+            restricted = doc.isRestricted()
+            val dir = File(app.cacheDir, "pdf-edit").apply { mkdirs() }
+            val file = File(dir, "edit-${++editCount}.pdf")
+            file.writeBytes(doc.displayCopy())
+            openRenderer(ParcelFileDescriptor.open(file, ParcelFileDescriptor.MODE_READ_ONLY))
+        }
     }
 
     private fun openRenderer(pfd: ParcelFileDescriptor): List<Pair<Float, Float>> {

@@ -165,6 +165,16 @@ fun AppRoot(sheet: SheetViewModel, word: WordViewModel, pdf: PdfViewModel, slide
             text = { Text(notes.take(5).joinToString("\n\n")) },
         )
     }
+    pdf.locked?.let {
+        PasswordDialog(
+            title = stringResource(R.string.pdf_locked_title),
+            message = stringResource(R.string.pdf_locked_body),
+            problem = if (pdf.wrongPassword) stringResource(R.string.wrong_password) else null,
+            confirm = stringResource(R.string.open_file),
+            onDismiss = pdf::cancelUnlock,
+            onConfirm = pdf::unlock,
+        )
+    }
     crashReport?.let { report ->
         AlertDialog(
             onDismissRequest = { crashReport = null },

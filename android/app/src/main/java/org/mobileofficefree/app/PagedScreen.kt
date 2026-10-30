@@ -143,6 +143,7 @@ fun PagedScreen(vm: PagedViewModel, state: PagedUiState, reading: ReadingSetting
     var extractPages by remember { mutableStateOf<List<Int>>(emptyList()) }
     var closeAfterSave by remember { mutableStateOf(false) }
     var drawSignature by remember { mutableStateOf(false) }
+    var showPassword by remember { mutableStateOf(false) }
     // A drawn signature waiting for a tap on the page it goes on.
     var placing by remember(state.uri) { mutableStateOf<Signature?>(null) }
     val extractFile = rememberLauncherForActivityResult(CreateFile()) { uri -> if (uri != null) pdf?.extractTo(uri, extractPages) }
@@ -404,7 +405,8 @@ fun PagedScreen(vm: PagedViewModel, state: PagedUiState, reading: ReadingSetting
                 TextButton(onClick = { showReading = true }) { Text(stringResource(R.string.reading)) }
                 TextButton(onClick = { showPages = true }) { Text(stringResource(R.string.pages)) }
                 if (pdf != null) {
-                    TextButton(onClick = { drawSignature = true }, enabled = !pdf.busy) { Text(stringResource(R.string.sign)) }
+                    TextButton(onClick = { drawSignature = true }, enabled = !pdf.busy && !pdf.restricted) { Text(stringResource(R.string.sign)) }
+                    TextButton(onClick = { showPassword = true }, enabled = !pdf.busy && !pdf.restricted) { Text(stringResource(R.string.password)) }
                 }
                 if (vm.exportFormats.isNotEmpty()) {
                     TextButton(onClick = { showConvert = true }) { Text(stringResource(R.string.convert)) }
@@ -418,6 +420,35 @@ fun PagedScreen(vm: PagedViewModel, state: PagedUiState, reading: ReadingSetting
                     context.startActivity(Intent.createChooser(send, state.fileName))
                 }) { Text(stringResource(R.string.share)) }
             }
+        }
+    }
+
+    if (showPassword && pdf != null) {
+        if (pdf.isProtected) {
+            AlertDialog(
+                onDismissRequest = { showPassword = false },
+                title = { Text(stringResource(R.string.unprotect_title)) },
+                text = { Text(stringResource(R.string.unprotect_body)) },
+                confirmButton = {
+                    TextButton(onClick = {
+                        showPassword = false
+                        pdf.unprotect()
+                    }) { Text(stringResource(R.string.unprotect)) }
+                },
+                dismissButton = { TextButton(onClick = { showPassword = false }) { Text(stringResource(R.string.cancel)) } },
+            )
+        } else {
+            PasswordDialog(
+                title = stringResource(R.string.protect_title),
+                message = stringResource(R.string.protect_body),
+                problem = null,
+                confirm = stringResource(R.string.protect),
+                onDismiss = { showPassword = false },
+                onConfirm = {
+                    showPassword = false
+                    pdf.protect(it)
+                },
+            )
         }
     }
 

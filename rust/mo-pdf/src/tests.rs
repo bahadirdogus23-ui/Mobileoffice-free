@@ -83,3 +83,50 @@ fn display_fractions_follow_the_page_rotation() {
     assert_eq!(user_point(crop, 270, [0.0, 0.0]), [100.0, 200.0]);
     assert_eq!(user_point(crop, -90, [1.0, 1.0]), [0.0, 0.0]);
 }
+
+#[test]
+fn protects_with_a_password_and_shows_without_one() {
+    let mut doc = PdfDoc::open(pdf(2, "Gizli"), None).unwrap();
+    assert!(!doc.is_protected());
+    assert!(doc.protect("", [7; 32]).is_err());
+    doc.protect("şifre123", [7; 32]).unwrap();
+    assert!(doc.is_protected());
+    let locked = doc.save().unwrap();
+    assert_eq!(PdfDoc::open(locked.clone(), None).err(), Some(PdfError::NeedsPassword));
+    assert_eq!(PdfDoc::open(locked.clone(), Some("yanlış")).err(), Some(PdfError::WrongPassword));
+    let mut opened = PdfDoc::open(locked, Some("şifre123")).unwrap();
+    assert!(opened.is_protected() && !opened.is_restricted());
+    // The on-screen copy needs no password; pages taken out keep it.
+    assert_eq!(reopened(opened.display_copy().unwrap()).page_count().unwrap(), 2);
+    assert_eq!(PdfDoc::open(opened.extract(&[1]).unwrap(), None).err(), Some(PdfError::NeedsPassword));
+    opened.rotate(&[0], 90).unwrap();
+    opened.unprotect().unwrap();
+    let open = reopened(opened.save().unwrap());
+    assert!(!open.is_protected());
+    assert_eq!(open.rotation(0).unwrap(), 90);
+}
+
+#[test]
+fn respects_the_owners_restrictions() {
+    let mut cos = Document::open(Arc::new(pdf(1, "Kısıtlı"))).unwrap();
+    let params = pdfcraft_cos::NewEncryption {
+        algorithm: pdfcraft_cos::Algorithm::Aes128,
+        user_password: "",
+        owner_password: "sahip",
+        permissions: -4 & !(1 << 3), // no modifying
+        encrypt_metadata: true,
+        seed: [3; 32],
+    };
+    cos.set_encryption(&params).unwrap();
+    let bytes = pdfcraft_cos::write_full(&cos, &SaveOptions::default()).unwrap();
+    // An empty user password opens it at once, with the restrictions.
+    let mut doc = PdfDoc::open(bytes.clone(), None).unwrap();
+    assert!(doc.is_restricted());
+    assert!(doc.rotate(&[0], 90).is_err());
+    assert!(doc.unprotect().is_err());
+    assert_eq!(reopened(doc.display_copy().unwrap()).page_count().unwrap(), 1);
+    // The owner's password lifts them.
+    let mut owner = PdfDoc::open(bytes, Some("sahip")).unwrap();
+    assert!(!owner.is_restricted());
+    owner.rotate(&[0], 90).unwrap();
+}

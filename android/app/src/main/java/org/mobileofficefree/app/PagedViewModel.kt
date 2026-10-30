@@ -283,10 +283,13 @@ abstract class PagedViewModel(app: Application, private val kind: DocumentKind) 
                     state = opened
                     notice = note
                 },
-                onFailure = { error = it.message ?: it.javaClass.simpleName },
+                onFailure = { if (!openFailed(uri, it)) error = it.message ?: it.javaClass.simpleName },
             )
         }
     }
+
+    /** A chance to answer a failed [open] (asking for a password…); true when handled. Main thread. */
+    protected open fun openFailed(uri: Uri, e: Throwable): Boolean = false
 
     fun close() {
         stopReading()

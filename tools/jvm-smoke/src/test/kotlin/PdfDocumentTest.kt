@@ -31,4 +31,19 @@ class PdfDocumentTest {
             PdfDocument.open(doc.save(), null).use { assertEquals(1u, it.pageCount()) }
         }
     }
+
+    @Test
+    fun passwords() {
+        val locked = PdfDocument.open(pdf(), null).use { doc ->
+            doc.protect("şifre", ByteArray(32) { it.toByte() })
+            doc.save()
+        }
+        assertFailsWith<MoException.NeedsPassword> { PdfDocument.open(locked, null) }
+        assertFailsWith<MoException.WrongPassword> { PdfDocument.open(locked, "yanlış") }
+        PdfDocument.open(locked, "şifre").use { doc ->
+            assertEquals(true, doc.isProtected())
+            assertEquals(false, doc.isRestricted())
+            PdfDocument.open(doc.displayCopy(), null).use { assertEquals(false, it.isProtected()) }
+        }
+    }
 }

@@ -152,4 +152,17 @@
     <string name="signature_draw">Draw your signature</string>
     <string name="signature_place">Tap where the signature goes</string>
     <string name="clear">Clear</string>
+    <string name="password">Password</string>
+    <string name="show">Show</string>
+    <string name="hide">Hide</string>
+    <string name="open_file">Open</string>
+    <string name="pdf_locked_title">This PDF is password-protected</string>
+    <string name="pdf_locked_body">Enter the password to open it.</string>
+    <string name="wrong_password">Wrong password</string>
+    <string name="protect_title">Protect with a password</string>
+    <string name="protect_body">The file you save will ask for this password. If you forget it, nobody can open the file.</string>
+    <string name="protect">Protect</string>
+    <string name="unprotect_title">Remove the password?</string>
+    <string name="unprotect_body">The file you save will open without a password.</string>
+    <string name="unprotect">Remove</string>
 </resources>

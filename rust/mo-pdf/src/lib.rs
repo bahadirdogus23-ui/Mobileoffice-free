@@ -1,17 +1,21 @@
 //! PDF page tools over the PdfCraft engine: rotate, delete, move and extract pages, combine
-//! files, and put a hand-drawn signature on a page. Viewing stays with Android's PdfRenderer (docs/adr/0003-pdf-goruntuleme.md); this bridge
+//! files, put a hand-drawn signature on a page, and add or remove password protection. Viewing stays with Android's PdfRenderer (docs/adr/0003-pdf-goruntuleme.md); this bridge
 //! edits the document's structure and writes a whole new file, never the opened one in place.
 
 use std::sync::Arc;
 
 use pdfcraft_annot as annot;
-use pdfcraft_cos::{Document, SaveOptions};
+use pdfcraft_cos::{CosError, Document, SaveOptions};
 use pdfcraft_organize as organize;
 
 #[derive(Debug, thiserror::Error, PartialEq, Eq)]
 pub enum PdfError {
     #[error("{0}")]
     Open(String),
+    #[error("the document is protected by a password")]
+    NeedsPassword,
+    #[error("the password is incorrect")]
+    WrongPassword,
     #[error("{0}")]
     Edit(String),
     #[error("{0}")]
@@ -23,13 +27,21 @@ pub struct PdfDoc {
     doc: Document,
 }
 
+fn opening(e: CosError) -> PdfError {
+    match e {
+        CosError::NeedsPassword => PdfError::NeedsPassword,
+        CosError::WrongPassword => PdfError::WrongPassword,
+        e => PdfError::Open(e.to_string()),
+    }
+}
+
 fn edit<E: std::fmt::Display>(e: E) -> PdfError {
     PdfError::Edit(e.to_string())
 }
 
 impl PdfDoc {
     pub fn open(bytes: Vec<u8>, password: Option<&str>) -> Result<PdfDoc, PdfError> {
-        let doc = Document::open_with_password(Arc::new(bytes), password).map_err(|e| PdfError::Open(e.to_string()))?;
+        let doc = Document::open_with_password(Arc::new(bytes), password).map_err(opening)?;
         Ok(PdfDoc { doc })
     }
 
@@ -39,6 +51,7 @@ impl PdfDoc {
 
     /// Turns `pages` (0-based) by `degrees` (a multiple of 90, clockwise).
     pub fn rotate(&mut self, pages: &[u32], degrees: i32) -> Result<(), PdfError> {
+        self.refuse_restricted()?;
         organize::rotate_pages(&mut self.doc, &indices(pages), i64::from(degrees)).map_err(edit)
     }
 
@@ -49,6 +62,7 @@ impl PdfDoc {
 
     /// Removes `pages`; a document keeps at least one page.
     pub fn delete(&mut self, pages: &[u32]) -> Result<(), PdfError> {
+        self.refuse_restricted()?;
         if pages.len() as u32 >= self.page_count()? {
             return Err(PdfError::Edit("a PDF needs at least one page".into()));
         }
@@ -57,12 +71,14 @@ impl PdfDoc {
 
     /// Moves `pages` so the first of them lands at position `to` (0-based, in the new order).
     pub fn move_pages(&mut self, pages: &[u32], to: u32) -> Result<(), PdfError> {
+        self.refuse_restricted()?;
         organize::move_pages(&mut self.doc, &indices(pages), to as usize).map_err(edit)
     }
 
     /// Appends all pages of another PDF (fields renamed where names clash).
     pub fn append(&mut self, other: Vec<u8>, password: Option<&str>) -> Result<(), PdfError> {
-        let src = Document::open_with_password(Arc::new(other), password).map_err(|e| PdfError::Open(e.to_string()))?;
+        self.refuse_restricted()?;
+        let src = Document::open_with_password(Arc::new(other), password).map_err(opening)?;
         let n = organize::page_count(&src).map_err(edit)?;
         let at = organize::page_count(&self.doc).map_err(edit)?;
         let all: Vec<usize> = (0..n).collect();
@@ -72,7 +88,9 @@ impl PdfDoc {
 
     /// A new PDF with only `pages`, in the given order; this document is unchanged.
     pub fn extract(&self, pages: &[u32]) -> Result<Vec<u8>, PdfError> {
-        let mut out = Document::open(Arc::new(self.save()?)).map_err(|e| PdfError::Save(e.to_string()))?;
+        self.refuse_restricted()?;
+        // A copy keeps the password, if any: the part stays as protected as the whole.
+        let mut out = self.doc.clone();
         let n = organize::page_count(&out).map_err(edit)?;
         let keep = indices(pages);
         if keep.is_empty() || keep.iter().any(|p| *p >= n) {
@@ -89,6 +107,7 @@ impl PdfDoc {
     /// fractions of the page as it is displayed (x right, y down, 0–1), so the caller need not know
     /// the page's boxes or rotation.
     pub fn sign(&mut self, page: u32, strokes: &[Vec<[f64; 2]>]) -> Result<(), PdfError> {
+        self.refuse_restricted()?;
         let page = page as usize;
         let boxes = organize::page_boxes(&self.doc).map_err(edit)?;
         let crop = boxes.get(page).ok_or_else(|| PdfError::Edit("no such page".into()))?[1];
@@ -104,6 +123,63 @@ impl PdfDoc {
         let meta = annot::Meta { date: None, id: String::new() };
         annot::add_annotation(&mut self.doc, &new, &meta).map_err(edit)?;
         Ok(())
+    }
+
+    /// Whether the file written by [`PdfDoc::save`] asks for a password.
+    pub fn is_protected(&self) -> bool {
+        self.doc.output_handler().is_some()
+    }
+
+    /// Whether the password it was opened with keeps it from being changed: the owner set
+    /// restrictions (no editing, printing…) and only the owner's password lifts them.
+    pub fn is_restricted(&self) -> bool {
+        self.doc.permissions().is_some_and(|p| {
+            const ALL: i32 = 0b1111_0011_1100; // bits 3–6 and 9–12 (§7.6.4.2, Table 22)
+            !p.owner && p.bits & ALL != ALL
+        })
+    }
+
+    /// Protects the next save with `password` (AES-256), every use allowed once it is open.
+    /// `seed` is 32 random bytes for the keys.
+    pub fn protect(&mut self, password: &str, seed: [u8; 32]) -> Result<(), PdfError> {
+        if password.is_empty() {
+            return Err(PdfError::Edit("the password is empty".into()));
+        }
+        self.refuse_restricted()?;
+        let params = pdfcraft_cos::NewEncryption {
+            algorithm: pdfcraft_cos::Algorithm::Aes256,
+            user_password: password,
+            owner_password: password,
+            permissions: -4, // every bit allowed (§7.6.4.2)
+            encrypt_metadata: true,
+            seed,
+        };
+        self.doc.set_encryption(&params).map_err(edit)
+    }
+
+    /// The next save asks for no password.
+    pub fn unprotect(&mut self) -> Result<(), PdfError> {
+        self.refuse_restricted()?;
+        self.doc.remove_encryption();
+        Ok(())
+    }
+
+    fn refuse_restricted(&self) -> Result<(), PdfError> {
+        if self.is_restricted() {
+            return Err(PdfError::Edit("the owner of this PDF does not allow changing it".into()));
+        }
+        Ok(())
+    }
+
+    /// The document without its password, for showing on screen (never written to the person's
+    /// files): Android's renderer cannot open encrypted files.
+    pub fn display_copy(&self) -> Result<Vec<u8>, PdfError> {
+        if !self.is_protected() && self.doc.security().is_none() {
+            return self.save();
+        }
+        let mut copy = self.doc.clone();
+        copy.remove_encryption();
+        pdfcraft_cos::write_full(&copy, &SaveOptions::default()).map_err(|e| PdfError::Save(e.to_string()))
     }
 
     /// The whole document written afresh (compressed object streams, a new cross-reference).

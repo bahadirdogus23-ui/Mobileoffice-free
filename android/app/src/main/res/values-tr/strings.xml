@@ -151,4 +151,17 @@
     <string name="signature_draw">İmzanızı çizin</string>
     <string name="signature_place">İmzanın gideceği yere dokunun</string>
     <string name="clear">Temizle</string>
+    <string name="password">Parola</string>
+    <string name="show">Göster</string>
+    <string name="hide">Gizle</string>
+    <string name="open_file">Aç</string>
+    <string name="pdf_locked_title">Bu PDF parolayla korunuyor</string>
+    <string name="pdf_locked_body">Açmak için parolayı girin.</string>
+    <string name="wrong_password">Parola yanlış</string>
+    <string name="protect_title">Parolayla koru</string>
+    <string name="protect_body">Kaydedeceğiniz dosya bu parolayı soracak. Parolayı unutursanız dosya kimse tarafından açılamaz.</string>
+    <string name="protect">Koru</string>
+    <string name="unprotect_title">Parola kaldırılsın mı?</string>
+    <string name="unprotect_body">Kaydedeceğiniz dosya parolasız açılır.</string>
+    <string name="unprotect">Kaldır</string>
 </resources>

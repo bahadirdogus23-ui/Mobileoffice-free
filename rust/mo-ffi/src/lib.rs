@@ -26,6 +26,11 @@ pub enum MoError {
     Save(String),
     #[error("{0}")]
     NotFound(String),
+    /// The file asks for a password (none was given).
+    #[error("{0}")]
+    NeedsPassword(String),
+    #[error("{0}")]
+    WrongPassword(String),
 }
 
 impl From<GridError> for MoError {
@@ -63,6 +68,8 @@ impl From<PdfError> for MoError {
     fn from(e: PdfError) -> MoError {
         match e {
             PdfError::Open(m) => MoError::Open(m),
+            e @ PdfError::NeedsPassword => MoError::NeedsPassword(e.to_string()),
+            e @ PdfError::WrongPassword => MoError::WrongPassword(e.to_string()),
             PdfError::Edit(m) => MoError::Command(m),
             PdfError::Save(m) => MoError::Save(m),
         }
@@ -471,8 +478,34 @@ impl PdfDocument {
     /// Puts a hand-drawn signature on `page`. Each stroke is flat `x, y` pairs, fractions of the
     /// page as displayed (y down).
     pub fn sign(&self, page: u32, strokes: Vec<Vec<f64>>) -> Result<(), MoError> {
-        let strokes: Vec<Vec<[f64; 2]>> = strokes.iter().map(|s| s.chunks_exact(2).map(|p| [p[0], p[1]]).collect()).collect();
+        let strokes: Vec<Vec<[f64; 2]>> = strokes.iter().map(|s| s.as_chunks::<2>().0.to_vec()).collect();
         Ok(self.doc().sign(page, &strokes)?)
+    }
+
+    /// Whether the saved file asks for a password.
+    pub fn is_protected(&self) -> bool {
+        self.doc().is_protected()
+    }
+
+    /// The owner restricted changes and only their password lifts that.
+    pub fn is_restricted(&self) -> bool {
+        self.doc().is_restricted()
+    }
+
+    /// Protects the next save with `password`; `seed` is 32 random bytes.
+    pub fn protect(&self, password: String, seed: Vec<u8>) -> Result<(), MoError> {
+        let seed: [u8; 32] = seed.try_into().map_err(|_| MoError::Command("the seed must be 32 bytes".into()))?;
+        Ok(self.doc().protect(&password, seed)?)
+    }
+
+    /// The next save asks for no password.
+    pub fn unprotect(&self) -> Result<(), MoError> {
+        Ok(self.doc().unprotect()?)
+    }
+
+    /// The document without its password, to show on screen only.
+    pub fn display_copy(&self) -> Result<Vec<u8>, MoError> {
+        Ok(self.doc().display_copy()?)
     }
 
     /// The whole document as a new file.
