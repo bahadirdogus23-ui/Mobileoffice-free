@@ -142,6 +142,9 @@ fun PagedScreen(vm: PagedViewModel, state: PagedUiState, reading: ReadingSetting
     val selected = remember(state.uri) { mutableStateListOf<Int>() }
     var extractPages by remember { mutableStateOf<List<Int>>(emptyList()) }
     var closeAfterSave by remember { mutableStateOf(false) }
+    var drawSignature by remember { mutableStateOf(false) }
+    // A drawn signature waiting for a tap on the page it goes on.
+    var placing by remember(state.uri) { mutableStateOf<Signature?>(null) }
     val extractFile = rememberLauncherForActivityResult(CreateFile()) { uri -> if (uri != null) pdf?.extractTo(uri, extractPages) }
     val saveEdited = rememberLauncherForActivityResult(CreateFile()) { uri ->
         if (uri != null) pdf?.saveTo(uri)
@@ -260,6 +263,14 @@ fun PagedScreen(vm: PagedViewModel, state: PagedUiState, reading: ReadingSetting
                 TextButton(onClick = { vm.nextMatch(1) }, enabled = vm.matchCount > 0) { Text("▼") }
             }
         }
+        placing?.let {
+            Surface(color = MaterialTheme.colorScheme.tertiaryContainer, modifier = Modifier.fillMaxWidth()) {
+                Row(Modifier.padding(start = 16.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Text(stringResource(R.string.signature_place), style = MaterialTheme.typography.bodyMedium, modifier = Modifier.weight(1f))
+                    TextButton(onClick = { placing = null }) { Text(stringResource(R.string.cancel)) }
+                }
+            }
+        }
         if (vm.readingPage >= 0 || vm.readAloudProblem != null) {
             Surface(color = MaterialTheme.colorScheme.secondaryContainer, modifier = Modifier.fillMaxWidth()) {
                 Row(Modifier.padding(start = 16.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -346,7 +357,19 @@ fun PagedScreen(vm: PagedViewModel, state: PagedUiState, reading: ReadingSetting
                             invertOnScreen -> Color.Black
                             else -> Color(0xFF333333)
                         }
-                        Box(Modifier.fillMaxWidth().aspectRatio(w / h).background(paper)) {
+                        val signature = placing
+                        val tapToSign = if (signature != null && pdf != null) {
+                            Modifier.pointerInput(signature) {
+                                detectTapGestures(onTap = { at ->
+                                    val k = w / size.width
+                                    pdf.sign(i, placeSignature(signature, Offset(at.x * k, at.y * k), w, h))
+                                    placing = null
+                                })
+                            }
+                        } else {
+                            Modifier
+                        }
+                        Box(Modifier.fillMaxWidth().aspectRatio(w / h).background(paper).then(tapToSign)) {
                             val bmp = vm.page(i, renderPx, night)
                             if (bmp != null) {
                                 Image(
@@ -380,6 +403,9 @@ fun PagedScreen(vm: PagedViewModel, state: PagedUiState, reading: ReadingSetting
             Row(Modifier.horizontalScroll(rememberScrollState())) {
                 TextButton(onClick = { showReading = true }) { Text(stringResource(R.string.reading)) }
                 TextButton(onClick = { showPages = true }) { Text(stringResource(R.string.pages)) }
+                if (pdf != null) {
+                    TextButton(onClick = { drawSignature = true }, enabled = !pdf.busy) { Text(stringResource(R.string.sign)) }
+                }
                 if (vm.exportFormats.isNotEmpty()) {
                     TextButton(onClick = { showConvert = true }) { Text(stringResource(R.string.convert)) }
                 }
@@ -392,6 +418,13 @@ fun PagedScreen(vm: PagedViewModel, state: PagedUiState, reading: ReadingSetting
                     context.startActivity(Intent.createChooser(send, state.fileName))
                 }) { Text(stringResource(R.string.share)) }
             }
+        }
+    }
+
+    if (drawSignature) {
+        SignaturePad(onDismiss = { drawSignature = false }) {
+            drawSignature = false
+            placing = it
         }
     }
 

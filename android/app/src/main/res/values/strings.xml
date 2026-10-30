@@ -143,9 +143,13 @@
     <string name="delete">Delete</string>
     <string name="extract">Extract</string>
     <string name="add_pdf">Add PDF</string>
-    <string name="pdf_edit_failed">Pages could not be changed: %1$s</string>
+    <string name="pdf_edit_failed">The PDF could not be changed: %1$s</string>
     <plurals name="pages_selected">
         <item quantity="one">%1$d sayfa seçili</item>
         <item quantity="other">%1$d sayfa seçili</item>
     </plurals>
+    <string name="sign">Sign</string>
+    <string name="signature_draw">Draw your signature</string>
+    <string name="signature_place">Tap where the signature goes</string>
+    <string name="clear">Clear</string>
 </resources>

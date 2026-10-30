@@ -468,6 +468,13 @@ impl PdfDocument {
         Ok(self.doc().extract(&pages)?)
     }
 
+    /// Puts a hand-drawn signature on `page`. Each stroke is flat `x, y` pairs, fractions of the
+    /// page as displayed (y down).
+    pub fn sign(&self, page: u32, strokes: Vec<Vec<f64>>) -> Result<(), MoError> {
+        let strokes: Vec<Vec<[f64; 2]>> = strokes.iter().map(|s| s.chunks_exact(2).map(|p| [p[0], p[1]]).collect()).collect();
+        Ok(self.doc().sign(page, &strokes)?)
+    }
+
     /// The whole document as a new file.
     pub fn save(&self) -> Result<Vec<u8>, MoError> {
         Ok(self.doc().save()?)

@@ -1,9 +1,10 @@
-//! PDF page tools over the PdfCraft engine: rotate, delete, move and extract pages, and combine
-//! files. Viewing stays with Android's PdfRenderer (docs/adr/0003-pdf-goruntuleme.md); this bridge
+//! PDF page tools over the PdfCraft engine: rotate, delete, move and extract pages, combine
+//! files, and put a hand-drawn signature on a page. Viewing stays with Android's PdfRenderer (docs/adr/0003-pdf-goruntuleme.md); this bridge
 //! edits the document's structure and writes a whole new file, never the opened one in place.
 
 use std::sync::Arc;
 
+use pdfcraft_annot as annot;
 use pdfcraft_cos::{Document, SaveOptions};
 use pdfcraft_organize as organize;
 
@@ -84,9 +85,43 @@ impl PdfDoc {
         pdfcraft_cos::write_full(&out, &SaveOptions::default()).map_err(|e| PdfError::Save(e.to_string()))
     }
 
+    /// Puts a hand-drawn signature on `page` (0-based). Each stroke is a list of points as
+    /// fractions of the page as it is displayed (x right, y down, 0–1), so the caller need not know
+    /// the page's boxes or rotation.
+    pub fn sign(&mut self, page: u32, strokes: &[Vec<[f64; 2]>]) -> Result<(), PdfError> {
+        let page = page as usize;
+        let boxes = organize::page_boxes(&self.doc).map_err(edit)?;
+        let crop = boxes.get(page).ok_or_else(|| PdfError::Edit("no such page".into()))?[1];
+        let turn = organize::page_rotation(&self.doc, page).map_err(edit)?;
+        let strokes: Vec<Vec<[f64; 2]>> =
+            strokes.iter().filter(|s| !s.is_empty()).map(|s| s.iter().map(|p| user_point(crop, turn, *p)).collect()).collect();
+        if strokes.is_empty() {
+            return Err(PdfError::Edit("the signature is empty".into()));
+        }
+        let shape = annot::Shape::Signature { strokes };
+        let style = annot::Style { width: 1.5, ..annot::Style::default_for(&shape) };
+        let new = annot::NewAnnotation { page, shape, style, contents: String::new(), author: String::new() };
+        let meta = annot::Meta { date: None, id: String::new() };
+        annot::add_annotation(&mut self.doc, &new, &meta).map_err(edit)?;
+        Ok(())
+    }
+
     /// The whole document written afresh (compressed object streams, a new cross-reference).
     pub fn save(&self) -> Result<Vec<u8>, PdfError> {
         pdfcraft_cos::write_full(&self.doc, &SaveOptions::default()).map_err(|e| PdfError::Save(e.to_string()))
+    }
+}
+
+/// A point given as a fraction of the displayed page (y down) in the page's user space: the crop
+/// box turned by the page's /Rotate (clockwise).
+fn user_point(crop: [f64; 4], turn: i64, [u, v]: [f64; 2]) -> [f64; 2] {
+    let [x0, y0, x1, y1] = crop;
+    let (w, h) = (x1 - x0, y1 - y0);
+    match turn.rem_euclid(360) {
+        90 => [x0 + v * w, y0 + u * h],
+        180 => [x1 - u * w, y0 + v * h],
+        270 => [x1 - v * w, y1 - u * h],
+        _ => [x0 + u * w, y1 - v * h],
     }
 }
 

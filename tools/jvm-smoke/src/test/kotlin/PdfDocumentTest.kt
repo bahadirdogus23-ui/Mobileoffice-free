@@ -22,4 +22,13 @@ class PdfDocumentTest {
             PdfDocument.open(doc.save(), null).use { assertEquals(2u, it.pageCount()) }
         }
     }
+
+    @Test
+    fun signsAPage() {
+        PdfDocument.open(pdf(), null).use { doc ->
+            doc.sign(0u, listOf(listOf(0.6, 0.8, 0.7, 0.85, 0.8, 0.8)))
+            assertFailsWith<MoException.Command> { doc.sign(0u, listOf(emptyList())) }
+            PdfDocument.open(doc.save(), null).use { assertEquals(1u, it.pageCount()) }
+        }
+    }
 }

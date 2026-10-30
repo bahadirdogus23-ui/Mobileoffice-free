@@ -54,3 +54,32 @@ fn combines_files_and_extracts_pages() {
 fn bad_input_is_an_error() {
     assert!(matches!(PdfDoc::open(b"%PDF-1.7 broken".to_vec(), None), Err(PdfError::Open(_))));
 }
+
+#[test]
+fn signs_a_page_where_it_was_drawn() {
+    let mut doc = PdfDoc::open(pdf(2, "Sayfa"), None).unwrap();
+    // A small zigzag near the bottom right of the second page.
+    doc.sign(1, &[vec![[0.6, 0.8], [0.7, 0.85], [0.8, 0.8]], vec![]]).unwrap();
+    let saved = reopened(doc.save().unwrap());
+    let found = pdfcraft_annot::summaries(&saved.doc);
+    assert_eq!(found.len(), 1);
+    let s = &found[0];
+    assert_eq!((s.page, s.subtype.as_str()), (1, "Ink"));
+    // 0.6–0.8 of 595 wide, 0.8–0.85 down an 842 high page (y up), plus the stroke's width.
+    let [x0, y0, x1, y1] = s.rect;
+    assert!((350.0..357.0).contains(&x0) && (476.0..483.0).contains(&x1), "{:?}", s.rect);
+    assert!((120.0..127.0).contains(&y0) && (165.0..172.0).contains(&y1), "{:?}", s.rect);
+    assert!(doc.sign(0, &[vec![]]).is_err());
+    assert!(doc.sign(5, &[vec![[0.5, 0.5]]]).is_err());
+}
+
+#[test]
+fn display_fractions_follow_the_page_rotation() {
+    let crop = [0.0, 0.0, 100.0, 200.0];
+    // The displayed top left corner, for each /Rotate.
+    assert_eq!(user_point(crop, 0, [0.0, 0.0]), [0.0, 200.0]);
+    assert_eq!(user_point(crop, 90, [0.0, 0.0]), [0.0, 0.0]);
+    assert_eq!(user_point(crop, 180, [0.0, 0.0]), [100.0, 0.0]);
+    assert_eq!(user_point(crop, 270, [0.0, 0.0]), [100.0, 200.0]);
+    assert_eq!(user_point(crop, -90, [1.0, 1.0]), [0.0, 0.0]);
+}

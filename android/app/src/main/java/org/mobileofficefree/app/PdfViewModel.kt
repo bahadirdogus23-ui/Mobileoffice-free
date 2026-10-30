@@ -46,6 +46,9 @@ class PdfViewModel(app: Application) : PagedViewModel(app, DocumentKind.PDF) {
 
     fun deletePages(pages: List<Int>) = edit { it.delete(pages.map(Int::toUInt)) }
 
+    /** Puts a hand-drawn signature on [page]; strokes are flat `x, y` fractions of the displayed page. */
+    fun sign(page: Int, strokes: List<List<Double>>) = edit { it.sign(page.toUInt(), strokes) }
+
     /** Appends every page of the PDF at [uri] (combining files). */
     fun appendPdf(uri: Uri) = edit { doc ->
         val bytes = getApplication<Application>().contentResolver.openInputStream(uri)?.use { it.readBytes() } ?: error("no data")

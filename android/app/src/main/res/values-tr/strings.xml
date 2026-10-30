@@ -142,9 +142,13 @@
     <string name="delete">Sil</string>
     <string name="extract">Ayıkla</string>
     <string name="add_pdf">PDF ekle</string>
-    <string name="pdf_edit_failed">Sayfalar değiştirilemedi: %1$s</string>
+    <string name="pdf_edit_failed">PDF değiştirilemedi: %1$s</string>
     <plurals name="pages_selected">
         <item quantity="one">%1$d sayfa seçili</item>
         <item quantity="other">%1$d sayfa seçili</item>
     </plurals>
+    <string name="sign">İmzala</string>
+    <string name="signature_draw">İmzanızı çizin</string>
+    <string name="signature_place">İmzanın gideceği yere dokunun</string>
+    <string name="clear">Temizle</string>
 </resources>
