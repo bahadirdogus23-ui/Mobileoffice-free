@@ -49,8 +49,9 @@ impl WordDoc {
         let mut out = vec![String::new(); self.layout.pages.len()];
         for path in self.doc.para_paths(StoryRef::Body) {
             let Some(p) = self.doc.para(StoryRef::Body, &path) else { continue };
-            // Objects (pictures, fields) sit in the text as control characters; readers skip them.
-            let text: String = p.text.chars().filter(|c| !c.is_control()).collect();
+            // Objects (pictures, fields) sit in the text as control characters; readers skip them
+            // (tabs stay: they separate words).
+            let text: String = p.text.chars().filter(|c| !c.is_control() || *c == '\t').collect();
             if text.trim().is_empty() {
                 continue;
             }

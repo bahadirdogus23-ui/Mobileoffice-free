@@ -28,6 +28,7 @@ use std::fmt::Write as _;
 use std::io::Read as _;
 
 use quick_xml::events::{BytesStart, Event};
+use wordcraft_doc::props::LineSpacing;
 use wordcraft_doc::{Block, Document, SectionProps};
 
 /// What a UDF file holds beyond its text.
@@ -79,6 +80,13 @@ pub fn read(bytes: &[u8]) -> Result<Udf, String> {
     let mut doc = wordcraft_formats::import_on("html", html.as_bytes(), &page)
         .unwrap_or_else(|| Err("no HTML importer".into()))
         .map_err(|e| format!("UDF: {e}"))?;
+    // UYAP's editor sets text single-spaced with no space between paragraphs; without this the
+    // engine's Word defaults (space after, 1.08 lines) push documents onto an extra page.
+    if let Some(normal) = doc.styles.get_mut("Normal") {
+        normal.para.space_before = Some(0.0);
+        normal.para.space_after = Some(0.0);
+        normal.para.line_spacing = Some(LineSpacing::Multiple(1.0));
+    }
     // The HTML importer splits tables evenly; give the body's tables UYAP's column proportions.
     let spans = root.kid("elements").map(|e| e.kids.iter().filter(|k| k.name == "table").map(column_spans).collect::<Vec<_>>());
     let tables = doc.body.iter_mut().filter_map(|b| match std::sync::Arc::make_mut(b) {
@@ -232,7 +240,8 @@ fn paragraph(p: &El, text: &[u16], out: &mut String) {
     if let Some(s) = p.num("size") {
         let _ = write!(style, "font-size:{s}pt;");
     }
-    let _ = write!(out, "<p style=\"margin-top:0;margin-bottom:0;{style}\">");
+    // pre-wrap keeps tabs and runs of spaces, which UYAP documents align their labels with.
+    let _ = write!(out, "<p style=\"margin-top:0;margin-bottom:0;white-space:pre-wrap;{style}\">");
     let mut any = false;
     for run in &p.kids {
         any |= self::run(run, text, out);
@@ -294,7 +303,7 @@ fn run(r: &El, text: &[u16], out: &mut String) -> bool {
             let _ = write!(style, "color:#{rgb:06x};");
         }
     }
-    let body = esc(piece).replace('\t', "&emsp;").replace('\n', "<br>");
+    let body = esc(piece).replace('\n', "<br>");
     if style.is_empty() {
         out.push_str(&body);
     } else {

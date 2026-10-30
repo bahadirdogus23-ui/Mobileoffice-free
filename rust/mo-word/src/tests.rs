@@ -201,6 +201,8 @@ fn reads_uyap_udf_documents() {
         assert!(texts.contains(s), "{s} in {texts}");
     }
     assert!(!doc.find("asliye").is_empty());
+    // Tabs stay tabs (labels line up on tab stops), and paragraphs are single-spaced.
+    assert!(texts.contains("Dava: Alacak\tKarar No"), "{texts}");
     assert!(ink(&doc.render_page(0, 1.0, false).unwrap()) > 500);
     // A4 from the page format, and the bold/underline formatting survives into DOCX.
     let (w, h) = doc.page_size(0).unwrap();
