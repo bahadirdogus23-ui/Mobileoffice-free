@@ -175,3 +175,31 @@ fn fills_a_form_with_turkish_letters() {
     assert!(da("ad").contains("/MoTr"), "{}", da("ad"));
     assert!(!da("il").contains("/MoTr"), "plain text keeps its font");
 }
+
+#[test]
+fn draws_highlights_notes_and_undoes_only_its_own() {
+    let mut doc = PdfDoc::open(pdf(1, "Not"), None).unwrap();
+    // A comment the file already had stays whatever is undone.
+    doc.sign(0, &[vec![[0.1, 0.1], [0.2, 0.2]]]).unwrap();
+    let mut doc = reopened(doc.save().unwrap());
+    assert!(!doc.undo_annotation().unwrap());
+    doc.draw(0, &[vec![[0.1, 0.5], [0.9, 0.5]]], [1.0, 0.9, 0.0], 12.0, 0.4).unwrap();
+    doc.note(0, [0.5, 0.3], "Şunu kontrol et: ığüşöç İ").unwrap();
+    let kinds = |d: &PdfDoc| {
+        let mut k = pdfcraft_annot::summaries(&d.doc).into_iter().map(|s| s.subtype).collect::<Vec<_>>();
+        k.sort();
+        k
+    };
+    assert_eq!(kinds(&doc), ["Ink", "Ink", "Text"]);
+    let saved = reopened(doc.save().unwrap());
+    let note = pdfcraft_annot::summaries(&saved.doc).into_iter().find(|s| s.subtype == "Text").unwrap();
+    assert_eq!(note.contents.as_deref(), Some("Şunu kontrol et: ığüşöç İ"));
+    assert!(doc.undo_annotation().unwrap());
+    assert!(doc.undo_annotation().unwrap());
+    assert!(!doc.undo_annotation().unwrap());
+    // The note's popup goes with it.
+    assert_eq!(kinds(&doc), ["Ink"]);
+    let page = pdfcraft_annot::page_refs(&doc.doc).unwrap()[0];
+    let annots = doc.doc.get(page).as_dict().and_then(|d| d.get(b"Annots").cloned()).map(|a| doc.doc.resolve(&a).as_array().map_or(0, Vec::len));
+    assert_eq!(annots, Some(1));
+}

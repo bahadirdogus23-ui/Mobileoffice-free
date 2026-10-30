@@ -98,10 +98,39 @@ class PdfViewModel(app: Application) : PagedViewModel(app, DocumentKind.PDF) {
 
     fun rotatePages(pages: List<Int>, degrees: Int) = edit { it.rotate(pages.map(Int::toUInt), degrees) }
 
-    fun deletePages(pages: List<Int>) = edit { it.delete(pages.map(Int::toUInt)) }
+    fun deletePages(pages: List<Int>) = edit {
+        it.delete(pages.map(Int::toUInt))
+        added = 0 // the engine forgets what it added once pages go
+    }
 
     /** Puts a hand-drawn signature on [page]; strokes are flat `x, y` fractions of the displayed page. */
-    fun sign(page: Int, strokes: List<List<Double>>) = edit { it.sign(page.toUInt(), strokes) }
+    fun sign(page: Int, strokes: List<List<Double>>) = edit {
+        it.sign(page.toUInt(), strokes)
+        added++
+    }
+
+    /** Signatures, drawings and notes added that [undoAnnotation] can still take back. */
+    var added by mutableStateOf(0)
+        private set
+
+    /** Writes pen and highlighter strokes into the PDF. */
+    fun draw(strokes: List<PenStroke>) = edit { doc ->
+        for (s in strokes) {
+            doc.draw(s.page.toUInt(), listOf(s.flat()), s.pen)
+            added++
+        }
+    }
+
+    /** A sticky note with [text] at ([x], [y]), fractions of page [page]. */
+    fun note(page: Int, x: Float, y: Float, text: String) = edit {
+        it.note(page.toUInt(), x.toDouble(), y.toDouble(), text)
+        added++
+    }
+
+    /** Takes back the last signature, drawing or note added. */
+    fun undoAnnotation() = edit {
+        if (it.undoAnnotation()) added--
+    }
 
     /** Appends every page of the PDF at [uri] (combining files). */
     fun appendPdf(uri: Uri) = edit { doc ->
@@ -354,7 +383,10 @@ class PdfViewModel(app: Application) : PagedViewModel(app, DocumentKind.PDF) {
         editor = null
         source = null
         File(getApplication<Application>().cacheDir, "pdf-edit").deleteRecursively()
-        viewModelScope.launch { edited = false }
+        viewModelScope.launch {
+            edited = false
+            added = 0
+        }
     }
 }
 

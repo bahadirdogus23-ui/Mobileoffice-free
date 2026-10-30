@@ -147,6 +147,17 @@ fun PagedScreen(vm: PagedViewModel, state: PagedUiState, reading: ReadingSetting
     var drawSignature by remember { mutableStateOf(false) }
     var showPassword by remember { mutableStateOf(false) }
     var showCompress by remember { mutableStateOf(false) }
+    // Annotating: the tool, strokes drawn but not yet written, the one under the finger, and
+    // where a new note goes.
+    var annotating by remember(state.uri) { mutableStateOf(false) }
+    var tool by remember { mutableStateOf(AnnotTool.BLACK) }
+    val pending = remember(state.uri) { mutableStateListOf<PenStroke>() }
+    var liveStroke by remember { mutableStateOf<Pair<Int, List<Offset>>?>(null) }
+    var notePlace by remember { mutableStateOf<Triple<Int, Float, Float>?>(null) }
+    val commitStrokes = {
+        if (pending.isNotEmpty()) pdf?.draw(pending.toList())
+        pending.clear()
+    }
     // A drawn signature waiting for a tap on the page it goes on.
     var placing by remember(state.uri) { mutableStateOf<Signature?>(null) }
     val extractFile = rememberLauncherForActivityResult(CreateFile()) { uri -> if (uri != null) pdf?.extractTo(uri, extractPages) }
@@ -180,6 +191,10 @@ fun PagedScreen(vm: PagedViewModel, state: PagedUiState, reading: ReadingSetting
     val invertOnScreen = night && !vm.drawsNight
 
     BackHandler { vm.requestClose() }
+    BackHandler(enabled = annotating) {
+        commitStrokes()
+        annotating = false
+    }
     // Follow the page being read aloud.
     LaunchedEffect(vm.readingPage) {
         if (vm.readingPage >= 0) list.animateScrollToItem(vm.readingPage)
@@ -222,13 +237,21 @@ fun PagedScreen(vm: PagedViewModel, state: PagedUiState, reading: ReadingSetting
         TopAppBar(
             title = { Text(state.fileName.substringBeforeLast('.'), maxLines = 1) },
             navigationIcon = {
-                IconButton(onClick = vm::requestClose) {
+                IconButton(onClick = {
+                    // Strokes not yet written go into the PDF first, so closing asks to save them.
+                    if (annotating) {
+                        commitStrokes()
+                        annotating = false
+                    } else {
+                        vm.requestClose()
+                    }
+                }) {
                     Icon(painterResource(R.drawable.ic_arrow_back), contentDescription = stringResource(R.string.back))
                 }
             },
             actions = {
                 if (pdf?.edited == true) {
-                    TextButton(onClick = { saveEdited.launch(CreateFile.Request(editedName, "application/pdf")) }, enabled = !pdf.busy) {
+                    TextButton(onClick = { saveEdited.launch(CreateFile.Request(editedName, "application/pdf")) }, enabled = !pdf.busy && pending.isEmpty()) {
                         Text(stringResource(R.string.save))
                     }
                 }
@@ -270,6 +293,18 @@ fun PagedScreen(vm: PagedViewModel, state: PagedUiState, reading: ReadingSetting
                 TextButton(onClick = { vm.nextMatch(-1) }, enabled = vm.matchCount > 0) { Text("▲") }
                 TextButton(onClick = { vm.nextMatch(1) }, enabled = vm.matchCount > 0) { Text("▼") }
             }
+        }
+        if (annotating && pdf != null) {
+            AnnotationBar(
+                tool = tool,
+                onTool = { tool = it },
+                canUndo = pending.isNotEmpty() || pdf.added > 0,
+                onUndo = { if (pending.isNotEmpty()) pending.removeAt(pending.lastIndex) else pdf.undoAnnotation() },
+                onDone = {
+                    commitStrokes()
+                    annotating = false
+                },
+            )
         }
         placing?.let {
             Surface(color = MaterialTheme.colorScheme.tertiaryContainer, modifier = Modifier.fillMaxWidth()) {
@@ -374,6 +409,15 @@ fun PagedScreen(vm: PagedViewModel, state: PagedUiState, reading: ReadingSetting
                                     placing = null
                                 })
                             }
+                        } else if (annotating && pdf != null) {
+                            val pen = tool.pen
+                            if (pen != null) {
+                                Modifier.drawStrokes(tool to i, live = { liveStroke = i to it }, onStroke = { pending += PenStroke(i, it, pen) })
+                            } else {
+                                Modifier.pointerInput(i) {
+                                    detectTapGestures(onTap = { at -> notePlace = Triple(i, at.x / size.width, at.y / size.height) })
+                                }
+                            }
                         } else {
                             Modifier
                         }
@@ -387,6 +431,11 @@ fun PagedScreen(vm: PagedViewModel, state: PagedUiState, reading: ReadingSetting
                                     colorFilter = if (invertOnScreen) invertColors else null,
                                     modifier = Modifier.fillMaxSize(),
                                 )
+                            }
+                            if (annotating) {
+                                val shown = pending.filter { it.page == i }.map { it.points to it.pen } +
+                                    listOfNotNull(liveStroke?.takeIf { it.first == i }?.let { live -> tool.pen?.let { live.second to it } })
+                                if (shown.isNotEmpty()) PendingStrokes(shown, w)
                             }
                             hitsByPage[i]?.let { hits ->
                                 val current = vm.currentMatch
@@ -412,6 +461,7 @@ fun PagedScreen(vm: PagedViewModel, state: PagedUiState, reading: ReadingSetting
                 TextButton(onClick = { showReading = true }) { Text(stringResource(R.string.reading)) }
                 TextButton(onClick = { showPages = true }) { Text(stringResource(R.string.pages)) }
                 if (pdf != null) {
+                    TextButton(onClick = { annotating = true }, enabled = !pdf.busy && !pdf.restricted && !annotating) { Text(stringResource(R.string.annotate)) }
                     TextButton(onClick = { drawSignature = true }, enabled = !pdf.busy && !pdf.restricted) { Text(stringResource(R.string.sign)) }
                     TextButton(onClick = { showPassword = true }, enabled = !pdf.busy && !pdf.restricted) { Text(stringResource(R.string.password)) }
                     TextButton(onClick = { showCompress = true }, enabled = !pdf.busy) { Text(stringResource(R.string.compress)) }
@@ -436,6 +486,25 @@ fun PagedScreen(vm: PagedViewModel, state: PagedUiState, reading: ReadingSetting
         FormSheet(fields, onDismiss = pdf::closeForm, onApply = { changes ->
             if (changes.isEmpty()) pdf.closeForm() else pdf.fillForm(changes)
         })
+    }
+
+    notePlace?.let { (page, x, y) ->
+        var text by remember { mutableStateOf("") }
+        AlertDialog(
+            onDismissRequest = { notePlace = null },
+            title = { Text(stringResource(R.string.note)) },
+            text = {
+                OutlinedTextField(value = text, onValueChange = { text = it }, minLines = 3, modifier = Modifier.fillMaxWidth())
+            },
+            confirmButton = {
+                TextButton(enabled = text.isNotBlank(), onClick = {
+                    notePlace = null
+                    commitStrokes()
+                    pdf?.note(page, x, y, text)
+                }) { Text(stringResource(R.string.add)) }
+            },
+            dismissButton = { TextButton(onClick = { notePlace = null }) { Text(stringResource(R.string.cancel)) } },
+        )
     }
 
     if (showCompress && pdf != null) {

@@ -426,6 +426,21 @@ impl CadDocument {
     }
 }
 
+/// How strokes are drawn: colour 0–1 RGB, width in points, opacity 0–1.
+#[derive(uniffi::Record)]
+pub struct Pen {
+    pub red: f64,
+    pub green: f64,
+    pub blue: f64,
+    pub width: f64,
+    pub opacity: f64,
+}
+
+/// Flat `x, y` pairs as points.
+fn points(strokes: &[Vec<f64>]) -> Vec<Vec<[f64; 2]>> {
+    strokes.iter().map(|s| s.as_chunks::<2>().0.to_vec()).collect()
+}
+
 /// What a form field holds.
 #[derive(uniffi::Enum)]
 pub enum FormFieldKind {
@@ -534,8 +549,22 @@ impl PdfDocument {
     /// Puts a hand-drawn signature on `page`. Each stroke is flat `x, y` pairs, fractions of the
     /// page as displayed (y down).
     pub fn sign(&self, page: u32, strokes: Vec<Vec<f64>>) -> Result<(), MoError> {
-        let strokes: Vec<Vec<[f64; 2]>> = strokes.iter().map(|s| s.as_chunks::<2>().0.to_vec()).collect();
-        Ok(self.doc().sign(page, &strokes)?)
+        Ok(self.doc().sign(page, &points(&strokes))?)
+    }
+
+    /// Pen or highlighter strokes (points as for [`PdfDocument::sign`]).
+    pub fn draw(&self, page: u32, strokes: Vec<Vec<f64>>, pen: Pen) -> Result<(), MoError> {
+        Ok(self.doc().draw(page, &points(&strokes), [pen.red, pen.green, pen.blue], pen.width, pen.opacity)?)
+    }
+
+    /// A sticky note holding `text` at (`x`, `y`), fractions of the displayed page.
+    pub fn note(&self, page: u32, x: f64, y: f64, text: String) -> Result<(), MoError> {
+        Ok(self.doc().note(page, [x, y], &text)?)
+    }
+
+    /// Removes the last signature, drawing or note added; false when there is none.
+    pub fn undo_annotation(&self) -> Result<bool, MoError> {
+        Ok(self.doc().undo_annotation()?)
     }
 
     /// Whether the saved file asks for a password.

@@ -179,4 +179,12 @@
     <string name="form_none">Bu PDF\'te doldurulacak alan yok.</string>
     <string name="form_page">Sayfa %1$d</string>
     <string name="apply">Uygula</string>
+    <string name="annotate">Çiz</string>
+    <string name="pen_black">Kalem</string>
+    <string name="pen_red">Kırmızı</string>
+    <string name="pen_blue">Mavi</string>
+    <string name="highlighter">Fosforlu</string>
+    <string name="note">Not</string>
+    <string name="undo">Geri al</string>
+    <string name="add">Ekle</string>
 </resources>

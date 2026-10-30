@@ -1,5 +1,5 @@
 //! PDF page tools over the PdfCraft engine: rotate, delete, move and extract pages, combine
-//! files, put a hand-drawn signature on a page, add or remove password protection, and make a
+//! files, put a hand-drawn signature, pen and highlighter strokes or notes on a page, add or remove password protection, and make a
 //! smaller copy, and fill in forms. Viewing stays with Android's PdfRenderer (docs/adr/0003-pdf-goruntuleme.md); this bridge
 //! edits the document's structure and writes a whole new file, never the opened one in place.
 
@@ -29,6 +29,9 @@ pub enum PdfError {
 /// One open PDF being edited.
 pub struct PdfDoc {
     doc: Document,
+    /// (page, index in its /Annots) of what [`PdfDoc::annotate`] added, newest last; cleared when
+    /// pages move or go, which changes those positions.
+    added: Vec<(usize, usize)>,
 }
 
 fn opening(e: CosError) -> PdfError {
@@ -46,7 +49,7 @@ fn edit<E: std::fmt::Display>(e: E) -> PdfError {
 impl PdfDoc {
     pub fn open(bytes: Vec<u8>, password: Option<&str>) -> Result<PdfDoc, PdfError> {
         let doc = Document::open_with_password(Arc::new(bytes), password).map_err(opening)?;
-        Ok(PdfDoc { doc })
+        Ok(PdfDoc { doc, added: Vec::new() })
     }
 
     pub fn page_count(&self) -> Result<u32, PdfError> {
@@ -70,12 +73,14 @@ impl PdfDoc {
         if pages.len() as u32 >= self.page_count()? {
             return Err(PdfError::Edit("a PDF needs at least one page".into()));
         }
+        self.added.clear();
         organize::delete_pages(&mut self.doc, &indices(pages)).map_err(edit)
     }
 
     /// Moves `pages` so the first of them lands at position `to` (0-based, in the new order).
     pub fn move_pages(&mut self, pages: &[u32], to: u32) -> Result<(), PdfError> {
         self.refuse_restricted()?;
+        self.added.clear();
         organize::move_pages(&mut self.doc, &indices(pages), to as usize).map_err(edit)
     }
 
@@ -111,6 +116,39 @@ impl PdfDoc {
     /// fractions of the page as it is displayed (x right, y down, 0–1), so the caller need not know
     /// the page's boxes or rotation.
     pub fn sign(&mut self, page: u32, strokes: &[Vec<[f64; 2]>]) -> Result<(), PdfError> {
+        let strokes = self.user_strokes(page, strokes)?;
+        let shape = annot::Shape::Signature { strokes };
+        let style = annot::Style { width: 1.5, ..annot::Style::default_for(&shape) };
+        self.annotate(page, shape, style, String::new())
+    }
+
+    /// Pen strokes on `page` (points as in [`PdfDoc::sign`]): `color` 0–1 RGB, `width` in points,
+    /// `opacity` 0–1 (a highlighter is wide, yellow and see-through).
+    pub fn draw(&mut self, page: u32, strokes: &[Vec<[f64; 2]>], color: [f64; 3], width: f64, opacity: f64) -> Result<(), PdfError> {
+        let strokes = self.user_strokes(page, strokes)?;
+        let style = annot::Style { color, opacity, width, fill: None };
+        self.annotate(page, annot::Shape::Ink { strokes }, style, String::new())
+    }
+
+    /// A sticky note holding `text`, its corner at `at` (a fraction of the displayed page).
+    pub fn note(&mut self, page: u32, at: [f64; 2], text: &str) -> Result<(), PdfError> {
+        let [x, y] = self.user_strokes(page, &[vec![at]])?[0][0];
+        let shape = annot::Shape::Note { at: [x, y], icon: annot::NoteIcon::Comment };
+        let style = annot::Style::default_for(&shape);
+        self.annotate(page, shape, style, text.to_string())
+    }
+
+    /// Removes the last signature, drawing or note added since the document was opened (or
+    /// since pages were last moved or removed); false when there is none. What the file
+    /// already had is never removed.
+    pub fn undo_annotation(&mut self) -> Result<bool, PdfError> {
+        let Some((page, index)) = self.added.pop() else { return Ok(false) };
+        annot::delete_annotation(&mut self.doc, page, index).map_err(edit)?;
+        Ok(true)
+    }
+
+    /// Strokes given as fractions of the displayed page, in `page`'s user space.
+    fn user_strokes(&self, page: u32, strokes: &[Vec<[f64; 2]>]) -> Result<Vec<Vec<[f64; 2]>>, PdfError> {
         self.refuse_restricted()?;
         let page = page as usize;
         let boxes = organize::page_boxes(&self.doc).map_err(edit)?;
@@ -119,13 +157,16 @@ impl PdfDoc {
         let strokes: Vec<Vec<[f64; 2]>> =
             strokes.iter().filter(|s| !s.is_empty()).map(|s| s.iter().map(|p| user_point(crop, turn, *p)).collect()).collect();
         if strokes.is_empty() {
-            return Err(PdfError::Edit("the signature is empty".into()));
+            return Err(PdfError::Edit("the drawing is empty".into()));
         }
-        let shape = annot::Shape::Signature { strokes };
-        let style = annot::Style { width: 1.5, ..annot::Style::default_for(&shape) };
-        let new = annot::NewAnnotation { page, shape, style, contents: String::new(), author: String::new() };
+        Ok(strokes)
+    }
+
+    fn annotate(&mut self, page: u32, shape: annot::Shape, style: annot::Style, contents: String) -> Result<(), PdfError> {
+        let new = annot::NewAnnotation { page: page as usize, shape, style, contents, author: String::new() };
         let meta = annot::Meta { date: None, id: String::new() };
-        annot::add_annotation(&mut self.doc, &new, &meta).map_err(edit)?;
+        let index = annot::add_annotation(&mut self.doc, &new, &meta).map_err(edit)?;
+        self.added.push((page as usize, index));
         Ok(())
     }
 

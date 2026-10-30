@@ -3,6 +3,7 @@ import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
 import org.mobileofficefree.engine.MoException
 import org.mobileofficefree.engine.PdfDocument
+import org.mobileofficefree.engine.Pen
 import org.mobileofficefree.engine.SheetDocument
 
 class PdfDocumentTest {
@@ -59,6 +60,17 @@ class PdfDocumentTest {
         PdfDocument.open(pdf(), null).use { doc ->
             assertEquals(0, doc.fields().size)
             assertFailsWith<MoException.Command> { doc.setText("ad", "Şule") }
+        }
+    }
+
+    @Test
+    fun drawsAndUndoes() {
+        PdfDocument.open(pdf(), null).use { doc ->
+            doc.draw(0u, listOf(listOf(0.1, 0.5, 0.9, 0.5)), Pen(1.0, 0.9, 0.0, 12.0, 0.4))
+            doc.note(0u, 0.5, 0.3, "Not: ığüşöç")
+            assertEquals(true, doc.undoAnnotation())
+            assertEquals(true, doc.undoAnnotation())
+            assertEquals(false, doc.undoAnnotation())
         }
     }
 }

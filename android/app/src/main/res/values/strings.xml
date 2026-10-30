@@ -180,4 +180,12 @@
     <string name="form_none">This PDF has no fields to fill in.</string>
     <string name="form_page">Page %1$d</string>
     <string name="apply">Apply</string>
+    <string name="annotate">Draw</string>
+    <string name="pen_black">Pen</string>
+    <string name="pen_red">Red</string>
+    <string name="pen_blue">Blue</string>
+    <string name="highlighter">Highlighter</string>
+    <string name="note">Note</string>
+    <string name="undo">Undo</string>
+    <string name="add">Add</string>
 </resources>
