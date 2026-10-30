@@ -81,7 +81,7 @@ class TextLogicTest {
         val turkish = "Şişli'de ığdır çağrı İĞÜŞÖÇ"
         for (enc in TextEncoding.entries) {
             val (back, detected) = TextEncoding.detect(enc.encode(turkish))
-            assertEquals(turkish, back, enc.label)
+            assertEquals(turkish, back)
             // Without a BOM, Windows-1254 and ISO-8859-9 read back as Windows-1254 (same letters).
             if (enc != TextEncoding.ISO_8859_9) assertEquals(enc, detected)
         }

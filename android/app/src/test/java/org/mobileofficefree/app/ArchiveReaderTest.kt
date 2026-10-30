@@ -53,7 +53,7 @@ class ArchiveReaderTest {
         assertEquals(dir, file.parentFile)
         assertEquals("kacis.txt", file.name)
         assertEquals("iki", file.readText())
-        assertFalse(java.io.File(dir.parentFile.parentFile, "kacis.txt").exists())
+        assertFalse(java.io.File(dir.parentFile?.parentFile, "kacis.txt").exists())
         dir.deleteRecursively()
     }
 
