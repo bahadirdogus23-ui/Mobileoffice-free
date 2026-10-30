@@ -58,3 +58,22 @@ class UnencodableText(val encoding: String, val char: Char?) : Exception("“$ch
 
 /** Lines joined with Windows line ends when [crlf]; the editor works with "\n" only. */
 fun withLineEnds(text: String, crlf: Boolean): String = if (crlf) text.replace("\r\n", "\n").replace("\n", "\r\n") else text
+
+/**
+ * Turkish text that went through the wrong code page, put right ("Turkish character recovery"):
+ * - UTF-8 read as Latin-1/Windows-1252: "Ã§ok gÃ¼zel" → "çok güzel";
+ * - Windows-1254 read as Windows-1252: "ÝSTANBUL, þeker, ðüzel" → "İSTANBUL, şeker, güzel".
+ * Returns null when the text shows neither.
+ */
+fun repairTurkish(text: String): String? {
+    // UTF-8 bytes seen one by one: a lead byte (Ã Ä Å …) followed by a continuation (€-¿).
+    if (Regex("[Â-Å][\u0080-¿‘-›€ŒœŠšŸŽžƒˆ˜]").containsMatchIn(text)) {
+        val bytes = runCatching { text.toByteArray(charset("windows-1252")) }.getOrNull()
+        val fixed = bytes?.let { b -> runCatching { TextEncoding.detect(b) }.getOrNull()?.takeIf { it.second == TextEncoding.UTF8 }?.first }
+        if (fixed != null && fixed != text) return fixed
+    }
+    // The six letters Windows-1254 has where Windows-1252 has Icelandic ones.
+    val map = mapOf('Ð' to 'Ğ', 'ð' to 'ğ', 'Ý' to 'İ', 'ý' to 'ı', 'Þ' to 'Ş', 'þ' to 'ş')
+    if (text.none { it in map }) return null
+    return String(CharArray(text.length) { map[text[it]] ?: text[it] })
+}

@@ -129,4 +129,7 @@
     <string name="invoice_own_design">Shown with the seller\'s invoice design.</string>
     <string name="invoice_plain_design">The invoice has no design; plain view.</string>
     <string name="invoice_summary">Summary</string>
+    <string name="text_garbled">Turkish letters look garbled (e.g. “þ, ý, ð” or “Ã§”).</string>
+    <string name="text_repair">Repair</string>
+    <string name="text_repaired">Turkish letters repaired. Tap Save to keep the change.</string>
 </resources>

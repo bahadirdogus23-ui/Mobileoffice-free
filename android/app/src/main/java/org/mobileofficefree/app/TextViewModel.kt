@@ -35,6 +35,8 @@ data class TextUiState(
     val text: String,
     /** The file had Windows line ends ("\r\n"); saving puts them back. */
     val crlf: Boolean,
+    /** The text with garbled Turkish letters put right, when it looks garbled (see [repairTurkish]). */
+    val repaired: String? = null,
 ) {
     /** Small enough for the on-screen editor, and read whole. */
     val editable: Boolean get() = !truncated && text.length <= TextViewModel.MAX_EDIT_CHARS
@@ -89,7 +91,8 @@ class TextViewModel(app: Application) : AndroidViewModel(app) {
 
     private fun stateFor(uri: Uri, name: String, text: String, encoding: TextEncoding, truncated: Boolean, crlf: Boolean): TextUiState {
         val lines = splitLines(text)
-        return TextUiState(uri, name, lines, lines.map { it.text.searchFold() }, lines.lastOrNull()?.number ?: 0, encoding, truncated, text, crlf)
+        val repaired = if (!truncated && text.length <= MAX_EDIT_CHARS) repairTurkish(text) else null
+        return TextUiState(uri, name, lines, lines.map { it.text.searchFold() }, lines.lastOrNull()?.number ?: 0, encoding, truncated, text, crlf, repaired)
     }
 
     // --- Editing ------------------------------------------------------------------------------
@@ -113,6 +116,15 @@ class TextViewModel(app: Application) : AndroidViewModel(app) {
         if (!s.editable) return
         draft = TextFieldValue(s.text)
         editing = true
+    }
+
+    /** Opens the editor on the repaired text; nothing is written until the person saves. */
+    fun applyRepair() {
+        val s = state ?: return
+        val fixed = s.repaired ?: return
+        draft = TextFieldValue(fixed)
+        editing = true
+        notice = getApplication<Application>().getString(R.string.text_repaired)
     }
 
     fun updateDraft(value: TextFieldValue) {

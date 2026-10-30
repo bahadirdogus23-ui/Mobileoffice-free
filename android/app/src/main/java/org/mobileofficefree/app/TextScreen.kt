@@ -151,6 +151,14 @@ fun TextScreen(vm: TextViewModel, state: TextUiState, reading: ReadingSettings) 
             }
         }
         if (vm.busy) LinearProgressIndicator(Modifier.fillMaxWidth())
+        if (state.repaired != null && !vm.editing) {
+            Surface(color = MaterialTheme.colorScheme.tertiaryContainer, modifier = Modifier.fillMaxWidth()) {
+                Row(Modifier.padding(start = 16.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Text(stringResource(R.string.text_garbled), style = MaterialTheme.typography.bodySmall, modifier = Modifier.weight(1f))
+                    TextButton(onClick = vm::applyRepair) { Text(stringResource(R.string.text_repair)) }
+                }
+            }
+        }
         if (searching && !vm.editing) {
             Row(Modifier.fillMaxWidth().padding(horizontal = 8.dp), verticalAlignment = Alignment.CenterVertically) {
                 OutlinedTextField(

@@ -115,4 +115,18 @@ class InvoiceTest {
         // DTDs are refused: reading fails rather than fetching the file.
         assertTrue(result.isFailure)
     }
+
+    @Test
+    fun theSampleFilesInTheRepositoryOpen() {
+        // docs/ornekler: sample invoices people download to try the viewer (tests run in android/app).
+        val dir = generateSequence(java.io.File("").absoluteFile) { it.parentFile }.map { java.io.File(it, "docs/ornekler") }.first { it.isDirectory }
+        val designed = java.io.File(dir, "ornek-e-fatura.xml").readBytes()
+        val (html, own) = Invoices.html(designed, Invoices.read(designed))
+        // The XSLT engine may write letters such as Ö as entities, so check plain ASCII text.
+        assertTrue(own && html.contains("XSLT") && html.contains("ABC2026000000123") && html.contains("1200.00"))
+        val plain = java.io.File(dir, "ornek-e-arsiv-tasarimsiz.xml").readBytes()
+        val s = Invoices.read(plain)
+        assertEquals("e-Arşiv Fatura", Invoices.title(s))
+        assertFalse(Invoices.html(plain, s).second)
+    }
 }

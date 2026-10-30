@@ -102,4 +102,12 @@ class TextLogicTest {
         assertEquals("a\nb", withLineEnds("a\nb", crlf = false))
         assertEquals("a\r\nb", withLineEnds("a\r\nb", crlf = true))
     }
+
+    @Test
+    fun repairsTurkishTextReadWithTheWrongCodePage() {
+        assertEquals("İSTANBUL, şeker, dağı, ılık", repairTurkish("ÝSTANBUL, þeker, daðý, ýlýk"))
+        val utf8AsLatin = String("çok güzel ğüşıöç İĞÜŞÖÇ".toByteArray(Charsets.UTF_8), charset("windows-1252"))
+        assertEquals("çok güzel ğüşıöç İĞÜŞÖÇ", repairTurkish(utf8AsLatin))
+        assertNull(repairTurkish("Her şey yolunda: ğüşıöç"))
+    }
 }

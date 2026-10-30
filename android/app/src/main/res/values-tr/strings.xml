@@ -128,4 +128,7 @@
     <string name="invoice_own_design">Satıcının fatura tasarımıyla gösteriliyor.</string>
     <string name="invoice_plain_design">Faturada tasarım yok; sade görünüm.</string>
     <string name="invoice_summary">Özet</string>
+    <string name="text_garbled">Türkçe karakterler bozuk görünüyor (ör. “þ, ý, ð” ya da “Ã§”).</string>
+    <string name="text_repair">Düzelt</string>
+    <string name="text_repaired">Türkçe karakterler düzeltildi. Kalıcı olması için Kaydet’e dokun.</string>
 </resources>
