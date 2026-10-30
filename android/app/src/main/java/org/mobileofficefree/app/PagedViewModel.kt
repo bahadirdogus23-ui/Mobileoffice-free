@@ -216,6 +216,9 @@ abstract class PagedViewModel(app: Application, private val kind: DocumentKind) 
         readAloudProblem = null
     }
 
+    /** Something to tell the person once the document is open (an unverified e-signature…). Runs on [engine]. */
+    protected open fun openedNotice(): String? = null
+
     /** Opens [uri] (named [name]) and returns its page sizes in points. Runs on [engine]. */
     protected abstract fun load(uri: Uri, name: String): List<Pair<Float, Float>>
 
@@ -238,14 +241,17 @@ abstract class PagedViewModel(app: Application, private val kind: DocumentKind) 
                     Diagnostics.record("${kind.name} ${info.typedName.substringAfterLast('.')} açma (${pages.size} sayfa, ${sizeLabel(info.size)})", started)
                     firstPageFrom = SystemClock.elapsedRealtime()
                     recents.remember(uri, info.name, kind, info.size)
-                    PagedUiState(uri, info.name, pages)
+                    PagedUiState(uri, info.name, pages) to openedNotice()
                 }
             }
             loading = false
             clearPages()
             clearSearch()
             result.fold(
-                onSuccess = { state = it },
+                onSuccess = { (opened, note) ->
+                    state = opened
+                    notice = note
+                },
                 onFailure = { error = it.message ?: it.javaClass.simpleName },
             )
         }

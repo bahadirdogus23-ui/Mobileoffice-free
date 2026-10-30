@@ -36,6 +36,9 @@ class WordViewModel(app: Application) : PagedViewModel(app, DocumentKind.WORD) {
 
     override val canReadAloud = true
 
+    override fun openedNotice(): String? =
+        if (doc?.isSigned() == true) getApplication<Application>().getString(R.string.udf_signed) else null
+
     override val exportFormats = WORD_FORMATS
 
     override fun export(ext: String, name: String): ByteArray = doc?.export(name) ?: error("no document")

@@ -3,6 +3,7 @@
 //! `Bitmap` uses. Editing will go through WordCraft's command registry, as for spreadsheets.
 
 mod find;
+pub mod udf;
 
 pub use find::{Hit, MAX_MATCHES, fold};
 use wordcraft_doc::{Document, SectionProps};
@@ -42,11 +43,19 @@ pub struct WordDoc {
     doc: Document,
     cache: LayoutCache,
     layout: DocLayout,
+    signed: bool,
 }
 
 impl WordDoc {
     /// Opens DOCX/DOCM/DOTX, DOC, ODT, RTF, HTML, Markdown or text bytes; `name` is the file name.
     pub fn open(name: &str, bytes: &[u8], password: Option<&str>) -> Result<WordDoc, WordError> {
+        // UYAP UDF: WordCraft has no reader for it; udf.rs turns it into a document.
+        if name.to_ascii_lowercase().ends_with(".udf") {
+            let udf = udf::read(bytes).map_err(WordError::Open)?;
+            let mut doc = WordDoc::from_document(udf.doc);
+            doc.signed = udf.signed;
+            return Ok(doc);
+        }
         let (doc, _encrypted) = wordcraft_engine::io::open_bytes_with(name, bytes, password).map_err(WordError::Open)?;
         Ok(WordDoc::from_document(doc))
     }
@@ -76,7 +85,12 @@ impl WordDoc {
     fn from_document(doc: Document) -> WordDoc {
         let mut cache = LayoutCache::new();
         let layout = wordcraft_layout::layout(&doc, &mut cache, &LayoutOptions::default());
-        WordDoc { doc, cache, layout }
+        WordDoc { doc, cache, layout, signed: false }
+    }
+
+    /// The file carries an e-signature (a UDF's `sign.sgn`); it is not verified.
+    pub fn is_signed(&self) -> bool {
+        self.signed
     }
 
     /// The document written in the format `file_name`'s extension names: pdf, docx, odt, rtf,

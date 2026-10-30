@@ -16,6 +16,7 @@ wordcraft-doc = { workspace = true }
 wordcraft-formats = { workspace = true }
 thiserror = { workspace = true }
 kurbo = "0.13"
-
-[dev-dependencies]
+# UYAP UDF files: a ZIP with an XML document (udf.rs).
 zip = { version = "3", default-features = false, features = ["deflate"] }
+quick-xml = "0.41"
+

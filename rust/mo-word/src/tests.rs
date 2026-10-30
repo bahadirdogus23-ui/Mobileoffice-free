@@ -137,3 +137,86 @@ fn zip_entry(bytes: &[u8], name: &str) -> String {
     std::io::Read::read_to_string(&mut z.by_name(name).unwrap(), &mut s).unwrap();
     s
 }
+
+/// A UDF as UYAP's editor writes it: content.xml in a ZIP, offsets into the CDATA text.
+fn sample_udf(signed: bool) -> Vec<u8> {
+    let text = "T.C.\nİSTANBUL 1. ASLİYE HUKUK MAHKEMESİ\nDava: Alacak\tKarar No: 2026/15\nAd\tSoyad\n";
+    // Offsets in UTF-16 units (all of these letters are one unit each).
+    let at = |s: &str| {
+        text.encode_utf16()
+            .collect::<Vec<_>>()
+            .windows(s.encode_utf16().count())
+            .position(|w| w == s.encode_utf16().collect::<Vec<_>>().as_slice())
+            .unwrap()
+    };
+    let len = |s: &str| s.encode_utf16().count();
+    let line2 = "İSTANBUL 1. ASLİYE HUKUK MAHKEMESİ";
+    let xml = format!(
+        r#"<?xml version="1.0" encoding="UTF-8" ?>
+<template format_id="1.8">
+<content><![CDATA[{text}]]></content>
+<properties><pageFormat mediaSizeName="1" leftMargin="42.5" rightMargin="42.5" topMargin="42.5" bottomMargin="42.5" paperOrientation="1"/></properties>
+<elements resolver="hvl-default">
+<paragraph Alignment="1"><content startOffset="0" length="5" bold="true"/></paragraph>
+<paragraph Alignment="1" size="14"><content startOffset="{a2}" length="{l2}" bold="true" underline="true"/></paragraph>
+<paragraph Alignment="3" LeftIndent="20"><content startOffset="{a3}" length="12"/><tab startOffset="{t3}" length="1"/><content startOffset="{a4}" length="18" italic="true"/></paragraph>
+<table columnCount="2" columnSpans="100,300" border="borderCell"><row><cell><paragraph><content startOffset="{a5}" length="2"/></paragraph></cell><cell><paragraph><content startOffset="{a6}" length="5"/></paragraph></cell></row></table>
+</elements>
+<styles><style name="hvl-default" family="Times New Roman" size="12"/></styles>
+</template>"#,
+        a2 = at(line2),
+        l2 = len(line2),
+        a3 = at("Dava: Alacak"),
+        t3 = at("\tKarar"),
+        a4 = at("Karar No"),
+        a5 = at("Ad\t"),
+        a6 = at("Soyad"),
+    );
+    let mut out = std::io::Cursor::new(Vec::new());
+    {
+        let mut z = zip::ZipWriter::new(&mut out);
+        let opts = zip::write::SimpleFileOptions::default();
+        z.start_file("content.xml", opts).unwrap();
+        std::io::Write::write_all(&mut z, xml.as_bytes()).unwrap();
+        z.start_file("documentproperties.xml", opts).unwrap();
+        std::io::Write::write_all(&mut z, b"<properties/>").unwrap();
+        if signed {
+            z.start_file("sign.sgn", opts).unwrap();
+            std::io::Write::write_all(&mut z, b"signature").unwrap();
+        }
+        z.finish().unwrap();
+    }
+    out.into_inner()
+}
+
+#[test]
+fn reads_uyap_udf_documents() {
+    assert!(udf::is_udf(&sample_udf(false)));
+    let doc = WordDoc::open("karar.udf", &sample_udf(false), None).unwrap();
+    assert_eq!(doc.page_count(), 1);
+    assert!(!doc.is_signed());
+    // Text, Turkish letters and the table all arrive.
+    let texts = doc.page_texts().join("\n");
+    for s in ["T.C.", "İSTANBUL 1. ASLİYE HUKUK MAHKEMESİ", "Dava: Alacak", "Karar No: 2026/15", "Ad", "Soyad"] {
+        assert!(texts.contains(s), "{s} in {texts}");
+    }
+    assert!(!doc.find("asliye").is_empty());
+    assert!(ink(&doc.render_page(0, 1.0, false).unwrap()) > 500);
+    // A4 from the page format, and the bold/underline formatting survives into DOCX.
+    let (w, h) = doc.page_size(0).unwrap();
+    assert!((w - 595.3).abs() < 1.0 && (h - 841.9).abs() < 1.0, "{w}×{h}");
+    let docx = doc.export("karar.docx").unwrap();
+    let body = zip_entry(&docx, "word/document.xml");
+    assert!(body.contains("<w:b/>") || body.contains("<w:b "), "bold kept");
+    assert!(body.contains("<w:tbl>"), "table kept");
+    // Column proportions 100:300 from columnSpans.
+    let grid: Vec<f32> = body.split("<w:gridCol w:w=\"").skip(1).filter_map(|s| s.split('"').next()?.parse().ok()).collect();
+    assert!(grid.len() == 2 && (grid[1] / grid[0] - 3.0).abs() < 0.1, "{grid:?}");
+    assert!(doc.export("karar.pdf").unwrap().starts_with(b"%PDF"));
+}
+
+#[test]
+fn notices_signed_udf_and_rejects_broken_ones() {
+    assert!(WordDoc::open("imzali.udf", &sample_udf(true), None).unwrap().is_signed());
+    assert!(matches!(WordDoc::open("bozuk.udf", b"PK\x03\x04 nope", None), Err(WordError::Open(_))));
+}

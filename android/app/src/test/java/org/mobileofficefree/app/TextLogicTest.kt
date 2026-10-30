@@ -61,6 +61,8 @@ class TextLogicTest {
         assertEquals("pptx", sniff(zip("[Content_Types].xml", "ppt/presentation.xml")))
         assertNull(sniff("just text".toByteArray()))
         assertEquals("zip", sniff(zip("readme.txt")))
+        // UYAP UDF: content.xml without an OpenDocument "mimetype" entry.
+        assertEquals("udf", sniff(zip("content.xml", "documentproperties.xml")))
         assertNull(sniff(byteArrayOf(1, 2)))
     }
 

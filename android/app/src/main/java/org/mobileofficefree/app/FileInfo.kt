@@ -63,11 +63,15 @@ data class FileInfo(val name: String, val size: Long, val mime: String?, val kin
             }
         }
 
-        /** Office Open XML and OpenDocument files are ZIPs; their first entries tell which. */
+        /**
+         * Office Open XML and OpenDocument files are ZIPs; their first entries tell which. A ZIP
+         * with content.xml but no OpenDocument "mimetype" is a UYAP UDF document.
+         */
         private fun zipKind(input: java.io.InputStream): String? {
+            var content = false
             ZipInputStream(input).use { zip ->
                 repeat(64) {
-                    val e = zip.nextEntry ?: return "zip"
+                    val e = zip.nextEntry ?: return if (content) "udf" else "zip"
                     when {
                         e.name == "mimetype" -> return when (zip.readBytes().decodeToString().trim()) {
                             "application/vnd.oasis.opendocument.text" -> "odt"
@@ -78,11 +82,12 @@ data class FileInfo(val name: String, val size: Long, val mime: String?, val kin
                         e.name.startsWith("word/") -> return "docx"
                         e.name.startsWith("xl/") -> return "xlsx"
                         e.name.startsWith("ppt/") -> return "pptx"
+                        e.name == "content.xml" -> content = true
                     }
                 }
             }
             // A ZIP of something else: show what is inside.
-            return "zip"
+            return if (content) "udf" else "zip"
         }
     }
 }

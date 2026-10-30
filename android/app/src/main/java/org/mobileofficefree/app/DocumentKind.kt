@@ -5,7 +5,7 @@ import java.util.Locale
 /** What a file is, by extension first and MIME type second (Locale.ROOT: Turkish "I" must not leak in). */
 enum class DocumentKind(val extensions: Set<String>, val mimeTypes: Set<String>) {
     WORD(
-        setOf("docx", "docm", "dotx", "dotm", "doc", "dot", "odt", "rtf", "md", "html", "htm"),
+        setOf("docx", "docm", "dotx", "dotm", "doc", "dot", "odt", "rtf", "md", "html", "htm", "udf"),
         setOf(
             "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
             "application/vnd.ms-word.document.macroenabled.12",

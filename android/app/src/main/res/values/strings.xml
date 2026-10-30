@@ -119,4 +119,5 @@
     <string name="text_font_mono">Monospace (code, logs)</string>
     <string name="text_size">Size</string>
     <string name="continue_to_save">Continue: choose where to save</string>
+    <string name="udf_signed">This UDF document is e-signed. The signature is not verified in this app; you can check it through UYAP.</string>
 </resources>

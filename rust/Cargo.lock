@@ -1703,6 +1703,7 @@ name = "mo-word"
 version = "0.1.0"
 dependencies = [
  "kurbo",
+ "quick-xml 0.41.0",
  "thiserror",
  "wordcraft-doc",
  "wordcraft-engine",

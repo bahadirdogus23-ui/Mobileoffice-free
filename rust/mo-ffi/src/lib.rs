@@ -263,6 +263,11 @@ impl WordDocument {
         Ok(self.doc().export(&file_name)?)
     }
 
+    /// The file carries an e-signature (UYAP UDF); it is not verified.
+    pub fn is_signed(&self) -> bool {
+        self.doc().is_signed()
+    }
+
     /// The body text starting on each page, for reading aloud.
     pub fn page_texts(&self) -> Vec<String> {
         self.doc().page_texts()

@@ -118,4 +118,5 @@
     <string name="text_font_mono">Eş aralıklı (kod, log)</string>
     <string name="text_size">Punto</string>
     <string name="continue_to_save">Devam: kaydedilecek yeri seç</string>
+    <string name="udf_signed">Bu UDF belgesi e-imzalı. İmza bu uygulamada doğrulanmaz; geçerliliğini UYAP üzerinden kontrol edebilirsin.</string>
 </resources>
