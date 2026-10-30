@@ -18,5 +18,6 @@ mo-grid = { workspace = true }
 mo-word = { workspace = true }
 mo-deck = { workspace = true }
 mo-cad = { workspace = true }
+mo-pdf = { workspace = true }
 uniffi = { workspace = true }
 thiserror = { workspace = true }

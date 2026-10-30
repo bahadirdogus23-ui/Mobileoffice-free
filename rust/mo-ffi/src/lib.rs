@@ -10,6 +10,7 @@ use std::sync::{Mutex, MutexGuard};
 use mo_cad::{CadDoc, CadError};
 use mo_deck::{DeckDoc, DeckError};
 use mo_grid::{GridDoc, GridError};
+use mo_pdf::{PdfDoc, PdfError};
 use mo_word::{WordDoc, WordError};
 
 uniffi::setup_scaffolding!();
@@ -54,6 +55,16 @@ impl From<DeckError> for MoError {
             DeckError::Open(m) => MoError::Open(m),
             DeckError::Export(m) => MoError::Save(m),
             e @ DeckError::NoSlide(_) => MoError::NotFound(e.to_string()),
+        }
+    }
+}
+
+impl From<PdfError> for MoError {
+    fn from(e: PdfError) -> MoError {
+        match e {
+            PdfError::Open(m) => MoError::Open(m),
+            PdfError::Edit(m) => MoError::Command(m),
+            PdfError::Save(m) => MoError::Save(m),
         }
     }
 }
@@ -405,5 +416,60 @@ impl CadDocument {
     pub fn render(&self, space: u32, center_x: f64, center_y: f64, scale: f64, width: u32, height: u32, dark: bool) -> Result<Raster, MoError> {
         let r = self.doc().render(space, center_x, center_y, scale, width, height, dark)?;
         Ok(Raster { width: r.width, height: r.height, pixels: r.pixels })
+    }
+}
+
+/// A PDF whose pages are being reorganised (rotate, delete, move, combine, extract). Viewing
+/// stays with Android's PdfRenderer; [`PdfDocument::save`] gives the file to show and to keep.
+#[derive(uniffi::Object)]
+pub struct PdfDocument {
+    doc: Mutex<PdfDoc>,
+}
+
+impl PdfDocument {
+    fn doc(&self) -> MutexGuard<'_, PdfDoc> {
+        self.doc.lock().unwrap_or_else(std::sync::PoisonError::into_inner)
+    }
+}
+
+#[uniffi::export]
+impl PdfDocument {
+    #[uniffi::constructor]
+    pub fn open(bytes: Vec<u8>, password: Option<String>) -> Result<Self, MoError> {
+        Ok(PdfDocument { doc: Mutex::new(PdfDoc::open(bytes, password.as_deref())?) })
+    }
+
+    pub fn page_count(&self) -> Result<u32, MoError> {
+        Ok(self.doc().page_count()?)
+    }
+
+    /// Turns `pages` (0-based) by `degrees` clockwise (a multiple of 90).
+    pub fn rotate(&self, pages: Vec<u32>, degrees: i32) -> Result<(), MoError> {
+        Ok(self.doc().rotate(&pages, degrees)?)
+    }
+
+    /// Removes `pages`; at least one page always stays.
+    pub fn delete(&self, pages: Vec<u32>) -> Result<(), MoError> {
+        Ok(self.doc().delete(&pages)?)
+    }
+
+    /// Moves `pages` so the first of them lands at `to`.
+    pub fn move_pages(&self, pages: Vec<u32>, to: u32) -> Result<(), MoError> {
+        Ok(self.doc().move_pages(&pages, to)?)
+    }
+
+    /// Appends every page of another PDF.
+    pub fn append(&self, bytes: Vec<u8>, password: Option<String>) -> Result<(), MoError> {
+        Ok(self.doc().append(bytes, password.as_deref())?)
+    }
+
+    /// A new PDF of just `pages`, in that order.
+    pub fn extract(&self, pages: Vec<u32>) -> Result<Vec<u8>, MoError> {
+        Ok(self.doc().extract(&pages)?)
+    }
+
+    /// The whole document as a new file.
+    pub fn save(&self) -> Result<Vec<u8>, MoError> {
+        Ok(self.doc().save()?)
     }
 }

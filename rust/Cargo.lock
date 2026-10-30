@@ -1338,6 +1338,47 @@ dependencies = [
 ]
 
 [[package]]
+name = "hayro-ccitt"
+version = "0.3.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "9f4d0e94ddd48749f06bbe4e5389fb9799a0c45bcaf00495042076ef05e3241a"
+
+[[package]]
+name = "hayro-ccitt"
+version = "0.4.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "2866f0d976e76497480b853d5e258dab6e4b89ecfe991124e08f15dfa8fd03ad"
+
+[[package]]
+name = "hayro-jbig2"
+version = "0.3.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "000e025850f4592ddcaee85640db70704151f2bafd43b6f431aa5b6a2c6a35a9"
+dependencies = [
+ "hayro-ccitt 0.4.0",
+]
+
+[[package]]
+name = "hayro-jpeg2000"
+version = "0.3.5"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "c75ab947623ef4ccaa7acf0579edf7cbb5a73838e3839a7be73335e522f433a1"
+
+[[package]]
+name = "hayro-syntax"
+version = "0.7.2"
+source = "git+https://github.com/storytold/pdfcraft?rev=20eebc1c33ff7e6f42ac1c56bf95192f628a9d97#20eebc1c33ff7e6f42ac1c56bf95192f628a9d97"
+dependencies = [
+ "hayro-ccitt 0.3.0",
+ "hayro-jbig2",
+ "hayro-jpeg2000",
+ "rustc-hash",
+ "smallvec",
+ "stringprep",
+ "zune-jpeg",
+]
+
+[[package]]
 name = "heck"
 version = "0.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1610,6 +1651,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "md-5"
+version = "0.11.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "69b6441f590336821bb897fb28fc622898ccceb1d6cea3fde5ea86b090c4de98"
+dependencies = [
+ "cfg-if",
+ "digest",
+]
+
+[[package]]
 name = "memchr"
 version = "2.8.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1681,6 +1732,7 @@ dependencies = [
  "mo-cad",
  "mo-deck",
  "mo-grid",
+ "mo-pdf",
  "mo-word",
  "thiserror",
  "uniffi",
@@ -1696,6 +1748,16 @@ dependencies = [
  "serde_json",
  "thiserror",
  "wordcraft-fonts",
+]
+
+[[package]]
+name = "mo-pdf"
+version = "0.1.0"
+dependencies = [
+ "gridcraft-pdf",
+ "pdfcraft-cos",
+ "pdfcraft-organize",
+ "thiserror",
 ]
 
 [[package]]
@@ -1783,6 +1845,57 @@ dependencies = [
  "itoa",
  "memchr",
  "ryu",
+]
+
+[[package]]
+name = "pdfcraft-content"
+version = "0.14.0"
+source = "git+https://github.com/storytold/pdfcraft?rev=20eebc1c33ff7e6f42ac1c56bf95192f628a9d97#20eebc1c33ff7e6f42ac1c56bf95192f628a9d97"
+dependencies = [
+ "hayro-syntax",
+ "pdfcraft-cos",
+]
+
+[[package]]
+name = "pdfcraft-cos"
+version = "0.14.0"
+source = "git+https://github.com/storytold/pdfcraft?rev=20eebc1c33ff7e6f42ac1c56bf95192f628a9d97#20eebc1c33ff7e6f42ac1c56bf95192f628a9d97"
+dependencies = [
+ "chrono",
+ "pdfcraft-crypt",
+ "pdfcraft-filters",
+ "thiserror",
+]
+
+[[package]]
+name = "pdfcraft-crypt"
+version = "0.14.0"
+source = "git+https://github.com/storytold/pdfcraft?rev=20eebc1c33ff7e6f42ac1c56bf95192f628a9d97#20eebc1c33ff7e6f42ac1c56bf95192f628a9d97"
+dependencies = [
+ "aes",
+ "md-5",
+ "sha2",
+ "stringprep",
+ "thiserror",
+]
+
+[[package]]
+name = "pdfcraft-filters"
+version = "0.14.0"
+source = "git+https://github.com/storytold/pdfcraft?rev=20eebc1c33ff7e6f42ac1c56bf95192f628a9d97#20eebc1c33ff7e6f42ac1c56bf95192f628a9d97"
+dependencies = [
+ "flate2",
+ "thiserror",
+]
+
+[[package]]
+name = "pdfcraft-organize"
+version = "0.14.0"
+source = "git+https://github.com/storytold/pdfcraft?rev=20eebc1c33ff7e6f42ac1c56bf95192f628a9d97#20eebc1c33ff7e6f42ac1c56bf95192f628a9d97"
+dependencies = [
+ "pdfcraft-content",
+ "pdfcraft-cos",
+ "thiserror",
 ]
 
 [[package]]
@@ -2282,6 +2395,17 @@ name = "strict-num"
 version = "0.1.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "6637bab7722d379c8b41ba849228d680cc12d0a45ba1fa2b48f2a30577a06731"
+
+[[package]]
+name = "stringprep"
+version = "0.1.5"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "7b4df3d392d81bd458a8a621b8bffbd2302a12ffe288a9d931670948749463b1"
+dependencies = [
+ "unicode-bidi",
+ "unicode-normalization",
+ "unicode-properties",
+]
 
 [[package]]
 name = "strsim"

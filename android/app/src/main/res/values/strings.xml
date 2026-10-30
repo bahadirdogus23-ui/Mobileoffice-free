@@ -137,4 +137,15 @@
     <string name="filter_cad">Drawing (DWG)</string>
     <string name="filter_archive">Archive (ZIP)</string>
     <string name="filter_text">Text (TXT)</string>
+    <string name="select">Select</string>
+    <string name="rotate_left">Left</string>
+    <string name="rotate_right">Right</string>
+    <string name="delete">Delete</string>
+    <string name="extract">Extract</string>
+    <string name="add_pdf">Add PDF</string>
+    <string name="pdf_edit_failed">Pages could not be changed: %1$s</string>
+    <plurals name="pages_selected">
+        <item quantity="one">%1$d sayfa seçili</item>
+        <item quantity="other">%1$d sayfa seçili</item>
+    </plurals>
 </resources>

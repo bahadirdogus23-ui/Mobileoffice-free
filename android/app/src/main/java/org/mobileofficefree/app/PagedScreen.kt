@@ -5,6 +5,7 @@ import android.widget.Toast
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.LocalActivity
 import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
@@ -44,6 +45,7 @@ import androidx.compose.material3.BottomAppBar
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.ListItem
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
@@ -59,6 +61,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -82,6 +85,7 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
@@ -132,6 +136,20 @@ fun PagedScreen(vm: PagedViewModel, state: PagedUiState, reading: ReadingSetting
     var showReading by remember { mutableStateOf(false) }
     var showGoTo by remember { mutableStateOf(false) }
     var showPages by remember { mutableStateOf(false) }
+    // PDF page tools: pages picked in the Pages sheet, and where extracted pages / the edit go.
+    val pdf = vm as? PdfViewModel
+    var selecting by remember(state.uri) { mutableStateOf(false) }
+    val selected = remember(state.uri) { mutableStateListOf<Int>() }
+    var extractPages by remember { mutableStateOf<List<Int>>(emptyList()) }
+    var closeAfterSave by remember { mutableStateOf(false) }
+    val extractFile = rememberLauncherForActivityResult(CreateFile()) { uri -> if (uri != null) pdf?.extractTo(uri, extractPages) }
+    val saveEdited = rememberLauncherForActivityResult(CreateFile()) { uri ->
+        if (uri != null) pdf?.saveTo(uri)
+        if (uri != null && closeAfterSave) vm.answerClose(true)
+        closeAfterSave = false
+    }
+    val addPdf = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri -> if (uri != null) pdf?.appendPdf(uri) }
+    val editedName = convertedName(state.fileName, "pdf").removeSuffix(".pdf") + "-duzenlendi.pdf"
     var showConvert by remember { mutableStateOf(false) }
     var converting by remember { mutableStateOf<ExportFormat?>(null) }
     val createFile = rememberLauncherForActivityResult(CreateFile()) { uri ->
@@ -150,7 +168,7 @@ fun PagedScreen(vm: PagedViewModel, state: PagedUiState, reading: ReadingSetting
     val night = reading.night
     val invertOnScreen = night && !vm.drawsNight
 
-    BackHandler { vm.close() }
+    BackHandler { vm.requestClose() }
     // Follow the page being read aloud.
     LaunchedEffect(vm.readingPage) {
         if (vm.readingPage >= 0) list.animateScrollToItem(vm.readingPage)
@@ -193,11 +211,16 @@ fun PagedScreen(vm: PagedViewModel, state: PagedUiState, reading: ReadingSetting
         TopAppBar(
             title = { Text(state.fileName.substringBeforeLast('.'), maxLines = 1) },
             navigationIcon = {
-                IconButton(onClick = vm::close) {
+                IconButton(onClick = vm::requestClose) {
                     Icon(painterResource(R.drawable.ic_arrow_back), contentDescription = stringResource(R.string.back))
                 }
             },
             actions = {
+                if (pdf?.edited == true) {
+                    TextButton(onClick = { saveEdited.launch(CreateFile.Request(editedName, "application/pdf")) }, enabled = !pdf.busy) {
+                        Text(stringResource(R.string.save))
+                    }
+                }
                 if (vm.searchable) {
                     TextButton(onClick = {
                         showSearch = !showSearch
@@ -212,6 +235,7 @@ fun PagedScreen(vm: PagedViewModel, state: PagedUiState, reading: ReadingSetting
                 }
             },
         )
+        if (pdf?.busy == true) LinearProgressIndicator(Modifier.fillMaxWidth())
         if (showSearch) {
             Row(Modifier.fillMaxWidth().padding(horizontal = 8.dp), verticalAlignment = Alignment.CenterVertically) {
                 OutlinedTextField(
@@ -421,10 +445,39 @@ fun PagedScreen(vm: PagedViewModel, state: PagedUiState, reading: ReadingSetting
         ModalBottomSheet(onDismissRequest = { showPages = false }) {
             Row(Modifier.fillMaxWidth().padding(horizontal = 24.dp), verticalAlignment = Alignment.CenterVertically) {
                 Text(stringResource(R.string.pages), style = MaterialTheme.typography.titleLarge, modifier = Modifier.weight(1f))
-                TextButton(onClick = {
-                    showPages = false
-                    showGoTo = true
-                }) { Text(stringResource(R.string.go_to_page)) }
+                if (vm.canEditPages) {
+                    TextButton(onClick = {
+                        selecting = !selecting
+                        selected.clear()
+                    }) { Text(stringResource(if (selecting) R.string.done else R.string.select)) }
+                }
+                if (!selecting) {
+                    TextButton(onClick = {
+                        showPages = false
+                        showGoTo = true
+                    }) { Text(stringResource(R.string.go_to_page)) }
+                }
+            }
+            if (selecting && pdf != null) {
+                val picked = selected.sorted()
+                Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(horizontal = 16.dp)) {
+                    TextButton(onClick = { pdf.rotatePages(picked, -90) }, enabled = picked.isNotEmpty()) { Text("⟲ " + stringResource(R.string.rotate_left)) }
+                    TextButton(onClick = { pdf.rotatePages(picked, 90) }, enabled = picked.isNotEmpty()) { Text("⟳ " + stringResource(R.string.rotate_right)) }
+                    TextButton(onClick = {
+                        pdf.deletePages(picked)
+                        selected.clear()
+                    }, enabled = picked.isNotEmpty() && picked.size < state.pages.size) { Text(stringResource(R.string.delete)) }
+                    TextButton(onClick = {
+                        extractPages = picked
+                        extractFile.launch(CreateFile.Request(editedName.replace("-duzenlendi", "-sayfalar"), "application/pdf"))
+                    }, enabled = picked.isNotEmpty()) { Text(stringResource(R.string.extract)) }
+                    TextButton(onClick = { addPdf.launch(arrayOf("application/pdf")) }) { Text(stringResource(R.string.add_pdf)) }
+                }
+                Text(
+                    pluralStringResource(R.plurals.pages_selected, picked.size, picked.size),
+                    style = MaterialTheme.typography.labelMedium,
+                    modifier = Modifier.padding(horizontal = 24.dp),
+                )
             }
             val grid = rememberLazyGridState(initialFirstVisibleItemIndex = (current - 1).coerceAtLeast(0))
             LazyVerticalGrid(
@@ -439,8 +492,12 @@ fun PagedScreen(vm: PagedViewModel, state: PagedUiState, reading: ReadingSetting
                     Column(
                         horizontalAlignment = Alignment.CenterHorizontally,
                         modifier = Modifier.clickable {
-                            showPages = false
-                            scope.launch { list.scrollToItem(i) }
+                            if (selecting) {
+                                if (i in selected) selected.remove(i) else selected.add(i)
+                            } else {
+                                showPages = false
+                                scope.launch { list.scrollToItem(i) }
+                            }
                         },
                     ) {
                         Box(
@@ -449,8 +506,12 @@ fun PagedScreen(vm: PagedViewModel, state: PagedUiState, reading: ReadingSetting
                                 .aspectRatio(w / h)
                                 .background(if (invertOnScreen) Color.Black else Color.White)
                                 .border(
-                                    if (i + 1 == current) 3.dp else 1.dp,
-                                    if (i + 1 == current) MaterialTheme.colorScheme.primary else Color(0x33000000),
+                                    if (i in selected) 4.dp else if (!selecting && i + 1 == current) 3.dp else 1.dp,
+                                    when {
+                                        i in selected -> MaterialTheme.colorScheme.tertiary
+                                        !selecting && i + 1 == current -> MaterialTheme.colorScheme.primary
+                                        else -> Color(0x33000000)
+                                    },
                                 ),
                         ) {
                             vm.thumbnail(i)?.let { bmp ->
@@ -468,6 +529,27 @@ fun PagedScreen(vm: PagedViewModel, state: PagedUiState, reading: ReadingSetting
                 }
             }
         }
+    }
+
+    if (vm.askClose) {
+        AlertDialog(
+            onDismissRequest = { vm.answerClose(null) },
+            title = { Text(stringResource(R.string.unsaved_title)) },
+            text = { Text(stringResource(R.string.unsaved_body)) },
+            confirmButton = {
+                TextButton(onClick = {
+                    vm.answerClose(null)
+                    closeAfterSave = true
+                    saveEdited.launch(CreateFile.Request(editedName, "application/pdf"))
+                }) { Text(stringResource(R.string.save)) }
+            },
+            dismissButton = {
+                Row {
+                    TextButton(onClick = { vm.answerClose(null) }) { Text(stringResource(R.string.cancel)) }
+                    TextButton(onClick = { vm.answerClose(true) }) { Text(stringResource(R.string.discard)) }
+                }
+            },
+        )
     }
 
     if (showGoTo) {

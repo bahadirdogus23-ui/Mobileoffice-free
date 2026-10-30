@@ -66,6 +66,37 @@ abstract class PagedViewModel(app: Application, private val kind: DocumentKind) 
     /** When the open document was ready, until its first page is drawn (for [Diagnostics]). */
     @Volatile private var firstPageFrom = 0L
 
+    /** Pages can be rotated, deleted, combined… (the PDF viewer). */
+    open val canEditPages: Boolean = false
+
+    /** Edits not yet written to a file; closing asks first. */
+    open val hasUnsavedChanges: Boolean get() = false
+
+    var askClose by mutableStateOf(false)
+        private set
+
+    /** Back or the arrow: closes, asking first when there are unsaved edits. */
+    fun requestClose() {
+        if (hasUnsavedChanges) askClose = true else close()
+    }
+
+    /** The answer to "save the changes?": true closes (discarding), null stays. */
+    fun answerClose(discard: Boolean?) {
+        askClose = false
+        if (discard == true) close()
+    }
+
+    /** After an edit changed the pages: show the new ones. Call on the main thread. */
+    protected fun pagesChanged(pages: List<Pair<Float, Float>>) {
+        state = state?.copy(pages = pages)
+        clearPages()
+        clearSearch()
+    }
+
+    protected fun tell(text: String) {
+        notice = text
+    }
+
     /** Whether [renderPage] draws night pages itself (true) or the screen should invert its colours. */
     open val drawsNight: Boolean = false
 

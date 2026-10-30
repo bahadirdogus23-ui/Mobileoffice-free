@@ -1,0 +1,17 @@
+[package]
+name = "mo-pdf"
+description = "MobileOffice PDF page tools over the PdfCraft engine"
+version = "0.1.0"
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+publish = false
+
+[dependencies]
+pdfcraft-cos = { workspace = true }
+pdfcraft-organize = { workspace = true }
+thiserror = { workspace = true }
+
+[dev-dependencies]
+gridcraft-pdf = { workspace = true }

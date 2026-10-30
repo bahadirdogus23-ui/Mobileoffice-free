@@ -136,4 +136,15 @@
     <string name="filter_cad">Çizim (DWG)</string>
     <string name="filter_archive">Arşiv (ZIP)</string>
     <string name="filter_text">Metin (TXT)</string>
+    <string name="select">Seç</string>
+    <string name="rotate_left">Sola</string>
+    <string name="rotate_right">Sağa</string>
+    <string name="delete">Sil</string>
+    <string name="extract">Ayıkla</string>
+    <string name="add_pdf">PDF ekle</string>
+    <string name="pdf_edit_failed">Sayfalar değiştirilemedi: %1$s</string>
+    <plurals name="pages_selected">
+        <item quantity="one">%1$d sayfa seçili</item>
+        <item quantity="other">%1$d sayfa seçili</item>
+    </plurals>
 </resources>
