@@ -10,7 +10,7 @@ use std::sync::{Mutex, MutexGuard};
 use mo_cad::{CadDoc, CadError};
 use mo_deck::{DeckDoc, DeckError};
 use mo_grid::{GridDoc, GridError};
-use mo_pdf::{PdfDoc, PdfError};
+use mo_pdf::{FieldKind, FormField, PdfDoc, PdfError};
 use mo_word::{WordDoc, WordError};
 
 uniffi::setup_scaffolding!();
@@ -426,6 +426,62 @@ impl CadDocument {
     }
 }
 
+/// What a form field holds.
+#[derive(uniffi::Enum)]
+pub enum FormFieldKind {
+    Text,
+    CheckBox,
+    Radio,
+    Choice,
+    Other,
+}
+
+/// One choice of a radio group or a combo / list box.
+#[derive(uniffi::Record)]
+pub struct FieldOption {
+    /// What filling stores (the export value).
+    pub value: String,
+    pub text: String,
+}
+
+/// One form field as the person fills it.
+#[derive(uniffi::Record)]
+pub struct PdfFormField {
+    /// The key for filling.
+    pub name: String,
+    /// What to show the person (the field's tooltip, else its name).
+    pub label: String,
+    pub kind: FormFieldKind,
+    /// Text: the text. Radio / choice: the chosen value. Check box: empty when not ticked.
+    pub value: String,
+    pub options: Vec<FieldOption>,
+    pub read_only: bool,
+    pub multiline: bool,
+    /// 0-based page of the field.
+    pub page: Option<u32>,
+}
+
+impl From<FormField> for PdfFormField {
+    fn from(f: FormField) -> Self {
+        PdfFormField {
+            name: f.name,
+            label: f.label,
+            kind: match f.kind {
+                FieldKind::Text => FormFieldKind::Text,
+                FieldKind::CheckBox => FormFieldKind::CheckBox,
+                FieldKind::Radio => FormFieldKind::Radio,
+                FieldKind::Choice => FormFieldKind::Choice,
+                FieldKind::Other => FormFieldKind::Other,
+            },
+            value: f.value,
+            options: f.options.into_iter().map(|(value, text)| FieldOption { value, text }).collect(),
+            read_only: f.read_only,
+            multiline: f.multiline,
+            page: f.page,
+        }
+    }
+}
+
 /// A PDF whose pages are being reorganised (rotate, delete, move, combine, extract). Viewing
 /// stays with Android's PdfRenderer; [`PdfDocument::save`] gives the file to show and to keep.
 #[derive(uniffi::Object)]
@@ -511,6 +567,24 @@ impl PdfDocument {
     /// A smaller copy (pictures resampled to 150 ppi, or 96 `for_screen`); this one is unchanged.
     pub fn compress(&self, for_screen: bool) -> Result<Vec<u8>, MoError> {
         Ok(self.doc().compress(for_screen)?)
+    }
+
+    /// The form's fields (none when there is no form).
+    pub fn fields(&self) -> Vec<PdfFormField> {
+        self.doc().fields().into_iter().map(PdfFormField::from).collect()
+    }
+
+    pub fn set_text(&self, name: String, text: String) -> Result<(), MoError> {
+        Ok(self.doc().set_text(&name, &text)?)
+    }
+
+    pub fn set_check(&self, name: String, on: bool) -> Result<(), MoError> {
+        Ok(self.doc().set_check(&name, on)?)
+    }
+
+    /// Picks `value` (an option's value; empty for none) in a radio group or choice field.
+    pub fn set_choice(&self, name: String, value: String) -> Result<(), MoError> {
+        Ok(self.doc().set_choice(&name, &value)?)
     }
 
     /// The whole document as a new file.

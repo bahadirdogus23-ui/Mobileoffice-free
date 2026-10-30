@@ -28,6 +28,8 @@ cadcraft-geom = { git = "https://github.com/storytold/cadcraft", rev = "56542407
 cadcraft-color = { git = "https://github.com/storytold/cadcraft", rev = "56542407292b911ad30523cfcfa987923fe2f8e2" }
 pdfcraft-cos = { git = "https://github.com/storytold/pdfcraft", rev = "20eebc1c33ff7e6f42ac1c56bf95192f628a9d97" }
 pdfcraft-annot = { git = "https://github.com/storytold/pdfcraft", rev = "20eebc1c33ff7e6f42ac1c56bf95192f628a9d97" }
+pdfcraft-fonts = { git = "https://github.com/storytold/pdfcraft", rev = "20eebc1c33ff7e6f42ac1c56bf95192f628a9d97" }
+pdfcraft-forms = { git = "https://github.com/storytold/pdfcraft", rev = "20eebc1c33ff7e6f42ac1c56bf95192f628a9d97" }
 pdfcraft-optimize = { git = "https://github.com/storytold/pdfcraft", rev = "20eebc1c33ff7e6f42ac1c56bf95192f628a9d97" }
 pdfcraft-organize = { git = "https://github.com/storytold/pdfcraft", rev = "20eebc1c33ff7e6f42ac1c56bf95192f628a9d97" }
 gridcraft-engine = { git = "https://github.com/storytold/gridcraft", rev = "11bb67386c9bb19b0717e21e98adc608162ae2e5" }

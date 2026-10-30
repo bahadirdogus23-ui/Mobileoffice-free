@@ -1,6 +1,6 @@
 //! PDF page tools over the PdfCraft engine: rotate, delete, move and extract pages, combine
 //! files, put a hand-drawn signature on a page, add or remove password protection, and make a
-//! smaller copy. Viewing stays with Android's PdfRenderer (docs/adr/0003-pdf-goruntuleme.md); this bridge
+//! smaller copy, and fill in forms. Viewing stays with Android's PdfRenderer (docs/adr/0003-pdf-goruntuleme.md); this bridge
 //! edits the document's structure and writes a whole new file, never the opened one in place.
 
 use std::sync::Arc;
@@ -8,6 +8,9 @@ use std::sync::Arc;
 use pdfcraft_annot as annot;
 use pdfcraft_cos::{CosError, Document, SaveOptions};
 use pdfcraft_organize as organize;
+
+mod form;
+pub use form::{FieldKind, FormField};
 
 #[derive(Debug, thiserror::Error, PartialEq, Eq)]
 pub enum PdfError {
@@ -190,6 +193,34 @@ impl PdfDoc {
         let mut copy = self.doc.clone();
         pdfcraft_optimize::optimize(&mut copy, &preset.settings()).map_err(edit)?;
         pdfcraft_cos::write_full(&copy, &SaveOptions::default()).map_err(|e| PdfError::Save(e.to_string()))
+    }
+
+    /// The form's fields, in document order (none when there is no form).
+    pub fn fields(&self) -> Vec<FormField> {
+        form::fields(&self.doc)
+    }
+
+    pub fn set_text(&mut self, name: &str, text: &str) -> Result<(), PdfError> {
+        self.refuse_unfillable()?;
+        form::set_text(&mut self.doc, name, text)
+    }
+
+    pub fn set_check(&mut self, name: &str, on: bool) -> Result<(), PdfError> {
+        self.refuse_unfillable()?;
+        form::set_check(&mut self.doc, name, on)
+    }
+
+    /// Picks `value` (an export value from [`FormField::options`]; empty for none).
+    pub fn set_choice(&mut self, name: &str, value: &str) -> Result<(), PdfError> {
+        self.refuse_unfillable()?;
+        form::set_choice(&mut self.doc, name, value)
+    }
+
+    fn refuse_unfillable(&self) -> Result<(), PdfError> {
+        if self.is_restricted() && self.doc.permissions().is_some_and(|p| !p.fill_forms()) {
+            return Err(PdfError::Edit("the owner of this PDF does not allow filling in its form".into()));
+        }
+        Ok(())
     }
 
     /// The whole document written afresh (compressed object streams, a new cross-reference).

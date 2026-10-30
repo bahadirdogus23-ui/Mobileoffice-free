@@ -175,4 +175,8 @@
     <string name="compress_saved">Kaydedildi: %1$s → %2$s</string>
     <string name="signature_saved">Kayıtlı imzalar</string>
     <string name="signature_keep">Bu imzayı bu telefonda sakla</string>
+    <string name="form_fill">Formu doldur</string>
+    <string name="form_none">Bu PDF\'te doldurulacak alan yok.</string>
+    <string name="form_page">Sayfa %1$d</string>
+    <string name="apply">Uygula</string>
 </resources>

@@ -19,3 +19,9 @@ crate with `[patch]`.
   - The font file is compressed with zlib.
 - **In this app:** `mo-grid` registers WordCraft's bundled OFL fonts (Source Sans 3, Source Serif 4 and JetBrains Mono). These fonts are already in the app, so the APK does not grow.
 - **Verified:** A rendered page shows İ Ğ Ş ı ğ ş correctly.
+
+## 3. `code_char` is public
+
+- **Change:** `code_char` (the character a code stands for in the Turkish text encoding) is `pub`.
+- **Why:** `mo-pdf` embeds the same font and encoding into PDF forms it fills, and needs the
+  same code-to-character table to compute the font's widths.

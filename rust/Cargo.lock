@@ -1767,11 +1767,16 @@ name = "mo-pdf"
 version = "0.1.0"
 dependencies = [
  "gridcraft-pdf",
+ "miniz_oxide 0.8.9",
  "pdfcraft-annot",
  "pdfcraft-cos",
+ "pdfcraft-fonts",
+ "pdfcraft-forms",
  "pdfcraft-optimize",
  "pdfcraft-organize",
  "thiserror",
+ "ttf-parser",
+ "wordcraft-fonts",
 ]
 
 [[package]]
@@ -1922,6 +1927,18 @@ dependencies = [
  "pdfcraft-cos",
  "skrifa 0.44.0",
  "unicode-bidi",
+]
+
+[[package]]
+name = "pdfcraft-forms"
+version = "0.14.0"
+source = "git+https://github.com/storytold/pdfcraft?rev=20eebc1c33ff7e6f42ac1c56bf95192f628a9d97#20eebc1c33ff7e6f42ac1c56bf95192f628a9d97"
+dependencies = [
+ "pdfcraft-content",
+ "pdfcraft-cos",
+ "pdfcraft-fonts",
+ "pdfcraft-model",
+ "thiserror",
 ]
 
 [[package]]

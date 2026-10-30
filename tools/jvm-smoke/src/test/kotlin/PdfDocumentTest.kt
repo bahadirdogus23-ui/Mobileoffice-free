@@ -53,4 +53,12 @@ class PdfDocumentTest {
             PdfDocument.open(doc.compress(true), null).use { assertEquals(1u, it.pageCount()) }
         }
     }
+
+    @Test
+    fun aFormlessPdfHasNoFields() {
+        PdfDocument.open(pdf(), null).use { doc ->
+            assertEquals(0, doc.fields().size)
+            assertFailsWith<MoException.Command> { doc.setText("ad", "Şule") }
+        }
+    }
 }

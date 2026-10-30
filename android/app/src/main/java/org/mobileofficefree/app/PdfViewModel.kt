@@ -18,8 +18,10 @@ import java.io.File
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.security.SecureRandom
+import org.mobileofficefree.engine.FormFieldKind
 import org.mobileofficefree.engine.MoException
 import org.mobileofficefree.engine.PdfDocument
+import org.mobileofficefree.engine.PdfFormField
 
 /**
  * PDF viewing through Android's own PdfRenderer (PDFium inside, nothing added to the app);
@@ -158,6 +160,42 @@ class PdfViewModel(app: Application) : PagedViewModel(app, DocumentKind.PDF) {
                 ),
             )
         }
+    }
+
+    /** The form's fields once asked for ([loadForm]); empty when the PDF has no form. */
+    var formFields by mutableStateOf<List<PdfFormField>?>(null)
+        private set
+
+    fun loadForm() {
+        val app = getApplication<Application>()
+        busy = true
+        viewModelScope.launch {
+            val result = withContext(engine) { runCatching { editor().fields() } }
+            busy = false
+            result.fold(
+                onSuccess = {
+                    if (it.none { f -> f.kind != FormFieldKind.OTHER }) tell(app.getString(R.string.form_none))
+                    formFields = it
+                },
+                onFailure = { tell(app.getString(R.string.pdf_edit_failed, it.message ?: it.javaClass.simpleName)) },
+            )
+        }
+    }
+
+    fun closeForm() {
+        formFields = null
+    }
+
+    /** Writes what the person typed and picked into the form. */
+    fun fillForm(changes: Map<String, FieldInput>) = edit { doc ->
+        for ((name, input) in changes) {
+            when (input) {
+                is FieldInput.Text -> doc.setText(name, input.text)
+                is FieldInput.Check -> doc.setCheck(name, input.on)
+                is FieldInput.Choice -> doc.setChoice(name, input.value)
+            }
+        }
+        formFields = null
     }
 
     /** Writes the edited document into the new file [dest]. */

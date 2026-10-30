@@ -219,7 +219,7 @@ pub fn win_ansi(c: char) -> u8 {
 }
 
 /// The character code `b` stands for in [`TEXT_ENCODING`] (the inverse of [`win_ansi`]).
-pub(crate) fn code_char(b: u8) -> Option<char> {
+pub fn code_char(b: u8) -> Option<char> {
     if let Some((c, _)) = TURKISH.iter().find(|(_, t)| *t == b) {
         return Some(*c);
     }

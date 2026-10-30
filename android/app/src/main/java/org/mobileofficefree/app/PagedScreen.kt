@@ -93,6 +93,7 @@ import androidx.compose.ui.unit.dp
 import kotlin.math.roundToInt
 import kotlin.math.sqrt
 import java.io.File
+import org.mobileofficefree.engine.FormFieldKind
 import kotlinx.coroutines.FlowPreview
 import kotlinx.coroutines.flow.debounce
 import kotlinx.coroutines.launch
@@ -414,6 +415,7 @@ fun PagedScreen(vm: PagedViewModel, state: PagedUiState, reading: ReadingSetting
                     TextButton(onClick = { drawSignature = true }, enabled = !pdf.busy && !pdf.restricted) { Text(stringResource(R.string.sign)) }
                     TextButton(onClick = { showPassword = true }, enabled = !pdf.busy && !pdf.restricted) { Text(stringResource(R.string.password)) }
                     TextButton(onClick = { showCompress = true }, enabled = !pdf.busy) { Text(stringResource(R.string.compress)) }
+                    TextButton(onClick = pdf::loadForm, enabled = !pdf.busy) { Text(stringResource(R.string.form_fill)) }
                 }
                 if (vm.exportFormats.isNotEmpty()) {
                     TextButton(onClick = { showConvert = true }) { Text(stringResource(R.string.convert)) }
@@ -428,6 +430,12 @@ fun PagedScreen(vm: PagedViewModel, state: PagedUiState, reading: ReadingSetting
                 }) { Text(stringResource(R.string.share)) }
             }
         }
+    }
+
+    pdf?.formFields?.takeIf { fields -> fields.any { it.kind != FormFieldKind.OTHER } }?.let { fields ->
+        FormSheet(fields, onDismiss = pdf::closeForm, onApply = { changes ->
+            if (changes.isEmpty()) pdf.closeForm() else pdf.fillForm(changes)
+        })
     }
 
     if (showCompress && pdf != null) {

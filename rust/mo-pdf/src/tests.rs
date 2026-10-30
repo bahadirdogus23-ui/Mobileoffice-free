@@ -147,3 +147,31 @@ fn compresses_a_photo_heavy_file() {
     assert!(smaller.len() <= small.len());
     assert_eq!(reopened(small).page_count().unwrap(), 1);
 }
+#[test]
+fn fills_a_form_with_turkish_letters() {
+    use pdfcraft_forms as f;
+    let mut doc = PdfDoc::open(pdf(1, "Form"), None).unwrap();
+    assert!(doc.fields().is_empty());
+    f::add_field(&mut doc.doc, 0, [72.0, 600.0, 400.0, 630.0], &f::NewField::Text { multiline: false }, Some("ad")).unwrap();
+    f::add_field(&mut doc.doc, 0, [72.0, 560.0, 400.0, 590.0], &f::NewField::Text { multiline: false }, Some("il")).unwrap();
+    f::add_field(&mut doc.doc, 0, [72.0, 520.0, 92.0, 540.0], &f::NewField::CheckBox, Some("onay")).unwrap();
+    doc.set_text("ad", "Şükrü Güneş İĞDIR ığüşöç").unwrap();
+    doc.set_text("il", "Ankara").unwrap();
+    doc.set_check("onay", true).unwrap();
+    assert!(doc.set_text("yok", "x").is_err());
+    let saved = reopened(doc.save().unwrap());
+    let fields = saved.fields();
+    let by = |n: &str| fields.iter().find(|x| x.name == n).unwrap().clone();
+    assert_eq!(by("ad").value, "Şükrü Güneş İĞDIR ığüşöç");
+    assert_eq!((by("ad").kind, by("ad").page), (FieldKind::Text, Some(0)));
+    assert_eq!(by("onay").kind, FieldKind::CheckBox);
+    assert!(!by("onay").value.is_empty());
+    if let Ok(path) = std::env::var("DUMP") {
+        std::fs::write(path, saved.save().unwrap()).unwrap();
+    }
+    // Drawn by us in the embedded font, not left for the viewer to draw.
+    assert!(!pdfcraft_forms::need_appearances(&saved.doc));
+    let da = |n: &str| pdfcraft_forms::fields(&saved.doc).into_iter().find(|x| x.name == n).unwrap().da;
+    assert!(da("ad").contains("/MoTr"), "{}", da("ad"));
+    assert!(!da("il").contains("/MoTr"), "plain text keeps its font");
+}

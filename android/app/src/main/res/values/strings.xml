@@ -176,4 +176,8 @@
     <string name="compress_saved">Saved: %1$s → %2$s</string>
     <string name="signature_saved">Kept signatures</string>
     <string name="signature_keep">Keep this signature on this phone</string>
+    <string name="form_fill">Fill in form</string>
+    <string name="form_none">This PDF has no fields to fill in.</string>
+    <string name="form_page">Page %1$d</string>
+    <string name="apply">Apply</string>
 </resources>
