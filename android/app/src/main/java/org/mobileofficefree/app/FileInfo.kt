@@ -98,7 +98,7 @@ data class FileInfo(val name: String, val size: Long, val mime: String?, val kin
 }
 
 /** Up to [limit] bytes from the start of the stream. */
-private fun java.io.InputStream.readNBytesUpTo(limit: Int): ByteArray {
+internal fun java.io.InputStream.readNBytesUpTo(limit: Int): ByteArray {
     val buf = ByteArray(limit)
     var n = 0
     while (n < limit) {

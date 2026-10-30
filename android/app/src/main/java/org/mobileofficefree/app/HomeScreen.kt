@@ -3,13 +3,14 @@ package org.mobileofficefree.app
 import android.Manifest
 import android.content.ActivityNotFoundException
 import android.content.Intent
-import android.os.Build
 import android.net.Uri
+import android.os.Build
 import android.text.format.Formatter
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -23,14 +24,14 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.DropdownMenu
-import androidx.compose.material3.PrimaryTabRow
-import androidx.compose.material3.Tab
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExtendedFloatingActionButton
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -38,8 +39,10 @@ import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.PrimaryTabRow
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
+import androidx.compose.material3.Tab
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -62,10 +65,10 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.LifecycleResumeEffect
 import java.text.DateFormat
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.withContext
 import java.util.Date
 import java.util.Locale
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 
 /** Bottom tabs: all recent files, then one per document family. */
 private enum class HomeTab(val label: Int, val badge: String, val kind: DocumentKind?) {
@@ -103,6 +106,25 @@ internal fun DocumentKind.badge(): String = when (this) {
     DocumentKind.OTHER -> "?"
 }
 
+private val UDF_COLOR = Color(0xFFB71C1C)
+
+/** Quick filters on the home tab for the families the bottom tabs do not have. */
+private enum class ExtraFilter(val label: Int) {
+    UDF(R.string.filter_udf),
+    INVOICE(R.string.filter_invoice),
+    CAD(R.string.filter_cad),
+    ARCHIVE(R.string.filter_archive),
+    TEXT(R.string.filter_text);
+
+    fun matches(item: HomeItem): Boolean = when (this) {
+        UDF -> item.name.endsWith(".udf", ignoreCase = true)
+        INVOICE -> item.kind == DocumentKind.INVOICE
+        CAD -> item.kind == DocumentKind.CAD
+        ARCHIVE -> item.kind == DocumentKind.ARCHIVE
+        TEXT -> item.kind == DocumentKind.TEXT
+    }
+}
+
 /** One row of the home list, from a device scan or the recent-files list. */
 private data class HomeItem(
     val uri: Uri,
@@ -125,6 +147,9 @@ fun HomeScreen(onOpen: (Uri) -> Unit, onNewSheet: () -> Unit, onDiagnostics: () 
     var tab by rememberSaveable { mutableIntStateOf(0) }
     var source by rememberSaveable { mutableIntStateOf(0) } // 0: all documents, 1: recently opened
     var query by rememberSaveable { mutableStateOf("") }
+    // A narrower family on the home tab: UDF, e-invoices, drawings, archives, text.
+    var extraName by rememberSaveable { mutableStateOf<String?>(null) }
+    val extra = extraName?.let { n -> ExtraFilter.entries.firstOrNull { it.name == n } }
     val folderAccess = remember { FolderAccess(context) }
     var folders by remember { mutableStateOf(folderAccess.all()) }
     val pickFolder = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocumentTree()) { tree ->
@@ -175,7 +200,11 @@ fun HomeScreen(onOpen: (Uri) -> Unit, onNewSheet: () -> Unit, onDiagnostics: () 
         files.map { HomeItem(it.uri, it.name, it.kind, it.size, it.openedAt, it.progress) }
     }
     val needle = query.trim().searchFold()
-    val shown = items.filter { (current.kind == null || it.kind == current.kind) && (needle.isEmpty() || needle in it.name.searchFold()) }
+    val shown = items.filter {
+        (current.kind == null || it.kind == current.kind) &&
+            (current.kind != null || extra == null || extra.matches(it)) &&
+            (needle.isEmpty() || needle in it.name.searchFold())
+    }
 
     Scaffold(
         bottomBar = {
@@ -224,6 +253,20 @@ fun HomeScreen(onOpen: (Uri) -> Unit, onNewSheet: () -> Unit, onDiagnostics: () 
                 },
                 modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
             )
+            if (current.kind == null) {
+                Row(
+                    Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(horizontal = 16.dp),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    for (f in ExtraFilter.entries) {
+                        FilterChip(
+                            selected = extra == f,
+                            onClick = { extraName = if (extra == f) null else f.name },
+                            label = { Text(stringResource(f.label)) },
+                        )
+                    }
+                }
+            }
             PrimaryTabRow(selectedTabIndex = source) {
                 Tab(selected = source == 0, onClick = { source = 0 }, text = { Text(stringResource(R.string.all_documents)) })
                 Tab(selected = source == 1, onClick = { source = 1 }, text = { Text(stringResource(R.string.recently_opened)) })
@@ -311,7 +354,8 @@ private fun DocumentRow(file: HomeItem, onOpen: () -> Unit, onShare: () -> Unit,
         Modifier.fillMaxWidth().clickable(onClick = onOpen).padding(horizontal = 16.dp, vertical = 12.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        KindBadge(file.kind.badge(), file.kind.color())
+        // UYAP documents read as Word files but are a family of their own to people.
+        if (ext == "UDF") KindBadge("UDF", UDF_COLOR) else KindBadge(file.kind.badge(), file.kind.color())
         Spacer(Modifier.width(16.dp))
         Column(Modifier.weight(1f)) {
             Text(file.name.substringBeforeLast('.'), maxLines = 1, overflow = TextOverflow.Ellipsis, style = MaterialTheme.typography.titleMedium)

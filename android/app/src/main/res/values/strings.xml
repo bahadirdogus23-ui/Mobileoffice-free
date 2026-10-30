@@ -132,4 +132,9 @@
     <string name="text_garbled">Turkish letters look garbled (e.g. “þ, ý, ð” or “Ã§”).</string>
     <string name="text_repair">Repair</string>
     <string name="text_repaired">Turkish letters repaired. Tap Save to keep the change.</string>
+    <string name="filter_udf">UDF (UYAP)</string>
+    <string name="filter_invoice">e-Invoice</string>
+    <string name="filter_cad">Drawing (DWG)</string>
+    <string name="filter_archive">Archive (ZIP)</string>
+    <string name="filter_text">Text (TXT)</string>
 </resources>

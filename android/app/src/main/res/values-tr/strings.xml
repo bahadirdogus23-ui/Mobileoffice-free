@@ -131,4 +131,9 @@
     <string name="text_garbled">Türkçe karakterler bozuk görünüyor (ör. “þ, ý, ð” ya da “Ã§”).</string>
     <string name="text_repair">Düzelt</string>
     <string name="text_repaired">Türkçe karakterler düzeltildi. Kalıcı olması için Kaydet’e dokun.</string>
+    <string name="filter_udf">UDF (UYAP)</string>
+    <string name="filter_invoice">e-Fatura</string>
+    <string name="filter_cad">Çizim (DWG)</string>
+    <string name="filter_archive">Arşiv (ZIP)</string>
+    <string name="filter_text">Metin (TXT)</string>
 </resources>

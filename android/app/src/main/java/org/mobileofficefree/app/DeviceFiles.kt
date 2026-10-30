@@ -37,6 +37,18 @@ object DeviceFiles {
 
     fun fallbackSettingsIntent(): Intent = Intent(Settings.ACTION_MANAGE_ALL_FILES_ACCESS_PERMISSION)
 
+    /**
+     * How a found file is listed, or null to leave it out. XML files are listed only when they
+     * are GİB e-invoices (their first KB say so); other XML belongs to apps, not people.
+     */
+    fun listedKind(context: Context, uri: Uri, name: String, mime: String?): DocumentKind? {
+        if (name.endsWith(".xml", ignoreCase = true)) {
+            val head = runCatching { context.contentResolver.openInputStream(uri)?.use { String(it.readNBytesUpTo(8 * 1024)) } }.getOrNull()
+            return if (head != null && Invoices.looksLikeUbl(head)) DocumentKind.INVOICE else null
+        }
+        return DocumentKind.of(name, mime).takeIf { it != DocumentKind.OTHER }
+    }
+
     /** Every supported document, newest first. Call off the main thread. */
     fun scan(context: Context, limit: Int = 5_000): List<DeviceFile> {
         val extensions = DocumentKind.listedExtensions.toList()
@@ -57,10 +69,10 @@ object DeviceFiles {
         )?.use { c ->
             while (c.moveToNext() && out.size < limit) {
                 val name = c.getString(1) ?: continue
-                val kind = DocumentKind.of(name, c.getString(4))
-                if (kind == DocumentKind.OTHER) continue
+                val uri = ContentUris.withAppendedId(collection, c.getLong(0))
+                val kind = listedKind(context, uri, name, c.getString(4)) ?: continue
                 out += DeviceFile(
-                    uri = ContentUris.withAppendedId(collection, c.getLong(0)),
+                    uri = uri,
                     name = name,
                     kind = kind,
                     size = c.getLong(2),

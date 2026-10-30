@@ -75,6 +75,6 @@ enum class DocumentKind(val extensions: Set<String>, val mimeTypes: Set<String>)
          * configuration files to their apps; both still open from the picker and "Open with".
          */
         val listedExtensions: Set<String> =
-            WORD.extensions + SHEET.extensions + SLIDES.extensions + PDF.extensions + CAD.extensions + ARCHIVE.extensions + "txt"
+            WORD.extensions + SHEET.extensions + SLIDES.extensions + PDF.extensions + CAD.extensions + ARCHIVE.extensions + "txt" + "xml"
     }
 }

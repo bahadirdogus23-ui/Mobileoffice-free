@@ -67,11 +67,12 @@ class FolderAccess(context: Context) {
                         if (!name.startsWith('.')) folders += id
                         continue
                     }
-                    val kind = DocumentKind.of(name, mime)
                     val ext = name.substringAfterLast('.', "").lowercase(java.util.Locale.ROOT)
-                    if (kind == DocumentKind.OTHER || ext !in DocumentKind.listedExtensions) continue
+                    if (ext !in DocumentKind.listedExtensions) continue
+                    val uri = DocumentsContract.buildDocumentUriUsingTree(tree, id)
+                    val kind = DeviceFiles.listedKind(app, uri, name, mime) ?: continue
                     files += DeviceFile(
-                        uri = DocumentsContract.buildDocumentUriUsingTree(tree, id),
+                        uri = uri,
                         name = name,
                         kind = kind,
                         size = if (c.isNull(3)) -1 else c.getLong(3),
