@@ -93,3 +93,20 @@ fn edits_text_and_slides_and_saves_pptx() {
     }
     assert!(one.delete_slide(0).is_err(), "the last slide stays");
 }
+
+#[test]
+fn text_inside_groups_can_be_edited() {
+    // Made with python-pptx: a title, a two-line body and a text box inside a group.
+    let mut d = DeckDoc::open(include_bytes!("../testdata/grouped-text.pptx")).unwrap();
+    let shapes = d.text_shapes(0).unwrap();
+    let texts: Vec<&str> = shapes.iter().map(|s| s.text.as_str()).collect();
+    assert_eq!(texts, ["Başlık", "Birinci madde\nİkinci madde", "Gruptaki yazı"]);
+    // The grouped box is where it shows: 1 inch from the left, 6 down (72, 432 points).
+    let g = shapes.iter().find(|s| s.text == "Gruptaki yazı").unwrap();
+    assert_eq!((g.x, g.y, g.w, g.h), (72.0, 432.0, 216.0, 36.0));
+    d.set_text(0, g.id, "Değişti").unwrap();
+    d.set_text(0, shapes[1].id, "Yeni içerik").unwrap();
+    let saved = DeckDoc::open(&d.save("x.pptx").unwrap()).unwrap();
+    let texts: Vec<String> = saved.text_shapes(0).unwrap().into_iter().map(|s| s.text).collect();
+    assert_eq!(texts, ["Başlık", "Yeni içerik", "Değişti"]);
+}

@@ -62,7 +62,9 @@ impl CadDoc {
         let mut layouts: Vec<_> = drawing.layouts.iter().map(|l| (l.tab_order, l.name.clone())).collect();
         layouts.sort();
         let mut spaces = vec![("Model".to_string(), Space::Model)];
-        spaces.extend(layouts.into_iter().map(|(_, n)| (n.clone(), Space::Paper(n))));
+        // Paper layouts with nothing drawn on them (a new drawing's "Layout1", "Layout2") are left
+        // out: a tab that opens on a blank sheet only looks broken.
+        spaces.extend(layouts.into_iter().map(|(_, n)| (n.clone(), Space::Paper(n))).filter(|(_, sp)| !drawing.extents(sp).is_empty()));
         Ok(CadDoc { drawing, spaces, lists: HashMap::new() })
     }
 

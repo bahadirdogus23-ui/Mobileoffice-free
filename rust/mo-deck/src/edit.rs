@@ -29,25 +29,40 @@ pub struct TextShape {
 pub fn text_shapes(pres: &Presentation, index: usize) -> Result<Vec<TextShape>, DeckError> {
     let slide = pres.slides.get(index).ok_or(DeckError::NoSlide(index as u32))?;
     let ctx = deckcraft_model::resolve::Ctx::for_slide(pres, slide);
-    Ok(slide
-        .shapes
-        .iter()
-        .filter(|s| !s.hidden && s.text.is_some() && matches!(s.kind, ShapeKind::Shape))
-        .map(|s| {
-            let x = match &ctx {
-                Some(c) => deckcraft_model::resolve::xfrm(c, s),
-                None => s.xfrm.unwrap_or_default(),
-            };
-            TextShape {
-                id: s.id.0,
-                x: x.x as f32,
-                y: x.y as f32,
-                w: x.w as f32,
-                h: x.h as f32,
-                text: s.text.as_ref().map(|t| t.text()).unwrap_or_default(),
+    let mut out = Vec::new();
+    for s in slide.shapes.iter().filter(|s| !s.hidden) {
+        let x = match &ctx {
+            Some(c) => deckcraft_model::resolve::xfrm(c, s),
+            None => s.xfrm.unwrap_or_default(),
+        };
+        collect_text(s, x, &mut out);
+    }
+    Ok(out)
+}
+
+/// The text shapes in `s` (itself, or inside it when it is a group), `x` being where `s` is
+/// on the slide. A group's children are placed through its child coordinate space.
+fn collect_text(s: &deckcraft_model::Shape, x: deckcraft_model::Xfrm, out: &mut Vec<TextShape>) {
+    match &s.kind {
+        ShapeKind::Shape if s.text.is_some() => out.push(TextShape {
+            id: s.id.0,
+            x: x.x as f32,
+            y: x.y as f32,
+            w: x.w as f32,
+            h: x.h as f32,
+            text: s.text.as_ref().map(|t| t.text()).unwrap_or_default(),
+        }),
+        ShapeKind::Group { children, child } => {
+            let (sx, sy) = (if child.w != 0.0 { x.w / child.w } else { 1.0 }, if child.h != 0.0 { x.h / child.h } else { 1.0 });
+            for c in children.iter().filter(|c| !c.hidden) {
+                let cx = c.xfrm.unwrap_or_default();
+                let placed =
+                    deckcraft_model::Xfrm { x: x.x + (cx.x - child.x) * sx, y: x.y + (cx.y - child.y) * sy, w: cx.w * sx, h: cx.h * sy, ..cx };
+                collect_text(c, placed, out);
             }
-        })
-        .collect())
+        }
+        _ => {}
+    }
 }
 
 /// Makes the text of shape `id` on slide `index` read `text` (paragraphs split by `\n`); text
@@ -55,10 +70,25 @@ pub fn text_shapes(pres: &Presentation, index: usize) -> Result<Vec<TextShape>, 
 pub fn set_text(pres: &mut Presentation, index: usize, id: u32, text: &str) -> Result<(), DeckError> {
     let slide = pres.slides.get_mut(index).ok_or(DeckError::NoSlide(index as u32))?;
     let slide = Arc::make_mut(slide);
-    let shape = slide.shapes.iter_mut().find(|s| s.id.0 == id).ok_or_else(|| edit_err("no such shape"))?;
+    let shape = find_shape(&mut slide.shapes, id).ok_or_else(|| edit_err("no such shape"))?;
     let body = shape.text.get_or_insert_with(Default::default);
     deckcraft_model::edit::replace_text(body, text);
     Ok(())
+}
+
+/// Shape `id` among `shapes` or inside their groups.
+fn find_shape(shapes: &mut [deckcraft_model::Shape], id: u32) -> Option<&mut deckcraft_model::Shape> {
+    for s in shapes {
+        if s.id.0 == id {
+            return Some(s);
+        }
+        if let ShapeKind::Group { children, .. } = &mut s.kind
+            && let Some(found) = find_shape(children, id)
+        {
+            return Some(found);
+        }
+    }
+    None
 }
 
 /// A new slide after `index`, with the same layout and empty placeholders. Returns its index.

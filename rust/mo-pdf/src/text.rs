@@ -62,9 +62,7 @@ pub fn find_folded(text: &[char], query: &str) -> Vec<Range<usize>> {
 /// Where `kind` occurs in `text`.
 pub fn find_sensitive(kind: Sensitive, text: &[char]) -> Vec<Range<usize>> {
     match kind {
-        Sensitive::TurkishId => {
-            digit_runs(text, &[]).into_iter().filter(|(r, d)| d.len() == 11 && r.len() == 11 && turkish_id_ok(d)).map(|(r, _)| r).collect()
-        }
+        Sensitive::TurkishId => turkish_ids(text),
         Sensitive::Iban => iban(text),
         Sensitive::Phone => digit_runs(text, &[' ', '-', '.', '(', ')'])
             .into_iter()
@@ -83,6 +81,47 @@ pub fn find_sensitive(kind: Sensitive, text: &[char]) -> Vec<Range<usize>> {
             .collect(),
         Sensitive::Email => pdfcraft_redact::patterns::find(pdfcraft_redact::patterns::Pattern::Email, text),
     }
+}
+
+/// T.C. kimlik numbers: eleven digits with valid check digits, written together or in groups
+/// with single spaces ("123 456 789 01"), with no other digit next to them. Letters may touch
+/// them ("TCKN12345678901", "No:12345678901").
+fn turkish_ids(text: &[char]) -> Vec<Range<usize>> {
+    let digit = |i: usize| text.get(i).is_some_and(char::is_ascii_digit);
+    let mut out = Vec::new();
+    let mut i = 0;
+    while i < text.len() {
+        if !digit(i) || (i > 0 && digit(i - 1)) {
+            i += 1;
+            continue;
+        }
+        // Digits from here, across single spaces between digits.
+        let start = i;
+        let mut digits = Vec::new();
+        let mut end = i;
+        let mut j = i;
+        while j < text.len() && digits.len() <= 11 {
+            if digit(j) {
+                digits.push(text[j] as u8 - b'0');
+                j += 1;
+                end = j;
+            } else if text[j] == ' ' && digit(j + 1) && digits.len() < 11 {
+                j += 1;
+            } else {
+                break;
+            }
+        }
+        if digits.len() == 11 && !digit(end) && turkish_id_ok(&digits) {
+            out.push(start..end);
+            i = end;
+        } else {
+            // Not from here: go on from the next run of digits.
+            while i < text.len() && digit(i) {
+                i += 1;
+            }
+        }
+    }
+    out
 }
 
 /// Runs of digits, joined across single `seps` between digits, that no other digit or letter
@@ -194,7 +233,10 @@ mod tests {
     fn finds_valid_turkish_ids_only() {
         // 10000000146 is a well-known valid test number.
         assert_eq!(found(Sensitive::TurkishId, "TC: 10000000146, yanlış: 10000000147"), ["10000000146"]);
-        assert!(found(Sensitive::TurkishId, "A10000000146 100000001460").is_empty());
+        assert!(found(Sensitive::TurkishId, "100000001460 9100000001460").is_empty());
+        // Letters may touch it; groups with single spaces count; a longer number does not.
+        assert_eq!(found(Sensitive::TurkishId, "TCKN10000000146"), ["10000000146"]);
+        assert_eq!(found(Sensitive::TurkishId, "Kimlik: 100 000 001 46 Tel 5 10000000146"), ["100 000 001 46", "10000000146"]);
     }
 
     #[test]

@@ -347,7 +347,15 @@ impl PdfDoc {
             }
             let existing: Vec<[f64; 4]> =
                 existing_fields.iter().flat_map(|f| f.widgets.iter()).filter(|wd| wd.page == Some(page)).map(|wd| wd.rect).collect();
-            for c in detect::detect(&words, &shapes, &existing, &taken) {
+            for mut c in detect::detect(&words, &shapes, &existing, &taken) {
+                // Detection names a field from the text beside it; a box whose label is above it
+                // (a heading over a text area) gets a generic name: take the line above instead.
+                if is_generic_name(&c.name)
+                    && let Some(label) = label_above(&words, c.rect)
+                    && !taken.contains(&label)
+                {
+                    c.name = label;
+                }
                 taken.push(c.name.clone());
                 found.push((page, c));
             }
@@ -537,6 +545,31 @@ impl PdfDoc {
         pdfcraft_cos::write_full(&self.doc, &SaveOptions::default()).map_err(|e| PdfError::Save(e.to_string()))
     }
 }
+
+/// Whether detection fell back to a numbered name ("Text1", "Check Box2").
+fn is_generic_name(name: &str) -> bool {
+    let stem = name.trim_end_matches(|c: char| c.is_ascii_digit());
+    stem.len() < name.len() && matches!(stem.trim(), "Text" | "Check Box" | "CheckBox" | "Field")
+}
+
+/// The line of words just above `rect` (user space, y up) that overlaps it across: the nearest
+/// within [`LABEL_REACH`] (a text area's field may sit on its bottom line, well below its label). Its words joined in reading order.
+fn label_above(words: &[pdfcraft_forms::detect::Word], rect: [f64; 4]) -> Option<String> {
+    let above: Vec<&pdfcraft_forms::detect::Word> = words
+        .iter()
+        .filter(|w| w.rect[1] >= rect[3] - 2.0 && w.rect[1] - rect[3] < LABEL_REACH && w.rect[0] < rect[2] && w.rect[2] > rect[0] - 4.0)
+        .collect();
+    // The nearest line with a word in it (a lone "/" or "*" does not make a line).
+    let nearest = above.iter().filter(|w| w.text.chars().any(char::is_alphanumeric)).map(|w| w.rect[1]).fold(f64::INFINITY, f64::min);
+    let mut line: Vec<&&pdfcraft_forms::detect::Word> = above.iter().filter(|w| (w.rect[1] - nearest).abs() < 3.0).collect();
+    line.sort_by(|a, b| a.rect[0].total_cmp(&b.rect[0]));
+    let text = line.iter().map(|w| w.text.as_str()).collect::<Vec<_>>().join(" ");
+    let text = text.trim().trim_end_matches(':').trim().to_string();
+    (!text.is_empty() && text.chars().count() <= 60).then_some(text)
+}
+
+/// How far above a field (points) its label is looked for.
+const LABEL_REACH: f64 = 72.0;
 
 /// Pixels per point of the page picture field detection looks for boxes in.
 const DETECT_SCALE: f32 = 2.0;

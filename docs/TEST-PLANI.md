@@ -106,7 +106,7 @@ Uygulama çökerse bir sonraki açılışta **çökme raporu** penceresi çıkar
 |---|---|---|
 | F1 | **Ara** (Android sürümü ne olursa olsun) `istanbul`, `cicek` | İSTANBUL ve Çiçek bulunur, sarı işaretlenir |
 | F2 | **Okuma → Sesli oku** ve **Metin görünümü** | Türkçe okur; metin ekrana akar |
-| F3 | **Sayfalar → Seç**: döndür, sil, ayıkla, **PDF ekle** | İşlemler doğru; **Kaydet** yeni dosya (`-duzenlendi.pdf`) |
+| F3 | **Sayfalar → Seç**: döndür, sil, yeni PDF yap, **PDF ekle** | İşlemler doğru; **Kaydet** yeni dosya (`-duzenlendi.pdf`) |
 | F4 | **İmzala** → çiz → **Bitti** → sayfaya dokun | İmza dokunulan yerde; döndürülmüş sayfada da düz |
 | F5 | İmzayı **sakla** işaretli bırakın, tekrar **İmzala** | Kayıtlı imza üstte; dokununca kullanılır; silinebilir |
 | F6 | **Çiz** → Kalem/Kırmızı/Mavi/Fosforlu → çizin → **Bitti** | Çizgiler yerinde kalır; fosforlu yazıyı okunur bırakır |

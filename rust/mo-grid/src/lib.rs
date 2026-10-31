@@ -344,6 +344,7 @@ fn is_delimited_text(name: &str) -> bool {
 #[cfg(test)]
 mod tests;
 mod turkish;
+mod turkish_docs;
 mod xls_styles;
 pub use turkish::{FunctionDoc, collation_key, from_engine, function_docs, function_names, number_display, to_engine};
 

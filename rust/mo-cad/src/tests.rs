@@ -12,7 +12,8 @@ fn ink(r: &Raster, background: [u8; 3]) -> usize {
 fn dxf_opens_with_spaces_and_layers() {
     let doc = apartment();
     assert_eq!(doc.space_names()[0], "Model");
-    assert!(doc.space_names().len() >= 2, "{:?}", doc.space_names());
+    // Its paper layouts have nothing on them: they are not offered.
+    assert_eq!(doc.space_names(), ["Model"]);
     let layers = doc.layers();
     assert!(layers.len() >= 3, "{layers:?}");
     assert!(layers.iter().any(|l| l.visible));

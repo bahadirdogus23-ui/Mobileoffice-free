@@ -40,7 +40,10 @@ class SlidesViewModel(app: Application) : PagedViewModel(app, DocumentKind.SLIDE
         viewModelScope.launch {
             val hit = withContext(engine) {
                 runCatching { d.textShapes(slide.toUInt()) }.getOrDefault(emptyList())
-                    .lastOrNull { x >= it.x && x <= it.x + it.width && y >= it.y && y <= it.y + it.height }
+                    .filter { x >= it.x && x <= it.x + it.width && y >= it.y && y <= it.y + it.height }
+                    // The smallest box under the finger: a big text box behind (or over) a
+                    // smaller one must not swallow the tap.
+                    .minByOrNull { it.width * it.height }
             }
             editingText = hit?.let { slide to it }
             if (hit == null) tell(getApplication<Application>().getString(R.string.slide_no_text_here))

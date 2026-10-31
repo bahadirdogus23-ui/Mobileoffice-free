@@ -140,7 +140,7 @@
     <string name="rotate_left">Left</string>
     <string name="rotate_right">Right</string>
     <string name="delete">Delete</string>
-    <string name="extract">Extract</string>
+    <string name="extract">Save as new PDF</string>
     <string name="add_pdf">Add PDF</string>
     <string name="pdf_edit_failed">The PDF could not be changed: %1$s</string>
     <plurals name="pages_selected">

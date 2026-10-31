@@ -139,7 +139,7 @@
     <string name="rotate_left">Sola</string>
     <string name="rotate_right">Sağa</string>
     <string name="delete">Sil</string>
-    <string name="extract">Ayıkla</string>
+    <string name="extract">Yeni PDF yap</string>
     <string name="add_pdf">PDF ekle</string>
     <string name="pdf_edit_failed">PDF değiştirilemedi: %1$s</string>
     <plurals name="pages_selected">

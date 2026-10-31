@@ -332,6 +332,8 @@ fn finds_the_fields_of_a_form_printed_from_a_browser() {
     let fields: Vec<(String, FieldKind)> = doc.fields().into_iter().map(|f| (f.name, f.kind)).collect();
     assert!(fields.contains(&("Adı Soyadı".into(), FieldKind::Text)), "{fields:?}");
     assert!(fields.contains(&("Onaylıyorum".into(), FieldKind::CheckBox)), "{fields:?}");
+    // The text area's label is above it.
+    assert!(fields.contains(&("Açıklama".into(), FieldKind::Text)), "{fields:?}");
     doc.set_text("Adı Soyadı", "Şükrü Ağaoğlu").unwrap();
     doc.set_check("Onaylıyorum", true).unwrap();
     // Shown and saved with the value; finding again adds nothing.

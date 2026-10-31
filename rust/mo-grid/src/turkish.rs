@@ -246,7 +246,7 @@ pub fn function_docs(turkish: bool) -> Vec<FunctionDoc> {
                 signature = format!("{name}{}", rest.replace(", ", "; "));
             }
             let description = turkish
-                .then(|| DESCRIPTIONS.iter().find(|(e, _)| *e == f.name).map(|(_, d)| d.to_string()))
+                .then(|| DESCRIPTIONS.iter().chain(crate::turkish_docs::MORE_DESCRIPTIONS).find(|(e, _)| *e == f.name).map(|(_, d)| d.to_string()))
                 .flatten()
                 .unwrap_or_else(|| f.description.to_string());
             let category = match (f.category, turkish) {
@@ -525,6 +525,15 @@ mod tests {
         let sum = docs.iter().find(|d| d.name == "TOPLA").unwrap();
         assert_eq!(sum.signature, "TOPLA(number1; [number2]; ...)");
         assert!(sum.description.starts_with("Sayıları toplar"));
+        // Every function the engine lists has a Turkish description.
+        let en = function_docs(false);
+        let untranslated: Vec<&str> = gridcraft_functions::all()
+            .iter()
+            .filter(|f| !DESCRIPTIONS.iter().chain(crate::turkish_docs::MORE_DESCRIPTIONS).any(|(e, _)| *e == f.name))
+            .map(|f| f.name)
+            .collect();
+        assert!(untranslated.is_empty(), "{untranslated:?}");
+        assert!(en.iter().any(|d| d.name == "BESSELJ"));
         assert_eq!(sum.category, "Matematik");
         // The common ones come first.
         assert!(docs.iter().position(|d| d.name == "DÜŞEYARA").unwrap() < docs.iter().position(|d| d.name == "BESSELJ").unwrap());
