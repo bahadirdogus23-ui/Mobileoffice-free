@@ -124,7 +124,7 @@ private fun ScanDialog(onClose: () -> Unit, onOpen: (Uri) -> Unit) {
             file?.delete()
         }
     }
-    val takePhoto = {
+    val takePhoto: () -> Unit = {
         val file = File(dir, "sayfa-${System.nanoTime()}.jpg")
         shot = file
         val uri = FileProvider.getUriForFile(context, "${context.packageName}.files", file)
