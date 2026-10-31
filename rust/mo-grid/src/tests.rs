@@ -171,3 +171,19 @@ fn reports_cell_borders() {
     assert_eq!(l[3].borders, 0x0100_0000, "{:x}", l[3].borders);
     assert_eq!(l[1].borders, 0);
 }
+
+#[test]
+fn reads_fills_borders_and_fonts_from_an_xls_file() {
+    // Made by LibreOffice from an XLSX: A1:D1 merged, B2:D4 thin black borders, A2:D2 filled
+    // (light blue, dark red, light green, silver).
+    let bytes = include_bytes!("../testdata/styled.xls");
+    let doc = GridDoc::open("styled.xls", bytes, None).unwrap();
+    assert_eq!(doc.merges(0).unwrap(), vec![[0, 0, 0, 3], [5, 0, 7, 1]]);
+    let looks = doc.cell_looks(0, 1, 0, 1, 4).unwrap();
+    assert!(looks.iter().all(|l| l.borders == 0x0101_0101 && l.border_color == 0xFF00_0000), "{looks:?}");
+    let fills: Vec<u32> = looks.iter().map(|l| l.fill).collect();
+    // .xls keeps colours in a 56-colour palette: LibreOffice picks the nearest ones.
+    assert!(fills.iter().all(|f| *f != 0), "{fills:x?}");
+    assert_eq!(fills[3], 0xFFC0_C0C0);
+    assert!(doc.warnings().iter().all(|w| !w.contains("Fonts, fills, borders")), "{:?}", doc.warnings());
+}

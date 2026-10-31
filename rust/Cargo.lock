@@ -1910,6 +1910,7 @@ dependencies = [
 name = "mo-grid"
 version = "0.1.0"
 dependencies = [
+ "cfb",
  "encoding_rs",
  "gridcraft-engine",
  "gridcraft-functions",

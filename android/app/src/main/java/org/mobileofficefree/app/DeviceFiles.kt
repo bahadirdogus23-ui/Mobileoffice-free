@@ -55,7 +55,7 @@ object DeviceFiles {
         // MediaStore keeps names as typed; LIKE is case-insensitive for ASCII, which file extensions are.
         // Folders are left out: a folder can be named like a document ("Dilekçe.udf" unpacked).
         val selection = "(" + extensions.joinToString(" OR ") { "${MediaStore.Files.FileColumns.DISPLAY_NAME} LIKE ?" } + ")" +
-            " AND (${MediaStore.Files.FileColumns.FORMAT} IS NULL OR ${MediaStore.Files.FileColumns.FORMAT} != $FORMAT_FOLDER)"
+            " AND ($FORMAT_COLUMN IS NULL OR $FORMAT_COLUMN != $FORMAT_FOLDER)"
         val args = extensions.map { "%.$it" }.toTypedArray()
         val collection = MediaStore.Files.getContentUri("external")
         val projection = arrayOf(
@@ -86,5 +86,6 @@ object DeviceFiles {
     }
 }
 
-/** MediaStore's `format` for a folder (MTP "association"). */
+/** MediaStore's `format` column (public in the provider, hidden in the SDK) and its value for a folder (MTP "association"). */
+private const val FORMAT_COLUMN = "format"
 private const val FORMAT_FOLDER = 0x3001

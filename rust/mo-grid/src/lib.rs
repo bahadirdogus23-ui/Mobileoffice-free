@@ -91,8 +91,11 @@ impl GridDoc {
         } else {
             bytes
         };
-        let (wb, engine_warnings) = io::open_bytes_with_password(name, bytes, password).map_err(|e| GridError::Open(e.to_string()))?;
-        warnings.extend(engine_warnings);
+        let (mut wb, engine_warnings) = io::open_bytes_with_password(name, bytes, password).map_err(|e| GridError::Open(e.to_string()))?;
+        // Excel 97-2003 files: the engine reads no fonts, fills or borders; they are read here.
+        let xls = bytes.starts_with(&[0xD0, 0xCF, 0x11, 0xE0]);
+        let styled = if xls { xls_styles::apply(&mut wb, bytes) } else { 0 };
+        warnings.extend(engine_warnings.into_iter().map(|w| if styled > 0 { w.replace("Fonts, fills, borders, charts", "Charts") } else { w }));
         let title = std::path::Path::new(name).file_name().and_then(|n| n.to_str()).unwrap_or("Book").to_string();
         let mut session = Session::new();
         session.add_document(DocState::new(wb, None, title, Trust::FromFile));
@@ -331,6 +334,7 @@ fn is_delimited_text(name: &str) -> bool {
 #[cfg(test)]
 mod tests;
 mod turkish;
+mod xls_styles;
 pub use turkish::{FunctionDoc, collation_key, from_engine, function_docs, function_names, number_display, to_engine};
 
 /// Hands WordCraft's bundled fonts (OFL: Source Sans 3, Source Serif 4, JetBrains Mono) to the
