@@ -53,7 +53,9 @@ object DeviceFiles {
     fun scan(context: Context, limit: Int = 5_000): List<DeviceFile> {
         val extensions = DocumentKind.listedExtensions.toList()
         // MediaStore keeps names as typed; LIKE is case-insensitive for ASCII, which file extensions are.
-        val selection = extensions.joinToString(" OR ") { "${MediaStore.Files.FileColumns.DISPLAY_NAME} LIKE ?" }
+        // Folders are left out: a folder can be named like a document ("Dilekçe.udf" unpacked).
+        val selection = "(" + extensions.joinToString(" OR ") { "${MediaStore.Files.FileColumns.DISPLAY_NAME} LIKE ?" } + ")" +
+            " AND (${MediaStore.Files.FileColumns.FORMAT} IS NULL OR ${MediaStore.Files.FileColumns.FORMAT} != $FORMAT_FOLDER)"
         val args = extensions.map { "%.$it" }.toTypedArray()
         val collection = MediaStore.Files.getContentUri("external")
         val projection = arrayOf(
@@ -83,3 +85,6 @@ object DeviceFiles {
         return out
     }
 }
+
+/** MediaStore's `format` for a folder (MTP "association"). */
+private const val FORMAT_FOLDER = 0x3001

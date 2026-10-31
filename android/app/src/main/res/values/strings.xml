@@ -177,10 +177,10 @@
     <string name="signature_saved">Kept signatures</string>
     <string name="signature_keep">Keep this signature on this phone</string>
     <string name="form_fill">Fill in form</string>
-    <string name="form_none">This PDF has no fields to fill in.</string>
+    <string name="form_none">This PDF has no fillable form fields; the boxes may only be drawn. Use Sign &amp; write → Text to type anywhere.</string>
     <string name="form_page">Page %1$d</string>
     <string name="apply">Apply</string>
-    <string name="annotate">Draw</string>
+    <string name="annotate">Sign &amp; write</string>
     <string name="pen_black">Pen</string>
     <string name="pen_red">Red</string>
     <string name="pen_blue">Blue</string>
@@ -326,4 +326,14 @@
     <string name="tool_paste">Paste</string>
     <string name="color_automatic">Automatic</string>
     <string name="highlight_none">No highlight</string>
+    <string name="pdf_text">Text</string>
+    <string name="pdf_text_title">Add text</string>
+    <string name="pdf_text_hint">Tap where the text should start</string>
+    <string name="font_sans">Sans</string>
+    <string name="font_sans_bold">Sans bold</string>
+    <string name="font_serif">Serif</string>
+    <string name="font_serif_bold">Serif bold</string>
+    <string name="font_mono">Mono</string>
+    <string name="text_color">Colour</string>
+    <string name="text_point_size">Size: %1$d pt</string>
 </resources>

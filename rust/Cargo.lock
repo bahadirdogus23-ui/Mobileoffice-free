@@ -1927,6 +1927,7 @@ dependencies = [
  "pdfcraft-annot",
  "pdfcraft-cos",
  "pdfcraft-create",
+ "pdfcraft-edit",
  "pdfcraft-fonts",
  "pdfcraft-forms",
  "pdfcraft-optimize",

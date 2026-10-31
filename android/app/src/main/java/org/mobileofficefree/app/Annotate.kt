@@ -27,7 +27,30 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.input.pointer.positionChange
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import org.mobileofficefree.engine.Pen
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Slider
+import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.ui.draw.clip
+import kotlin.math.roundToInt
+import org.mobileofficefree.engine.PdfTextFont
+import org.mobileofficefree.engine.TextLook
 
 /** What a touch on a page does while annotating. */
 enum class AnnotTool(val label: Int, val pen: Pen?) {
@@ -35,7 +58,7 @@ enum class AnnotTool(val label: Int, val pen: Pen?) {
     RED(R.string.pen_red, Pen(0.85, 0.1, 0.1, 1.5, 1.0)),
     BLUE(R.string.pen_blue, Pen(0.1, 0.25, 0.85, 1.5, 1.0)),
     HIGHLIGHT(R.string.highlighter, Pen(1.0, 0.9, 0.0, 12.0, 0.4)),
-    NOTE(R.string.note, null),
+    TEXT(R.string.pdf_text, null),
 }
 
 /** A stroke not yet written into the PDF: points as fractions of the displayed page. */
@@ -48,17 +71,26 @@ class PenStroke(val page: Int, val points: List<Offset>, val pen: Pen) {
 @Composable
 fun AnnotationBar(tool: AnnotTool, onTool: (AnnotTool) -> Unit, canUndo: Boolean, onUndo: () -> Unit, onDone: () -> Unit) {
     Surface(color = MaterialTheme.colorScheme.surfaceContainer, modifier = Modifier.fillMaxWidth()) {
-        Row(Modifier.horizontalScroll(rememberScrollState()).padding(horizontal = 8.dp), verticalAlignment = Alignment.CenterVertically) {
-            for (t in AnnotTool.entries) {
-                FilterChip(
-                    selected = t == tool,
-                    onClick = { onTool(t) },
-                    label = { Text(stringResource(t.label)) },
-                    modifier = Modifier.padding(end = 6.dp),
+        Column {
+            if (tool == AnnotTool.TEXT) {
+                Text(
+                    stringResource(R.string.pdf_text_hint),
+                    style = MaterialTheme.typography.bodySmall,
+                    modifier = Modifier.padding(start = 12.dp, top = 6.dp),
                 )
             }
-            TextButton(onClick = onUndo, enabled = canUndo) { Text(stringResource(R.string.undo)) }
-            TextButton(onClick = onDone) { Text(stringResource(R.string.done)) }
+            Row(Modifier.horizontalScroll(rememberScrollState()).padding(horizontal = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+                for (t in AnnotTool.entries) {
+                    FilterChip(
+                        selected = t == tool,
+                        onClick = { onTool(t) },
+                        label = { Text(stringResource(t.label)) },
+                        modifier = Modifier.padding(end = 6.dp),
+                    )
+                }
+                TextButton(onClick = onUndo, enabled = canUndo) { Text(stringResource(R.string.undo)) }
+                TextButton(onClick = onDone) { Text(stringResource(R.string.done)) }
+            }
         }
     }
 }
@@ -111,4 +143,68 @@ fun PendingStrokes(strokes: List<Pair<List<Offset>, Pen>>, pageWidth: Float) {
             )
         }
     }
+}
+
+/** The last look chosen for typed text, kept while the app runs. */
+object TextStyleMemory {
+    var size by mutableFloatStateOf(14f)
+    var font by mutableStateOf(PdfTextFont.SANS)
+    var color by mutableIntStateOf(0)
+}
+
+/** Colours offered for typed text: black, dark blue, red, green, grey. */
+internal val TEXT_STAMP_COLORS = listOf(
+    Color(0xFF000000), Color(0xFF1A3A8F), Color(0xFFC62828), Color(0xFF2E7D32), Color(0xFF616161),
+)
+
+private val TEXT_FONTS = listOf(
+    PdfTextFont.SANS to R.string.font_sans,
+    PdfTextFont.SANS_BOLD to R.string.font_sans_bold,
+    PdfTextFont.SERIF to R.string.font_serif,
+    PdfTextFont.SERIF_BOLD to R.string.font_serif_bold,
+    PdfTextFont.MONO to R.string.font_mono,
+)
+
+/** Asks for text to type on a page, with its size, typeface and colour. */
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+fun TextStampDialog(onDismiss: () -> Unit, onAdd: (String, TextLook) -> Unit) {
+    var text by remember { mutableStateOf("") }
+    val memory = TextStyleMemory
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(stringResource(R.string.pdf_text_title)) },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                OutlinedTextField(value = text, onValueChange = { text = it }, minLines = 2, modifier = Modifier.fillMaxWidth())
+                Text(stringResource(R.string.text_point_size, memory.size.roundToInt()), style = MaterialTheme.typography.labelLarge)
+                Slider(value = memory.size, onValueChange = { memory.size = it }, valueRange = 6f..48f, steps = 20)
+                FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    for ((font, label) in TEXT_FONTS) {
+                        FilterChip(selected = memory.font == font, onClick = { memory.font = font }, label = { Text(stringResource(label)) })
+                    }
+                }
+                Row(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Text(stringResource(R.string.text_color), style = MaterialTheme.typography.labelLarge)
+                    TEXT_STAMP_COLORS.forEachIndexed { i, c ->
+                        Box(
+                            Modifier
+                                .size(if (memory.color == i) 34.dp else 28.dp)
+                                .clip(CircleShape)
+                                .background(c)
+                                .border(if (memory.color == i) 3.dp else 1.dp, MaterialTheme.colorScheme.primary, CircleShape)
+                                .clickable { memory.color = i },
+                        )
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(enabled = text.isNotBlank(), onClick = {
+                val c = TEXT_STAMP_COLORS[memory.color]
+                onAdd(text, TextLook(memory.size.toDouble(), memory.font, listOf(c.red.toDouble(), c.green.toDouble(), c.blue.toDouble())))
+            }) { Text(stringResource(R.string.add)) }
+        },
+        dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.cancel)) } },
+    )
 }

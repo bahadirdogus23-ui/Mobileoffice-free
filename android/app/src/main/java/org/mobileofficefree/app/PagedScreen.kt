@@ -610,22 +610,11 @@ fun PagedScreen(vm: PagedViewModel, state: PagedUiState, reading: ReadingSetting
     }
 
     notePlace?.let { (page, x, y) ->
-        var text by remember { mutableStateOf("") }
-        AlertDialog(
-            onDismissRequest = { notePlace = null },
-            title = { Text(stringResource(R.string.note)) },
-            text = {
-                OutlinedTextField(value = text, onValueChange = { text = it }, minLines = 3, modifier = Modifier.fillMaxWidth())
-            },
-            confirmButton = {
-                TextButton(enabled = text.isNotBlank(), onClick = {
-                    notePlace = null
-                    commitStrokes()
-                    pdf?.note(page, x, y, text)
-                }) { Text(stringResource(R.string.add)) }
-            },
-            dismissButton = { TextButton(onClick = { notePlace = null }) { Text(stringResource(R.string.cancel)) } },
-        )
+        TextStampDialog(onDismiss = { notePlace = null }) { text, look ->
+            notePlace = null
+            commitStrokes()
+            pdf?.addText(page, x, y, text, look)
+        }
     }
 
     if (showRedact && pdf != null) {

@@ -613,6 +613,36 @@ pub struct Pen {
     pub opacity: f64,
 }
 
+/// Typefaces for text typed on a PDF page (all draw the Turkish letters).
+#[derive(uniffi::Enum, Clone, Copy)]
+pub enum PdfTextFont {
+    Sans,
+    SansBold,
+    Serif,
+    SerifBold,
+    Mono,
+}
+
+impl From<PdfTextFont> for mo_pdf::TextFont {
+    fn from(f: PdfTextFont) -> Self {
+        match f {
+            PdfTextFont::Sans => mo_pdf::TextFont::Sans,
+            PdfTextFont::SansBold => mo_pdf::TextFont::SansBold,
+            PdfTextFont::Serif => mo_pdf::TextFont::Serif,
+            PdfTextFont::SerifBold => mo_pdf::TextFont::SerifBold,
+            PdfTextFont::Mono => mo_pdf::TextFont::Mono,
+        }
+    }
+}
+
+/// How typed text looks: `size` in points, `color` 0–1 RGB.
+#[derive(uniffi::Record)]
+pub struct TextLook {
+    pub size: f64,
+    pub font: PdfTextFont,
+    pub color: Vec<f64>,
+}
+
 /// Personal data that can be found to black out.
 #[derive(uniffi::Enum)]
 pub enum SensitiveKind {
@@ -801,6 +831,18 @@ impl PdfDocument {
     /// A sticky note holding `text` at (`x`, `y`), fractions of the displayed page.
     pub fn note(&self, page: u32, x: f64, y: f64, text: String) -> Result<(), MoError> {
         Ok(self.doc().note(page, [x, y], &text)?)
+    }
+
+    /// Text typed on `page`, its top-left corner at (`x`, `y`) (fractions of the displayed page).
+    pub fn add_text(&self, page: u32, x: f64, y: f64, text: String, look: TextLook) -> Result<(), MoError> {
+        let c = [0, 1, 2].map(|i| look.color.get(i).copied().unwrap_or(0.0).clamp(0.0, 1.0));
+        Ok(self.doc().add_text(page, [x, y], &text, look.size, look.font.into(), c)?)
+    }
+
+    /// Whether Android's renderer would leave out something on the pages (comments, signatures,
+    /// filled fields): the viewer then shows [`PdfDocument::display_copy`].
+    pub fn has_drawn_annotations(&self) -> bool {
+        self.doc().has_drawn_annotations()
     }
 
     /// Removes the last signature, drawing or note added; false when there is none.

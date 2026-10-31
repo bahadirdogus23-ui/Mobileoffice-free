@@ -20,6 +20,7 @@ import java.security.SecureRandom
 import org.mobileofficefree.engine.FormFieldKind
 import org.mobileofficefree.engine.MoException
 import org.mobileofficefree.engine.PdfDocument
+import org.mobileofficefree.engine.TextLook
 import org.mobileofficefree.engine.PdfFormField
 import org.mobileofficefree.engine.SensitiveKind
 
@@ -121,9 +122,9 @@ class PdfViewModel(app: Application) : PagedViewModel(app, DocumentKind.PDF) {
         }
     }
 
-    /** A sticky note with [text] at ([x], [y]), fractions of page [page]. */
-    fun note(page: Int, x: Float, y: Float, text: String) = edit {
-        it.note(page.toUInt(), x.toDouble(), y.toDouble(), text)
+    /** [text] typed on page [page], its top-left corner at ([x], [y]) (fractions of the page). */
+    fun addText(page: Int, x: Float, y: Float, text: String, look: TextLook) = edit {
+        it.addText(page.toUInt(), x.toDouble(), y.toDouble(), text, look)
         added++
     }
 
@@ -291,7 +292,8 @@ class PdfViewModel(app: Application) : PagedViewModel(app, DocumentKind.PDF) {
         val app = getApplication<Application>()
         val pfd = app.contentResolver.openFileDescriptor(uri, "r") ?: error("no data")
         return try {
-            openRenderer(pfd)
+            val sizes = openRenderer(pfd)
+            showingAnnotations(uri) ?: sizes
         } catch (_: SecurityException) {
             // Encrypted: the engine opens it (asking for the password) and gives a copy to show.
             val pass = password
@@ -306,6 +308,28 @@ class PdfViewModel(app: Application) : PagedViewModel(app, DocumentKind.PDF) {
             file.writeBytes(doc.displayCopy())
             openRenderer(ParcelFileDescriptor.open(file, ParcelFileDescriptor.MODE_READ_ONLY))
         }
+    }
+
+    /**
+     * Android's renderer draws no annotations (signatures, comments, filled form fields): when the
+     * file has some, the engine draws them into a copy that is shown instead. Very large files are
+     * shown as they are, to open quickly. Null when the file is shown as it is.
+     */
+    private fun showingAnnotations(uri: Uri): List<Pair<Float, Float>>? {
+        val app = getApplication<Application>()
+        val size = runCatching { app.contentResolver.openAssetFileDescriptor(uri, "r")?.use { it.length } }.getOrNull() ?: -1L
+        if (size !in 1..MAX_ANNOTATED_BYTES) return null
+        val bytes = app.contentResolver.openInputStream(uri)?.use { it.readBytes() } ?: return null
+        // Annotations live in /Annots arrays, written plainly or inside object streams.
+        if (!bytes.containsAscii("/Annots") && !bytes.containsAscii("/ObjStm")) return null
+        val doc = runCatching { PdfDocument.open(bytes, null) }.getOrNull() ?: return null
+        editor = doc
+        if (!doc.hasDrawnAnnotations()) return null
+        val dir = File(app.cacheDir, "pdf-edit").apply { mkdirs() }
+        val file = File(dir, "edit-${++editCount}.pdf")
+        file.writeBytes(doc.displayCopy())
+        closeRenderer()
+        return openRenderer(ParcelFileDescriptor.open(file, ParcelFileDescriptor.MODE_READ_ONLY))
     }
 
     private fun openRenderer(pfd: ParcelFileDescriptor): List<Pair<Float, Float>> {
@@ -444,3 +468,23 @@ private const val MAX_MATCHES = 2_000
 /** Pictures of pages: sharp enough to read and print, small enough to send. */
 private const val EXPORT_DPI = 150f
 private const val MAX_EXPORT_SIDE = 3_000
+
+/** Files up to this size are checked for annotations to show when opened. */
+private const val MAX_ANNOTATED_BYTES = 40L * 1024 * 1024
+
+/** Whether these bytes hold the ASCII text [word]. */
+internal fun ByteArray.containsAscii(word: String): Boolean {
+    val w = word.toByteArray(Charsets.US_ASCII)
+    if (w.isEmpty()) return true
+    var i = 0
+    val last = size - w.size
+    while (i <= last) {
+        if (this[i] == w[0]) {
+            var k = 1
+            while (k < w.size && this[i + k] == w[k]) k++
+            if (k == w.size) return true
+        }
+        i++
+    }
+    return false
+}

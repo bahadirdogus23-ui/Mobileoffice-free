@@ -180,7 +180,12 @@ fn add_turkish_font(doc: &mut Document) -> Result<(), PdfError> {
 
 /// Source Sans 3 Regular as a simple TrueType font in the Turkish text encoding.
 fn turkish_font(doc: &mut Document) -> Option<pdfcraft_cos::ObjRef> {
-    let data: &[u8] = wordcraft_fonts::bundled().first()?;
+    embedded_font(doc, wordcraft_fonts::bundled().first()?)
+}
+
+/// The TrueType font `data` embedded as a simple font in the Turkish text encoding: WinAnsi with
+/// Ğ ğ İ ı Ş ş at their Windows-1254 codes (see [`gridcraft_pdf::win_ansi`]).
+pub(crate) fn embedded_font(doc: &mut Document, data: &[u8]) -> Option<pdfcraft_cos::ObjRef> {
     let face = ttf_parser::Face::parse(data, 0).ok()?;
     let upem = f64::from(face.units_per_em().max(1));
     let em = |v: f64| (v * 1000.0 / upem).round() as i64;

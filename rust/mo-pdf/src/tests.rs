@@ -286,3 +286,26 @@ fn makes_a_pdf_from_pictures() {
     assert!(images_to_pdf(&[], true).is_err());
     assert!(images_to_pdf(&[("x.png".into(), b"not a picture".to_vec())], true).is_err());
 }
+
+#[test]
+fn shows_signatures_and_typed_text_to_a_renderer_that_draws_no_annotations() {
+    let mut doc = reopened(pdf(1, "Form"));
+    assert!(!doc.has_drawn_annotations());
+    doc.sign(0, &[vec![[0.2, 0.8], [0.4, 0.75], [0.6, 0.85]]]).unwrap();
+    doc.add_text(0, [0.1, 0.1], "Şişli Ağaç İğne\nıöüç", 18.0, TextFont::Serif, [0.8, 0.0, 0.0]).unwrap();
+    assert!(doc.has_drawn_annotations());
+
+    // The saved file keeps them as annotations; the copy shown has them in the page.
+    let saved = reopened(doc.save().unwrap());
+    assert!(saved.has_drawn_annotations());
+    let shown = reopened(doc.display_copy().unwrap());
+    assert!(!shown.has_drawn_annotations());
+    let mut shown = shown;
+    let text = shown.page_text(0).unwrap();
+    assert!(text.contains("Şişli Ağaç İğne"), "{text}");
+
+    // Undo takes the text away again.
+    assert!(doc.undo_annotation().unwrap());
+    let mut back = reopened(doc.display_copy().unwrap());
+    assert!(!back.page_text(0).unwrap().contains("Şişli"));
+}

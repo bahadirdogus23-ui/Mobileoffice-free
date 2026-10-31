@@ -11,9 +11,11 @@ use pdfcraft_organize as organize;
 
 mod create;
 mod form;
+mod stamp;
 mod text;
 pub use create::images_to_pdf;
 pub use form::{FieldKind, FormField};
+pub use stamp::TextFont;
 pub use text::{Sensitive, fold, turkish_id_ok};
 
 #[derive(Debug, thiserror::Error, PartialEq, Eq)]
@@ -159,6 +161,16 @@ impl PdfDoc {
         self.annotate(page, shape, style, text.to_string())
     }
 
+    /// Text typed on `page`, its top-left corner at `at` (a fraction of the displayed page), in
+    /// `size` points, `font` and `color` (0–1 RGB). Shown and printed as typed, Turkish letters too.
+    pub fn add_text(&mut self, page: u32, at: [f64; 2], text: &str, size: f64, font: TextFont, color: [f64; 3]) -> Result<(), PdfError> {
+        self.text = None;
+        let [x, y] = self.user_strokes(page, &[vec![at]])?[0][0];
+        let index = stamp::add_text(&mut self.doc, page as usize, [x, y], text, size, font, color)?;
+        self.added.push((page as usize, index));
+        Ok(())
+    }
+
     /// Removes the last signature, drawing or note added since the document was opened (or
     /// since pages were last moved or removed); false when there is none. What the file
     /// already had is never removed.
@@ -242,13 +254,40 @@ impl PdfDoc {
 
     /// The document without its password, for showing on screen (never written to the person's
     /// files): Android's renderer cannot open encrypted files.
+    ///
+    /// Android's renderer draws no annotations, so in this copy every comment, signature and form
+    /// field with an appearance is drawn into its page (page by page: a page that cannot be is
+    /// shown as it is).
     pub fn display_copy(&self) -> Result<Vec<u8>, PdfError> {
-        if !self.is_protected() && self.doc.security().is_none() {
+        if !self.is_protected() && self.doc.security().is_none() && !self.has_drawn_annotations() {
             return self.save();
         }
         let mut copy = self.doc.clone();
         copy.remove_encryption();
+        let pages = annot::page_refs(&copy).map(|p| p.len()).unwrap_or(0);
+        for page in 0..pages {
+            let before = copy.clone();
+            if pdfcraft_edit::flatten(&mut copy, &[page], true, true).is_err() {
+                copy = before;
+            }
+        }
         pdfcraft_cos::write_full(&copy, &SaveOptions::default()).map_err(|e| PdfError::Save(e.to_string()))
+    }
+
+    /// Whether Android's renderer would leave something out: an annotation other than a link or
+    /// a pop-up that has an appearance. The viewer then shows [`PdfDoc::display_copy`].
+    pub fn has_drawn_annotations(&self) -> bool {
+        let Ok(pages) = annot::page_refs(&self.doc) else { return false };
+        pages.iter().any(|p| {
+            let Some(list) = self.doc.get(*p).as_dict().and_then(|d| d.get(b"Annots").cloned()) else { return false };
+            let list = self.doc.resolve(&list);
+            list.as_array().is_some_and(|a| {
+                a.iter().any(|o| {
+                    let d = self.doc.resolve(o);
+                    d.as_dict().is_some_and(|d| d.get(b"AP").is_some() && !matches!(d.name(b"Subtype"), Some(b"Link" | b"Popup")))
+                })
+            })
+        })
     }
 
     /// A smaller copy: pictures resampled and recompressed (to 150 ppi, or 96 ppi `for_screen`),

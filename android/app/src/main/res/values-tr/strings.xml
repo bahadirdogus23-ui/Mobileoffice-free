@@ -176,10 +176,10 @@
     <string name="signature_saved">Kayıtlı imzalar</string>
     <string name="signature_keep">Bu imzayı bu telefonda sakla</string>
     <string name="form_fill">Formu doldur</string>
-    <string name="form_none">Bu PDF\'te doldurulacak alan yok.</string>
+    <string name="form_none">Bu PDF\'te doldurulabilir form alanı yok; kutular yalnızca çizim olabilir. İmzala ve yaz → Metin ile istediğiniz yere yazabilirsiniz.</string>
     <string name="form_page">Sayfa %1$d</string>
     <string name="apply">Uygula</string>
-    <string name="annotate">Çiz</string>
+    <string name="annotate">İmzala ve yaz</string>
     <string name="pen_black">Kalem</string>
     <string name="pen_red">Kırmızı</string>
     <string name="pen_blue">Mavi</string>
@@ -325,4 +325,14 @@
     <string name="tool_paste">Yapıştır</string>
     <string name="color_automatic">Otomatik</string>
     <string name="highlight_none">Vurgu yok</string>
+    <string name="pdf_text">Metin</string>
+    <string name="pdf_text_title">Metin ekle</string>
+    <string name="pdf_text_hint">Metnin başlayacağı yere dokunun</string>
+    <string name="font_sans">Düz</string>
+    <string name="font_sans_bold">Düz kalın</string>
+    <string name="font_serif">Tırnaklı</string>
+    <string name="font_serif_bold">Tırnaklı kalın</string>
+    <string name="font_mono">Daktilo</string>
+    <string name="text_color">Renk</string>
+    <string name="text_point_size">Boyut: %1$d pt</string>
 </resources>
