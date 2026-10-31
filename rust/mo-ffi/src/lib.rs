@@ -98,6 +98,21 @@ pub fn native_version() -> String {
     env!("CARGO_PKG_VERSION").to_string()
 }
 
+/// A file picked by the person: its name and bytes.
+#[derive(uniffi::Record)]
+pub struct NamedFile {
+    pub name: String,
+    pub bytes: Vec<u8>,
+}
+
+/// A new PDF of pictures, one per page, in order: on A4 pages (turned to fit each picture)
+/// when `fit_a4`, else each page the picture's own size.
+#[uniffi::export]
+pub fn images_to_pdf(images: Vec<NamedFile>, fit_a4: bool) -> Result<Vec<u8>, MoError> {
+    let images: Vec<(String, Vec<u8>)> = images.into_iter().map(|f| (f.name, f.bytes)).collect();
+    Ok(mo_pdf::images_to_pdf(&images, fit_a4)?)
+}
+
 /// A spreadsheet open in the GridCraft engine.
 #[derive(uniffi::Object)]
 pub struct SheetDocument {

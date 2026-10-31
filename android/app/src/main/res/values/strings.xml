@@ -215,4 +215,14 @@
     </plurals>
     <string name="redact_before_save">Some places are marked but not yet blacked out. Black them out first, or the text under them is saved.</string>
     <string name="redact_clear">Remove the marks</string>
+    <string name="images_to_pdf">Pictures to PDF</string>
+    <string name="images_a4">On A4 pages</string>
+    <string name="images_own_size">Each page the picture\'s size</string>
+    <string name="images_pdf_name">Pictures.pdf</string>
+    <string name="images_working">Making the PDF…</string>
+    <plurals name="images_picked">
+        <item quantity="one">%d picture, one page each</item>
+        <item quantity="other">%d pictures, one page each</item>
+    </plurals>
+    <string name="create">Oluştur</string>
 </resources>

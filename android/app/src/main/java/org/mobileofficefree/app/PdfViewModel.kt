@@ -359,6 +359,34 @@ class PdfViewModel(app: Application) : PagedViewModel(app, DocumentKind.PDF) {
 
     override val canReadAloud = true
 
+    override val exportFormats = PDF_EXPORT_FORMATS
+
+    override fun export(ext: String, name: String): ByteArray = when (ext) {
+        "txt" -> pageTexts().joinToString("\n\n").toByteArray(Charsets.UTF_8)
+        "zip" -> pagesAsJpegs(name.substringBeforeLast('.'))
+        else -> error("cannot convert")
+    }
+
+    /** Every page drawn at [EXPORT_DPI] as a JPEG, in a ZIP (one picture per page). */
+    private fun pagesAsJpegs(stem: String): ByteArray {
+        val sizes = state?.pages ?: error("no document")
+        val out = java.io.ByteArrayOutputStream()
+        java.util.zip.ZipOutputStream(out).use { zip ->
+            sizes.forEachIndexed { i, (w, _) ->
+                val px = (w * EXPORT_DPI / 72f).toInt().coerceIn(16, MAX_EXPORT_SIDE)
+                val bmp = renderPage(i, px, false) ?: return@forEachIndexed
+                try {
+                    zip.putNextEntry(java.util.zip.ZipEntry("%s-%03d.jpg".format(java.util.Locale.ROOT, stem, i + 1)))
+                    bmp.compress(Bitmap.CompressFormat.JPEG, 88, zip)
+                    zip.closeEntry()
+                } finally {
+                    bmp.recycle()
+                }
+            }
+        }
+        return out.toByteArray()
+    }
+
     override fun pageTexts(): List<String> {
         val doc = editor()
         return (0u until doc.pageCount()).map { runCatching { doc.pageText(it) }.getOrDefault("") }
@@ -412,3 +440,6 @@ class PdfViewModel(app: Application) : PagedViewModel(app, DocumentKind.PDF) {
 }
 
 private const val MAX_MATCHES = 2_000
+/** Pictures of pages: sharp enough to read and print, small enough to send. */
+private const val EXPORT_DPI = 150f
+private const val MAX_EXPORT_SIDE = 3_000

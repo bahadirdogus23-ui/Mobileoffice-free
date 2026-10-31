@@ -9,8 +9,10 @@ use pdfcraft_annot as annot;
 use pdfcraft_cos::{CosError, Document, SaveOptions};
 use pdfcraft_organize as organize;
 
+mod create;
 mod form;
 mod text;
+pub use create::images_to_pdf;
 pub use form::{FieldKind, FormField};
 pub use text::{Sensitive, fold, turkish_id_ok};
 

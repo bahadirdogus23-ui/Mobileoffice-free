@@ -3,7 +3,9 @@ import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
 import org.mobileofficefree.engine.MoException
 import org.mobileofficefree.engine.PdfDocument
+import org.mobileofficefree.engine.NamedFile
 import org.mobileofficefree.engine.Pen
+import org.mobileofficefree.engine.imagesToPdf
 import org.mobileofficefree.engine.SensitiveKind
 import org.mobileofficefree.engine.SheetDocument
 
@@ -89,5 +91,14 @@ class PdfDocumentTest {
             assertEquals(1u, doc.applyRedactions())
             PdfDocument.open(doc.save(), null).use { assertEquals(false, it.pageText(0u).contains("TR33")) }
         }
+    }
+
+    @Test
+    fun picturesBecomeAPdf() {
+        // A 1×1 PNG.
+        val png = java.util.Base64.getDecoder().decode("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAIAAACQd1PeAAAADElEQVR4nGP4z8AAAAMBAQDJ/pLvAAAAAElFTkSuQmCC")
+        val pdf = imagesToPdf(listOf(NamedFile("a.png", png), NamedFile("b.png", png)), true)
+        PdfDocument.open(pdf, null).use { assertEquals(2u, it.pageCount()) }
+        assertFailsWith<MoException.Command> { imagesToPdf(emptyList(), true) }
     }
 }

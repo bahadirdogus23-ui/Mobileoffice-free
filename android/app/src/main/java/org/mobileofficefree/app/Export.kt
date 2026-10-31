@@ -10,6 +10,12 @@ data class ExportFormat(val ext: String, val mime: String, val label: String)
 
 val PDF_FORMAT = ExportFormat("pdf", "application/pdf", "PDF")
 
+/** What a PDF can become: its text, or a picture of each page. */
+val PDF_EXPORT_FORMATS = listOf(
+    ExportFormat("txt", "text/plain", "TXT"),
+    ExportFormat("zip", "application/zip", "JPEG (ZIP)"),
+)
+
 /** Word documents can become any of these; WordCraft writes them all. */
 val WORD_FORMATS = listOf(
     PDF_FORMAT,

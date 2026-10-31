@@ -258,3 +258,31 @@ fn blacks_out_personal_data_for_good() {
     assert!(text.contains("Yılmaz") && text.contains("İSTANBUL"), "{text:?}");
     assert_eq!(saved.redaction_marks(), 0);
 }
+
+/// A small RGB PNG, `w` × `h`.
+fn png(w: u32, h: u32) -> Vec<u8> {
+    let mut out = Vec::new();
+    let mut e = png::Encoder::new(&mut out, w, h);
+    e.set_color(png::ColorType::Rgb);
+    e.set_depth(png::BitDepth::Eight);
+    let mut wr = e.write_header().unwrap();
+    wr.write_image_data(&vec![200u8; (w * h * 3) as usize]).unwrap();
+    wr.finish().unwrap();
+    out
+}
+
+#[test]
+fn makes_a_pdf_from_pictures() {
+    let pics = vec![("dikey.png".to_string(), png(300, 400)), ("yatay.png".to_string(), png(800, 200))];
+    let own = reopened(images_to_pdf(&pics, false).unwrap());
+    assert_eq!(own.page_count().unwrap(), 2);
+    let a4 = reopened(images_to_pdf(&pics, true).unwrap());
+    let boxes = organize::page_boxes(&a4.doc).unwrap();
+    let size = |b: [f64; 4]| ((b[2] - b[0]).round(), (b[3] - b[1]).round());
+    assert_eq!(size(boxes[0][0]), (595.0, 842.0));
+    assert_eq!(size(boxes[1][0]), (842.0, 595.0), "a wide picture gets a landscape page");
+    let info = a4.doc.trailer().get(b"Info").map(|i| a4.doc.resolve(i)).and_then(|i| i.as_dict().and_then(|d| d.get(b"Producer").cloned()));
+    assert_eq!(info.and_then(|p| p.as_string().map(|s| s.to_text())), Some("Mobile Office Free".to_string()));
+    assert!(images_to_pdf(&[], true).is_err());
+    assert!(images_to_pdf(&[("x.png".into(), b"not a picture".to_vec())], true).is_err());
+}

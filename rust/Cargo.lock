@@ -1926,12 +1926,14 @@ dependencies = [
  "miniz_oxide 0.8.9",
  "pdfcraft-annot",
  "pdfcraft-cos",
+ "pdfcraft-create",
  "pdfcraft-fonts",
  "pdfcraft-forms",
  "pdfcraft-optimize",
  "pdfcraft-organize",
  "pdfcraft-redact",
  "pdfcraft-render",
+ "png",
  "thiserror",
  "ttf-parser",
  "wordcraft-fonts",
@@ -2062,6 +2064,22 @@ dependencies = [
  "pdfcraft-crypt",
  "pdfcraft-filters",
  "thiserror",
+]
+
+[[package]]
+name = "pdfcraft-create"
+version = "0.14.0"
+source = "git+https://github.com/storytold/pdfcraft?rev=20eebc1c33ff7e6f42ac1c56bf95192f628a9d97#20eebc1c33ff7e6f42ac1c56bf95192f628a9d97"
+dependencies = [
+ "encoding_rs",
+ "image",
+ "pdfcraft-cos",
+ "pdfcraft-fonts",
+ "pdfcraft-model",
+ "png",
+ "thiserror",
+ "tiff",
+ "zune-jpeg",
 ]
 
 [[package]]
@@ -3048,7 +3066,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "32497e9a4c7b38532efcdebeef879707aa9f794296a4f0244f6f69e9bc8574bd"
 dependencies = [
  "fastrand",
- "getrandom 0.4.3",
+ "getrandom 0.3.4",
  "once_cell",
  "rustix",
  "windows-sys",

@@ -214,4 +214,14 @@
     </plurals>
     <string name="redact_before_save">İşaretli yerler henüz karartılmadı. Önce karartın; yoksa altlarındaki yazı da kaydedilir.</string>
     <string name="redact_clear">İşaretleri kaldır</string>
+    <string name="images_to_pdf">Resimden PDF</string>
+    <string name="images_a4">A4 sayfalara</string>
+    <string name="images_own_size">Her sayfa resim boyutunda</string>
+    <string name="images_pdf_name">Resimler.pdf</string>
+    <string name="images_working">PDF hazırlanıyor…</string>
+    <plurals name="images_picked">
+        <item quantity="one">%d resim, her biri bir sayfa</item>
+        <item quantity="other">%d resim, her biri bir sayfa</item>
+    </plurals>
+    <string name="create">Oluştur</string>
 </resources>

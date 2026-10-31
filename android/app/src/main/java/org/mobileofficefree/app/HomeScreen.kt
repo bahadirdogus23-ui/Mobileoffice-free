@@ -161,6 +161,7 @@ fun HomeScreen(onOpen: (Uri) -> Unit, onNewSheet: () -> Unit, onDiagnostics: () 
     val pick = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
         if (uri != null) onOpen(uri)
     }
+    val imagesToPdf = rememberImagesToPdf(onOpen)
     val askLegacy = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
         access = granted
     }
@@ -233,6 +234,7 @@ fun HomeScreen(onOpen: (Uri) -> Unit, onNewSheet: () -> Unit, onDiagnostics: () 
                     fontWeight = FontWeight.SemiBold,
                     modifier = Modifier.weight(1f),
                 )
+                TextButton(onClick = imagesToPdf) { Text(stringResource(R.string.images_to_pdf)) }
                 TextButton(onClick = onDiagnostics) { Text(stringResource(R.string.diagnostics)) }
             }
             Text(

@@ -29,6 +29,7 @@ cadcraft-color = { git = "https://github.com/storytold/cadcraft", rev = "5654240
 pdfcraft-cos = { git = "https://github.com/storytold/pdfcraft", rev = "20eebc1c33ff7e6f42ac1c56bf95192f628a9d97" }
 pdfcraft-annot = { git = "https://github.com/storytold/pdfcraft", rev = "20eebc1c33ff7e6f42ac1c56bf95192f628a9d97" }
 pdfcraft-fonts = { git = "https://github.com/storytold/pdfcraft", rev = "20eebc1c33ff7e6f42ac1c56bf95192f628a9d97" }
+pdfcraft-create = { git = "https://github.com/storytold/pdfcraft", rev = "20eebc1c33ff7e6f42ac1c56bf95192f628a9d97" }
 pdfcraft-forms = { git = "https://github.com/storytold/pdfcraft", rev = "20eebc1c33ff7e6f42ac1c56bf95192f628a9d97" }
 pdfcraft-redact = { git = "https://github.com/storytold/pdfcraft", rev = "20eebc1c33ff7e6f42ac1c56bf95192f628a9d97" }
 pdfcraft-render = { git = "https://github.com/storytold/pdfcraft", rev = "20eebc1c33ff7e6f42ac1c56bf95192f628a9d97" }
