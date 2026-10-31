@@ -42,6 +42,9 @@ pub struct Sizes {
     pub row_heights: Vec<f32>,
     pub default_col: f32,
     pub default_row: f32,
+    /// Rows at the top and columns at the left that stay in view while scrolling.
+    pub frozen_rows: u32,
+    pub frozen_cols: u32,
 }
 
 /// How a cell looks in the grid. Colours are 0xAARRGGBB; 0 means the default (black text, no
@@ -152,6 +155,8 @@ impl GridDoc {
             row_heights: (0..rows).map(|r| sh.row_height(r)).collect(),
             default_col: sh.default_col_width,
             default_row: sh.default_row_height,
+            frozen_rows: sh.freeze.map_or(0, |(r, _)| r),
+            frozen_cols: sh.freeze.map_or(0, |(_, c)| c),
         })
     }
 

@@ -48,6 +48,9 @@ data class SheetUiState(
     /** Column widths and row heights (points) as the file has them. */
     val columns: GridAxis = GridAxis(FloatArray(0), 48f),
     val rows: GridAxis = GridAxis(FloatArray(0), 15f),
+    /** Rows at the top and columns at the left that stay in view (Excel's frozen panes). */
+    val frozenRows: Int = 0,
+    val frozenCols: Int = 0,
 )
 
 sealed interface Screen {
@@ -295,6 +298,9 @@ class SheetViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
+    /** Freezes the top row, the first column, or neither ([id]: view.freezeTopRow, view.freezeFirstColumn, view.unfreezePanes). */
+    fun freeze(id: String) = edit { d -> d.execute(id, "{}") }
+
     fun undo() = edit { d -> d.execute("edit.undo", "{}") }
 
     fun redo() = edit { d -> d.execute("edit.redo", "{}") }
@@ -455,6 +461,8 @@ class SheetViewModel(app: Application) : AndroidViewModel(app) {
             editText = d.editText(sheet.toUInt(), row.toUInt(), col.toUInt()),
             columns = GridAxis(sizes.colWidths.toFloatArray(), sizes.defaultCol),
             rows = GridAxis(sizes.rowHeights.toFloatArray(), sizes.defaultRow),
+            frozenRows = sizes.frozenRows.toInt(),
+            frozenCols = sizes.frozenCols.toInt(),
         )
     }
 

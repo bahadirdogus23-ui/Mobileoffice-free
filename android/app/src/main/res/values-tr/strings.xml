@@ -299,4 +299,7 @@
     <string name="reflow_hint">Metin ekran genişliğine akar, seçtiğiniz boyutta okunur; yakınlaştırma gerekmez.</string>
     <string name="reflow_no_text">Bu belgede gösterilecek metin yok (taranmış bir belge olabilir).</string>
     <string name="pages_view">Sayfalar</string>
+    <string name="freeze_top_row">Üst satırı dondur</string>
+    <string name="freeze_first_col">İlk sütunu dondur</string>
+    <string name="unfreeze">Dondurmayı kaldır</string>
 </resources>

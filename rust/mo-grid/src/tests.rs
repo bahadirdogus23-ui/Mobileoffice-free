@@ -148,4 +148,7 @@ fn reports_column_widths_and_row_heights() {
     assert!(s.col_widths[1] != s.default_col, "{s:?}");
     assert_eq!(s.row_heights, vec![s.default_row; 2]);
     assert!(s.default_col > 20.0 && s.default_row > 10.0, "{s:?}");
+    assert_eq!((s.frozen_rows, s.frozen_cols), (0, 0));
+    doc.execute("view.freezeTopRow", "{}").unwrap();
+    assert_eq!(doc.sizes(0, 1, 1).unwrap().frozen_rows, 1);
 }

@@ -300,4 +300,7 @@
     <string name="reflow_hint">The text flows to the screen\'s width, at the size you choose; no zooming.</string>
     <string name="reflow_no_text">This document has no text to show (a scan, perhaps).</string>
     <string name="pages_view">Pages</string>
+    <string name="freeze_top_row">Freeze top row</string>
+    <string name="freeze_first_col">Freeze first column</string>
+    <string name="unfreeze">Unfreeze</string>
 </resources>

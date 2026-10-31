@@ -118,6 +118,8 @@ internal fun SheetScreen(vm: SheetViewModel, state: SheetUiState) {
             cellLook = vm::cellLook,
             columnAxis = state.columns,
             rowAxis = state.rows,
+            frozenRows = state.frozenRows,
+            frozenCols = state.frozenCols,
             onSelect = vm::selectCell,
             modifier = Modifier.weight(1f),
         )
@@ -134,6 +136,16 @@ internal fun SheetScreen(vm: SheetViewModel, state: SheetUiState) {
                         sheetMenu = false
                         vm.addSheet()
                     })
+                    for ((label, id) in listOf(
+                        R.string.freeze_top_row to "view.freezeTopRow",
+                        R.string.freeze_first_col to "view.freezeFirstColumn",
+                        R.string.unfreeze to "view.unfreezePanes",
+                    )) {
+                        DropdownMenuItem(text = { Text(stringResource(label)) }, onClick = {
+                            sheetMenu = false
+                            vm.freeze(id)
+                        })
+                    }
                     DropdownMenuItem(text = { Text(stringResource(R.string.sheet_rename)) }, onClick = {
                         sheetMenu = false
                         renaming = state.sheetNames.getOrElse(state.sheet) { "" }

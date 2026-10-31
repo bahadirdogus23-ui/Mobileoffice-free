@@ -16,6 +16,7 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.drawscope.clipRect
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.TextStyle
@@ -54,6 +55,8 @@ fun SheetGrid(
     rowAxis: GridAxis,
     onSelect: (row: Int, col: Int) -> Unit,
     modifier: Modifier = Modifier,
+    frozenRows: Int = 0,
+    frozenCols: Int = 0,
 ) {
     val density = LocalDensity.current
     // Pixels per point at zoom 1: the file's sizes, a little larger than on paper for fingers.
@@ -65,17 +68,20 @@ fun SheetGrid(
     val select by rememberUpdatedState(onSelect)
 
     var scale by remember(sheet) { mutableFloatStateOf(1f) }
+    // How far the unfrozen part has scrolled, in pixels.
     var offsetX by remember(sheet) { mutableFloatStateOf(0f) }
     var offsetY by remember(sheet) { mutableFloatStateOf(0f) }
 
     // Room to scroll a little past the data, as spreadsheets do.
     val rows = min(MAX_ROWS, max(usedRows + 50, 100))
     val cols = min(MAX_COLS, max(usedCols + 10, 26))
+    val fr = frozenRows.coerceIn(0, rows - 1)
+    val fc = frozenCols.coerceIn(0, cols - 1)
 
     Canvas(
         modifier
             .fillMaxSize()
-            .pointerInput(sheet, rows, cols, columnAxis, rowAxis) {
+            .pointerInput(sheet, rows, cols, columnAxis, rowAxis, fr, fc) {
                 detectTransformGestures { centroid, pan, zoom, _ ->
                     val newScale = (scale * zoom).coerceIn(0.4f, 3f)
                     // Keep the content under the fingers still while zooming.
@@ -85,130 +91,168 @@ fun SheetGrid(
                     offsetX = (offsetX + gx) * f - gx - pan.x
                     offsetY = (offsetY + gy) * f - gy - pan.y
                     scale = newScale
-                    offsetX = offsetX.coerceIn(0f, max(0f, columnAxis.start(cols) * unit * scale - (size.width - rowHeader)))
-                    offsetY = offsetY.coerceIn(0f, max(0f, rowAxis.start(rows) * unit * scale - (size.height - colHeader)))
+                    val k = unit * scale
+                    val frozenW = columnAxis.start(fc) * k
+                    val frozenH = rowAxis.start(fr) * k
+                    offsetX = offsetX.coerceIn(0f, max(0f, (columnAxis.start(cols) - columnAxis.start(fc)) * k - (size.width - rowHeader - frozenW)))
+                    offsetY = offsetY.coerceIn(0f, max(0f, (rowAxis.start(rows) - rowAxis.start(fr)) * k - (size.height - colHeader - frozenH)))
                 }
             }
-            .pointerInput(sheet, columnAxis, rowAxis) {
+            .pointerInput(sheet, columnAxis, rowAxis, fr, fc) {
                 detectTapGestures { p ->
                     if (p.x > rowHeader && p.y > colHeader) {
-                        val c = columnAxis.at((p.x - rowHeader + offsetX) / (unit * scale))
-                        val r = rowAxis.at((p.y - colHeader + offsetY) / (unit * scale))
+                        val k = unit * scale
+                        val gx = p.x - rowHeader
+                        val gy = p.y - colHeader
+                        val frozenW = columnAxis.start(fc) * k
+                        val frozenH = rowAxis.start(fr) * k
+                        val c = if (gx < frozenW) columnAxis.at(gx / k) else columnAxis.at(columnAxis.start(fc) + (gx - frozenW + offsetX) / k)
+                        val r = if (gy < frozenH) rowAxis.at(gy / k) else rowAxis.at(rowAxis.start(fr) + (gy - frozenH + offsetY) / k)
                         select(r.coerceAtMost(MAX_ROWS - 1), c.coerceAtMost(MAX_COLS - 1))
                     }
                 }
             },
     ) {
         val k = unit * scale
-        val firstCol = columnAxis.at(offsetX / k)
-        val firstRow = rowAxis.at(offsetY / k)
-        val lastCol = min(cols - 1, columnAxis.at((offsetX + size.width - rowHeader) / k))
-        val lastRow = min(rows - 1, rowAxis.at((offsetY + size.height - colHeader) / k))
+        val frozenW = columnAxis.start(fc) * k
+        val frozenH = rowAxis.start(fr) * k
+        // Where a column or row starts on screen: frozen ones stay put, the others scroll.
+        fun xOf(c: Int) = if (c < fc) rowHeader + columnAxis.start(c) * k else rowHeader + frozenW + (columnAxis.start(c) - columnAxis.start(fc)) * k - offsetX
+        fun yOf(r: Int) = if (r < fr) colHeader + rowAxis.start(r) * k else colHeader + frozenH + (rowAxis.start(r) - rowAxis.start(fr)) * k - offsetY
+        val firstCol = max(fc, columnAxis.at(columnAxis.start(fc) + offsetX / k))
+        val firstRow = max(fr, rowAxis.at(rowAxis.start(fr) + offsetY / k))
+        val lastCol = min(cols - 1, columnAxis.at(columnAxis.start(fc) + (offsetX + size.width - rowHeader - frozenW) / k))
+        val lastRow = min(rows - 1, rowAxis.at(rowAxis.start(fr) + (offsetY + size.height - colHeader - frozenH) / k))
+        val scrollCols = (firstCol..lastCol).toList()
+        val scrollRows = (firstRow..lastRow).toList()
+        val frozenColList = (0 until fc).toList()
+        val frozenRowList = (0 until fr).toList()
         val cellStyle = TextStyle(fontSize = (14 * scale).sp, color = colors.onSurface)
         val headerStyle = TextStyle(fontSize = 12.sp, color = colors.onSurfaceVariant)
         val pad = 4.dp.toPx() * scale
 
         drawRect(colors.surface)
 
-        // Fills and row lines first, then column lines, then the texts on top (a long text may
-        // run over the empty cells to its right, as in Excel, and must not be cut by their lines).
-        for (r in firstRow..lastRow) {
-            val rh = rowAxis.size(r) * k
-            if (rh <= 0f) continue // a hidden row
-            val y = colHeader + rowAxis.start(r) * k - offsetY
-            drawLine(colors.outlineVariant, Offset(rowHeader, y + rh), Offset(size.width, y + rh), 1f)
-            for (c in firstCol..lastCol) {
-                val cw = columnAxis.size(c) * k
-                if (cw <= 0f) continue // a hidden column
-                val look = cellLook(sheet, r, c) ?: continue
-                if (look.fill != 0u) {
-                    val x = rowHeader + columnAxis.start(c) * k - offsetX
-                    drawRect(Color(look.fill.toInt()), Offset(x + 0.5f, y + 0.5f), Size(cw - 1f, rh - 1f))
-                }
-            }
-        }
-        for (c in firstCol..lastCol) {
-            val cw = columnAxis.size(c) * k
-            if (cw <= 0f) continue
-            val x = rowHeader + columnAxis.start(c) * k - offsetX
-            drawLine(colors.outlineVariant, Offset(x + cw, colHeader), Offset(x + cw, size.height), 1f)
-        }
-        for (r in firstRow..lastRow) {
-            val rh = rowAxis.size(r) * k
-            if (rh <= 0f) continue
-            val y = colHeader + rowAxis.start(r) * k - offsetY
-            for (c in firstCol..lastCol) {
-                val cw = columnAxis.size(c) * k
-                if (cw <= 0f) continue
-                val text = cellText(sheet, r, c)
-                if (text.isNullOrEmpty()) continue
-                val look = cellLook(sheet, r, c)
-                val x = rowHeader + columnAxis.start(c) * k - offsetX
-                val style = if (look == null) cellStyle else cellStyle.copy(
-                    fontWeight = if (look.bold) FontWeight.Bold else null,
-                    fontStyle = if (look.italic) FontStyle.Italic else null,
-                    textDecoration = if (look.underline) TextDecoration.Underline else null,
-                    // Text keeps its own colour; on a filled cell the default is black, as on paper.
-                    color = when {
-                        look.color != 0u -> Color(look.color.toInt())
-                        look.fill != 0u -> Color.Black
-                        else -> cellStyle.color
-                    },
-                )
-                val numeric = text.first().isDigit() || text.first() == '-' || text.first() == '₺'
-                val align = look?.align?.toInt() ?: 0
-                val leftAligned = align == 1 || (align == 0 && !numeric)
-                // Room to the right: the cell, and the empty cells after it for left-aligned text.
-                var room = cw
-                if (leftAligned) {
-                    var n = c + 1
-                    while (n <= lastCol && cellText(sheet, r, n) == "") {
-                        room += columnAxis.size(n) * k
-                        n++
+        /** Fills, lines, then texts (a long text may run over the empty cells to its right). */
+        fun cells(rowList: List<Int>, colList: List<Int>, left: Float, top: Float, right: Float, bottom: Float) {
+            if (rowList.isEmpty() || colList.isEmpty() || right <= left || bottom <= top) return
+            clipRect(left, top, right, bottom) {
+                for (r in rowList) {
+                    val rh = rowAxis.size(r) * k
+                    if (rh <= 0f) continue // a hidden row
+                    val y = yOf(r)
+                    drawLine(colors.outlineVariant, Offset(left, y + rh), Offset(right, y + rh), 1f)
+                    for (c in colList) {
+                        val cw = columnAxis.size(c) * k
+                        if (cw <= 0f) continue // a hidden column
+                        val look = cellLook(sheet, r, c) ?: continue
+                        if (look.fill != 0u) drawRect(Color(look.fill.toInt()), Offset(xOf(c) + 0.5f, y + 0.5f), Size(cw - 1f, rh - 1f))
                     }
                 }
-                val layout = measurer.measure(
-                    text,
-                    style,
-                    overflow = TextOverflow.Clip,
-                    softWrap = false,
-                    maxLines = 1,
-                    constraints = Constraints(maxWidth = max(1, (room - 2 * pad).toInt())),
-                )
-                val tx = when {
-                    align == 2 -> x + (cw - layout.size.width) / 2
-                    align == 3 || (align == 0 && numeric) -> x + cw - pad - layout.size.width
-                    else -> x + pad
+                for (c in colList) {
+                    val cw = columnAxis.size(c) * k
+                    if (cw <= 0f) continue
+                    val x = xOf(c)
+                    drawLine(colors.outlineVariant, Offset(x + cw, top), Offset(x + cw, bottom), 1f)
                 }
-                drawText(layout, topLeft = Offset(tx, y + (rh - layout.size.height) / 2))
+                for (r in rowList) {
+                    val rh = rowAxis.size(r) * k
+                    if (rh <= 0f) continue
+                    val y = yOf(r)
+                    for ((i, c) in colList.withIndex()) {
+                        val cw = columnAxis.size(c) * k
+                        if (cw <= 0f) continue
+                        val text = cellText(sheet, r, c)
+                        if (text.isNullOrEmpty()) continue
+                        val look = cellLook(sheet, r, c)
+                        val x = xOf(c)
+                        val style = if (look == null) cellStyle else cellStyle.copy(
+                            fontWeight = if (look.bold) FontWeight.Bold else null,
+                            fontStyle = if (look.italic) FontStyle.Italic else null,
+                            textDecoration = if (look.underline) TextDecoration.Underline else null,
+                            // Text keeps its own colour; on a filled cell the default is black, as on paper.
+                            color = when {
+                                look.color != 0u -> Color(look.color.toInt())
+                                look.fill != 0u -> Color.Black
+                                else -> cellStyle.color
+                            },
+                        )
+                        val numeric = text.first().isDigit() || text.first() == '-' || text.first() == '₺'
+                        val align = look?.align?.toInt() ?: 0
+                        // Room to the right: the cell, and the empty cells after it for left-aligned text.
+                        var room = cw
+                        if (align == 1 || (align == 0 && !numeric)) {
+                            var n = i + 1
+                            while (n < colList.size && cellText(sheet, r, colList[n]) == "") {
+                                room += columnAxis.size(colList[n]) * k
+                                n++
+                            }
+                        }
+                        val layout = measurer.measure(
+                            text,
+                            style,
+                            overflow = TextOverflow.Clip,
+                            softWrap = false,
+                            maxLines = 1,
+                            constraints = Constraints(maxWidth = max(1, (room - 2 * pad).toInt())),
+                        )
+                        val tx = when {
+                            align == 2 -> x + (cw - layout.size.width) / 2
+                            align == 3 || (align == 0 && numeric) -> x + cw - pad - layout.size.width
+                            else -> x + pad
+                        }
+                        drawText(layout, topLeft = Offset(tx, y + (rh - layout.size.height) / 2))
+                    }
+                }
             }
         }
 
-        // Selection.
-        val sx = rowHeader + columnAxis.start(selectedCol) * k - offsetX
-        val sy = colHeader + rowAxis.start(selectedRow) * k - offsetY
-        drawRect(colors.primary, Offset(sx, sy), Size(columnAxis.size(selectedCol) * k, rowAxis.size(selectedRow) * k), style = Stroke(2.dp.toPx()))
+        val bodyLeft = rowHeader + frozenW
+        val bodyTop = colHeader + frozenH
+        cells(scrollRows, scrollCols, bodyLeft, bodyTop, size.width, size.height)
+        cells(frozenRowList, scrollCols, bodyLeft, colHeader, size.width, bodyTop)
+        cells(scrollRows, frozenColList, rowHeader, bodyTop, bodyLeft, size.height)
+        cells(frozenRowList, frozenColList, rowHeader, colHeader, bodyLeft, bodyTop)
+        // The edges of frozen panes, as Excel marks them.
+        if (fr > 0) drawLine(colors.outline, Offset(rowHeader, bodyTop), Offset(size.width, bodyTop), 2.dp.toPx())
+        if (fc > 0) drawLine(colors.outline, Offset(bodyLeft, colHeader), Offset(bodyLeft, size.height), 2.dp.toPx())
 
-        // Frozen headers: column letters and row numbers.
+        // Selection.
+        val selVisible = (selectedCol < fc || selectedCol >= firstCol) && (selectedRow < fr || selectedRow >= firstRow)
+        if (selVisible) {
+            val sx = xOf(selectedCol)
+            val sy = yOf(selectedRow)
+            clipRect(if (selectedCol < fc) rowHeader else bodyLeft, if (selectedRow < fr) colHeader else bodyTop, size.width, size.height) {
+                drawRect(colors.primary, Offset(sx, sy), Size(columnAxis.size(selectedCol) * k, rowAxis.size(selectedRow) * k), style = Stroke(2.dp.toPx()))
+            }
+        }
+
+        // Headers: column letters and row numbers.
         drawRect(colors.surfaceVariant, Offset.Zero, Size(size.width, colHeader))
         drawRect(colors.surfaceVariant, Offset.Zero, Size(rowHeader, size.height))
-        for (c in firstCol..lastCol) {
+        for (c in frozenColList + scrollCols) {
             val cw = columnAxis.size(c) * k
             if (cw <= 0f) continue
-            val x = rowHeader + columnAxis.start(c) * k - offsetX
-            if (c == selectedCol) drawRect(colors.secondaryContainer, Offset(x, 0f), Size(cw, colHeader))
-            val l = measurer.measure(columnName(c), headerStyle)
-            drawText(l, topLeft = Offset(x + (cw - l.size.width) / 2, (colHeader - l.size.height) / 2))
-            drawLine(colors.outline, Offset(x + cw, 0f), Offset(x + cw, colHeader), 1f)
+            val x = xOf(c)
+            if (c >= fc && x + cw < bodyLeft) continue
+            clipRect(if (c < fc) rowHeader else bodyLeft, 0f, size.width, colHeader) {
+                if (c == selectedCol) drawRect(colors.secondaryContainer, Offset(x, 0f), Size(cw, colHeader))
+                val l = measurer.measure(columnName(c), headerStyle)
+                drawText(l, topLeft = Offset(x + (cw - l.size.width) / 2, (colHeader - l.size.height) / 2))
+                drawLine(colors.outline, Offset(x + cw, 0f), Offset(x + cw, colHeader), 1f)
+            }
         }
-        for (r in firstRow..lastRow) {
+        for (r in frozenRowList + scrollRows) {
             val rh = rowAxis.size(r) * k
             if (rh <= 0f) continue
-            val y = colHeader + rowAxis.start(r) * k - offsetY
-            if (r == selectedRow) drawRect(colors.secondaryContainer, Offset(0f, y), Size(rowHeader, rh))
-            val l = measurer.measure((r + 1).toString(), headerStyle)
-            drawText(l, topLeft = Offset((rowHeader - l.size.width) / 2, y + (rh - l.size.height) / 2))
-            drawLine(colors.outline, Offset(0f, y + rh), Offset(rowHeader, y + rh), 1f)
+            val y = yOf(r)
+            if (r >= fr && y + rh < bodyTop) continue
+            clipRect(0f, if (r < fr) colHeader else bodyTop, rowHeader, size.height) {
+                if (r == selectedRow) drawRect(colors.secondaryContainer, Offset(0f, y), Size(rowHeader, rh))
+                val l = measurer.measure((r + 1).toString(), headerStyle)
+                drawText(l, topLeft = Offset((rowHeader - l.size.width) / 2, y + (rh - l.size.height) / 2))
+                drawLine(colors.outline, Offset(0f, y + rh), Offset(rowHeader, y + rh), 1f)
+            }
         }
         drawRect(colors.surfaceVariant, Offset.Zero, Size(rowHeader, colHeader))
     }
