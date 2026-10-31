@@ -110,7 +110,8 @@ fun SheetGrid(
 
         drawRect(colors.surface)
 
-        // Cells and grid lines.
+        // Fills and row lines first, then column lines, then the texts on top (a long text may
+        // run over the empty cells to its right, as in Excel, and must not be cut by their lines).
         for (r in firstRow..lastRow) {
             val rh = rowAxis.size(r) * k
             if (rh <= 0f) continue // a hidden row
@@ -119,50 +120,68 @@ fun SheetGrid(
             for (c in firstCol..lastCol) {
                 val cw = columnAxis.size(c) * k
                 if (cw <= 0f) continue // a hidden column
-                val x = rowHeader + columnAxis.start(c) * k - offsetX
-                val look = cellLook(sheet, r, c)
-                if (look != null && look.fill != 0u) {
+                val look = cellLook(sheet, r, c) ?: continue
+                if (look.fill != 0u) {
+                    val x = rowHeader + columnAxis.start(c) * k - offsetX
                     drawRect(Color(look.fill.toInt()), Offset(x + 0.5f, y + 0.5f), Size(cw - 1f, rh - 1f))
-                }
-                val text = cellText(sheet, r, c)
-                if (!text.isNullOrEmpty()) {
-                    val style = if (look == null) cellStyle else cellStyle.copy(
-                        fontWeight = if (look.bold) FontWeight.Bold else null,
-                        fontStyle = if (look.italic) FontStyle.Italic else null,
-                        textDecoration = if (look.underline) TextDecoration.Underline else null,
-                        // Text keeps its own colour; on a filled cell the default is black, as on paper.
-                        color = when {
-                            look.color != 0u -> Color(look.color.toInt())
-                            look.fill != 0u -> Color.Black
-                            else -> cellStyle.color
-                        },
-                    )
-                    val layout = measurer.measure(
-                        text,
-                        style,
-                        overflow = TextOverflow.Clip,
-                        softWrap = false,
-                        maxLines = 1,
-                        constraints = Constraints(maxWidth = max(1, (cw - 2 * pad).toInt())),
-                    )
-                    val numeric = text.first().isDigit() || text.first() == '-' || text.first() == '₺'
-                    val tx = when (look?.align?.toInt()) {
-                        1 -> x + pad
-                        2 -> x + (cw - layout.size.width) / 2
-                        3 -> x + cw - pad - layout.size.width
-                        else -> if (numeric) x + cw - pad - layout.size.width else x + pad
-                    }
-                    drawText(layout, topLeft = Offset(tx, y + (rh - layout.size.height) / 2))
                 }
             }
         }
-
-        // Column lines, once for all rows.
         for (c in firstCol..lastCol) {
             val cw = columnAxis.size(c) * k
             if (cw <= 0f) continue
             val x = rowHeader + columnAxis.start(c) * k - offsetX
             drawLine(colors.outlineVariant, Offset(x + cw, colHeader), Offset(x + cw, size.height), 1f)
+        }
+        for (r in firstRow..lastRow) {
+            val rh = rowAxis.size(r) * k
+            if (rh <= 0f) continue
+            val y = colHeader + rowAxis.start(r) * k - offsetY
+            for (c in firstCol..lastCol) {
+                val cw = columnAxis.size(c) * k
+                if (cw <= 0f) continue
+                val text = cellText(sheet, r, c)
+                if (text.isNullOrEmpty()) continue
+                val look = cellLook(sheet, r, c)
+                val x = rowHeader + columnAxis.start(c) * k - offsetX
+                val style = if (look == null) cellStyle else cellStyle.copy(
+                    fontWeight = if (look.bold) FontWeight.Bold else null,
+                    fontStyle = if (look.italic) FontStyle.Italic else null,
+                    textDecoration = if (look.underline) TextDecoration.Underline else null,
+                    // Text keeps its own colour; on a filled cell the default is black, as on paper.
+                    color = when {
+                        look.color != 0u -> Color(look.color.toInt())
+                        look.fill != 0u -> Color.Black
+                        else -> cellStyle.color
+                    },
+                )
+                val numeric = text.first().isDigit() || text.first() == '-' || text.first() == '₺'
+                val align = look?.align?.toInt() ?: 0
+                val leftAligned = align == 1 || (align == 0 && !numeric)
+                // Room to the right: the cell, and the empty cells after it for left-aligned text.
+                var room = cw
+                if (leftAligned) {
+                    var n = c + 1
+                    while (n <= lastCol && cellText(sheet, r, n) == "") {
+                        room += columnAxis.size(n) * k
+                        n++
+                    }
+                }
+                val layout = measurer.measure(
+                    text,
+                    style,
+                    overflow = TextOverflow.Clip,
+                    softWrap = false,
+                    maxLines = 1,
+                    constraints = Constraints(maxWidth = max(1, (room - 2 * pad).toInt())),
+                )
+                val tx = when {
+                    align == 2 -> x + (cw - layout.size.width) / 2
+                    align == 3 || (align == 0 && numeric) -> x + cw - pad - layout.size.width
+                    else -> x + pad
+                }
+                drawText(layout, topLeft = Offset(tx, y + (rh - layout.size.height) / 2))
+            }
         }
 
         // Selection.
