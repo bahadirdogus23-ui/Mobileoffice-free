@@ -45,6 +45,9 @@ data class SheetUiState(
     val selectedCol: Int = 0,
     /** What the formula bar shows for the selected cell. */
     val editText: String = "",
+    /** Column widths and row heights (points) as the file has them. */
+    val columns: GridAxis = GridAxis(FloatArray(0), 48f),
+    val rows: GridAxis = GridAxis(FloatArray(0), 15f),
 )
 
 sealed interface Screen {
@@ -439,6 +442,8 @@ class SheetViewModel(app: Application) : AndroidViewModel(app) {
     /** Runs on the engine thread. */
     private fun stateFor(d: SheetDocument, fileName: String, sheet: Int, row: Int, col: Int): SheetUiState {
         val size = d.usedSize(sheet.toUInt())
+        // Sizes for the used area and the room the grid scrolls past it; defaults beyond.
+        val sizes = d.sizes(sheet.toUInt(), (size.cols.toInt() + 10).coerceAtMost(16_384).toUInt(), (size.rows.toInt() + 50).coerceAtMost(200_000).toUInt())
         return SheetUiState(
             fileName = fileName,
             sheetNames = d.sheetNames(),
@@ -448,6 +453,8 @@ class SheetViewModel(app: Application) : AndroidViewModel(app) {
             selectedRow = row,
             selectedCol = col,
             editText = d.editText(sheet.toUInt(), row.toUInt(), col.toUInt()),
+            columns = GridAxis(sizes.colWidths.toFloatArray(), sizes.defaultCol),
+            rows = GridAxis(sizes.rowHeights.toFloatArray(), sizes.defaultRow),
         )
     }
 

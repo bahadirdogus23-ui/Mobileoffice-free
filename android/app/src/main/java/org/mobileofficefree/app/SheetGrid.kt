@@ -50,12 +50,14 @@ fun SheetGrid(
     selectedCol: Int,
     cellText: (sheet: Int, row: Int, col: Int) -> String?,
     cellLook: (sheet: Int, row: Int, col: Int) -> CellLook?,
+    columnAxis: GridAxis,
+    rowAxis: GridAxis,
     onSelect: (row: Int, col: Int) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val density = LocalDensity.current
-    val baseCol = with(density) { 96.dp.toPx() }
-    val baseRow = with(density) { 30.dp.toPx() }
+    // Pixels per point at zoom 1: the file's sizes, a little larger than on paper for fingers.
+    val unit = with(density) { 1.7.dp.toPx() }
     val rowHeader = with(density) { 48.dp.toPx() }
     val colHeader = with(density) { 26.dp.toPx() }
     val measurer = rememberTextMeasurer(cacheSize = 512)
@@ -73,7 +75,7 @@ fun SheetGrid(
     Canvas(
         modifier
             .fillMaxSize()
-            .pointerInput(sheet, rows, cols) {
+            .pointerInput(sheet, rows, cols, columnAxis, rowAxis) {
                 detectTransformGestures { centroid, pan, zoom, _ ->
                     val newScale = (scale * zoom).coerceIn(0.4f, 3f)
                     // Keep the content under the fingers still while zooming.
@@ -83,26 +85,25 @@ fun SheetGrid(
                     offsetX = (offsetX + gx) * f - gx - pan.x
                     offsetY = (offsetY + gy) * f - gy - pan.y
                     scale = newScale
-                    offsetX = offsetX.coerceIn(0f, max(0f, cols * baseCol * scale - (size.width - rowHeader)))
-                    offsetY = offsetY.coerceIn(0f, max(0f, rows * baseRow * scale - (size.height - colHeader)))
+                    offsetX = offsetX.coerceIn(0f, max(0f, columnAxis.start(cols) * unit * scale - (size.width - rowHeader)))
+                    offsetY = offsetY.coerceIn(0f, max(0f, rowAxis.start(rows) * unit * scale - (size.height - colHeader)))
                 }
             }
-            .pointerInput(sheet) {
+            .pointerInput(sheet, columnAxis, rowAxis) {
                 detectTapGestures { p ->
                     if (p.x > rowHeader && p.y > colHeader) {
-                        val c = ((p.x - rowHeader + offsetX) / (baseCol * scale)).toInt()
-                        val r = ((p.y - colHeader + offsetY) / (baseRow * scale)).toInt()
+                        val c = columnAxis.at((p.x - rowHeader + offsetX) / (unit * scale))
+                        val r = rowAxis.at((p.y - colHeader + offsetY) / (unit * scale))
                         select(r.coerceAtMost(MAX_ROWS - 1), c.coerceAtMost(MAX_COLS - 1))
                     }
                 }
             },
     ) {
-        val cw = baseCol * scale
-        val rh = baseRow * scale
-        val firstCol = (offsetX / cw).toInt()
-        val firstRow = (offsetY / rh).toInt()
-        val lastCol = min(cols - 1, ((offsetX + size.width - rowHeader) / cw).toInt())
-        val lastRow = min(rows - 1, ((offsetY + size.height - colHeader) / rh).toInt())
+        val k = unit * scale
+        val firstCol = columnAxis.at(offsetX / k)
+        val firstRow = rowAxis.at(offsetY / k)
+        val lastCol = min(cols - 1, columnAxis.at((offsetX + size.width - rowHeader) / k))
+        val lastRow = min(rows - 1, rowAxis.at((offsetY + size.height - colHeader) / k))
         val cellStyle = TextStyle(fontSize = (14 * scale).sp, color = colors.onSurface)
         val headerStyle = TextStyle(fontSize = 12.sp, color = colors.onSurfaceVariant)
         val pad = 4.dp.toPx() * scale
@@ -111,13 +112,14 @@ fun SheetGrid(
 
         // Cells and grid lines.
         for (r in firstRow..lastRow) {
-            val y = colHeader + r * rh - offsetY
+            val rh = rowAxis.size(r) * k
+            if (rh <= 0f) continue // a hidden row
+            val y = colHeader + rowAxis.start(r) * k - offsetY
             drawLine(colors.outlineVariant, Offset(rowHeader, y + rh), Offset(size.width, y + rh), 1f)
             for (c in firstCol..lastCol) {
-                val x = rowHeader + c * cw - offsetX
-                if (r == firstRow) {
-                    drawLine(colors.outlineVariant, Offset(x + cw, colHeader), Offset(x + cw, size.height), 1f)
-                }
+                val cw = columnAxis.size(c) * k
+                if (cw <= 0f) continue // a hidden column
+                val x = rowHeader + columnAxis.start(c) * k - offsetX
                 val look = cellLook(sheet, r, c)
                 if (look != null && look.fill != 0u) {
                     drawRect(Color(look.fill.toInt()), Offset(x + 0.5f, y + 0.5f), Size(cw - 1f, rh - 1f))
@@ -155,23 +157,35 @@ fun SheetGrid(
             }
         }
 
+        // Column lines, once for all rows.
+        for (c in firstCol..lastCol) {
+            val cw = columnAxis.size(c) * k
+            if (cw <= 0f) continue
+            val x = rowHeader + columnAxis.start(c) * k - offsetX
+            drawLine(colors.outlineVariant, Offset(x + cw, colHeader), Offset(x + cw, size.height), 1f)
+        }
+
         // Selection.
-        val sx = rowHeader + selectedCol * cw - offsetX
-        val sy = colHeader + selectedRow * rh - offsetY
-        drawRect(colors.primary, Offset(sx, sy), Size(cw, rh), style = Stroke(2.dp.toPx()))
+        val sx = rowHeader + columnAxis.start(selectedCol) * k - offsetX
+        val sy = colHeader + rowAxis.start(selectedRow) * k - offsetY
+        drawRect(colors.primary, Offset(sx, sy), Size(columnAxis.size(selectedCol) * k, rowAxis.size(selectedRow) * k), style = Stroke(2.dp.toPx()))
 
         // Frozen headers: column letters and row numbers.
         drawRect(colors.surfaceVariant, Offset.Zero, Size(size.width, colHeader))
         drawRect(colors.surfaceVariant, Offset.Zero, Size(rowHeader, size.height))
         for (c in firstCol..lastCol) {
-            val x = rowHeader + c * cw - offsetX
+            val cw = columnAxis.size(c) * k
+            if (cw <= 0f) continue
+            val x = rowHeader + columnAxis.start(c) * k - offsetX
             if (c == selectedCol) drawRect(colors.secondaryContainer, Offset(x, 0f), Size(cw, colHeader))
             val l = measurer.measure(columnName(c), headerStyle)
             drawText(l, topLeft = Offset(x + (cw - l.size.width) / 2, (colHeader - l.size.height) / 2))
             drawLine(colors.outline, Offset(x + cw, 0f), Offset(x + cw, colHeader), 1f)
         }
         for (r in firstRow..lastRow) {
-            val y = colHeader + r * rh - offsetY
+            val rh = rowAxis.size(r) * k
+            if (rh <= 0f) continue
+            val y = colHeader + rowAxis.start(r) * k - offsetY
             if (r == selectedRow) drawRect(colors.secondaryContainer, Offset(0f, y), Size(rowHeader, rh))
             val l = measurer.measure((r + 1).toString(), headerStyle)
             drawText(l, topLeft = Offset((rowHeader - l.size.width) / 2, y + (rh - l.size.height) / 2))

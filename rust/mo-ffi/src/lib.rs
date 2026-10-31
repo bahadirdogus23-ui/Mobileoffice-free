@@ -195,6 +195,12 @@ impl SheetDocument {
         Ok(self.doc().set_input(row, col, &input)?)
     }
 
+    /// Column widths and row heights in points for the first `cols` columns and `rows` rows.
+    pub fn sizes(&self, sheet: u32, cols: u32, rows: u32) -> Result<SheetSizes, MoError> {
+        let s = self.doc().sizes(sheet, cols, rows)?;
+        Ok(SheetSizes { col_widths: s.col_widths, row_heights: s.row_heights, default_col: s.default_col, default_row: s.default_row })
+    }
+
     /// How each cell of a `rows`×`cols` window looks, row by row.
     pub fn cell_looks(&self, sheet: u32, row: u32, col: u32, rows: u32, cols: u32) -> Result<Vec<CellLook>, MoError> {
         Ok(self
@@ -680,6 +686,15 @@ impl From<FormField> for PdfFormField {
             page: f.page,
         }
     }
+}
+
+/// Column widths and row heights in points; columns and rows past the lists take the defaults.
+#[derive(uniffi::Record)]
+pub struct SheetSizes {
+    pub col_widths: Vec<f32>,
+    pub row_heights: Vec<f32>,
+    pub default_col: f32,
+    pub default_row: f32,
 }
 
 /// How a cell looks in the grid: colours 0xAARRGGBB (0 = default), `align` 0 general, 1 left,

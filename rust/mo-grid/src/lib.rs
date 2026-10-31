@@ -35,6 +35,15 @@ pub struct GridDoc {
     turkish: bool,
 }
 
+/// Column widths and row heights in points (see [`GridDoc::sizes`]).
+#[derive(Debug, Clone, PartialEq)]
+pub struct Sizes {
+    pub col_widths: Vec<f32>,
+    pub row_heights: Vec<f32>,
+    pub default_col: f32,
+    pub default_row: f32,
+}
+
 /// How a cell looks in the grid. Colours are 0xAARRGGBB; 0 means the default (black text, no
 /// fill). `align`: 0 general (numbers right, text left), 1 left, 2 centre, 3 right.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
@@ -132,6 +141,18 @@ impl GridDoc {
             }
         }
         Ok(out)
+    }
+
+    /// Column widths and row heights in points for the first `cols` columns and `rows` rows of
+    /// `sheet` (hidden ones are 0), and the sizes of the ones after them.
+    pub fn sizes(&self, sheet: u32, cols: u32, rows: u32) -> Result<Sizes, GridError> {
+        let sh = self.wb().sheets.get(sheet as usize).ok_or(GridError::NoSheet(sheet))?;
+        Ok(Sizes {
+            col_widths: (0..cols).map(|c| sh.col_width(c)).collect(),
+            row_heights: (0..rows).map(|r| sh.row_height(r)).collect(),
+            default_col: sh.default_col_width,
+            default_row: sh.default_row_height,
+        })
     }
 
     /// How each cell of a `rows`×`cols` window looks, row by row, for drawing the grid: the

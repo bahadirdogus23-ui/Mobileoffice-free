@@ -116,6 +116,8 @@ internal fun SheetScreen(vm: SheetViewModel, state: SheetUiState) {
             selectedCol = state.selectedCol,
             cellText = vm::cellText,
             cellLook = vm::cellLook,
+            columnAxis = state.columns,
+            rowAxis = state.rows,
             onSelect = vm::selectCell,
             modifier = Modifier.weight(1f),
         )

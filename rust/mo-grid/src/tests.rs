@@ -137,3 +137,15 @@ fn sorts_and_manages_sheets() {
     doc.execute("edit.undo", "{}").unwrap();
     assert!(doc.sheet_names().contains(&"Gelir Gider".to_string()));
 }
+
+#[test]
+fn reports_column_widths_and_row_heights() {
+    let mut doc = GridDoc::blank();
+    doc.execute("home.columnWidth", r#"{"cols":"B:B","width":30}"#).unwrap();
+    let s = doc.sizes(0, 3, 2).unwrap();
+    assert_eq!(s.col_widths.len(), 3);
+    assert_eq!(s.col_widths[0], s.default_col);
+    assert!(s.col_widths[1] != s.default_col, "{s:?}");
+    assert_eq!(s.row_heights, vec![s.default_row; 2]);
+    assert!(s.default_col > 20.0 && s.default_row > 10.0, "{s:?}");
+}
