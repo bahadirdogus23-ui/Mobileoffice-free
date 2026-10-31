@@ -21,6 +21,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import kotlinx.coroutines.Dispatchers
@@ -36,6 +37,7 @@ import org.mobileofficefree.engine.imagesToPdf
 @Composable
 fun rememberImagesToPdf(onOpen: (Uri) -> Unit): () -> Unit {
     val context = LocalContext.current
+    val resources = LocalResources.current
     val scope = rememberCoroutineScope()
     var picked by remember { mutableStateOf<List<Uri>>(emptyList()) }
     var fitA4 by remember { mutableStateOf(true) }
@@ -60,7 +62,7 @@ fun rememberImagesToPdf(onOpen: (Uri) -> Unit): () -> Unit {
             working = false
             result.fold(
                 onSuccess = { onOpen(dest) },
-                onFailure = { Toast.makeText(context, context.getString(R.string.save_failed, it.message ?: ""), Toast.LENGTH_LONG).show() },
+                onFailure = { Toast.makeText(context, resources.getString(R.string.save_failed, it.message ?: ""), Toast.LENGTH_LONG).show() },
             )
         }
     }
@@ -95,7 +97,7 @@ fun rememberImagesToPdf(onOpen: (Uri) -> Unit): () -> Unit {
             confirmButton = {
                 TextButton(onClick = {
                     choosing = false
-                    save.launch(CreateFile.Request(context.getString(R.string.images_pdf_name), "application/pdf"))
+                    save.launch(CreateFile.Request(resources.getString(R.string.images_pdf_name), "application/pdf"))
                 }) { Text(stringResource(R.string.create)) }
             },
             dismissButton = {

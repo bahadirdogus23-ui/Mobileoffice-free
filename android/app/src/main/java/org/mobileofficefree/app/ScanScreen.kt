@@ -57,6 +57,7 @@ import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
@@ -101,6 +102,7 @@ fun rememberScanner(onOpen: (Uri) -> Unit): () -> Unit {
 @Composable
 private fun ScanDialog(onClose: () -> Unit, onOpen: (Uri) -> Unit) {
     val context = LocalContext.current
+    val resources = LocalResources.current
     val scope = rememberCoroutineScope()
     val dir = remember { File(context.cacheDir, "scan").apply { mkdirs() } }
     val pages = remember { mutableStateListOf<ScanPage>() }
@@ -160,7 +162,7 @@ private fun ScanDialog(onClose: () -> Unit, onOpen: (Uri) -> Unit) {
                     close()
                     onOpen(dest)
                 },
-                onFailure = { Toast.makeText(context, context.getString(R.string.save_failed, it.message ?: ""), Toast.LENGTH_LONG).show() },
+                onFailure = { Toast.makeText(context, resources.getString(R.string.save_failed, it.message ?: ""), Toast.LENGTH_LONG).show() },
             )
         }
     }

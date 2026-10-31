@@ -8,6 +8,7 @@ import android.net.Uri
 import android.os.ParcelFileDescriptor
 import android.text.format.Formatter
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.core.graphics.createBitmap
@@ -109,7 +110,7 @@ class PdfViewModel(app: Application) : PagedViewModel(app, DocumentKind.PDF) {
     }
 
     /** Signatures, drawings and notes added that [undoAnnotation] can still take back. */
-    var added by mutableStateOf(0)
+    var added by mutableIntStateOf(0)
         private set
 
     /** Writes pen and highlighter strokes into the PDF. */
@@ -393,7 +394,7 @@ class PdfViewModel(app: Application) : PagedViewModel(app, DocumentKind.PDF) {
     }
 
     /** Black-out marks waiting to be applied. */
-    var redactionMarks by mutableStateOf(0)
+    var redactionMarks by mutableIntStateOf(0)
         private set
 
     /** Marks every place of [kinds] and [words] for blacking out. */
