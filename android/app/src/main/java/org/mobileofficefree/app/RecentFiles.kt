@@ -45,6 +45,8 @@ class RecentFiles(context: Context) {
     fun remember(uri: Uri, name: String, kind: DocumentKind, size: Long) {
         // Files unpacked from an archive live in the cache only while it is open.
         if (uri.authority == ArchiveFiles.authority(app)) return
+        // Incognito: nothing is listed (the file opens all the same).
+        if (PrivacySettings.get(app).incognito) return
         runCatching {
             app.contentResolver.takePersistableUriPermission(uri, Intent.FLAG_GRANT_READ_URI_PERMISSION)
         }
@@ -55,6 +57,11 @@ class RecentFiles(context: Context) {
 
     fun setProgress(uri: Uri, progress: Int) {
         save(all().map { if (it.uri == uri) it.copy(progress = progress.coerceIn(0, 100)) else it })
+    }
+
+    /** Empties the list and gives back the access kept for each file. */
+    fun clear() {
+        all().forEach { forget(it.uri) }
     }
 
     fun forget(uri: Uri) {

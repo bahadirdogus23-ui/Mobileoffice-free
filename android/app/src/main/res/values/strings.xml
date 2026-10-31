@@ -282,4 +282,18 @@
     <string name="slide_duplicate">Duplicate</string>
     <string name="slide_text">Slide text</string>
     <string name="slide_no_text_here">There is no text here. Tap a title or a text box.</string>
+    <string name="settings">Settings</string>
+    <string name="settings_lock">Lock the app</string>
+    <string name="settings_lock_hint">Ask for your fingerprint, face or screen lock when the app opens, and after 30 seconds away.</string>
+    <string name="settings_lock_unavailable">Set a screen lock on the phone first.</string>
+    <string name="settings_secure">Block screenshots</string>
+    <string name="settings_secure_hint">No screenshots or screen recording, and no preview in recent apps.</string>
+    <string name="settings_incognito">Incognito</string>
+    <string name="settings_incognito_hint">Files you open are not added to Recent.</string>
+    <string name="settings_clear_recents">Clear Recent</string>
+    <string name="settings_clear_recents_hint">Empties the list of opened files; the files themselves stay.</string>
+    <string name="settings_recents_cleared">Recent cleared</string>
+    <string name="lock_title">Unlock Mobile Office</string>
+    <string name="lock_body">The app is locked.</string>
+    <string name="lock_unlock">Unlock</string>
 </resources>

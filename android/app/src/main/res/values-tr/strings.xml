@@ -281,4 +281,18 @@
     <string name="slide_duplicate">Çoğalt</string>
     <string name="slide_text">Slayt metni</string>
     <string name="slide_no_text_here">Burada yazı yok. Bir başlığa veya metin kutusuna dokunun.</string>
+    <string name="settings">Ayarlar</string>
+    <string name="settings_lock">Uygulamayı kilitle</string>
+    <string name="settings_lock_hint">Uygulama açılırken ve 30 saniyeden uzun ayrılınca parmak izi, yüz ya da ekran kilidi istensin.</string>
+    <string name="settings_lock_unavailable">Önce telefona bir ekran kilidi koyun.</string>
+    <string name="settings_secure">Ekran görüntüsünü engelle</string>
+    <string name="settings_secure_hint">Ekran görüntüsü ve kaydı alınamaz; son uygulamalarda önizleme görünmez.</string>
+    <string name="settings_incognito">Gizli mod</string>
+    <string name="settings_incognito_hint">Açtığınız dosyalar Son açılanlar listesine eklenmez.</string>
+    <string name="settings_clear_recents">Son açılanları temizle</string>
+    <string name="settings_clear_recents_hint">Açılan dosyalar listesi boşaltılır; dosyaların kendisi silinmez.</string>
+    <string name="settings_recents_cleared">Son açılanlar temizlendi</string>
+    <string name="lock_title">Mobile Office kilidini aç</string>
+    <string name="lock_body">Uygulama kilitli.</string>
+    <string name="lock_unlock">Kilidi aç</string>
 </resources>

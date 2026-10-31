@@ -162,6 +162,8 @@ fun HomeScreen(onOpen: (Uri) -> Unit, onNewSheet: () -> Unit, onDiagnostics: () 
         if (uri != null) onOpen(uri)
     }
     val imagesToPdf = rememberImagesToPdf(onOpen)
+    var showSettings by remember { mutableStateOf(false) }
+    if (showSettings) SettingsSheet(onDismiss = { showSettings = false }, onRecentsCleared = { files = recents.all() })
     val scan = rememberScanner(onOpen)
     val askLegacy = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
         access = granted
@@ -235,6 +237,7 @@ fun HomeScreen(onOpen: (Uri) -> Unit, onNewSheet: () -> Unit, onDiagnostics: () 
                     fontWeight = FontWeight.SemiBold,
                     modifier = Modifier.weight(1f),
                 )
+                TextButton(onClick = { showSettings = true }) { Text(stringResource(R.string.settings)) }
                 TextButton(onClick = onDiagnostics) { Text(stringResource(R.string.diagnostics)) }
             }
             Text(
