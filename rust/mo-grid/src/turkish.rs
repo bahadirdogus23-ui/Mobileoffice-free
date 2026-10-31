@@ -57,7 +57,245 @@ const NAMES: &[(&str, &str)] = &[
     ("ÜS", "POWER"),
     ("PMT", "PMT"),
     ("DEVRE_FAİZORANI", "RATE"),
+    ("ÇAPRAZARA", "XLOOKUP"),
+    ("ÇOKEĞER", "IFS"),
+    ("İLKEŞLEŞEN", "SWITCH"),
+    ("EĞERYOKSA", "IFNA"),
+    ("ÇOKEĞERORTALAMA", "AVERAGEIFS"),
+    ("ÇOKEĞERMAK", "MAXIFS"),
+    ("ÇOKEĞERMİN", "MINIFS"),
+    ("METİNBİRLEŞTİR", "TEXTJOIN"),
+    ("ARALIKBİRLEŞTİR", "CONCAT"),
+    ("BENZERSİZ", "UNIQUE"),
+    ("FİLTRE", "FILTER"),
+    ("SIRALA", "SORT"),
+    ("SERİAY", "EOMONTH"),
+    ("SERİTARİH", "EDATE"),
+    ("TAMİŞGÜNÜ", "NETWORKDAYS"),
+    ("İŞGÜNÜ", "WORKDAY"),
+    ("ETARİHLİ", "DATEDIF"),
+    ("HAFTANINGÜNÜ", "WEEKDAY"),
+    ("HAFTASAY", "WEEKNUM"),
+    ("GÜNSAY", "DAYS"),
+    ("SAAT", "HOUR"),
+    ("DAKİKA", "MINUTE"),
+    ("SANİYE", "SECOND"),
+    ("ZAMAN", "TIME"),
+    ("BÜYÜK", "LARGE"),
+    ("KÜÇÜK", "SMALL"),
+    ("STDSAPMA", "STDEV"),
+    ("SATIR", "ROW"),
+    ("SÜTUN", "COLUMN"),
+    ("SATIRSAY", "ROWS"),
+    ("SÜTUNSAY", "COLUMNS"),
+    ("DOLAYLI", "INDIRECT"),
+    ("KAYDIR", "OFFSET"),
+    ("ARA", "LOOKUP"),
+    ("EBOŞSA", "ISBLANK"),
+    ("ESAYIYSA", "ISNUMBER"),
+    ("EMETİNSE", "ISTEXT"),
+    ("EHATALIYSA", "ISERROR"),
+    ("YAZIM.DÜZENİ", "PROPER"),
+    ("YİNELE", "REPT"),
+    ("TEMİZ", "CLEAN"),
+    ("DEĞİŞTİR", "REPLACE"),
+    ("MBUL", "SEARCH"),
+    ("ÖZDEŞ", "EXACT"),
+    ("TAVANAYUVARLA", "CEILING"),
+    ("TABANAYUVARLA", "FLOOR"),
+    ("RASTGELEARADA", "RANDBETWEEN"),
+    ("S_SAYI_ÜRET", "RAND"),
+    ("NBD", "NPV"),
+    ("GD", "FV"),
+    ("BD", "PV"),
+    ("TAKSİT_SAYISI", "NPER"),
+    ("FAİZTUTARI", "IPMT"),
 ];
+
+/// What the common functions do, in Turkish, by English name; the others keep the engine's
+/// English description.
+const DESCRIPTIONS: &[(&str, &str)] = &[
+    ("SUM", "Sayıları toplar. Örnek: =TOPLA(A1:A10)"),
+    ("AVERAGE", "Sayıların ortalamasını verir."),
+    ("IF", "Koşul doğruysa bir değer, yanlışsa başka bir değer verir. Örnek: =EĞER(A1>50;\"Geçti\";\"Kaldı\")"),
+    ("IFERROR", "Formül hata verirse yerine gösterilecek değeri verir."),
+    ("IFNA", "Formül #YOK verirse yerine gösterilecek değeri verir."),
+    ("IFS", "Sırayla koşullara bakar; ilk doğru koşulun değerini verir."),
+    ("SWITCH", "Bir değeri listeyle karşılaştırır; ilk eşleşenin sonucunu verir."),
+    ("COUNTIF", "Bir koşula uyan hücreleri sayar. Örnek: =EĞERSAY(B:B;\">100\")"),
+    ("COUNTIFS", "Birden çok koşula uyan hücreleri sayar."),
+    ("SUMIF", "Bir koşula uyan hücreleri toplar."),
+    ("SUMIFS", "Birden çok koşula uyan hücreleri toplar."),
+    ("AVERAGEIF", "Bir koşula uyan hücrelerin ortalamasını verir."),
+    ("AVERAGEIFS", "Birden çok koşula uyan hücrelerin ortalamasını verir."),
+    ("MAXIFS", "Koşullara uyan hücrelerin en büyüğünü verir."),
+    ("MINIFS", "Koşullara uyan hücrelerin en küçüğünü verir."),
+    ("VLOOKUP", "Tablonun ilk sütununda arar, aynı satırdaki başka bir sütunun değerini verir. Örnek: =DÜŞEYARA(A2;Fiyatlar!A:C;3;YANLIŞ)"),
+    ("HLOOKUP", "Tablonun ilk satırında arar, aynı sütundaki başka bir satırın değerini verir."),
+    ("XLOOKUP", "Bir aralıkta arar, karşılık gelen aralıktaki değeri verir; DÜŞEYARA'nın yenisi."),
+    ("LOOKUP", "Bir satır ya da sütunda arar, karşılık gelen değeri verir."),
+    ("INDEX", "Aralıkta belirtilen satır ve sütundaki değeri verir."),
+    ("MATCH", "Bir değerin aralıktaki sırasını verir."),
+    ("INDIRECT", "Metin olarak yazılmış bir başvurunun gösterdiği değeri verir."),
+    ("OFFSET", "Bir başvurudan belirli satır ve sütun kaydırılmış aralığı verir."),
+    ("TODAY", "Bugünün tarihini verir."),
+    ("NOW", "Şu anki tarih ve saati verir."),
+    ("DATE", "Yıl, ay ve günden tarih oluşturur."),
+    ("TIME", "Saat, dakika ve saniyeden zaman oluşturur."),
+    ("YEAR", "Tarihin yılını verir."),
+    ("MONTH", "Tarihin ayını (1–12) verir."),
+    ("DAY", "Tarihin gününü (1–31) verir."),
+    ("HOUR", "Zamanın saatini verir."),
+    ("MINUTE", "Zamanın dakikasını verir."),
+    ("SECOND", "Zamanın saniyesini verir."),
+    ("WEEKDAY", "Tarihin haftanın kaçıncı günü olduğunu verir."),
+    ("WEEKNUM", "Tarihin yılın kaçıncı haftası olduğunu verir."),
+    ("DAYS", "İki tarih arasındaki gün sayısını verir."),
+    ("DATEDIF", "İki tarih arasındaki farkı gün, ay ya da yıl olarak verir (\"d\", \"m\", \"y\")."),
+    ("EOMONTH", "Belirli sayıda ay sonraki ayın son gününü verir."),
+    ("EDATE", "Belirli sayıda ay sonraki aynı günü verir."),
+    ("NETWORKDAYS", "İki tarih arasındaki iş günlerini sayar (hafta sonları ve tatiller hariç)."),
+    ("WORKDAY", "Belirli sayıda iş günü sonraki tarihi verir."),
+    ("MAX", "En büyük sayıyı verir."),
+    ("MIN", "En küçük sayıyı verir."),
+    ("LARGE", "Aralıktaki k'ıncı en büyük değeri verir."),
+    ("SMALL", "Aralıktaki k'ıncı en küçük değeri verir."),
+    ("COUNT", "Sayı içeren hücreleri sayar."),
+    ("COUNTA", "Boş olmayan hücreleri sayar."),
+    ("COUNTBLANK", "Boş hücreleri sayar."),
+    ("ROUND", "Sayıyı belirtilen basamağa yuvarlar. Örnek: =YUVARLA(A1;2)"),
+    ("ROUNDDOWN", "Sayıyı aşağı (sıfıra doğru) yuvarlar."),
+    ("ROUNDUP", "Sayıyı yukarı (sıfırdan uzağa) yuvarlar."),
+    ("CEILING", "Sayıyı en yakın katına yukarı yuvarlar."),
+    ("FLOOR", "Sayıyı en yakın katına aşağı yuvarlar."),
+    ("INT", "Sayıyı aşağı doğru tamsayıya yuvarlar."),
+    ("ABS", "Sayının mutlak değerini verir."),
+    ("SQRT", "Sayının karekökünü verir."),
+    ("POWER", "Sayının kuvvetini verir."),
+    ("MOD", "Bölme işleminden kalanı verir."),
+    ("PRODUCT", "Sayıları çarpar."),
+    ("SUMPRODUCT", "Aralıkların karşılıklı elemanlarını çarpıp toplar."),
+    ("MEDIAN", "Sayıların ortancasını verir."),
+    ("STDEV", "Örneklemin standart sapmasını verir."),
+    ("RAND", "0 ile 1 arasında rastgele sayı verir."),
+    ("RANDBETWEEN", "İki sayı arasında rastgele tamsayı verir."),
+    ("AND", "Bütün koşullar doğruysa DOĞRU verir."),
+    ("OR", "Koşullardan biri doğruysa DOĞRU verir."),
+    ("NOT", "Mantıksal değeri tersine çevirir."),
+    ("CONCATENATE", "Metinleri birleştirir."),
+    ("CONCAT", "Metinleri ve aralıkları birleştirir."),
+    ("TEXTJOIN", "Metinleri araya bir ayırıcı koyarak birleştirir."),
+    ("LEN", "Metnin karakter sayısını verir."),
+    ("LEFT", "Metnin başından belirtilen sayıda karakter verir."),
+    ("RIGHT", "Metnin sonundan belirtilen sayıda karakter verir."),
+    ("MID", "Metnin ortasından, belirtilen yerden başlayarak karakter verir."),
+    ("UPPER", "Metni büyük harfe çevirir."),
+    ("LOWER", "Metni küçük harfe çevirir."),
+    ("PROPER", "Her kelimenin ilk harfini büyük yapar."),
+    ("TRIM", "Metindeki fazla boşlukları siler."),
+    ("CLEAN", "Metindeki yazdırılamayan karakterleri siler."),
+    ("TEXT", "Sayıyı belirtilen biçimde metne çevirir. Örnek: =METNEÇEVİR(A1;\"0,00\")"),
+    ("VALUE", "Sayı gibi görünen metni sayıya çevirir."),
+    ("SUBSTITUTE", "Metindeki bir parçayı başkasıyla değiştirir."),
+    ("REPLACE", "Metnin belirli konumundaki karakterleri değiştirir."),
+    ("FIND", "Bir metnin başka bir metin içindeki yerini verir (büyük-küçük harfe duyarlı)."),
+    ("SEARCH", "Bir metnin başka bir metin içindeki yerini verir (büyük-küçük harfe duyarsız)."),
+    ("EXACT", "İki metin tam olarak aynıysa DOĞRU verir."),
+    ("REPT", "Metni belirtilen sayıda yineler."),
+    ("UNIQUE", "Aralıktaki benzersiz değerleri verir."),
+    ("FILTER", "Aralığı bir koşula göre süzer."),
+    ("SORT", "Aralığı sıralar."),
+    ("ROW", "Başvurunun satır numarasını verir."),
+    ("COLUMN", "Başvurunun sütun numarasını verir."),
+    ("ROWS", "Aralıktaki satır sayısını verir."),
+    ("COLUMNS", "Aralıktaki sütun sayısını verir."),
+    ("ISBLANK", "Hücre boşsa DOĞRU verir."),
+    ("ISNUMBER", "Değer sayıysa DOĞRU verir."),
+    ("ISTEXT", "Değer metinse DOĞRU verir."),
+    ("ISERROR", "Değer hataysa DOĞRU verir."),
+    ("PMT", "Kredinin dönemsel taksitini hesaplar. Örnek: =PMT(%2;12;-10000)"),
+    ("RATE", "Kredinin dönemsel faiz oranını hesaplar."),
+    ("NPV", "Nakit akışlarının net bugünkü değerini verir."),
+    ("FV", "Yatırımın gelecekteki değerini verir."),
+    ("PV", "Yatırımın bugünkü değerini verir."),
+    ("NPER", "Kredinin kaç dönemde ödeneceğini verir."),
+    ("IPMT", "Belirli bir taksitteki faiz tutarını verir."),
+];
+
+/// What a function is for: its name as typed, its arguments and what it does.
+#[derive(Clone, Debug, PartialEq)]
+pub struct FunctionDoc {
+    /// The name as typed (Turkish when Turkish is on and it has one).
+    pub name: String,
+    /// How it is called, with the argument separator that is typed.
+    pub signature: String,
+    pub description: String,
+    pub category: &'static str,
+}
+
+/// Every function the engine knows, the common ones first in their category's order, with
+/// Turkish names, separators and descriptions when `turkish`.
+pub fn function_docs(turkish: bool) -> Vec<FunctionDoc> {
+    use gridcraft_functions::Category;
+    let mut out: Vec<FunctionDoc> = gridcraft_functions::all()
+        .iter()
+        .map(|f| {
+            let name = if turkish { turkish_name(f.name).unwrap_or(f.name) } else { f.name };
+            let mut signature = f.signature.to_string();
+            if turkish && let Some(rest) = signature.strip_prefix(f.name) {
+                signature = format!("{name}{}", rest.replace(", ", "; "));
+            }
+            let description = turkish
+                .then(|| DESCRIPTIONS.iter().find(|(e, _)| *e == f.name).map(|(_, d)| d.to_string()))
+                .flatten()
+                .unwrap_or_else(|| f.description.to_string());
+            let category = match (f.category, turkish) {
+                (Category::Financial, true) => "Finansal",
+                (Category::Logical, true) => "Mantıksal",
+                (Category::Text, true) => "Metin",
+                (Category::DateTime, true) => "Tarih ve saat",
+                (Category::Lookup, true) => "Arama ve başvuru",
+                (Category::MathTrig, true) => "Matematik",
+                (Category::Statistical, true) => "İstatistik",
+                (Category::Engineering, true) => "Mühendislik",
+                (Category::Information, true) => "Bilgi",
+                (Category::Database, true) => "Veritabanı",
+                (Category::Compatibility, true) => "Uyumluluk",
+                (Category::Web, true) => "Web",
+                (Category::Cube, true) => "Küp",
+                (Category::AddIn, true) => "Eklenti",
+                (Category::Financial, false) => "Financial",
+                (Category::Logical, false) => "Logical",
+                (Category::Text, false) => "Text",
+                (Category::DateTime, false) => "Date and time",
+                (Category::Lookup, false) => "Lookup and reference",
+                (Category::MathTrig, false) => "Math and trigonometry",
+                (Category::Statistical, false) => "Statistical",
+                (Category::Engineering, false) => "Engineering",
+                (Category::Information, false) => "Information",
+                (Category::Database, false) => "Database",
+                (Category::Compatibility, false) => "Compatibility",
+                (Category::Web, false) => "Web",
+                (Category::Cube, false) => "Cube",
+                (Category::AddIn, false) => "Add-in",
+            };
+            FunctionDoc { name: name.to_string(), signature, description, category }
+        })
+        .collect();
+    // Functions the evaluator implements itself and the function list leaves out (TEXT, LET…).
+    for &en in gridcraft_engine::calc::SPECIAL_FUNCTIONS {
+        if gridcraft_functions::lookup(en).is_none() {
+            let name = if turkish { turkish_name(en).unwrap_or(en) } else { en };
+            let description = turkish.then(|| DESCRIPTIONS.iter().find(|(e, _)| *e == en).map(|(_, d)| d.to_string())).flatten().unwrap_or_default();
+            out.push(FunctionDoc { name: name.to_string(), signature: format!("{name}(…)"), description, category: "" });
+        }
+    }
+    // The common ones (those with a Turkish name) first, then the rest; each part alphabetical.
+    let common = |d: &FunctionDoc| NAMES.iter().any(|(t, e)| d.name == *t || d.name == *e);
+    out.sort_by_key(|d| (!common(d), collation_key(&d.name)));
+    out.dedup_by(|a, b| a.name == b.name);
+    out
+}
 
 /// Logical constants, written without parentheses.
 const CONSTANTS: &[(&str, &str)] = &[("DOĞRU", "TRUE"), ("YANLIŞ", "FALSE")];
@@ -278,6 +516,25 @@ mod tests {
         let mut names = vec!["Zeynep", "şule", "Çiğdem", "cemil", "Işık", "İrem", "ılgın", "Ahmet", "Ömer", "osman"];
         names.sort_by_key(|n| collation_key(n));
         assert_eq!(names, ["Ahmet", "cemil", "Çiğdem", "ılgın", "Işık", "İrem", "osman", "Ömer", "şule", "Zeynep"]);
+    }
+
+    #[test]
+    fn documents_every_function_in_turkish() {
+        let docs = function_docs(true);
+        assert!(docs.len() > 400, "{}", docs.len());
+        let sum = docs.iter().find(|d| d.name == "TOPLA").unwrap();
+        assert_eq!(sum.signature, "TOPLA(number1; [number2]; ...)");
+        assert!(sum.description.starts_with("Sayıları toplar"));
+        assert_eq!(sum.category, "Matematik");
+        // The common ones come first.
+        assert!(docs.iter().position(|d| d.name == "DÜŞEYARA").unwrap() < docs.iter().position(|d| d.name == "BESSELJ").unwrap());
+        // Every Turkish name is a function the engine knows, and is typed back to it.
+        for (tr, en) in NAMES {
+            assert!(gridcraft_engine::calc::is_known_function(en), "{en}");
+            assert_eq!(to_engine(&format!("={tr}(1)")), format!("={en}(1)"));
+        }
+        let en = function_docs(false);
+        assert!(en.iter().any(|d| d.name == "VLOOKUP" && d.signature.contains(", ")));
     }
 
     #[test]

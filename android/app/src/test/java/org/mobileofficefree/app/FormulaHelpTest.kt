@@ -26,4 +26,27 @@ class FormulaHelpTest {
         assertEquals(TextRange(9), v.selection)
         assertEquals("=TOPLA(A1;", typeAt(at("=TOPLA(A1"), ";").text)
     }
+
+    @Test
+    fun aTappedCellGoesIntoTheFormulaAndATapAfterReplacesIt() {
+        val (v1, r1) = insertReference(at("=TOPLA("), "B4", null)
+        assertEquals("=TOPLA(B4", v1.text)
+        val (v2, r2) = insertReference(v1, "C7", r1)
+        assertEquals("=TOPLA(C7", v2.text)
+        assertEquals(TextRange(7, 9), r2)
+        // After typing something else, a tap adds a new reference.
+        val typed = typeAt(v2, ";")
+        assertEquals("=TOPLA(C7;D1", insertReference(typed, "D1", r2).first.text)
+        assertEquals(true, pointing(at("=")))
+        assertEquals(false, pointing(at("12")))
+    }
+
+    @Test
+    fun findsTheFunctionAroundTheCursor() {
+        assertEquals("EĞER", functionAtCursor(at("=eğer(A1>2;")))
+        assertEquals("TOPLA", functionAtCursor(at("=EĞER(TOPLA(A1:A3")))
+        assertEquals("EĞER", functionAtCursor(at("=EĞER(TOPLA(A1:A3);")))
+        assertEquals(null, functionAtCursor(at("=A1+2")))
+        assertEquals("EĞER", functionAtCursor(at("=EĞER(A1=\"(\";")))
+    }
 }

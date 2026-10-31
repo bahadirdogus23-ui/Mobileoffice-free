@@ -59,6 +59,13 @@ import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.dp
 import java.util.Locale
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.clickable
+import androidx.compose.ui.text.style.TextOverflow
+import org.mobileofficefree.engine.FunctionDoc
 import org.json.JSONObject
 import org.mobileofficefree.engine.CellLook
 
@@ -86,6 +93,20 @@ internal fun SheetScreen(vm: SheetViewModel, state: SheetUiState) {
     var renaming by remember { mutableStateOf<String?>(null) }
     var confirmDelete by remember { mutableStateOf(false) }
     val savePdf = rememberLauncherForActivityResult(CreateFile()) { uri -> if (uri != null) vm.exportPdfTo(uri, pdfSetup) }
+    // The formula bar's text, kept here so that a tap on a cell can go into a formula being typed.
+    var formula by remember(state.sheet, state.selectedRow, state.selectedCol, state.editText) {
+        mutableStateOf(TextFieldValue(state.editText, TextRange(state.editText.length)))
+    }
+    var formulaFocused by remember { mutableStateOf(false) }
+    var lastReference by remember(state.sheet, state.selectedRow, state.selectedCol) { mutableStateOf<TextRange?>(null) }
+    var showFormulas by remember { mutableStateOf(false) }
+    if (showFormulas) {
+        FormulaHelpSheet(vm.functionDocs, onDismiss = { showFormulas = false }) { name ->
+            showFormulas = false
+            val base = if (formula.text.isEmpty()) TextFieldValue("=", TextRange(1)) else formula
+            formula = typeAt(base, "$name(")
+        }
+    }
 
     Column(Modifier.fillMaxSize().navigationBarsPadding()) {
         TopAppBar(
@@ -105,7 +126,17 @@ internal fun SheetScreen(vm: SheetViewModel, state: SheetUiState) {
                 }
             },
         )
-        FormulaBar(state, vm.functionNames, vm.turkish, onCommit = vm::commitCell)
+        FormulaBar(
+            state = state,
+            value = formula,
+            onValue = { formula = it },
+            onFocus = { formulaFocused = it },
+            focused = formulaFocused,
+            docs = vm.functionDocs,
+            turkish = vm.turkish,
+            onAllFormulas = { showFormulas = true },
+            onCommit = vm::commitCell,
+        )
         SheetToolBar(vm, vm.cellLook(state.sheet, state.selectedRow, state.selectedCol))
         HorizontalDivider()
         SheetGrid(
@@ -121,7 +152,15 @@ internal fun SheetScreen(vm: SheetViewModel, state: SheetUiState) {
             frozenRows = state.frozenRows,
             frozenCols = state.frozenCols,
             merges = state.merges,
-            onSelect = vm::selectCell,
+            onSelect = { row, col ->
+                if (formulaFocused && pointing(formula)) {
+                    val (v, r) = insertReference(formula, cellName(row, col), lastReference)
+                    formula = v
+                    lastReference = r
+                } else {
+                    vm.selectCell(row, col)
+                }
+            },
             modifier = Modifier.weight(1f),
         )
         Row(verticalAlignment = Alignment.CenterVertically) {
@@ -307,47 +346,108 @@ private val FILLS = listOf(
 )
 
 @Composable
-private fun FormulaBar(state: SheetUiState, names: List<String>, turkish: Boolean, onCommit: (String) -> Unit) {
-    // Reset the field whenever the selection or the cell's content changes.
-    var value by remember(state.sheet, state.selectedRow, state.selectedCol, state.editText) {
-        mutableStateOf(TextFieldValue(state.editText, TextRange(state.editText.length)))
-    }
-    var focused by remember { mutableStateOf(false) }
+private fun FormulaBar(
+    state: SheetUiState,
+    value: TextFieldValue,
+    onValue: (TextFieldValue) -> Unit,
+    focused: Boolean,
+    onFocus: (Boolean) -> Unit,
+    docs: List<FunctionDoc>,
+    turkish: Boolean,
+    onAllFormulas: () -> Unit,
+    onCommit: (String) -> Unit,
+) {
+    val names = remember(docs) { docs.map { it.name } }
     Column {
         Row(Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
             Text(
                 cellName(state.selectedRow, state.selectedCol),
-                Modifier.width(64.dp),
+                Modifier.width(56.dp),
                 fontFamily = FontFamily.Monospace,
                 style = MaterialTheme.typography.labelLarge,
             )
+            TextButton(onClick = onAllFormulas, contentPadding = PaddingValues(horizontal = 6.dp)) {
+                Text("ƒx", fontStyle = FontStyle.Italic, fontWeight = FontWeight.Bold)
+            }
             OutlinedTextField(
                 value = value,
-                onValueChange = { value = it },
-                modifier = Modifier.weight(1f).onFocusChanged { focused = it.isFocused },
+                onValueChange = onValue,
+                modifier = Modifier.weight(1f).onFocusChanged { onFocus(it.isFocused) },
                 singleLine = true,
                 placeholder = { Text(stringResource(R.string.formula_hint)) },
                 keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
                 keyboardActions = KeyboardActions(onDone = { onCommit(value.text) }),
             )
         }
-        // While typing: function names that fit what is typed, else the keys a formula needs.
+        // While typing: what the function around the cursor takes, names that fit what is typed
+        // (with what the first one does), else the keys a formula needs.
         if (focused) {
             val offered = suggestions(value, names)
+            val shownDoc = (offered.firstOrNull() ?: functionAtCursor(value))?.let { n -> docs.firstOrNull { it.name == n } }
+            if (shownDoc != null) {
+                Column(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 2.dp)) {
+                    Text(shownDoc.signature, fontFamily = FontFamily.Monospace, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary)
+                    if (shownDoc.description.isNotEmpty()) {
+                        Text(shownDoc.description, style = MaterialTheme.typography.bodySmall, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                    }
+                }
+            } else if (pointing(value)) {
+                Text(
+                    stringResource(R.string.formula_point_hint),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(horizontal = 12.dp),
+                )
+            }
             Row(
                 Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(horizontal = 8.dp),
                 horizontalArrangement = Arrangement.spacedBy(4.dp),
             ) {
                 if (offered.isNotEmpty()) {
                     for (name in offered) {
-                        AssistChip(onClick = { value = applySuggestion(value, name) }, label = { Text(name) })
+                        AssistChip(onClick = { onValue(applySuggestion(value, name)) }, label = { Text(name) })
                     }
                 } else {
                     val separator = if (turkish) ";" else ","
                     for (key in listOf("=", "+", "-", "*", "/", "(", ")", separator, ":", "$", "%", "&", "\"\"")) {
-                        AssistChip(onClick = { value = typeAt(value, key) }, label = { Text(key, fontFamily = FontFamily.Monospace) })
+                        AssistChip(onClick = { onValue(typeAt(value, key)) }, label = { Text(key, fontFamily = FontFamily.Monospace) })
                     }
                 }
+            }
+        }
+    }
+}
+
+/** Every function, searchable and grouped by category; a tap puts it in the formula. */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun FormulaHelpSheet(docs: List<FunctionDoc>, onDismiss: () -> Unit, onPick: (String) -> Unit) {
+    var query by remember { mutableStateOf("") }
+    val folded = query.trim().searchFold()
+    val shown = remember(docs, folded) {
+        if (folded.isEmpty()) docs else docs.filter { it.name.searchFold().contains(folded) || it.description.searchFold().contains(folded) }
+    }
+    ModalBottomSheet(onDismissRequest = onDismiss) {
+        Column(Modifier.padding(horizontal = 16.dp)) {
+            Text(stringResource(R.string.all_formulas), style = MaterialTheme.typography.titleLarge)
+            OutlinedTextField(
+                value = query,
+                onValueChange = { query = it },
+                placeholder = { Text(stringResource(R.string.formula_search)) },
+                singleLine = true,
+                modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
+            )
+        }
+        LazyColumn(Modifier.fillMaxWidth().heightIn(max = 560.dp)) {
+            items(shown, key = { it.name }) { d ->
+                ListItem(
+                    overlineContent = if (d.category.isNotEmpty()) ({ Text(d.category) }) else null,
+                    headlineContent = { Text(d.signature, fontFamily = FontFamily.Monospace, style = MaterialTheme.typography.bodyMedium) },
+                    supportingContent = if (d.description.isNotEmpty()) ({ Text(d.description) }) else null,
+                    trailingContent = { TextButton(onClick = { onPick(d.name) }) { Text(stringResource(R.string.formula_insert)) } },
+                    modifier = Modifier.clickable { onPick(d.name) },
+                )
+                HorizontalDivider()
             }
         }
     }

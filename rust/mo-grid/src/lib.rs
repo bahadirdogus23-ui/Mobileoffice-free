@@ -234,6 +234,11 @@ impl GridDoc {
     }
 
     /// Function names to suggest while a formula is typed (Turkish ones when Turkish is on).
+    /// Every function with its arguments and what it does, for hints and the formula help page.
+    pub fn function_docs(&self) -> Vec<FunctionDoc> {
+        function_docs(self.turkish)
+    }
+
     pub fn function_names(&self) -> Vec<String> {
         function_names(self.turkish).into_iter().map(str::to_string).collect()
     }
@@ -326,7 +331,7 @@ fn is_delimited_text(name: &str) -> bool {
 #[cfg(test)]
 mod tests;
 mod turkish;
-pub use turkish::{collation_key, from_engine, function_names, number_display, to_engine};
+pub use turkish::{FunctionDoc, collation_key, from_engine, function_docs, function_names, number_display, to_engine};
 
 /// Hands WordCraft's bundled fonts (OFL: Source Sans 3, Source Serif 4, JetBrains Mono) to the
 /// PDF writer once, so spreadsheet PDFs embed real fonts with every Turkish letter instead of

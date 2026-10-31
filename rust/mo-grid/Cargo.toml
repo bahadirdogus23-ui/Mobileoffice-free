@@ -12,6 +12,7 @@ publish = false
 gridcraft-pdf = { workspace = true }
 wordcraft-fonts = { workspace = true }
 gridcraft-engine = { workspace = true }
+gridcraft-functions = { workspace = true }
 serde_json = { workspace = true }
 thiserror = { workspace = true }
 encoding_rs = "0.8"

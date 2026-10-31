@@ -1912,6 +1912,7 @@ version = "0.1.0"
 dependencies = [
  "encoding_rs",
  "gridcraft-engine",
+ "gridcraft-functions",
  "gridcraft-pdf",
  "serde_json",
  "thiserror",

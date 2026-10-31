@@ -9,6 +9,10 @@ import android.text.format.Formatter
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
+import androidx.core.content.edit
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.ui.draw.clip
+import java.text.Collator
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
@@ -41,7 +45,6 @@ import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.PrimaryTabRow
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Surface
 import androidx.compose.material3.Tab
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -125,6 +128,31 @@ private enum class ExtraFilter(val label: Int) {
     }
 }
 
+/** Orders the home list can be shown in; the choice is remembered. */
+internal enum class HomeSort(val label: Int) {
+    NEWEST(R.string.sort_newest),
+    OLDEST(R.string.sort_oldest),
+    NAME_AZ(R.string.sort_name_az),
+    NAME_ZA(R.string.sort_name_za),
+    LARGEST(R.string.sort_largest),
+    SMALLEST(R.string.sort_smallest),
+    KIND(R.string.sort_kind),
+}
+
+private fun List<HomeItem>.sortedBy(sort: HomeSort): List<HomeItem> {
+    val collator = Collator.getInstance(Locale.forLanguageTag("tr")).apply { strength = Collator.SECONDARY }
+    val byName = Comparator<HomeItem> { a, b -> collator.compare(a.name, b.name) }
+    return when (sort) {
+        HomeSort.NEWEST -> sortedByDescending { it.date }
+        HomeSort.OLDEST -> sortedBy { it.date }
+        HomeSort.NAME_AZ -> sortedWith(byName)
+        HomeSort.NAME_ZA -> sortedWith(byName.reversed())
+        HomeSort.LARGEST -> sortedByDescending { it.size }
+        HomeSort.SMALLEST -> sortedBy { it.size }
+        HomeSort.KIND -> sortedWith(compareBy<HomeItem> { it.kind.ordinal }.then(byName))
+    }
+}
+
 /** One row of the home list, from a device scan or the recent-files list. */
 private data class HomeItem(
     val uri: Uri,
@@ -136,7 +164,7 @@ private data class HomeItem(
 )
 
 @Composable
-fun HomeScreen(onOpen: (Uri) -> Unit, onNewSheet: () -> Unit, onDiagnostics: () -> Unit, engineVersion: String) {
+fun HomeScreen(onOpen: (Uri) -> Unit, onNewSheet: () -> Unit, onDiagnostics: () -> Unit, engineVersion: String, reading: ReadingSettings) {
     val context = LocalContext.current
     val recents = remember { RecentFiles(context) }
     // Re-read whenever the home screen comes back (it leaves composition while a document is open).
@@ -163,7 +191,15 @@ fun HomeScreen(onOpen: (Uri) -> Unit, onNewSheet: () -> Unit, onDiagnostics: () 
     }
     val imagesToPdf = rememberImagesToPdf(onOpen)
     var showSettings by remember { mutableStateOf(false) }
-    if (showSettings) SettingsSheet(onDismiss = { showSettings = false }, onRecentsCleared = { files = recents.all() })
+    if (showSettings) {
+        SettingsSheet(
+            reading = reading,
+            engineVersion = engineVersion,
+            onDiagnostics = onDiagnostics,
+            onDismiss = { showSettings = false },
+            onRecentsCleared = { files = recents.all() },
+        )
+    }
     val scan = rememberScanner(onOpen)
     val askLegacy = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
         access = granted
@@ -204,11 +240,16 @@ fun HomeScreen(onOpen: (Uri) -> Unit, onNewSheet: () -> Unit, onDiagnostics: () 
         files.map { HomeItem(it.uri, it.name, it.kind, it.size, it.openedAt, it.progress) }
     }
     val needle = query.trim().searchFold()
+    val prefs = remember { context.getSharedPreferences("home", android.content.Context.MODE_PRIVATE) }
+    var sort by remember {
+        mutableStateOf(HomeSort.entries.firstOrNull { it.name == prefs.getString("sort", null) } ?: HomeSort.NEWEST)
+    }
+    var sortMenu by remember { mutableStateOf(false) }
     val shown = items.filter {
         (current.kind == null || it.kind == current.kind) &&
             (current.kind != null || extra == null || extra.matches(it)) &&
             (needle.isEmpty() || needle in it.name.searchFold())
-    }
+    }.sortedBy(sort)
 
     Scaffold(
         bottomBar = {
@@ -237,8 +278,7 @@ fun HomeScreen(onOpen: (Uri) -> Unit, onNewSheet: () -> Unit, onDiagnostics: () 
                     fontWeight = FontWeight.SemiBold,
                     modifier = Modifier.weight(1f),
                 )
-                TextButton(onClick = { showSettings = true }) { Text(stringResource(R.string.settings)) }
-                TextButton(onClick = onDiagnostics) { Text(stringResource(R.string.diagnostics)) }
+                TextButton(onClick = { showSettings = true }) { Text("⚙ " + stringResource(R.string.settings)) }
             }
             Text(
                 stringResource(R.string.home_tagline),
@@ -280,6 +320,36 @@ fun HomeScreen(onOpen: (Uri) -> Unit, onNewSheet: () -> Unit, onDiagnostics: () 
             PrimaryTabRow(selectedTabIndex = source) {
                 Tab(selected = source == 0, onClick = { source = 0 }, text = { Text(stringResource(R.string.all_documents)) })
                 Tab(selected = source == 1, onClick = { source = 1 }, text = { Text(stringResource(R.string.recently_opened)) })
+            }
+            if (shown.isNotEmpty()) {
+                Row(
+                    Modifier.fillMaxWidth().padding(start = 16.dp, end = 4.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Text(
+                        stringResource(R.string.documents_count, shown.size),
+                        style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.weight(1f),
+                    )
+                    Box {
+                        TextButton(onClick = { sortMenu = true }) {
+                            Text(stringResource(R.string.sort_by, stringResource(sort.label)) + " ▾")
+                        }
+                        DropdownMenu(expanded = sortMenu, onDismissRequest = { sortMenu = false }) {
+                            for (s in HomeSort.entries) {
+                                DropdownMenuItem(
+                                    text = { Text((if (s == sort) "✓ " else "") + stringResource(s.label)) },
+                                    onClick = {
+                                        sortMenu = false
+                                        sort = s
+                                        prefs.edit { putString("sort", s.name) }
+                                    },
+                                )
+                            }
+                        }
+                    }
+                }
             }
             if (source == 0 && !access) {
                 Card(Modifier.fillMaxWidth().padding(16.dp)) {
@@ -347,6 +417,7 @@ fun HomeScreen(onOpen: (Uri) -> Unit, onNewSheet: () -> Unit, onDiagnostics: () 
                         )
                         HorizontalDivider(Modifier.padding(start = 76.dp))
                     }
+                    item(key = "support") { SupportCard(Modifier.padding(16.dp)) }
                 }
             }
         }
@@ -375,15 +446,13 @@ private fun DocumentRow(file: HomeItem, onOpen: () -> Unit, onShare: () -> Unit,
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
-                if (file.progress > 0) {
-                    Spacer(Modifier.width(8.dp))
-                    Surface(shape = RoundedCornerShape(50), color = MaterialTheme.colorScheme.secondaryContainer) {
-                        Text(
-                            stringResource(R.string.viewed_percent, file.progress),
-                            style = MaterialTheme.typography.labelSmall,
-                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp),
-                        )
-                    }
+            }
+            if (file.progress > 0) {
+                // How far it was read: a thin bar under the name.
+                val track = MaterialTheme.colorScheme.surfaceVariant
+                val fill = MaterialTheme.colorScheme.primary
+                Box(Modifier.padding(top = 6.dp).width(96.dp).height(3.dp).clip(RoundedCornerShape(50)).background(track)) {
+                    Box(Modifier.fillMaxHeight().fillMaxWidth(file.progress.coerceIn(0, 100) / 100f).background(fill))
                 }
             }
         }
@@ -436,5 +505,7 @@ private fun EmptyState(engineVersion: String) {
             style = MaterialTheme.typography.labelSmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
+        Spacer(Modifier.height(24.dp))
+        SupportCard()
     }
 }

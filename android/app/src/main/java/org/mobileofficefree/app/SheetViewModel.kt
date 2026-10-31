@@ -19,6 +19,7 @@ import kotlinx.coroutines.withContext
 import org.json.JSONObject
 import java.util.Locale
 import org.mobileofficefree.engine.CellLook
+import org.mobileofficefree.engine.FunctionDoc
 import org.mobileofficefree.engine.SheetDocument
 import org.mobileofficefree.engine.nativeVersion
 
@@ -91,7 +92,8 @@ class SheetViewModel(app: Application) : AndroidViewModel(app) {
     /** Formulas are typed the Turkish way; function names offered while typing one. */
     var turkish by mutableStateOf(false)
         private set
-    var functionNames by mutableStateOf<List<String>>(emptyList())
+    /** Every spreadsheet function, for hints and the formula help page. */
+    var functionDocs by mutableStateOf<List<FunctionDoc>>(emptyList())
         private set
 
     /** The opened file, saved over by "Save" when it is an XLSX. */
@@ -438,7 +440,7 @@ class SheetViewModel(app: Application) : AndroidViewModel(app) {
         // Numbers and formulas the Turkish way when the phone speaks Turkish ("1.250,5", =TOPLA(…;…)).
         next.setTurkish(Locale.getDefault().language == "tr")
         turkish = Locale.getDefault().language == "tr"
-        functionNames = next.functionNames()
+        functionDocs = next.functionDocs()
         blocks.clear()
         looks.clear()
         blockAt.clear()

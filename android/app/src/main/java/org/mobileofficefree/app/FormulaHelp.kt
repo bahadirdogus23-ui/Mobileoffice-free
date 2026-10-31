@@ -42,3 +42,49 @@ fun typeAt(value: TextFieldValue, piece: String): TextFieldValue {
     val text = value.text.substring(0, a) + piece + value.text.substring(b)
     return TextFieldValue(text, TextRange(a + piece.length))
 }
+
+/** Whether a tap on a cell now puts its reference into the formula (Excel's "point" mode). */
+fun pointing(value: TextFieldValue): Boolean = value.text.startsWith("=")
+
+/**
+ * [value] with the reference [ref] put at the cursor. A reference just put there by the previous
+ * tap ([last], its range in the text) is replaced, so tapping around picks the cell.
+ * Returns the new value and where the reference now is.
+ */
+fun insertReference(value: TextFieldValue, ref: String, last: TextRange?): Pair<TextFieldValue, TextRange> {
+    val text = value.text
+    val cursor = value.selection.start.coerceIn(0, text.length)
+    val (a, b) = if (last != null && last.end == cursor && last.start in 0..cursor && last.end <= text.length) {
+        last.start to last.end
+    } else {
+        value.selection.min.coerceIn(0, text.length) to value.selection.max.coerceIn(0, text.length)
+    }
+    val out = text.substring(0, a) + ref + text.substring(b)
+    return TextFieldValue(out, TextRange(a + ref.length)) to TextRange(a, a + ref.length)
+}
+
+/** The function whose brackets the cursor is inside (the innermost), or null. */
+fun functionAtCursor(value: TextFieldValue): String? {
+    val text = value.text
+    if (!text.startsWith("=")) return null
+    var depth = 0
+    var i = value.selection.start.coerceIn(0, text.length) - 1
+    var inQuotes = text.substring(0, i + 1).count { it == '"' } % 2 == 1
+    while (i >= 0) {
+        val c = text[i]
+        if (c == '"') inQuotes = !inQuotes
+        if (!inQuotes) {
+            if (c == ')') depth++
+            if (c == '(') {
+                if (depth == 0) {
+                    var s = i
+                    while (s > 0 && (text[s - 1].isLetterOrDigit() || text[s - 1] == '_' || text[s - 1] == '.')) s--
+                    return text.substring(s, i).takeIf { it.isNotEmpty() && it.first().isLetter() }?.let(::upperTr)
+                }
+                depth--
+            }
+        }
+        i--
+    }
+    return null
+}

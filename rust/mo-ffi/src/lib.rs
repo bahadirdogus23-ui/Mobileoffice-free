@@ -180,6 +180,15 @@ impl SheetDocument {
         self.doc().set_turkish(on)
     }
 
+    /// Every function with its arguments and what it does (Turkish when Turkish is on).
+    pub fn function_docs(&self) -> Vec<FunctionDoc> {
+        self.doc()
+            .function_docs()
+            .into_iter()
+            .map(|d| FunctionDoc { name: d.name, signature: d.signature, description: d.description, category: d.category.to_string() })
+            .collect()
+    }
+
     /// Function names to suggest while a formula is typed.
     pub fn function_names(&self) -> Vec<String> {
         self.doc().function_names()
@@ -611,6 +620,15 @@ pub struct Pen {
     pub blue: f64,
     pub width: f64,
     pub opacity: f64,
+}
+
+/// A spreadsheet function for hints and the formula help page.
+#[derive(uniffi::Record)]
+pub struct FunctionDoc {
+    pub name: String,
+    pub signature: String,
+    pub description: String,
+    pub category: String,
 }
 
 /// Typefaces for text typed on a PDF page (all draw the Turkish letters).

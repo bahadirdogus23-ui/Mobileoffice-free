@@ -152,6 +152,7 @@ fun AppRoot(sheet: SheetViewModel, word: WordViewModel, pdf: PdfViewModel, slide
                     onNewSheet = sheet::newBlank,
                     onDiagnostics = { showDiagnostics = true },
                     engineVersion = sheet.engineVersion,
+                    reading = reading,
                 )
             }
         }

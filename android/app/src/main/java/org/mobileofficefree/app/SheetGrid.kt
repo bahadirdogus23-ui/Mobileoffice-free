@@ -130,11 +130,15 @@ fun SheetGrid(
         val scrollRows = (firstRow..lastRow).toList()
         val frozenColList = (0 until fc).toList()
         val frozenRowList = (0 until fr).toList()
-        val cellStyle = TextStyle(fontSize = (14 * scale).sp, color = colors.onSurface)
+        // The cells are paper, as in the file: white, black text, Excel's light grey grid, in the
+        // dark theme too (the file's own colours are drawn as they are).
+        val paper = Color.White
+        val gridLine = Color(0xFFD9D9D9)
+        val cellStyle = TextStyle(fontSize = (14 * scale).sp, color = Color.Black)
         val headerStyle = TextStyle(fontSize = 12.sp, color = colors.onSurfaceVariant)
         val pad = 4.dp.toPx() * scale
 
-        drawRect(colors.surface)
+        drawRect(paper)
 
         /** [text] in a box at ([x], [y]) [w]×[h], aligned by [look], given [room] to run to the right. */
         fun DrawScope.drawCell(text: String, look: CellLook?, x: Float, y: Float, w: Float, h: Float, room: Float) {
@@ -145,7 +149,6 @@ fun SheetGrid(
                 // Text keeps its own colour; on a filled cell the default is black, as on paper.
                 color = when {
                     look.color != 0u -> Color(look.color.toInt())
-                    look.fill != 0u -> Color.Black
                     else -> cellStyle.color
                 },
             )
@@ -175,7 +178,7 @@ fun SheetGrid(
                     val rh = rowAxis.size(r) * k
                     if (rh <= 0f) continue // a hidden row
                     val y = yOf(r)
-                    drawLine(colors.outlineVariant, Offset(left, y + rh), Offset(right, y + rh), 1f)
+                    drawLine(gridLine, Offset(left, y + rh), Offset(right, y + rh), 1f)
                     for (c in colList) {
                         val cw = columnAxis.size(c) * k
                         if (cw <= 0f) continue // a hidden column
@@ -187,9 +190,23 @@ fun SheetGrid(
                     val cw = columnAxis.size(c) * k
                     if (cw <= 0f) continue
                     val x = xOf(c)
-                    drawLine(colors.outlineVariant, Offset(x + cw, top), Offset(x + cw, bottom), 1f)
+                    drawLine(gridLine, Offset(x + cw, top), Offset(x + cw, bottom), 1f)
                 }
-                // Cell borders from the file, over the faint grid lines.
+                // Merged ranges: one box (its first cell's fill, or paper over the inner lines);
+                // the first cell's text goes across all of it below.
+                val shown = merges.filter { m -> m[2] >= rowList.first() && m[0] <= rowList.last() && m[3] >= colList.first() && m[1] <= colList.last() }
+                for (m in shown) {
+                    val x0 = xOf(m[1])
+                    val y0 = yOf(m[0])
+                    val w = (columnAxis.start(m[3] + 1) - columnAxis.start(m[1])) * k
+                    val h = (rowAxis.start(m[2] + 1) - rowAxis.start(m[0])) * k
+                    val look = cellLook(sheet, m[0], m[1])
+                    drawRect(if (look != null && look.fill != 0u) Color(look.fill.toInt()) else paper, Offset(x0 + 0.5f, y0 + 0.5f), Size(w - 1f, h - 1f))
+                }
+                fun inside(r: Int, c: Int) = shown.firstOrNull { m -> r in m[0]..m[2] && c in m[1]..m[3] }
+                // Cell borders from the file, over the grid lines and merged boxes: thin, medium
+                // and thick as on paper (¾, 1½ and 2¼ points), never under one pixel. A side inside
+                // a merged range is not drawn.
                 for (r in rowList) {
                     val rh = rowAxis.size(r) * k
                     if (rh <= 0f) continue
@@ -200,30 +217,25 @@ fun SheetGrid(
                         val look = cellLook(sheet, r, c) ?: continue
                         val b = look.borders.toInt()
                         if (b == 0) continue
-                        val color = if (look.borderColor != 0u) Color(look.borderColor.toInt()) else colors.onSurface
+                        val color = if (look.borderColor != 0u) Color(look.borderColor.toInt()) else Color.Black
                         val x = xOf(c)
-                        fun side(shift: Int, from: Offset, to: Offset) {
+                        val m = inside(r, c)
+                        fun side(shift: Int, inner: Boolean, from: Offset, to: Offset) {
                             val w = (b shr shift) and 0xFF
-                            if (w > 0) drawLine(color, from, to, w.dp.toPx())
+                            if (w > 0 && !inner) drawLine(color, from, to, max(1f, w * 0.75f * k))
                         }
-                        side(0, Offset(x, y), Offset(x, y + rh))
-                        side(8, Offset(x + cw, y), Offset(x + cw, y + rh))
-                        side(16, Offset(x, y), Offset(x + cw, y))
-                        side(24, Offset(x, y + rh), Offset(x + cw, y + rh))
+                        side(0, m != null && c > m[1], Offset(x, y), Offset(x, y + rh))
+                        side(8, m != null && c < m[3], Offset(x + cw, y), Offset(x + cw, y + rh))
+                        side(16, m != null && r > m[0], Offset(x, y), Offset(x + cw, y))
+                        side(24, m != null && r < m[2], Offset(x, y + rh), Offset(x + cw, y + rh))
                     }
                 }
-                // Merged ranges: one box (its first cell's fill, or paper over the inner lines)
-                // and the first cell's text across all of it.
-                val shown = merges.filter { m -> m[2] >= rowList.first() && m[0] <= rowList.last() && m[3] >= colList.first() && m[1] <= colList.last() }
                 for (m in shown) {
-                    val x0 = xOf(m[1])
-                    val y0 = yOf(m[0])
+                    val text = cellText(sheet, m[0], m[1])
+                    if (text.isNullOrEmpty()) continue
                     val w = (columnAxis.start(m[3] + 1) - columnAxis.start(m[1])) * k
                     val h = (rowAxis.start(m[2] + 1) - rowAxis.start(m[0])) * k
-                    val look = cellLook(sheet, m[0], m[1])
-                    drawRect(if (look != null && look.fill != 0u) Color(look.fill.toInt()) else colors.surface, Offset(x0 + 0.5f, y0 + 0.5f), Size(w - 1f, h - 1f))
-                    val text = cellText(sheet, m[0], m[1])
-                    if (!text.isNullOrEmpty()) drawCell(text, look, x0, y0, w, h, w)
+                    drawCell(text, cellLook(sheet, m[0], m[1]), xOf(m[1]), yOf(m[0]), w, h, w)
                 }
                 for (r in rowList) {
                     val rh = rowAxis.size(r) * k
