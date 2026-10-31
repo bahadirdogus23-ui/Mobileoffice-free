@@ -375,4 +375,6 @@
     <string name="pages_drag_hint">Sırayı değiştirmek için sayfayı basılı tutup sürükleyin</string>
     <string name="scan_contrast">Kontrast</string>
     <string name="scan_brightness">Parlaklık</string>
+    <string name="guide">Kullanım kılavuzu</string>
+    <string name="guide_hint">Uygulamanın amacı ve nasıl kullanılacağı</string>
 </resources>

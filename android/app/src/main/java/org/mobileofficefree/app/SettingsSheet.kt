@@ -62,8 +62,7 @@ fun SettingsSheet(
         runCatching { context.packageManager.getPackageInfo(context.packageName, 0).versionName }.getOrNull().orEmpty()
     }
     var support by remember { mutableStateOf(false) }
-    if (support) SupportDialog { support = false }
-    CoffeeNotReadyDialog()
+    var guide by remember { mutableStateOf(false) }
     Dialog(onDismissRequest = onDismiss, properties = DialogProperties(usePlatformDefaultWidth = false)) {
         Scaffold(
             topBar = {
@@ -115,6 +114,7 @@ fun SettingsSheet(
                     Item("✉", Color(0xFF43A047), stringResource(R.string.support_report), null) { Support.open(context, Support.ISSUES_URL) }
                 }
                 Section(stringResource(R.string.settings_section_about)) {
+                    Item("?", Color(0xFF00897B), stringResource(R.string.guide), stringResource(R.string.guide_hint)) { guide = true }
                     Item("ℹ", Color(0xFF757575), stringResource(R.string.about_version), version)
                     Item("⚙", Color(0xFF757575), stringResource(R.string.about_engines), engineVersion)
                     Item("⏱", Color(0xFF757575), stringResource(R.string.diagnostics), stringResource(R.string.about_diagnostics_hint)) {
@@ -132,6 +132,10 @@ fun SettingsSheet(
             }
         }
     }
+    // Composed after the settings screen, so they open over it.
+    if (support) SupportDialog { support = false }
+    if (guide) GuideScreen { guide = false }
+    CoffeeNotReadyDialog()
 }
 
 /** A titled card holding rows, separated by thin lines. */

@@ -1,0 +1,37 @@
+# MobileOffice nedir?
+Word, Excel, PowerPoint, PDF, UYAP (UDF), e-Fatura ve çizim (DWG/DXF) dosyalarını telefonda açan, düzenleyen ve dönüştüren ücretsiz bir ofis uygulaması.
+- Reklam yok, hesap yok, internet izni yok: dosyalarınız telefonunuzdan çıkmaz.
+- Türkçe için yapıldı: Türkçe harfler, Türkçe formüller (TOPLA, EĞER…), Türk alfabesine göre sıralama, UYAP ve e-Fatura.
+# Dosya açma
+- Ana ekran telefondaki belgeleri listeler. İlk açılışta "Tüm dosyalara erişim" izni verin ya da bir klasör seçin.
+- Arama kutusu İ/ı ve büyük/küçük harf farkına takılmaz.
+- Sağ üstteki "Sırala" ile tarihe, ada, boyuta ya da türe göre sıralayın.
+- Dosyanın altındaki ince çubuk, ne kadarını okuduğunuzu gösterir.
+# Word belgeleri
+- Düzenle'ye basın; sayfaya dokunduğunuz yere yazarsınız. Klavye kapanırsa sayfaya dokunun ya da ⌨ Klavye düğmesine basın.
+- Bir kelimeye basılı tutup sürükleyerek seçin; araç çubuğundan kalın, renk, hizalama, madde ve stil verin.
+- Ekle menüsünden resim, tablo ve sayfa sonu eklenir. Değiştir, bir kelimeyi belgenin her yerinde değiştirir.
+- Kaydet, DOCX/ODT/RTF dosyasının üzerine yazar; DOC ve UDF yeni bir DOCX olarak kaydedilir.
+# Excel tabloları
+- Hücreye dokunun, üstteki formül çubuğuna yazın. Sayılar Türkçe yazılır: 1.250,5.
+- Formül yazarken bir hücreye dokunmak, adresini formüle ekler. ƒx düğmesi tüm formülleri Türkçe açıklamalarıyla listeler.
+- Araç çubuğunda kalın, dolgu, kenarlık, para birimi ve yüzde; Sayfa menüsünde yeni sayfa, dondurma ve sıralama vardır.
+- PDF düğmesi tabloyu sayfa yapısı ayarlarıyla PDF'e çevirir.
+# PowerPoint sunumları
+- Sun ile tam ekran sunum yapın: sağa dokunun ileri, sola dokunun geri; basılı tutunca lazer işaretçisi çıkar.
+- Düzenle'de bir yazıya dokunup metnini değiştirin; slayt ekleyin, çoğaltın, taşıyın ya da silin.
+# PDF
+- Ara, Sesli oku ve Metin görünümü Türkçe çalışır.
+- İmzala ve yaz: imza atın, kalemle çizin, fosforlu kalemle işaretleyin ya da Metin ile sayfanın istediğiniz yerine yazın.
+- Formu doldur: PDF'teki form alanlarını doldurur. Tarayıcıdan basılmış formlarda boş kutular kendiliğinden doldurulabilir alana çevrilir.
+- Sayfalar: döndürün, silin, taşıyın, başka PDF ekleyin ya da seçtiğiniz sayfaları yeni bir PDF yapın.
+- Karart: T.C. kimlik, IBAN, telefon ve e-postayı bulur, kalıcı olarak siler. Parola ve Küçült de bu menüdedir.
+# Tarama ve resimden PDF
+- Tara ile kağıdın fotoğrafını çekin; köşeler kendiliğinden bulunur, gerekirse sürükleyin. Belge görünümü gölgeyi siler; kontrast ve parlaklığı ayarlayabilirsiniz.
+- Resimden PDF ile birkaç fotoğraf seçin; sayfaları basılı tutup sürükleyerek sıralayın.
+# UYAP, e-Fatura ve çizimler
+- UDF belgeleri UYAP'taki biçimiyle açılır; PDF ya da DOCX'e dönüştürülebilir.
+- e-Fatura XML dosyaları faturanın kendi tasarımıyla, A4 sayfası olarak gösterilir; özet kartında tutarlar ve taraflar yer alır.
+- DWG ve DXF çizimleri katmanlarıyla açılır; iki parmakla yakınlaştırın.
+# Gizlilik
+- Ayarlar'dan uygulamayı kilitleyebilir, ekran görüntüsünü engelleyebilir, gizli modu açabilir ve son açılanlar listesini temizleyebilirsiniz.

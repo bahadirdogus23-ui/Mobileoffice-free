@@ -1,0 +1,37 @@
+# What is MobileOffice?
+A free office app that opens, edits and converts Word, Excel, PowerPoint, PDF, UYAP (UDF), e-invoice and drawing (DWG/DXF) files on your phone.
+- No ads, no account, no internet permission: your files never leave the phone.
+- Made for Turkish: Turkish letters, Turkish formulas, sorting by the Turkish alphabet, UYAP and e-invoices.
+# Opening files
+- The home screen lists the documents on the phone. Allow "All files access" or pick a folder the first time.
+- Search ignores case and the dotted/dotless i.
+- Sort by date, name, size or type with "Sort" at the top right.
+- The thin bar under a file shows how far you read it.
+# Word documents
+- Tap Edit, then tap where to type. If the keyboard closes, tap the page or the ⌨ Keyboard button.
+- Hold a word and drag to select; use the tool bar for bold, colour, alignment, lists and styles.
+- Insert adds pictures, tables and page breaks. Replace changes a word everywhere.
+- Save writes over DOCX/ODT/RTF files; DOC and UDF are saved as a new DOCX.
+# Spreadsheets
+- Tap a cell and type in the formula bar. Numbers are typed the Turkish way: 1.250,5.
+- While typing a formula, tapping a cell adds its address. The ƒx button lists every formula with what it does.
+- The tool bar has bold, fill, borders, currency and percent; the Sheet menu has new sheets, freezing and sorting.
+- PDF turns the sheet into a PDF with page setup.
+# Presentations
+- Present shows slides full screen: tap right to go on, left to go back; hold for a laser pointer.
+- In Edit, tap a text to change it; add, duplicate, move or delete slides.
+# PDF
+- Search, Read aloud and Text view work in Turkish.
+- Sign & write: sign, draw, highlight, or type Text anywhere on the page.
+- Fill form fills the PDF's fields. On forms printed from a browser, empty boxes become fillable fields.
+- Pages: rotate, delete, move, add another PDF, or save chosen pages as a new PDF.
+- Black out finds ID numbers, IBANs, phone numbers and e-mails and removes them for good. Password and Compress are in this menu too.
+# Scanning and pictures to PDF
+- Scan photographs a page; its corners are found for you, drag them if needed. The Document look removes shadows; adjust contrast and brightness.
+- Pictures to PDF: pick photos and hold a page to drag it into order.
+# UYAP, e-invoices and drawings
+- UDF documents open as they look in UYAP and convert to PDF or DOCX.
+- e-Invoice XML files show the seller's design as an A4 page, with a summary of amounts and parties.
+- DWG and DXF drawings open with their layers; pinch to zoom.
+# Privacy
+- In Settings you can lock the app, block screenshots, turn on incognito and clear the recent list.

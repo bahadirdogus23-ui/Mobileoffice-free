@@ -376,4 +376,6 @@
     <string name="pages_drag_hint">Hold a page and drag it to change the order</string>
     <string name="scan_contrast">Contrast</string>
     <string name="scan_brightness">Brightness</string>
+    <string name="guide">User guide</string>
+    <string name="guide_hint">What the app does and how to use it</string>
 </resources>
