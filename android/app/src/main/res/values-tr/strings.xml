@@ -248,4 +248,8 @@
     <string name="fill_blue">Mavi</string>
     <string name="fill_red">Kırmızı</string>
     <string name="fill_grey">Gri</string>
+    <string name="present">Sun</string>
+    <string name="speaker_notes">Notlar</string>
+    <string name="end_show">Bitir</string>
+    <string name="no_notes">Bu slaytta konuşmacı notu yok.</string>
 </resources>

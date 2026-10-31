@@ -143,6 +143,8 @@ fun PagedScreen(vm: PagedViewModel, state: PagedUiState, reading: ReadingSetting
     // PDF page tools: pages picked in the Pages sheet, and where extracted pages / the edit go.
     val pdf = vm as? PdfViewModel
     val word = vm as? WordViewModel
+    val slides = vm as? SlidesViewModel
+    var presenting by remember(state.uri) { mutableStateOf(false) }
     var selecting by remember(state.uri) { mutableStateOf(false) }
     val selected = remember(state.uri) { mutableStateListOf<Int>() }
     var extractPages by remember { mutableStateOf<List<Int>>(emptyList()) }
@@ -523,6 +525,7 @@ fun PagedScreen(vm: PagedViewModel, state: PagedUiState, reading: ReadingSetting
             // Scrolls sideways when the buttons do not fit (narrow phones, large text).
             Row(Modifier.horizontalScroll(rememberScrollState())) {
                 if (word != null) TextButton(onClick = word::startEditing) { Text(stringResource(R.string.edit)) }
+                if (slides != null) TextButton(onClick = { presenting = true }) { Text(stringResource(R.string.present)) }
                 TextButton(onClick = { showReading = true }) { Text(stringResource(R.string.reading)) }
                 TextButton(onClick = { showPages = true }) { Text(stringResource(R.string.pages)) }
                 if (pdf != null) {
@@ -650,6 +653,10 @@ fun PagedScreen(vm: PagedViewModel, state: PagedUiState, reading: ReadingSetting
             drawSignature = false
             placing = it
         }
+    }
+
+    if (presenting && slides != null) {
+        PresentScreen(slides, state, start = current - 1, onClose = { presenting = false })
     }
 
     if (showReading) {

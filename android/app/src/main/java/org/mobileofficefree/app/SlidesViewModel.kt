@@ -5,6 +5,7 @@ import android.graphics.Bitmap
 import android.net.Uri
 import androidx.core.graphics.createBitmap
 import java.nio.ByteBuffer
+import kotlinx.coroutines.withContext
 import org.mobileofficefree.engine.SlidesDocument
 
 /** Presentations (PPTX, PPSX, POTX) drawn by the DeckCraft renderer, one slide per page. */
@@ -28,6 +29,10 @@ class SlidesViewModel(app: Application) : PagedViewModel(app, DocumentKind.SLIDE
             copyPixelsFromBuffer(ByteBuffer.wrap(raster.pixels))
         }
     }
+
+    /** The speaker notes of [slide] (empty when it has none). Runs on the engine thread. */
+    suspend fun notes(slide: Int): String =
+        withContext(engine) { runCatching { doc?.notes(slide.toUInt()) }.getOrNull().orEmpty() }
 
     override val exportFormats = listOf(PDF_FORMAT)
 

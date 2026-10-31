@@ -249,4 +249,8 @@
     <string name="fill_blue">Blue</string>
     <string name="fill_red">Red</string>
     <string name="fill_grey">Grey</string>
+    <string name="present">Present</string>
+    <string name="speaker_notes">Notes</string>
+    <string name="end_show">End</string>
+    <string name="no_notes">This slide has no speaker notes.</string>
 </resources>
