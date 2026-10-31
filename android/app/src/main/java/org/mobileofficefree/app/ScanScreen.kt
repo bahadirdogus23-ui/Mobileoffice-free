@@ -51,6 +51,9 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.ColorMatrix
+import androidx.compose.ui.graphics.ColorFilter
+import androidx.compose.material3.Slider
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.drawscope.Stroke
@@ -88,7 +91,22 @@ private data class ScanPage(
     val look: ScanLook = ScanLook.DOCUMENT,
     /** Whether the corners were put on the paper found in the photo. */
     val found: Boolean = false,
+    /** 1 as photographed; above 1 darker darks and lighter lights. */
+    val contrast: Float = 1f,
+    /** -1 to 1 of full white added; 0 as photographed. */
+    val brightness: Float = 0f,
 )
+
+/** The colour change for [contrast] and [brightness], about mid-grey (Android's 4×5 layout). */
+internal fun toneMatrix(contrast: Float, brightness: Float): FloatArray {
+    val t = 127.5f * (1 - contrast) + brightness * 255f
+    return floatArrayOf(
+        contrast, 0f, 0f, 0f, t,
+        0f, contrast, 0f, 0f, t,
+        0f, 0f, contrast, 0f, t,
+        0f, 0f, 0f, 1f, 0f,
+    )
+}
 
 /**
  * Document scanning: photos from the phone's camera app (or the gallery), each page's corners
@@ -217,6 +235,13 @@ private fun ScanDialog(onClose: () -> Unit, onOpen: (Uri) -> Unit) {
                     }
                 }
                 pages.getOrNull(current)?.let { page ->
+                    // Contrast and brightness, seen at once on the photo and kept in the PDF.
+                    Row(Modifier.fillMaxWidth().padding(horizontal = 12.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Text(stringResource(R.string.scan_contrast), color = Color.White, style = MaterialTheme.typography.labelMedium)
+                        Slider(value = page.contrast, onValueChange = { pages[current] = page.copy(contrast = it) }, valueRange = 0.5f..2.5f, modifier = Modifier.weight(1f))
+                        Text(stringResource(R.string.scan_brightness), color = Color.White, style = MaterialTheme.typography.labelMedium)
+                        Slider(value = page.brightness, onValueChange = { pages[current] = page.copy(brightness = it) }, valueRange = -0.4f..0.4f, modifier = Modifier.weight(1f))
+                    }
                     Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(horizontal = 8.dp), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                         for (look in ScanLook.entries) {
                             FilterChip(selected = page.look == look, onClick = { pages[current] = page.copy(look = look) }, label = { Text(stringResource(look.label)) })
@@ -271,7 +296,12 @@ private fun CornerEditor(page: ScanPage, onCorners: (List<Pair<Float, Float>>) -
         val h = bmp.height * scale
         val density = LocalDensity.current
         Box(Modifier.width(with(density) { w.toDp() }).height(with(density) { h.toDp() })) {
-            Image(bmp.asImageBitmap(), contentDescription = null, modifier = Modifier.fillMaxSize())
+            Image(
+                bmp.asImageBitmap(),
+                contentDescription = null,
+                colorFilter = if (page.contrast != 1f || page.brightness != 0f) ColorFilter.colorMatrix(ColorMatrix(toneMatrix(page.contrast, page.brightness))) else null,
+                modifier = Modifier.fillMaxSize(),
+            )
             var dragging by remember { mutableStateOf<Int?>(null) }
             // The gesture outlives recompositions: it must read the corners as they are now.
             val corners by rememberUpdatedState(page.corners)
@@ -378,7 +408,13 @@ private fun finished(page: ScanPage): ByteArray {
     )
     AndroidCanvas(out).apply {
         drawColor(android.graphics.Color.WHITE)
-        drawBitmap(photo, m, Paint(Paint.FILTER_BITMAP_FLAG or Paint.ANTI_ALIAS_FLAG))
+        drawBitmap(
+            photo,
+            m,
+            Paint(Paint.FILTER_BITMAP_FLAG or Paint.ANTI_ALIAS_FLAG).apply {
+                if (page.contrast != 1f || page.brightness != 0f) colorFilter = android.graphics.ColorMatrixColorFilter(toneMatrix(page.contrast, page.brightness))
+            },
+        )
     }
     photo.recycle()
     if (page.look != ScanLook.COLOR) {

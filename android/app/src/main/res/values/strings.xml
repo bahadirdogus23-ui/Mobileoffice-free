@@ -373,4 +373,7 @@
     <string name="scan_detect">Find edges</string>
     <string name="scan_whole">Whole photo</string>
     <string name="form_detected">%1$d fillable fields were found in the printed form. Fill them in and save.</string>
+    <string name="pages_drag_hint">Hold a page and drag it to change the order</string>
+    <string name="scan_contrast">Contrast</string>
+    <string name="scan_brightness">Brightness</string>
 </resources>

@@ -37,14 +37,26 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.lazy.LazyRow
-import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.produceState
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.unit.dp
+import androidx.compose.foundation.background
+import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.zIndex
+import kotlin.math.roundToInt
 import org.mobileofficefree.engine.NamedFile
 import org.mobileofficefree.engine.imagesToPdf
 
@@ -101,19 +113,9 @@ fun rememberImagesToPdf(onOpen: (Uri) -> Unit): () -> Unit {
             text = {
                 Column {
                     Text(pluralStringResource(R.plurals.images_picked, picked.size, picked.size))
-                    // The pages in order, one by one: a page can be taken out or moved earlier.
-                    LazyRow(
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
-                        modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
-                    ) {
-                        itemsIndexed(picked, key = { _, u -> u.toString() }) { i, uri ->
-                            PageThumb(uri, i + 1, onRemove = { picked = picked.filterIndexed { k, _ -> k != i } }, onEarlier = if (i > 0) {
-                                { picked = picked.toMutableList().apply { add(i - 1, removeAt(i)) } }
-                            } else {
-                                null
-                            })
-                        }
-                    }
+                    // The pages in order: hold one and drag it to move it; ✕ takes it out.
+                    Text(stringResource(R.string.pages_drag_hint), style = MaterialTheme.typography.bodySmall)
+                    PageOrder(picked, onChange = { picked = it })
                     for ((a4, label) in listOf(true to R.string.images_a4, false to R.string.images_own_size)) {
                         Row(
                             verticalAlignment = Alignment.CenterVertically,
@@ -149,26 +151,84 @@ fun rememberImagesToPdf(onOpen: (Uri) -> Unit): () -> Unit {
     return { if (!working) pick.launch(arrayOf("image/*")) }
 }
 
-/** One picked picture as page [number], with buttons to take it out or move it earlier. */
+/** [list] with the item at [from] moved to [to]. */
+internal fun <T> moved(list: List<T>, from: Int, to: Int): List<T> {
+    if (from !in list.indices) return list
+    val out = list.toMutableList()
+    val item = out.removeAt(from)
+    out.add(to.coerceIn(0, out.size), item)
+    return out
+}
+
+/** The picked pictures as a row of pages; a long press picks one up to drag it elsewhere. */
 @Composable
-private fun PageThumb(uri: Uri, number: Int, onRemove: () -> Unit, onEarlier: (() -> Unit)?) {
+private fun PageOrder(pages: List<Uri>, onChange: (List<Uri>) -> Unit) {
+    val step = with(LocalDensity.current) { (THUMB_WIDTH + THUMB_GAP).toPx() }
+    var dragging by remember { mutableStateOf<Uri?>(null) }
+    var offset by remember { mutableFloatStateOf(0f) }
+    val current by rememberUpdatedState(pages)
+    Row(
+        Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(vertical = 8.dp),
+        horizontalArrangement = Arrangement.spacedBy(THUMB_GAP),
+    ) {
+        current.forEachIndexed { i, uri ->
+            val lifted = dragging == uri
+            Box(
+                Modifier
+                    .zIndex(if (lifted) 1f else 0f)
+                    .graphicsLayer {
+                        translationX = if (lifted) offset else 0f
+                        scaleX = if (lifted) 1.06f else 1f
+                        scaleY = if (lifted) 1.06f else 1f
+                        shadowElevation = if (lifted) 12f else 0f
+                    }
+                    .pointerInput(uri) {
+                        detectDragGesturesAfterLongPress(
+                            onDragStart = { dragging = uri; offset = 0f },
+                            onDragEnd = {
+                                val from = current.indexOf(uri)
+                                val to = from + (offset / step).roundToInt()
+                                dragging = null
+                                offset = 0f
+                                if (from >= 0 && to != from) onChange(moved(current, from, to))
+                            },
+                            onDragCancel = { dragging = null; offset = 0f },
+                        ) { change, amount ->
+                            change.consume()
+                            offset += amount.x
+                        }
+                    },
+            ) {
+                PageThumb(uri, i + 1, onRemove = { onChange(current.filterIndexed { k, _ -> k != i }) })
+            }
+        }
+    }
+}
+
+/** One picked picture as page [number], with a button to take it out. */
+@Composable
+private fun PageThumb(uri: Uri, number: Int, onRemove: () -> Unit) {
     val context = LocalContext.current
     val thumb by produceState<ImageBitmap?>(null, uri) {
         value = withContext(Dispatchers.IO) { runCatching { thumbnail(context, uri) }.getOrNull()?.asImageBitmap() }
     }
-    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-        Box(Modifier.size(84.dp, 112.dp).border(1.dp, MaterialTheme.colorScheme.outline), contentAlignment = Alignment.Center) {
+    Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.width(THUMB_WIDTH)) {
+        Box(
+            Modifier.size(THUMB_WIDTH, 112.dp).clip(RoundedCornerShape(6.dp)).background(MaterialTheme.colorScheme.surfaceVariant)
+                .border(1.dp, MaterialTheme.colorScheme.outlineVariant, RoundedCornerShape(6.dp)),
+            contentAlignment = Alignment.Center,
+        ) {
             thumb?.let { Image(it, contentDescription = null, contentScale = ContentScale.Fit, modifier = Modifier.fillMaxSize()) }
         }
-        Text(number.toString(), style = MaterialTheme.typography.labelMedium)
-        Row {
-            if (onEarlier != null) {
-                TextButton(onClick = onEarlier, contentPadding = PaddingValues(4.dp)) { Text("‹") }
-            }
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text(number.toString(), style = MaterialTheme.typography.labelLarge)
             TextButton(onClick = onRemove, contentPadding = PaddingValues(4.dp)) { Text("✕") }
         }
     }
 }
+
+private val THUMB_WIDTH = 84.dp
+private val THUMB_GAP = 10.dp
 
 /** A small copy of the picture at [uri] for the page list. */
 private fun thumbnail(context: android.content.Context, uri: Uri): Bitmap? {
