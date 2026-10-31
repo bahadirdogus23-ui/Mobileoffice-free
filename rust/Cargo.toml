@@ -61,6 +61,30 @@ strip = true
 # The engines' never-crash guards catch panics, so unwinding must stay on.
 panic = "unwind"
 
+# Drawing files are heavy to read and draw: their engines are built for speed, the rest for size.
+[profile.release.package.cadcraft-color]
+opt-level = 3
+[profile.release.package.cadcraft-doc]
+opt-level = 3
+[profile.release.package.cadcraft-dwg]
+opt-level = 3
+[profile.release.package.cadcraft-dxf]
+opt-level = 3
+[profile.release.package.cadcraft-fonts]
+opt-level = 3
+[profile.release.package.cadcraft-geom]
+opt-level = 3
+[profile.release.package.cadcraft-io]
+opt-level = 3
+[profile.release.package.cadcraft-render]
+opt-level = 3
+[profile.release.package.kurbo]
+opt-level = 3
+[profile.release.package.tiny-skia]
+opt-level = 3
+[profile.release.package.tiny-skia-path]
+opt-level = 3
+
 # WordCraft's PDF writer needs the same krilla revision its own workspace patches in.
 [patch.crates-io]
 # PdfCraft reads PDFs with its own patched hayro and lopdf crates (only PdfCraft uses them here).
