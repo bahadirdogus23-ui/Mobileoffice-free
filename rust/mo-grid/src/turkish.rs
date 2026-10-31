@@ -62,6 +62,19 @@ const NAMES: &[(&str, &str)] = &[
 /// Logical constants, written without parentheses.
 const CONSTANTS: &[(&str, &str)] = &[("DOĞRU", "TRUE"), ("YANLIŞ", "FALSE")];
 
+/// Function names a person may type, for suggestions: the Turkish names when `turkish`, else the
+/// English ones, in alphabetical order.
+pub fn function_names(turkish: bool) -> Vec<&'static str> {
+    let mut names: Vec<&'static str> = NAMES.iter().map(|(t, e)| if turkish { *t } else { *e }).collect();
+    if turkish {
+        names.sort_by_key(|n| collation_key(n));
+    } else {
+        names.sort_unstable();
+    }
+    names.dedup();
+    names
+}
+
 /// Upper case the Turkish way (i → İ, ı → I), so "eğer" and "EĞER" are the same name.
 fn upper_tr(s: &str) -> String {
     s.chars()
@@ -265,6 +278,14 @@ mod tests {
         let mut names = vec!["Zeynep", "şule", "Çiğdem", "cemil", "Işık", "İrem", "ılgın", "Ahmet", "Ömer", "osman"];
         names.sort_by_key(|n| collation_key(n));
         assert_eq!(names, ["Ahmet", "cemil", "Çiğdem", "ılgın", "Işık", "İrem", "osman", "Ömer", "şule", "Zeynep"]);
+    }
+
+    #[test]
+    fn offers_function_names_in_alphabet_order() {
+        let tr = function_names(true);
+        assert!(tr.iter().position(|n| *n == "ÇARPIM") > tr.iter().position(|n| *n == "BUL"));
+        assert!(tr.contains(&"DÜŞEYARA") && !tr.contains(&"VLOOKUP"));
+        assert!(function_names(false).contains(&"VLOOKUP"));
     }
 
     #[test]

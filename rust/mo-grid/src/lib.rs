@@ -176,6 +176,11 @@ impl GridDoc {
         self.execute("cell.set", &params.to_string()).map(|_| ())
     }
 
+    /// Function names to suggest while a formula is typed (Turkish ones when Turkish is on).
+    pub fn function_names(&self) -> Vec<String> {
+        function_names(self.turkish).into_iter().map(str::to_string).collect()
+    }
+
     /// Sorts the active sheet's table (A1 to the last used cell; a header row stays on top) by
     /// column `col`. Turkish text follows the Turkish alphabet when Turkish is on.
     pub fn sort_column(&mut self, col: u32, ascending: bool) -> Result<(), GridError> {
@@ -264,7 +269,7 @@ fn is_delimited_text(name: &str) -> bool {
 #[cfg(test)]
 mod tests;
 mod turkish;
-pub use turkish::{collation_key, from_engine, number_display, to_engine};
+pub use turkish::{collation_key, from_engine, function_names, number_display, to_engine};
 
 /// Hands WordCraft's bundled fonts (OFL: Source Sans 3, Source Serif 4, JetBrains Mono) to the
 /// PDF writer once, so spreadsheet PDFs embed real fonts with every Turkish letter instead of

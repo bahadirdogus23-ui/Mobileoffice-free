@@ -80,6 +80,12 @@ class SheetViewModel(app: Application) : AndroidViewModel(app) {
     /** Where each loaded block is, so that an edit can fetch them all again. */
     private val blockAt = HashMap<Long, Triple<Int, Int, Int>>()
 
+    /** Formulas are typed the Turkish way; function names offered while typing one. */
+    var turkish by mutableStateOf(false)
+        private set
+    var functionNames by mutableStateOf<List<String>>(emptyList())
+        private set
+
     /** The opened file, saved over by "Save" when it is an XLSX. */
     private var source: Uri? = null
     var canSaveInPlace by mutableStateOf(false)
@@ -420,6 +426,8 @@ class SheetViewModel(app: Application) : AndroidViewModel(app) {
         doc = next
         // Numbers and formulas the Turkish way when the phone speaks Turkish ("1.250,5", =TOPLA(…;…)).
         next.setTurkish(Locale.getDefault().language == "tr")
+        turkish = Locale.getDefault().language == "tr"
+        functionNames = next.functionNames()
         blocks.clear()
         looks.clear()
         blockAt.clear()

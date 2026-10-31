@@ -20,6 +20,7 @@ import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.AssistChip
 import androidx.compose.material3.Button
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
@@ -43,16 +44,18 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.TextRange
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.dp
 import java.util.Locale
@@ -102,7 +105,7 @@ internal fun SheetScreen(vm: SheetViewModel, state: SheetUiState) {
                 }
             },
         )
-        FormulaBar(state, onCommit = vm::commitCell)
+        FormulaBar(state, vm.functionNames, vm.turkish, onCommit = vm::commitCell)
         SheetToolBar(vm, vm.cellLook(state.sheet, state.selectedRow, state.selectedCol))
         HorizontalDivider()
         SheetGrid(
@@ -268,27 +271,49 @@ private val FILLS = listOf(
 )
 
 @Composable
-private fun FormulaBar(state: SheetUiState, onCommit: (String) -> Unit) {
+private fun FormulaBar(state: SheetUiState, names: List<String>, turkish: Boolean, onCommit: (String) -> Unit) {
     // Reset the field whenever the selection or the cell's content changes.
-    var text by rememberSaveable(state.sheet, state.selectedRow, state.selectedCol, state.editText) {
-        mutableStateOf(state.editText)
+    var value by remember(state.sheet, state.selectedRow, state.selectedCol, state.editText) {
+        mutableStateOf(TextFieldValue(state.editText, TextRange(state.editText.length)))
     }
-    Row(Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
-        Text(
-            cellName(state.selectedRow, state.selectedCol),
-            Modifier.width(64.dp),
-            fontFamily = FontFamily.Monospace,
-            style = MaterialTheme.typography.labelLarge,
-        )
-        OutlinedTextField(
-            value = text,
-            onValueChange = { text = it },
-            modifier = Modifier.weight(1f),
-            singleLine = true,
-            placeholder = { Text(stringResource(R.string.formula_hint)) },
-            keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
-            keyboardActions = KeyboardActions(onDone = { onCommit(text) }),
-        )
+    var focused by remember { mutableStateOf(false) }
+    Column {
+        Row(Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+            Text(
+                cellName(state.selectedRow, state.selectedCol),
+                Modifier.width(64.dp),
+                fontFamily = FontFamily.Monospace,
+                style = MaterialTheme.typography.labelLarge,
+            )
+            OutlinedTextField(
+                value = value,
+                onValueChange = { value = it },
+                modifier = Modifier.weight(1f).onFocusChanged { focused = it.isFocused },
+                singleLine = true,
+                placeholder = { Text(stringResource(R.string.formula_hint)) },
+                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
+                keyboardActions = KeyboardActions(onDone = { onCommit(value.text) }),
+            )
+        }
+        // While typing: function names that fit what is typed, else the keys a formula needs.
+        if (focused) {
+            val offered = suggestions(value, names)
+            Row(
+                Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(horizontal = 8.dp),
+                horizontalArrangement = Arrangement.spacedBy(4.dp),
+            ) {
+                if (offered.isNotEmpty()) {
+                    for (name in offered) {
+                        AssistChip(onClick = { value = applySuggestion(value, name) }, label = { Text(name) })
+                    }
+                } else {
+                    val separator = if (turkish) ";" else ","
+                    for (key in listOf("=", "+", "-", "*", "/", "(", ")", separator, ":", "$", "%", "&", "\"\"")) {
+                        AssistChip(onClick = { value = typeAt(value, key) }, label = { Text(key, fontFamily = FontFamily.Monospace) })
+                    }
+                }
+            }
+        }
     }
 }
 

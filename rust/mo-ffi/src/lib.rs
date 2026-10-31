@@ -180,6 +180,11 @@ impl SheetDocument {
         self.doc().set_turkish(on)
     }
 
+    /// Function names to suggest while a formula is typed.
+    pub fn function_names(&self) -> Vec<String> {
+        self.doc().function_names()
+    }
+
     /// Sorts the active sheet's table by column `col` (Turkish alphabet when Turkish is on).
     pub fn sort_column(&self, col: u32, ascending: bool) -> Result<(), MoError> {
         Ok(self.doc().sort_column(col, ascending)?)
