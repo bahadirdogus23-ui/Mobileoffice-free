@@ -61,6 +61,7 @@ import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import androidx.core.content.FileProvider
@@ -85,6 +86,8 @@ private data class ScanPage(
     /** Top-left, top-right, bottom-right, bottom-left as fractions of the (turned) photo. */
     val corners: List<Pair<Float, Float>> = ScanImage.defaultCorners,
     val look: ScanLook = ScanLook.DOCUMENT,
+    /** Whether the corners were put on the paper found in the photo. */
+    val found: Boolean = false,
 )
 
 /**
@@ -118,8 +121,8 @@ private fun ScanDialog(onClose: () -> Unit, onOpen: (Uri) -> Unit) {
         val file = shot
         shot = null
         if (ok && file != null && file.length() > 0) {
-            preview(file)?.let {
-                pages += ScanPage(file, it)
+            newPage(file)?.let {
+                pages += it
                 current = pages.lastIndex
             }
         } else {
@@ -140,7 +143,7 @@ private fun ScanDialog(onClose: () -> Unit, onOpen: (Uri) -> Unit) {
             runCatching {
                 context.contentResolver.openInputStream(uri)?.use { input -> file.outputStream().use { input.copyTo(it) } }
             }
-            preview(file)?.let { pages += ScanPage(file, it) } ?: file.delete()
+            newPage(file)?.let { pages += it } ?: file.delete()
         }
         if (pages.isNotEmpty()) current = pages.lastIndex
     }
@@ -196,7 +199,21 @@ private fun ScanDialog(onClose: () -> Unit, onOpen: (Uri) -> Unit) {
                             OutlinedButton(onClick = { gallery.launch(arrayOf("image/*")) }) { Text(stringResource(R.string.scan_from_gallery), color = Color.White) }
                         }
                     } else {
-                        CornerEditor(page) { corners -> pages[current] = page.copy(corners = corners) }
+                        Column(Modifier.fillMaxSize(), horizontalAlignment = Alignment.CenterHorizontally) {
+                            Text(
+                                stringResource(if (page.found) R.string.scan_found else R.string.scan_not_found),
+                                color = Color.White,
+                                style = MaterialTheme.typography.bodySmall,
+                                modifier = Modifier.padding(bottom = 6.dp),
+                            )
+                            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f)) {
+                                TextButton(onClick = { current-- }, enabled = current > 0) { Text("‹", color = Color.White, fontSize = 28.sp) }
+                                Box(Modifier.weight(1f), contentAlignment = Alignment.Center) {
+                                    CornerEditor(page) { corners -> pages[current] = page.copy(corners = corners) }
+                                }
+                                TextButton(onClick = { current++ }, enabled = current < pages.lastIndex) { Text("›", color = Color.White, fontSize = 28.sp) }
+                            }
+                        }
                     }
                 }
                 pages.getOrNull(current)?.let { page ->
@@ -205,6 +222,13 @@ private fun ScanDialog(onClose: () -> Unit, onOpen: (Uri) -> Unit) {
                             FilterChip(selected = page.look == look, onClick = { pages[current] = page.copy(look = look) }, label = { Text(stringResource(look.label)) })
                         }
                         TextButton(onClick = { pages[current] = turned(page) }) { Text(stringResource(R.string.rotate_right), color = Color.White) }
+                        TextButton(onClick = {
+                            val found = runCatching { findPage(rotated(page.preview, page.turns)) }.getOrNull()
+                            pages[current] = page.copy(corners = found ?: ScanImage.defaultCorners, found = found != null)
+                        }) { Text(stringResource(R.string.scan_detect), color = Color.White) }
+                        TextButton(onClick = {
+                            pages[current] = page.copy(corners = listOf(0f to 0f, 1f to 0f, 1f to 1f, 0f to 1f), found = false)
+                        }) { Text(stringResource(R.string.scan_whole), color = Color.White) }
                         TextButton(onClick = {
                             page.file.delete()
                             pages.removeAt(current)
@@ -320,6 +344,24 @@ private fun load(file: File, maxSide: Int): Bitmap? {
 
 private fun preview(file: File): Bitmap? = load(file, PREVIEW_SIDE)
 
+/** Where the paper is in [bmp], found on a small copy; null when no page stands out. */
+private fun findPage(bmp: Bitmap): List<Pair<Float, Float>>? {
+    val k = DETECT_SIDE / maxOf(bmp.width, bmp.height).toFloat()
+    val small = if (k >= 1f) bmp else Bitmap.createScaledBitmap(bmp, (bmp.width * k).toInt().coerceAtLeast(1), (bmp.height * k).toInt().coerceAtLeast(1), true)
+    val px = IntArray(small.width * small.height)
+    small.getPixels(px, 0, small.width, 0, 0, small.width, small.height)
+    val found = ScanImage.detectPage(px, small.width, small.height)
+    if (small !== bmp) small.recycle()
+    return found
+}
+
+/** A new page for [file], its corners on the paper when the paper can be found. */
+private fun newPage(file: File): ScanPage? {
+    val bmp = preview(file) ?: return null
+    val corners = runCatching { findPage(bmp) }.getOrNull()
+    return ScanPage(file, bmp, corners = corners ?: ScanImage.defaultCorners, found = corners != null)
+}
+
 /** The page straightened, cleaned up and compressed as a JPEG for the PDF. */
 private fun finished(page: ScanPage): ByteArray {
     val photo = rotated(load(page.file, PAGE_SIDE) ?: error("the photo could not be read"), page.turns)
@@ -351,6 +393,8 @@ private fun finished(page: ScanPage): ByteArray {
     return bytes.toByteArray()
 }
 
+/** Pictures the paper is looked for in: small and quick, still precise to about 0.3%. */
+private const val DETECT_SIDE = 320f
 /** Pictures to edit corners on: small enough to keep many pages in memory. */
 private const val PREVIEW_SIDE = 1_400
 /** Pictures in the PDF: about 250 dpi on A4, sharp text, a few hundred KB a page. */

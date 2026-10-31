@@ -27,6 +27,24 @@ import androidx.compose.ui.res.stringResource
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import android.graphics.Bitmap
+import android.graphics.BitmapFactory
+import androidx.compose.foundation.Image
+import androidx.compose.foundation.border
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.runtime.produceState
+import androidx.compose.ui.graphics.ImageBitmap
+import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.unit.dp
 import org.mobileofficefree.engine.NamedFile
 import org.mobileofficefree.engine.imagesToPdf
 
@@ -83,6 +101,19 @@ fun rememberImagesToPdf(onOpen: (Uri) -> Unit): () -> Unit {
             text = {
                 Column {
                     Text(pluralStringResource(R.plurals.images_picked, picked.size, picked.size))
+                    // The pages in order, one by one: a page can be taken out or moved earlier.
+                    LazyRow(
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
+                    ) {
+                        itemsIndexed(picked, key = { _, u -> u.toString() }) { i, uri ->
+                            PageThumb(uri, i + 1, onRemove = { picked = picked.filterIndexed { k, _ -> k != i } }, onEarlier = if (i > 0) {
+                                { picked = picked.toMutableList().apply { add(i - 1, removeAt(i)) } }
+                            } else {
+                                null
+                            })
+                        }
+                    }
                     for ((a4, label) in listOf(true to R.string.images_a4, false to R.string.images_own_size)) {
                         Row(
                             verticalAlignment = Alignment.CenterVertically,
@@ -95,7 +126,7 @@ fun rememberImagesToPdf(onOpen: (Uri) -> Unit): () -> Unit {
                 }
             },
             confirmButton = {
-                TextButton(onClick = {
+                TextButton(enabled = picked.isNotEmpty(), onClick = {
                     choosing = false
                     save.launch(CreateFile.Request(resources.getString(R.string.images_pdf_name), "application/pdf"))
                 }) { Text(stringResource(R.string.create)) }
@@ -117,3 +148,36 @@ fun rememberImagesToPdf(onOpen: (Uri) -> Unit): () -> Unit {
     }
     return { if (!working) pick.launch(arrayOf("image/*")) }
 }
+
+/** One picked picture as page [number], with buttons to take it out or move it earlier. */
+@Composable
+private fun PageThumb(uri: Uri, number: Int, onRemove: () -> Unit, onEarlier: (() -> Unit)?) {
+    val context = LocalContext.current
+    val thumb by produceState<ImageBitmap?>(null, uri) {
+        value = withContext(Dispatchers.IO) { runCatching { thumbnail(context, uri) }.getOrNull()?.asImageBitmap() }
+    }
+    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+        Box(Modifier.size(84.dp, 112.dp).border(1.dp, MaterialTheme.colorScheme.outline), contentAlignment = Alignment.Center) {
+            thumb?.let { Image(it, contentDescription = null, contentScale = ContentScale.Fit, modifier = Modifier.fillMaxSize()) }
+        }
+        Text(number.toString(), style = MaterialTheme.typography.labelMedium)
+        Row {
+            if (onEarlier != null) {
+                TextButton(onClick = onEarlier, contentPadding = PaddingValues(4.dp)) { Text("‹") }
+            }
+            TextButton(onClick = onRemove, contentPadding = PaddingValues(4.dp)) { Text("✕") }
+        }
+    }
+}
+
+/** A small copy of the picture at [uri] for the page list. */
+private fun thumbnail(context: android.content.Context, uri: Uri): Bitmap? {
+    val resolver = context.contentResolver
+    val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+    resolver.openInputStream(uri)?.use { BitmapFactory.decodeStream(it, null, bounds) }
+    var sample = 1
+    while (maxOf(bounds.outWidth, bounds.outHeight) / (sample * 2) >= THUMB_SIDE) sample *= 2
+    return resolver.openInputStream(uri)?.use { BitmapFactory.decodeStream(it, null, BitmapFactory.Options().apply { inSampleSize = sample }) }
+}
+
+private const val THUMB_SIDE = 240

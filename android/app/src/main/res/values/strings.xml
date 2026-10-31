@@ -368,4 +368,8 @@
     <string name="formula_search">Search formulas</string>
     <string name="formula_point_hint">Tap a cell to put it in the formula</string>
     <string name="formula_insert">Insert</string>
+    <string name="scan_found">Page edges found: drag a corner to adjust</string>
+    <string name="scan_not_found">Drag the corners onto the page\'s corners</string>
+    <string name="scan_detect">Find edges</string>
+    <string name="scan_whole">Whole photo</string>
 </resources>

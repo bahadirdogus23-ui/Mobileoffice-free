@@ -35,6 +35,108 @@ object ScanImage {
             ?.takeIf { hypot(corners[it].first - x, corners[it].second - y) <= reach }
 
     /**
+     * Where the paper is in a photo ([argb], [w]×[h], small is enough): the largest bright
+     * region (paper is lighter than the table under it), its corners taken as the region's
+     * extreme points along the diagonals. Top-left, top-right, bottom-right, bottom-left as
+     * fractions of the picture; null when no page stands out.
+     */
+    fun detectPage(argb: IntArray, w: Int, h: Int): List<Pair<Float, Float>>? {
+        if (w < 8 || h < 8 || argb.size < w * h) return null
+        val gray = IntArray(w * h) { i ->
+            val c = argb[i]
+            ((c shr 16 and 0xFF) * 299 + (c shr 8 and 0xFF) * 587 + (c and 0xFF) * 114) / 1000
+        }
+        val threshold = otsu(gray)
+        // Paper must be clearly lighter than what is around it.
+        val bright = BooleanArray(gray.size) { gray[it] > threshold }
+        // The largest 4-connected bright region.
+        val label = IntArray(gray.size)
+        var best = -1
+        var bestSize = 0
+        var next = 0
+        val queue = IntArray(gray.size)
+        for (start in gray.indices) {
+            if (!bright[start] || label[start] != 0) continue
+            next++
+            var head = 0
+            var tail = 0
+            queue[tail++] = start
+            label[start] = next
+            while (head < tail) {
+                val i = queue[head++]
+                val x = i % w
+                val y = i / w
+                fun visit(j: Int) {
+                    if (bright[j] && label[j] == 0) {
+                        label[j] = next
+                        queue[tail++] = j
+                    }
+                }
+                if (x > 0) visit(i - 1)
+                if (x < w - 1) visit(i + 1)
+                if (y > 0) visit(i - w)
+                if (y < h - 1) visit(i + w)
+            }
+            if (tail > bestSize) {
+                bestSize = tail
+                best = next
+            }
+        }
+        // Too small to be the page, or everything (no edge to find).
+        if (best < 0 || bestSize < gray.size / 10 || bestSize > gray.size * 97 / 100) return null
+        var tl = 0
+        var tr = 0
+        var br = 0
+        var bl = 0
+        var minSum = Int.MAX_VALUE
+        var maxSum = Int.MIN_VALUE
+        var minDiff = Int.MAX_VALUE
+        var maxDiff = Int.MIN_VALUE
+        for (i in label.indices) {
+            if (label[i] != best) continue
+            val x = i % w
+            val y = i / w
+            if (x + y < minSum) { minSum = x + y; tl = i }
+            if (x + y > maxSum) { maxSum = x + y; br = i }
+            if (x - y > maxDiff) { maxDiff = x - y; tr = i }
+            if (x - y < minDiff) { minDiff = x - y; bl = i }
+        }
+        val corners = listOf(tl, tr, br, bl).map { i -> (i % w + 0.5f) / w to (i / w + 0.5f) / h }
+        // A sliver is not a page: each side at least a fifth of the picture's.
+        val (pw, ph) = outputSize(corners.map { (x, y) -> x * 1000 to y * 1000 })
+        if (pw < 200 || ph < 200) return null
+        return corners
+    }
+
+    /** Otsu's threshold: the grey level that best splits the picture into dark and light. */
+    private fun otsu(gray: IntArray): Int {
+        val hist = IntArray(256)
+        for (v in gray) hist[v.coerceIn(0, 255)]++
+        val total = gray.size.toDouble()
+        var sum = 0.0
+        for (t in 0..255) sum += t * hist[t].toDouble()
+        var sumB = 0.0
+        var wB = 0.0
+        var best = 0.0
+        var threshold = 127
+        for (t in 0..255) {
+            wB += hist[t]
+            if (wB == 0.0) continue
+            val wF = total - wB
+            if (wF == 0.0) break
+            sumB += t * hist[t].toDouble()
+            val mB = sumB / wB
+            val mF = (sum - sumB) / wF
+            val between = wB * wF * (mB - mF) * (mB - mF)
+            if (between > best) {
+                best = between
+                threshold = t
+            }
+        }
+        return threshold
+    }
+
+    /**
      * [argb] made to look like a scanned page: grey, the paper (estimated as the brightest
      * nearby tone) made white, so shadows and uneven light go; black and white also thresholds.
      */

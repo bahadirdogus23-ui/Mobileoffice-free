@@ -94,6 +94,14 @@ fun InvoiceScreen(vm: InvoiceViewModel, state: InvoiceUiState) {
                     // Invoice designs are laid out for A4: show the whole width, zoom in to read.
                     settings.useWideViewPort = true
                     settings.loadWithOverviewMode = true
+                    // Invoice layouts are boxes of fixed size: the phone's larger font setting
+                    // would overflow them (printing ignores it, which is why prints looked right).
+                    settings.textZoom = 100
+                    // Paper stays white in the dark theme, as the invoice was designed.
+                    setBackgroundColor(android.graphics.Color.WHITE)
+                    if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU) {
+                        settings.isAlgorithmicDarkeningAllowed = false
+                    }
                     web = this
                 }
             },

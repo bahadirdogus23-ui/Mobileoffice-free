@@ -367,4 +367,8 @@
     <string name="formula_search">Formül ara</string>
     <string name="formula_point_hint">Formüle eklemek için bir hücreye dokunun</string>
     <string name="formula_insert">Ekle</string>
+    <string name="scan_found">Sayfa kenarları bulundu: düzeltmek için köşeyi sürükleyin</string>
+    <string name="scan_not_found">Köşeleri sayfanın köşelerine sürükleyin</string>
+    <string name="scan_detect">Kenarları bul</string>
+    <string name="scan_whole">Tüm fotoğraf</string>
 </resources>

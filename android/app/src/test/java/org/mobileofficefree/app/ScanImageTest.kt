@@ -44,4 +44,52 @@ class ScanImageTest {
         ScanImage.applyLook(colors, 2, 2, ScanLook.COLOR)
         assertTrue(colors.all { it == 0xFF336699.toInt() })
     }
+
+    /** A [w]×[h] dark table with a light, slightly turned page (corners given in pixels) on it. */
+    private fun photo(w: Int, h: Int, page: List<Pair<Float, Float>>): IntArray {
+        fun inside(x: Float, y: Float): Boolean {
+            // Inside a convex quadrilateral: on the same side of every edge.
+            var sign = 0
+            for (i in 0 until 4) {
+                val (ax, ay) = page[i]
+                val (bx, by) = page[(i + 1) % 4]
+                val c = (bx - ax) * (y - ay) - (by - ay) * (x - ax)
+                val s = if (c > 0) 1 else if (c < 0) -1 else 0
+                if (s != 0) {
+                    if (sign != 0 && s != sign) return false
+                    sign = s
+                }
+            }
+            return true
+        }
+        return IntArray(w * h) { i ->
+            val x = (i % w).toFloat()
+            val y = (i / w).toFloat()
+            // A little noise on the table; the page has dark lines of "text".
+            val v = if (inside(x, y)) (if ((i / w) % 9 == 0 && (i % w) % 3 != 0) 60 else 235) else 70 + (i * 7919 % 25)
+            (0xFF shl 24) or (v shl 16) or (v shl 8) or v
+        }
+    }
+
+    @Test
+    fun findsAPageOnATable() {
+        val w = 120
+        val h = 160
+        val page = listOf(20f to 15f, 100f to 25f, 95f to 145f, 12f to 135f)
+        val found = ScanImage.detectPage(photo(w, h, page), w, h)!!
+        for ((got, want) in found.zip(page)) {
+            assertEquals(want.first / w, got.first, 0.04f)
+            assertEquals(want.second / h, got.second, 0.04f)
+        }
+    }
+
+    @Test
+    fun noPageWhenNothingStandsOut() {
+        val w = 64
+        val h = 64
+        val flat = IntArray(w * h) { (0xFF shl 24) or 0x808080 }
+        assertNull(ScanImage.detectPage(flat, w, h))
+        val allPaper = IntArray(w * h) { (0xFF shl 24) or 0xF0F0F0 }
+        assertNull(ScanImage.detectPage(allPaper, w, h))
+    }
 }
