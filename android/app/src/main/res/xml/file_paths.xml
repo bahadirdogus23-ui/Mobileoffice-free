@@ -1,5 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Files unpacked from an archive, handed to the viewers and to "Share". -->
+<!-- Files unpacked from an archive, handed to the viewers and to "Share"; photos the camera
+     app takes for document scanning. -->
 <paths>
     <cache-path name="archive" path="archive/" />
+    <cache-path name="scan" path="scan/" />
 </paths>

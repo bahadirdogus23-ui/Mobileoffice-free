@@ -225,4 +225,14 @@
         <item quantity="other">%d pictures, one page each</item>
     </plurals>
     <string name="create">Oluştur</string>
+    <string name="scan">Scan</string>
+    <string name="scan_title">Scan a document</string>
+    <string name="scan_hint">Photograph each page; then drag the corners onto the paper.</string>
+    <string name="scan_take">Take photo</string>
+    <string name="scan_from_gallery">From gallery</string>
+    <string name="scan_make_pdf">Make PDF</string>
+    <string name="scan_no_camera">No camera app was found on this phone.</string>
+    <string name="scan_color">Colour</string>
+    <string name="scan_document">Document</string>
+    <string name="scan_black_white">Black and white</string>
 </resources>

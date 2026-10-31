@@ -162,6 +162,7 @@ fun HomeScreen(onOpen: (Uri) -> Unit, onNewSheet: () -> Unit, onDiagnostics: () 
         if (uri != null) onOpen(uri)
     }
     val imagesToPdf = rememberImagesToPdf(onOpen)
+    val scan = rememberScanner(onOpen)
     val askLegacy = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
         access = granted
     }
@@ -234,7 +235,6 @@ fun HomeScreen(onOpen: (Uri) -> Unit, onNewSheet: () -> Unit, onDiagnostics: () 
                     fontWeight = FontWeight.SemiBold,
                     modifier = Modifier.weight(1f),
                 )
-                TextButton(onClick = imagesToPdf) { Text(stringResource(R.string.images_to_pdf)) }
                 TextButton(onClick = onDiagnostics) { Text(stringResource(R.string.diagnostics)) }
             }
             Text(
@@ -243,6 +243,11 @@ fun HomeScreen(onOpen: (Uri) -> Unit, onNewSheet: () -> Unit, onDiagnostics: () 
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.padding(horizontal = 20.dp, vertical = 4.dp),
             )
+            // Making a new PDF: from the camera, or from pictures already on the phone.
+            Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                OutlinedButton(onClick = scan, modifier = Modifier.weight(1f)) { Text(stringResource(R.string.scan), maxLines = 1) }
+                OutlinedButton(onClick = imagesToPdf, modifier = Modifier.weight(1f)) { Text(stringResource(R.string.images_to_pdf), maxLines = 1) }
+            }
             OutlinedTextField(
                 value = query,
                 onValueChange = { query = it },

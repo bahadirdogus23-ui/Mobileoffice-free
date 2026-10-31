@@ -224,4 +224,14 @@
         <item quantity="other">%d resim, her biri bir sayfa</item>
     </plurals>
     <string name="create">Oluştur</string>
+    <string name="scan">Tara</string>
+    <string name="scan_title">Belge tara</string>
+    <string name="scan_hint">Her sayfanın fotoğrafını çekin; sonra köşeleri kâğıdın köşelerine sürükleyin.</string>
+    <string name="scan_take">Fotoğraf çek</string>
+    <string name="scan_from_gallery">Galeriden</string>
+    <string name="scan_make_pdf">PDF yap</string>
+    <string name="scan_no_camera">Bu telefonda kamera uygulaması bulunamadı.</string>
+    <string name="scan_color">Renkli</string>
+    <string name="scan_document">Belge</string>
+    <string name="scan_black_white">Siyah-beyaz</string>
 </resources>
