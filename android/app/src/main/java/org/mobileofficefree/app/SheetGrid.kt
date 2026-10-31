@@ -189,6 +189,29 @@ fun SheetGrid(
                     val x = xOf(c)
                     drawLine(colors.outlineVariant, Offset(x + cw, top), Offset(x + cw, bottom), 1f)
                 }
+                // Cell borders from the file, over the faint grid lines.
+                for (r in rowList) {
+                    val rh = rowAxis.size(r) * k
+                    if (rh <= 0f) continue
+                    val y = yOf(r)
+                    for (c in colList) {
+                        val cw = columnAxis.size(c) * k
+                        if (cw <= 0f) continue
+                        val look = cellLook(sheet, r, c) ?: continue
+                        val b = look.borders.toInt()
+                        if (b == 0) continue
+                        val color = if (look.borderColor != 0u) Color(look.borderColor.toInt()) else colors.onSurface
+                        val x = xOf(c)
+                        fun side(shift: Int, from: Offset, to: Offset) {
+                            val w = (b shr shift) and 0xFF
+                            if (w > 0) drawLine(color, from, to, w.dp.toPx())
+                        }
+                        side(0, Offset(x, y), Offset(x, y + rh))
+                        side(8, Offset(x + cw, y), Offset(x + cw, y + rh))
+                        side(16, Offset(x, y), Offset(x + cw, y))
+                        side(24, Offset(x, y + rh), Offset(x + cw, y + rh))
+                    }
+                }
                 // Merged ranges: one box (its first cell's fill, or paper over the inner lines)
                 // and the first cell's text across all of it.
                 val shown = merges.filter { m -> m[2] >= rowList.first() && m[0] <= rowList.last() && m[3] >= colList.first() && m[1] <= colList.last() }

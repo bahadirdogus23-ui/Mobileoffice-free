@@ -57,6 +57,11 @@ pub struct CellLook {
     pub color: u32,
     pub fill: u32,
     pub align: u8,
+    /// Border weights, a byte per side (left, right, top, bottom from the low byte): 0 none,
+    /// 1 thin, 2 medium or double, 3 thick.
+    pub borders: u32,
+    /// The borders' colour (0 = automatic, black).
+    pub border_color: u32,
 }
 
 /// The rectangle from A1 to the last used cell, as counts.
@@ -169,7 +174,21 @@ impl GridDoc {
     /// How each cell of a `rows`×`cols` window looks, row by row, for drawing the grid: the
     /// cell's own style (conditional formats are left to the PDF and print paths).
     pub fn cell_looks(&self, sheet: u32, row: u32, col: u32, rows: u32, cols: u32) -> Result<Vec<CellLook>, GridError> {
-        use gridcraft_engine::model::style::{HAlign, PatternType, Underline};
+        use gridcraft_engine::model::style::{BorderLine, BorderStyle, HAlign, PatternType, Underline};
+        // 0 none, 1 thin (hair, dashed, dotted too), 2 medium or double, 3 thick.
+        let weight = |b: &BorderLine| -> u32 {
+            match b.style {
+                BorderStyle::None => 0,
+                BorderStyle::Thick => 3,
+                BorderStyle::Medium
+                | BorderStyle::Double
+                | BorderStyle::MediumDashed
+                | BorderStyle::MediumDashDot
+                | BorderStyle::MediumDashDotDot
+                | BorderStyle::SlantDashDot => 2,
+                _ => 1,
+            }
+        };
         let wb = self.wb();
         let sh = wb.sheets.get(sheet as usize).ok_or(GridError::NoSheet(sheet))?;
         let argb = |rgb: Option<[u8; 3]>| rgb.map_or(0, |[r, g, b]| 0xFF00_0000 | u32::from(r) << 16 | u32::from(g) << 8 | u32::from(b));
@@ -177,7 +196,13 @@ impl GridDoc {
         for r in row..row.saturating_add(rows) {
             for c in col..col.saturating_add(cols) {
                 let st = wb.styles.get(sh.style_id(gridcraft_engine::cell(r, c)));
+                let b = &st.borders;
+                let sides = [&b.left, &b.right, &b.top, &b.bottom];
+                let borders = sides.iter().enumerate().fold(0u32, |acc, (i, l)| acc | weight(l) << (8 * i));
+                let border_color = sides.iter().find(|l| l.style != BorderStyle::None).map_or(0, |l| argb(l.color.resolve(&wb.theme)));
                 out.push(CellLook {
+                    borders,
+                    border_color,
                     bold: st.font.bold,
                     italic: st.font.italic,
                     underline: st.font.underline != Underline::None,

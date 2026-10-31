@@ -303,4 +303,9 @@
     <string name="freeze_top_row">Freeze top row</string>
     <string name="freeze_first_col">Freeze first column</string>
     <string name="unfreeze">Unfreeze</string>
+    <string name="border_all">All borders</string>
+    <string name="border_outside">Outside border</string>
+    <string name="border_thick_outside">Thick outside border</string>
+    <string name="border_bottom">Bottom border</string>
+    <string name="border_none">No border</string>
 </resources>

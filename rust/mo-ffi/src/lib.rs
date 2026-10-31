@@ -219,7 +219,16 @@ impl SheetDocument {
             .doc()
             .cell_looks(sheet, row, col, rows, cols)?
             .into_iter()
-            .map(|l| CellLook { bold: l.bold, italic: l.italic, underline: l.underline, color: l.color, fill: l.fill, align: l.align })
+            .map(|l| CellLook {
+                bold: l.bold,
+                italic: l.italic,
+                underline: l.underline,
+                color: l.color,
+                fill: l.fill,
+                align: l.align,
+                borders: l.borders,
+                border_color: l.border_color,
+            })
             .collect())
     }
 
@@ -722,6 +731,11 @@ pub struct CellLook {
     pub color: u32,
     pub fill: u32,
     pub align: u8,
+    /// Border weights, a byte per side (left, right, top, bottom from the low byte): 0 none,
+    /// 1 thin, 2 medium or double, 3 thick.
+    pub borders: u32,
+    /// The borders' colour (0 = black).
+    pub border_color: u32,
 }
 
 /// A PDF whose pages are being reorganised (rotate, delete, move, combine, extract). Viewing

@@ -233,6 +233,7 @@ internal fun SheetScreen(vm: SheetViewModel, state: SheetUiState) {
 @Composable
 private fun SheetToolBar(vm: SheetViewModel, look: CellLook?) {
     var fillMenu by remember { mutableStateOf(false) }
+    var borderMenu by remember { mutableStateOf(false) }
     Row(
         Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(horizontal = 4.dp),
         verticalAlignment = Alignment.CenterVertically,
@@ -257,6 +258,17 @@ private fun SheetToolBar(vm: SheetViewModel, look: CellLook?) {
                 }
             }
         }
+        Box {
+            TextButton(onClick = { borderMenu = true }) { Text("▦") }
+            DropdownMenu(expanded = borderMenu, onDismissRequest = { borderMenu = false }) {
+                for ((label, preset) in BORDERS) {
+                    DropdownMenuItem(text = { Text(stringResource(label)) }, onClick = {
+                        borderMenu = false
+                        vm.format("home.borders", JSONObject().put("preset", preset))
+                    })
+                }
+            }
+        }
         TextButton(onClick = { vm.format("home.alignLeft") }) { Text("⇤") }
         TextButton(onClick = { vm.format("home.alignCenter") }) { Text("≡") }
         TextButton(onClick = { vm.format("home.alignRight") }) { Text("⇥") }
@@ -274,6 +286,15 @@ private fun SheetToolBar(vm: SheetViewModel, look: CellLook?) {
         TextButton(onClick = vm::redo) { Text(stringResource(R.string.redo)) }
     }
 }
+
+/** Border presets offered (GridCraft's home.borders). */
+private val BORDERS = listOf(
+    R.string.border_all to "all",
+    R.string.border_outside to "outside",
+    R.string.border_thick_outside to "thickOutside",
+    R.string.border_bottom to "bottom",
+    R.string.border_none to "none",
+)
 
 /** Fill colours offered: none, and the light shades people mark rows with. */
 private val FILLS = listOf(

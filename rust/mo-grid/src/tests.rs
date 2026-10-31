@@ -160,3 +160,14 @@ fn reports_merged_ranges() {
     doc.execute("home.mergeCenter", r#"{"range":"B2:D3"}"#).unwrap();
     assert_eq!(doc.merges(0).unwrap(), vec![[1, 1, 2, 3]]);
 }
+
+#[test]
+fn reports_cell_borders() {
+    let mut doc = GridDoc::blank();
+    doc.execute("home.borders", r#"{"range":"B2","preset":"thickOutside"}"#).unwrap();
+    doc.execute("home.borders", r#"{"range":"C3","preset":"bottom"}"#).unwrap();
+    let l = doc.cell_looks(0, 1, 1, 2, 2).unwrap();
+    assert_eq!(l[0].borders, 0x0303_0303, "{:x}", l[0].borders);
+    assert_eq!(l[3].borders, 0x0100_0000, "{:x}", l[3].borders);
+    assert_eq!(l[1].borders, 0);
+}
