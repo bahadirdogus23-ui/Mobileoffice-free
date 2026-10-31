@@ -18,7 +18,14 @@ import org.mobileofficefree.engine.WordCaret
 import org.mobileofficefree.engine.WordDocument
 
 /** The formatting where the caret is, for the editing tool bar. */
-data class WordFormat(val bold: Boolean = false, val italic: Boolean = false, val underline: Boolean = false)
+data class WordFormat(
+    val bold: Boolean = false,
+    val italic: Boolean = false,
+    val underline: Boolean = false,
+    /** Null when the selection mixes sizes or fonts. */
+    val size: Float? = null,
+    val font: String? = null,
+)
 
 /**
  * Word-processing documents (DOCX, DOC, ODT, RTF, …) drawn and edited by the WordCraft engine.
@@ -63,6 +70,37 @@ class WordViewModel(app: Application) : PagedViewModel(app, DocumentKind.WORD) {
         it.execute("select.word", "")
     }
 
+    /** The selection extended to (`x`, `y`) on [page] (dragging after a long press). */
+    fun extendTo(page: Int, x: Float, y: Float) = tap(page, x, y, extend = true)
+
+    /** The selected text, handed to [onText] on the main thread (for the clipboard). */
+    fun copy(onText: (String) -> Unit) {
+        val d = doc ?: return
+        viewModelScope.launch {
+            val text = withContext(engine) { runCatching { d.selectedText() }.getOrDefault("") }
+            if (text.isNotEmpty()) onText(text)
+        }
+    }
+
+    /** Copy, then delete the selection. */
+    fun cut(onText: (String) -> Unit) {
+        copy { text ->
+            onText(text)
+            command("text.delete")
+        }
+    }
+
+    /** Clipboard text at the caret; [html] keeps its formatting when the clipboard has it. */
+    fun paste(text: String, html: String?) {
+        val params = JSONObject().put("text", text)
+        if (html != null) params.put("html", html)
+        command("edit.paste", params.toString())
+    }
+
+    fun setSize(points: Float) = command("format.size", JSONObject().put("size", points.toDouble()).toString())
+
+    fun setFont(name: String) = command("format.font", JSONObject().put("name", name).toString())
+
     /** Typed text: lines become paragraphs. */
     fun type(text: String) = perform(changes = true) { d ->
         text.replace("\r\n", "\n").split('\n').forEachIndexed { i, line ->
@@ -101,6 +139,8 @@ class WordViewModel(app: Application) : PagedViewModel(app, DocumentKind.WORD) {
         bold = o.optBoolean("bold"),
         italic = o.optBoolean("italic"),
         underline = o.opt("underline").let { it == true || (it is String && it != "none" && it.isNotEmpty()) },
+        size = (o.opt("size") as? Number)?.toFloat(),
+        font = o.opt("font") as? String,
     )
 
     /** Writes the document over the opened file, in its own format. */

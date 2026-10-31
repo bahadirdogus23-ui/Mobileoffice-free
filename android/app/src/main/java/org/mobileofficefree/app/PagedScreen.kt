@@ -15,6 +15,7 @@ import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.gestures.calculateCentroid
 import androidx.compose.foundation.gestures.calculateZoom
+import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.gestures.scrollBy
 import androidx.compose.foundation.horizontalScroll
@@ -406,6 +407,19 @@ fun PagedScreen(vm: PagedViewModel, state: PagedUiState, reading: ReadingSetting
             val heightPx = constraints.maxHeight.toFloat()
             val contentWidth = maxWidth * zoom
             // Bring the current match into view, a third of the way down the screen.
+            // Typing: keep the caret in view, above the keyboard (the box shrinks with it).
+            LaunchedEffect(word?.caret, word?.editing) {
+                val c = word?.caret ?: return@LaunchedEffect
+                if (!word.editing) return@LaunchedEffect
+                val page = c.page.toInt()
+                val (pw, _) = state.pages.getOrNull(page) ?: return@LaunchedEffect
+                val pxPerPt = widthPx * zoom / pw
+                val item = list.layoutInfo.visibleItemsInfo.firstOrNull { it.index == page }
+                val top = item?.let { it.offset + c.top * pxPerPt }
+                if (top == null || top < 0 || top + c.height * pxPerPt > heightPx - 8) {
+                    list.animateScrollToItem(page, (c.top * pxPerPt - heightPx / 3).roundToInt().coerceAtLeast(0))
+                }
+            }
             LaunchedEffect(vm.currentMatch, vm.found) {
                 val hit = vm.found.firstOrNull { it.index == vm.currentMatch } ?: return@LaunchedEffect
                 val (pw, _) = state.pages.getOrNull(hit.page) ?: return@LaunchedEffect
@@ -451,13 +465,20 @@ fun PagedScreen(vm: PagedViewModel, state: PagedUiState, reading: ReadingSetting
                                 }
                             }
                         } else if (word?.editing == true) {
-                            // Editing: a tap puts the caret there, a long press selects the word.
-                            Modifier.pointerInput(i) {
-                                detectTapGestures(
-                                    onTap = { at -> word.tap(i, at.x * w / size.width, at.y * w / size.width) },
-                                    onLongPress = { at -> word.selectWord(i, at.x * w / size.width, at.y * w / size.width) },
-                                )
-                            }
+                            // Editing: a tap puts the caret there; a long press selects the word and
+                            // dragging on from it extends the selection.
+                            Modifier
+                                .pointerInput(i) {
+                                    detectTapGestures(onTap = { at -> word.tap(i, at.x * w / size.width, at.y * w / size.width) })
+                                }
+                                .pointerInput(i) {
+                                    detectDragGesturesAfterLongPress(
+                                        onDragStart = { at -> word.selectWord(i, at.x * w / size.width, at.y * w / size.width) },
+                                    ) { change, _ ->
+                                        change.consume()
+                                        word.extendTo(i, change.position.x * w / size.width, change.position.y * w / size.width)
+                                    }
+                                }
                         } else {
                             Modifier
                         }

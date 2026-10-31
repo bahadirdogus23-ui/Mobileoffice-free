@@ -235,4 +235,7 @@
     <string name="scan_document">Belge</string>
     <string name="scan_black_white">Siyah-beyaz</string>
     <string name="redo">Yinele</string>
+    <string name="cut">Kes</string>
+    <string name="copy">Kopyala</string>
+    <string name="paste">Yapıştır</string>
 </resources>

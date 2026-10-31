@@ -1,6 +1,13 @@
 package org.mobileofficefree.app
 
+import android.content.ClipData
+import android.content.ClipboardManager
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.layout.Box
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.ui.platform.LocalContext
+import java.util.Locale
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -68,6 +75,10 @@ fun keyboardEdit(new: TextFieldValue, type: (String) -> Unit, backspace: () -> U
 @Composable
 fun WordEditBar(vm: WordViewModel, onSave: () -> Unit) {
     var field by remember { mutableStateOf(EMPTY_INPUT) }
+    var fontMenu by remember { mutableStateOf(false) }
+    var sizeMenu by remember { mutableStateOf(false) }
+    val context = LocalContext.current
+    val clipboard = remember { context.getSystemService(ClipboardManager::class.java) }
     val focus = remember { FocusRequester() }
     val keyboard = LocalSoftwareKeyboardController.current
     LaunchedEffect(vm.editing) {
@@ -83,6 +94,40 @@ fun WordEditBar(vm: WordViewModel, onSave: () -> Unit) {
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 val f = vm.format
+                val hasSelection = vm.selection.isNotEmpty()
+                TextButton(onClick = { vm.cut { clipboard.setPrimaryClip(ClipData.newPlainText("text", it)) } }, enabled = hasSelection) {
+                    Text(stringResource(R.string.cut))
+                }
+                TextButton(onClick = { vm.copy { clipboard.setPrimaryClip(ClipData.newPlainText("text", it)) } }, enabled = hasSelection) {
+                    Text(stringResource(R.string.copy))
+                }
+                TextButton(onClick = {
+                    val item = clipboard.primaryClip?.takeIf { it.itemCount > 0 }?.getItemAt(0)
+                    val text = item?.coerceToText(context)?.toString().orEmpty()
+                    if (text.isNotEmpty()) vm.paste(text, item?.htmlText)
+                }) { Text(stringResource(R.string.paste)) }
+                Box {
+                    TextButton(onClick = { fontMenu = true }) { Text(f.font?.take(12) ?: "Aa", maxLines = 1) }
+                    DropdownMenu(expanded = fontMenu, onDismissRequest = { fontMenu = false }) {
+                        for (name in FONTS) {
+                            DropdownMenuItem(text = { Text(name) }, onClick = {
+                                fontMenu = false
+                                vm.setFont(name)
+                            })
+                        }
+                    }
+                }
+                Box {
+                    TextButton(onClick = { sizeMenu = true }) { Text(f.size?.let { "%.0f".format(Locale.ROOT, it) } ?: "–") }
+                    DropdownMenu(expanded = sizeMenu, onDismissRequest = { sizeMenu = false }) {
+                        for (size in SIZES) {
+                            DropdownMenuItem(text = { Text(size.toString()) }, onClick = {
+                                sizeMenu = false
+                                vm.setSize(size.toFloat())
+                            })
+                        }
+                    }
+                }
                 FilledIconToggleButton(checked = f.bold, onCheckedChange = { vm.command("format.bold") }) {
                     Text("K", fontWeight = FontWeight.Bold)
                 }
@@ -118,6 +163,10 @@ fun WordEditBar(vm: WordViewModel, onSave: () -> Unit) {
         }
     }
 }
+
+/** Fonts offered: the bundled ones, and the common Office names (drawn with a matching bundled one). */
+private val FONTS = listOf("Calibri", "Arial", "Times New Roman", "Source Sans 3", "Source Serif 4", "Inter", "JetBrains Mono")
+private val SIZES = listOf(8, 9, 10, 11, 12, 14, 16, 18, 20, 24, 28, 36, 48)
 
 /** The caret and the selection drawn over page [page], which is [pageWidth] points wide. */
 @Composable

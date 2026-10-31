@@ -260,3 +260,24 @@ fn types_formats_and_undoes_where_the_page_was_tapped() {
     assert!(doc.execute("no.such.command", "").is_err());
     assert!(doc.execute("text.insert", "not json").is_err());
 }
+
+#[test]
+fn selects_by_dragging_pastes_and_sizes_text() {
+    let mut doc = WordDoc::open("a.md", "Bir iki üç dört.\n".as_bytes(), None).unwrap();
+    let a = doc.find("iki")[0].clone();
+    let b = doc.find("üç")[0].clone();
+    // Long press on "iki", drag to the end of "üç": the selection runs from one to the other.
+    doc.tap(a.page, a.x + 0.5, a.y + a.h / 2.0, false).unwrap();
+    doc.tap(b.page, b.x + b.w - 0.2, b.y + b.h / 2.0, true).unwrap();
+    assert_eq!(doc.selected_text(), "iki üç");
+    doc.execute("format.size", r#"{"size": 20}"#).unwrap();
+    let state: serde_json::Value = serde_json::from_str(&doc.execute("format.state", "").unwrap()).unwrap();
+    assert_eq!(state["size"], 20.0);
+    // Cut is copy + delete in the app; paste puts plain or HTML text at the caret.
+    doc.execute("text.delete", "").unwrap();
+    assert!(doc.find("iki").is_empty());
+    doc.execute("edit.paste", r#"{"text": "Yapıştırılan", "html": "<b>Yapıştırılan</b>"}"#).unwrap();
+    assert_eq!(doc.find("yapistirilan").len(), 1);
+    let body = zip_entry(&doc.export("a.docx").unwrap(), "word/document.xml");
+    assert!(body.contains("Yapıştırılan") && body.contains("<w:b/>"), "HTML paste keeps bold");
+}
