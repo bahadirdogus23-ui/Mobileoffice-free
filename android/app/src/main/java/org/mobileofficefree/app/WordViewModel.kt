@@ -3,19 +3,139 @@ package org.mobileofficefree.app
 import android.app.Application
 import android.graphics.Bitmap
 import android.net.Uri
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import androidx.core.graphics.createBitmap
+import androidx.lifecycle.viewModelScope
 import java.nio.ByteBuffer
+import java.util.Locale
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import org.json.JSONObject
+import org.mobileofficefree.engine.SearchHit
+import org.mobileofficefree.engine.WordCaret
 import org.mobileofficefree.engine.WordDocument
 
-/** Word-processing documents (DOCX, DOC, ODT, RTF, …) drawn by the WordCraft engine. */
+/** The formatting where the caret is, for the editing tool bar. */
+data class WordFormat(val bold: Boolean = false, val italic: Boolean = false, val underline: Boolean = false)
+
+/**
+ * Word-processing documents (DOCX, DOC, ODT, RTF, …) drawn and edited by the WordCraft engine.
+ * Every edit is an engine command (`text.insert`, `format.bold`, …) run on the engine thread.
+ */
 class WordViewModel(app: Application) : PagedViewModel(app, DocumentKind.WORD) {
     private var doc: WordDocument? = null
+    private var source: Uri? = null
+    private var fileName: String = ""
+
+    var editing by mutableStateOf(false)
+        private set
+    var caret by mutableStateOf<WordCaret?>(null)
+        private set
+    var selection by mutableStateOf<List<SearchHit>>(emptyList())
+        private set
+    var format by mutableStateOf(WordFormat())
+        private set
+    var dirty by mutableStateOf(false)
+        private set
+
+    override val hasUnsavedChanges: Boolean get() = dirty
+
+    /** Saving writes the opened file again only in formats the engine writes faithfully. */
+    val savesInPlace: Boolean get() = fileName.substringAfterLast('.', "").lowercase(Locale.ROOT) in IN_PLACE
+
+    fun startEditing() {
+        editing = true
+        if (caret == null) command("caret.docStart", changes = false)
+    }
+
+    fun stopEditing() {
+        editing = false
+    }
+
+    /** Caret to (`x`, `y`) points on [page], or the selection extended there. */
+    fun tap(page: Int, x: Float, y: Float, extend: Boolean = false) = perform(changes = false) { it.tap(page.toUInt(), x, y, extend) }
+
+    /** The word at (`x`, `y`) selected. */
+    fun selectWord(page: Int, x: Float, y: Float) = perform(changes = false) {
+        it.tap(page.toUInt(), x, y, false)
+        it.execute("select.word", "")
+    }
+
+    /** Typed text: lines become paragraphs. */
+    fun type(text: String) = perform(changes = true) { d ->
+        text.replace("\r\n", "\n").split('\n').forEachIndexed { i, line ->
+            if (i > 0) d.execute("text.newParagraph", "")
+            if (line.isNotEmpty()) d.execute("text.insert", JSONObject().put("text", line).toString())
+        }
+    }
+
+    /** Runs engine command [id]; [changes] says whether it can change the text or its look. */
+    fun command(id: String, params: String = "", changes: Boolean = true) = perform(changes) { it.execute(id, params) }
+
+    private fun perform(changes: Boolean, op: (WordDocument) -> Unit) {
+        val d = doc ?: return
+        viewModelScope.launch {
+            val result = withContext(engine) {
+                runCatching {
+                    op(d)
+                    val sizes = if (changes) (0u until d.pageCount()).map { d.pageSize(it).let { s -> s.width to s.height } } else null
+                    val f = runCatching { JSONObject(d.execute("format.state", "")) }.getOrNull()
+                    Edited(sizes, d.caret(), d.selection(), f?.let { formatOf(it) } ?: WordFormat(), d.isDirty())
+                }
+            }
+            result.onSuccess { e ->
+                caret = e.caret
+                selection = e.selection
+                format = e.format
+                dirty = e.dirty
+                e.sizes?.let(::pagesEdited)
+            }
+        }
+    }
+
+    private class Edited(val sizes: List<Pair<Float, Float>>?, val caret: WordCaret?, val selection: List<SearchHit>, val format: WordFormat, val dirty: Boolean)
+
+    private fun formatOf(o: JSONObject) = WordFormat(
+        bold = o.optBoolean("bold"),
+        italic = o.optBoolean("italic"),
+        underline = o.opt("underline").let { it == true || (it is String && it != "none" && it.isNotEmpty()) },
+    )
+
+    /** Writes the document over the opened file, in its own format. */
+    fun saveInPlace(then: () -> Unit = {}) {
+        val uri = source ?: return
+        save(uri, fileName, then)
+    }
+
+    /** Writes the document into the new file [dest] named [name] (its extension picks the format). */
+    fun save(dest: Uri, name: String, then: () -> Unit = {}) {
+        val d = doc ?: return
+        val app = getApplication<Application>()
+        viewModelScope.launch {
+            val result = withContext(engine) {
+                runCatching {
+                    val bytes = d.export(name)
+                    app.contentResolver.openOutputStream(dest, "wt")?.use { it.write(bytes) } ?: error("cannot write")
+                    d.markSaved()
+                }
+            }
+            if (result.isSuccess) {
+                dirty = false
+                then()
+            }
+            tell(result.fold(onSuccess = { app.getString(R.string.saved) }, onFailure = { app.getString(R.string.save_failed, it.message ?: "") }))
+        }
+    }
 
     override fun load(uri: Uri, name: String): List<Pair<Float, Float>> {
         val bytes = getApplication<Application>().contentResolver.openInputStream(uri)?.use { it.readBytes() }
             ?: error("no data")
         val next = WordDocument.open(name, bytes, null)
         doc = next
+        source = uri
+        fileName = name
         return (0u until next.pageCount()).map { next.pageSize(it).let { s -> s.width to s.height } }
     }
 
@@ -51,5 +171,15 @@ class WordViewModel(app: Application) : PagedViewModel(app, DocumentKind.WORD) {
     override fun release() {
         doc?.close()
         doc = null
+        source = null
+        viewModelScope.launch {
+            editing = false
+            caret = null
+            selection = emptyList()
+            dirty = false
+        }
     }
 }
+
+/** Formats the engine writes back without losing what it read. */
+private val IN_PLACE = setOf("docx", "docm", "odt", "rtf", "md", "txt", "html", "htm")

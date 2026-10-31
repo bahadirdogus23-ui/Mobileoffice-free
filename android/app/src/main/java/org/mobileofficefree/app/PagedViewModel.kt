@@ -29,6 +29,8 @@ data class PagedUiState(
     val fileName: String,
     /** Page sizes in points. */
     val pages: List<Pair<Float, Float>>,
+    /** Counts edits, so pages are drawn again after one even when their sizes stay the same. */
+    val edits: Int = 0,
 )
 
 /**
@@ -91,6 +93,18 @@ abstract class PagedViewModel(app: Application, private val kind: DocumentKind) 
         state = state?.copy(pages = pages)
         clearPages()
         clearSearch()
+    }
+
+    /**
+     * After a small edit (typing): the new page sizes; every page is drawn again but keeps its old
+     * picture until the new one is ready, so the screen does not flash. Call on the main thread.
+     */
+    protected fun pagesEdited(pages: List<Pair<Float, Float>>) {
+        val s = state ?: return
+        state = s.copy(pages = pages, edits = s.edits + 1)
+        invalidate()
+        clearThumbnails()
+        shown.keys.filter { it >= pages.size }.forEach { shown.remove(it) }
     }
 
     protected fun tell(text: String) {

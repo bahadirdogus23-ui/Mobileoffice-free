@@ -145,8 +145,8 @@
     <string name="add_pdf">Add PDF</string>
     <string name="pdf_edit_failed">The PDF could not be changed: %1$s</string>
     <plurals name="pages_selected">
-        <item quantity="one">%1$d sayfa seçili</item>
-        <item quantity="other">%1$d sayfa seçili</item>
+        <item quantity="one">%1$d page selected</item>
+        <item quantity="other">%1$d pages selected</item>
     </plurals>
     <string name="sign">Sign</string>
     <string name="signature_draw">Draw your signature</string>
@@ -224,7 +224,7 @@
         <item quantity="one">%d picture, one page each</item>
         <item quantity="other">%d pictures, one page each</item>
     </plurals>
-    <string name="create">Oluştur</string>
+    <string name="create">Create</string>
     <string name="scan">Scan</string>
     <string name="scan_title">Scan a document</string>
     <string name="scan_hint">Photograph each page; then drag the corners onto the paper.</string>
@@ -235,4 +235,5 @@
     <string name="scan_color">Colour</string>
     <string name="scan_document">Document</string>
     <string name="scan_black_white">Black and white</string>
+    <string name="redo">Redo</string>
 </resources>

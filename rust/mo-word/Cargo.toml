@@ -14,6 +14,7 @@ wordcraft-layout = { workspace = true }
 wordcraft-render = { workspace = true }
 wordcraft-doc = { workspace = true }
 wordcraft-formats = { workspace = true }
+serde_json = { workspace = true }
 thiserror = { workspace = true }
 kurbo = "0.13"
 # UYAP UDF files: a ZIP with an XML document (udf.rs).

@@ -47,8 +47,8 @@ impl WordDoc {
     /// A paragraph that runs over a page break is counted on the page it starts on.
     pub fn page_texts(&self) -> Vec<String> {
         let mut out = vec![String::new(); self.layout.pages.len()];
-        for path in self.doc.para_paths(StoryRef::Body) {
-            let Some(p) = self.doc.para(StoryRef::Body, &path) else { continue };
+        for path in self.doc().para_paths(StoryRef::Body) {
+            let Some(p) = self.doc().para(StoryRef::Body, &path) else { continue };
             // Objects (pictures, fields) sit in the text as control characters; readers skip them
             // (tabs stay: they separate words).
             let text: String = p.text.chars().filter(|c| !c.is_control() || *c == '\t').collect();
@@ -57,7 +57,7 @@ impl WordDoc {
             }
             let a = Pos::new(StoryRef::Body, path.clone(), 0);
             let b = Pos::new(StoryRef::Body, path.clone(), p.text.len());
-            let page = self.layout.selection_rects(&self.doc, &a, &b, 0).first().map_or(0, |(pg, _)| *pg);
+            let page = self.layout.selection_rects(self.doc(), &a, &b, 0).first().map_or(0, |(pg, _)| *pg);
             if let Some(slot) = out.get_mut(page) {
                 if !slot.is_empty() {
                     slot.push('\n');
@@ -76,8 +76,8 @@ impl WordDoc {
         }
         let mut out = Vec::new();
         let mut index = 0u32;
-        for path in self.doc.para_paths(StoryRef::Body) {
-            let Some(p) = self.doc.para(StoryRef::Body, &path) else { continue };
+        for path in self.doc().para_paths(StoryRef::Body) {
+            let Some(p) = self.doc().para(StoryRef::Body, &path) else { continue };
             // Folded characters and the byte offset each starts at in the paragraph.
             let (chars, offs): (Vec<char>, Vec<usize>) = p.text.char_indices().map(|(o, c)| (fold(c), o)).unzip();
             if chars.len() < needle.len() {
@@ -92,7 +92,7 @@ impl WordDoc {
                 let end = offs.get(i + needle.len()).copied().unwrap_or(p.text.len());
                 let a = Pos::new(StoryRef::Body, path.clone(), offs[i]);
                 let b = Pos::new(StoryRef::Body, path.clone(), end);
-                for (page, r) in self.layout.selection_rects(&self.doc, &a, &b, 0) {
+                for (page, r) in self.layout.selection_rects(self.doc(), &a, &b, 0) {
                     out.push(Hit { index, page: page as u32, x: r.x, y: r.y, w: r.w, h: r.h });
                 }
                 index += 1;

@@ -50,6 +50,7 @@ impl From<WordError> for MoError {
             WordError::Open(m) => MoError::Open(m),
             WordError::Save(m) => MoError::Save(m),
             e @ WordError::NoPage(_) => MoError::NotFound(e.to_string()),
+            WordError::Command(m) => MoError::Command(m),
         }
     }
 }
@@ -255,8 +256,52 @@ impl WordDocument {
     }
 }
 
+/// Where the caret is drawn on a Word page, in points.
+#[derive(uniffi::Record)]
+pub struct WordCaret {
+    pub page: u32,
+    pub x: f32,
+    pub top: f32,
+    pub height: f32,
+}
+
 #[uniffi::export]
 impl WordDocument {
+    /// Runs the WordCraft command `id` (`text.insert`, `format.bold`, `edit.undo`…) with JSON
+    /// `params` (empty for none); returns its JSON result.
+    pub fn execute(&self, id: String, params: String) -> Result<String, MoError> {
+        Ok(self.doc().execute(&id, &params)?)
+    }
+
+    /// Puts the caret at (`x`, `y`) points on `page`, or extends the selection there.
+    pub fn tap(&self, page: u32, x: f32, y: f32, extend: bool) -> Result<(), MoError> {
+        Ok(self.doc().tap(page, x, y, extend)?)
+    }
+
+    /// Where the caret is drawn, if it is on a page.
+    pub fn caret(&self) -> Option<WordCaret> {
+        self.doc().caret().map(|c| WordCaret { page: c.page, x: c.x, top: c.top, height: c.height })
+    }
+
+    /// The selection's rectangles (none for a bare caret).
+    pub fn selection(&self) -> Vec<SearchHit> {
+        self.doc().selection().into_iter().map(|b| SearchHit { index: 0, page: b.page, x: b.x, y: b.y, width: b.w, height: b.h }).collect()
+    }
+
+    pub fn selected_text(&self) -> String {
+        self.doc().selected_text()
+    }
+
+    /// Edits not yet saved.
+    pub fn is_dirty(&self) -> bool {
+        self.doc().is_dirty()
+    }
+
+    /// The document was just saved.
+    pub fn mark_saved(&self) {
+        self.doc().mark_saved()
+    }
+
     /// Opens DOCX/DOCM/DOTX, DOC, ODT, RTF, HTML, Markdown or text bytes.
     #[uniffi::constructor]
     pub fn open(name: String, bytes: Vec<u8>, password: Option<String>) -> Result<Self, MoError> {

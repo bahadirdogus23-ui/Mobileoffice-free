@@ -1,13 +1,17 @@
 //! Word-processing bridge: opens a document with the WordCraft engine, lays it out into pages and
 //! renders pages (or parts of pages) to premultiplied RGBA, the layout Android's ARGB_8888
-//! `Bitmap` uses. Editing will go through WordCraft's command registry, as for spreadsheets.
+//! `Bitmap` uses. Editing goes through WordCraft's editing session and its command registry
+//! (`text.insert`, `format.bold`, …), as for spreadsheets: nothing here edits the document itself.
 
 mod find;
 pub mod udf;
 
 pub use find::{Hit, MAX_MATCHES, fold};
+use std::sync::Arc;
+
 use wordcraft_doc::{Document, SectionProps};
-use wordcraft_layout::{DocLayout, LayoutCache, LayoutOptions};
+use wordcraft_engine::Session;
+use wordcraft_layout::DocLayout;
 use wordcraft_render::{RenderOptions, render_page, render_region};
 
 #[derive(Debug, thiserror::Error, PartialEq, Eq)]
@@ -18,6 +22,27 @@ pub enum WordError {
     Save(String),
     #[error("page {0} does not exist")]
     NoPage(u32),
+    #[error("{0}")]
+    Command(String),
+}
+
+/// Where the caret is drawn: its page, and its left edge, top and height in points.
+#[derive(Debug, Clone, PartialEq)]
+pub struct CaretBox {
+    pub page: u32,
+    pub x: f32,
+    pub top: f32,
+    pub height: f32,
+}
+
+/// One rectangle of the selection on a page, in points.
+#[derive(Debug, Clone, PartialEq)]
+pub struct PageBox {
+    pub page: u32,
+    pub x: f32,
+    pub y: f32,
+    pub w: f32,
+    pub h: f32,
 }
 
 /// Page setup for [`WordDoc::from_text`], in points (1/72 inch).
@@ -40,9 +65,9 @@ pub struct Raster {
 
 /// One open document and its current layout.
 pub struct WordDoc {
-    doc: Document,
-    cache: LayoutCache,
-    layout: DocLayout,
+    /// The engine's editing session; it owns the document, the selection and the undo history.
+    session: Session,
+    layout: Arc<DocLayout>,
     signed: bool,
 }
 
@@ -83,9 +108,67 @@ impl WordDoc {
     }
 
     fn from_document(doc: Document) -> WordDoc {
-        let mut cache = LayoutCache::new();
-        let layout = wordcraft_layout::layout(&doc, &mut cache, &LayoutOptions::default());
-        WordDoc { doc, cache, layout, signed: false }
+        let mut session = Session::new(doc);
+        let layout = session.layout();
+        WordDoc { session, layout, signed: false }
+    }
+
+    fn doc(&self) -> &Document {
+        &self.session.doc
+    }
+
+    /// Runs the engine command `id` with JSON `params` (`{}` for none) and lays the document out
+    /// again. Returns the command's JSON result.
+    pub fn execute(&mut self, id: &str, params: &str) -> Result<String, WordError> {
+        let params: serde_json::Value = if params.trim().is_empty() {
+            serde_json::Value::Object(Default::default())
+        } else {
+            serde_json::from_str(params).map_err(|e| WordError::Command(e.to_string()))?
+        };
+        let out = self.session.run(id, &params).map_err(|e| WordError::Command(e.to_string()));
+        // Even a refused command may have moved the caret; the layout follows the session.
+        self.layout = self.session.layout();
+        Ok(out?.to_string())
+    }
+
+    /// Puts the caret at (`x`, `y`) points on `page`, or extends the selection there.
+    pub fn tap(&mut self, page: u32, x: f32, y: f32, extend: bool) -> Result<(), WordError> {
+        let params = serde_json::json!({ "page": page, "x": x, "y": y, "extend": extend });
+        self.execute("caret.set", &params.to_string()).map(|_| ())
+    }
+
+    /// Where the caret is drawn, if it is on a page.
+    pub fn caret(&self) -> Option<CaretBox> {
+        let c = self.layout.caret_on(&self.session.sel.focus, self.session.page_hint)?;
+        Some(CaretBox { page: c.page as u32, x: c.x, top: c.top, height: c.height })
+    }
+
+    /// The selected text's rectangles (none when the selection is just a caret).
+    pub fn selection(&self) -> Vec<PageBox> {
+        let (a, b) = self.session.sel.ordered();
+        if a == b {
+            return Vec::new();
+        }
+        self.layout
+            .selection_rects(self.doc(), &a, &b, self.session.page_hint)
+            .into_iter()
+            .map(|(page, r)| PageBox { page: page as u32, x: r.x, y: r.y, w: r.w, h: r.h })
+            .collect()
+    }
+
+    /// The selected text.
+    pub fn selected_text(&self) -> String {
+        self.session.selected_text()
+    }
+
+    /// Changes not yet saved.
+    pub fn is_dirty(&self) -> bool {
+        self.session.dirty
+    }
+
+    /// The saved state is now the current one (after the person saved).
+    pub fn mark_saved(&mut self) {
+        self.session.dirty = false;
     }
 
     /// The file carries an e-signature (a UDF's `sign.sgn`); it is not verified.
@@ -96,12 +179,13 @@ impl WordDoc {
     /// The document written in the format `file_name`'s extension names: pdf, docx, odt, rtf,
     /// txt, md, html… (anything WordCraft writes).
     pub fn export(&self, file_name: &str) -> Result<Vec<u8>, WordError> {
-        wordcraft_engine::io::save_bytes(file_name, &self.doc).map_err(WordError::Save)
+        wordcraft_engine::io::save_bytes(file_name, self.doc()).map_err(WordError::Save)
     }
 
     /// Lays the document out again (after an edit).
     pub fn relayout(&mut self) {
-        self.layout = wordcraft_layout::layout(&self.doc, &mut self.cache, &LayoutOptions::default());
+        self.session.relayout();
+        self.layout = self.session.layout();
     }
 
     pub fn page_count(&self) -> u32 {
@@ -118,7 +202,7 @@ impl WordDoc {
     /// inverted (white paper turns dark grey, black text light) while pictures stay as they are.
     pub fn render_page(&self, page: u32, scale: f32, dark: bool) -> Result<Raster, WordError> {
         let p = self.layout.pages.get(page as usize).ok_or(WordError::NoPage(page))?;
-        let r = render_page(&self.doc, p, scale, &options(dark));
+        let r = render_page(self.doc(), p, scale, &options(dark));
         Ok(Raster { width: r.width, height: r.height, pixels: r.pixels })
     }
 
@@ -128,7 +212,7 @@ impl WordDoc {
     pub fn render_tile(&self, page: u32, scale: f32, x: f32, y: f32, width: u32, height: u32, dark: bool) -> Result<Raster, WordError> {
         let p = self.layout.pages.get(page as usize).ok_or(WordError::NoPage(page))?;
         let view = kurbo_affine(scale, x, y);
-        let r = render_region(&self.doc, p, width, height, view, &options(dark));
+        let r = render_region(self.doc(), p, width, height, view, &options(dark));
         Ok(Raster { width: r.width, height: r.height, pixels: r.pixels })
     }
 }

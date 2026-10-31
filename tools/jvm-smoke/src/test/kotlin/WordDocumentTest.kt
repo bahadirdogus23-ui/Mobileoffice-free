@@ -22,4 +22,19 @@ class WordDocumentTest {
             assertTrue(hits.isNotEmpty() && hits.all { it.page == 0u && it.width > 0f }, "$hits")
         }
     }
+
+    @Test
+    fun editsThroughCommands() {
+        WordDocument.open("a.md", "Merhaba.\n".toByteArray(), null).use { doc ->
+            val hit = doc.find("Merhaba").first()
+            doc.tap(hit.page, hit.x + 0.5f, hit.y + hit.height / 2, false)
+            doc.execute("text.insert", """{"text":"İyi günler, "}""")
+            assertEquals(true, doc.isDirty())
+            assertEquals(1, doc.find("iyi gunler").size)
+            assertEquals(true, doc.caret() != null)
+            doc.markSaved()
+            assertEquals(false, doc.isDirty())
+            assertFailsWith<MoException.Command> { doc.execute("no.such", "") }
+        }
+    }
 }

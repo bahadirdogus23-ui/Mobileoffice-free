@@ -30,6 +30,7 @@ import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
@@ -140,6 +141,7 @@ fun PagedScreen(vm: PagedViewModel, state: PagedUiState, reading: ReadingSetting
     var showPages by remember { mutableStateOf(false) }
     // PDF page tools: pages picked in the Pages sheet, and where extracted pages / the edit go.
     val pdf = vm as? PdfViewModel
+    val word = vm as? WordViewModel
     var selecting by remember(state.uri) { mutableStateOf(false) }
     val selected = remember(state.uri) { mutableStateListOf<Int>() }
     var extractPages by remember { mutableStateOf<List<Int>>(emptyList()) }
@@ -169,6 +171,22 @@ fun PagedScreen(vm: PagedViewModel, state: PagedUiState, reading: ReadingSetting
     }
     val addPdf = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri -> if (uri != null) pdf?.appendPdf(uri) }
     val editedName = convertedName(state.fileName, "pdf").removeSuffix(".pdf") + "-duzenlendi.pdf"
+    // Word: save over the opened file when its format allows, else as a new DOCX.
+    var closeAfterWordSave by remember { mutableStateOf(false) }
+    val wordName = convertedName(state.fileName, "docx")
+    val saveWordAs = rememberLauncherForActivityResult(CreateFile()) { uri ->
+        val close = closeAfterWordSave
+        closeAfterWordSave = false
+        if (uri != null) word?.save(uri, wordName, then = { if (close) vm.answerClose(true) })
+    }
+    val startWordSave = { close: Boolean ->
+        if (word?.savesInPlace == true) {
+            word.saveInPlace(then = { if (close) vm.answerClose(true) })
+        } else {
+            closeAfterWordSave = close
+            saveWordAs.launch(CreateFile.Request(wordName, "application/vnd.openxmlformats-officedocument.wordprocessingml.document"))
+        }
+    }
     // Marks not yet blacked out would be saved with the text still under them: black them out first.
     val startSave = {
         if ((pdf?.redactionMarks ?: 0) > 0) {
@@ -201,6 +219,7 @@ fun PagedScreen(vm: PagedViewModel, state: PagedUiState, reading: ReadingSetting
     val invertOnScreen = night && !vm.drawsNight
 
     BackHandler { vm.requestClose() }
+    BackHandler(enabled = word?.editing == true) { word?.stopEditing() }
     BackHandler(enabled = annotating) {
         commitStrokes()
         annotating = false
@@ -243,7 +262,7 @@ fun PagedScreen(vm: PagedViewModel, state: PagedUiState, reading: ReadingSetting
         onDispose { activity?.volumeKeyHandler = null }
     }
 
-    Column(Modifier.fillMaxSize()) {
+    Column(Modifier.fillMaxSize().imePadding()) {
         TopAppBar(
             title = { Text(state.fileName.substringBeforeLast('.'), maxLines = 1) },
             navigationIcon = {
@@ -260,6 +279,9 @@ fun PagedScreen(vm: PagedViewModel, state: PagedUiState, reading: ReadingSetting
                 }
             },
             actions = {
+                if (word?.dirty == true && !word.editing) {
+                    TextButton(onClick = { startWordSave(false) }) { Text(stringResource(R.string.save)) }
+                }
                 if (pdf?.edited == true) {
                     TextButton(onClick = { startSave() }, enabled = !pdf.busy && pending.isEmpty()) {
                         Text(stringResource(R.string.save))
@@ -428,6 +450,14 @@ fun PagedScreen(vm: PagedViewModel, state: PagedUiState, reading: ReadingSetting
                                     detectTapGestures(onTap = { at -> notePlace = Triple(i, at.x / size.width, at.y / size.height) })
                                 }
                             }
+                        } else if (word?.editing == true) {
+                            // Editing: a tap puts the caret there, a long press selects the word.
+                            Modifier.pointerInput(i) {
+                                detectTapGestures(
+                                    onTap = { at -> word.tap(i, at.x * w / size.width, at.y * w / size.width) },
+                                    onLongPress = { at -> word.selectWord(i, at.x * w / size.width, at.y * w / size.width) },
+                                )
+                            }
                         } else {
                             Modifier
                         }
@@ -442,6 +472,7 @@ fun PagedScreen(vm: PagedViewModel, state: PagedUiState, reading: ReadingSetting
                                     modifier = Modifier.fillMaxSize(),
                                 )
                             }
+                            if (word?.editing == true) WordCaretOverlay(word, i, w)
                             if (annotating) {
                                 val shown = pending.filter { it.page == i }.map { it.points to it.pen } +
                                     listOfNotNull(liveStroke?.takeIf { it.first == i }?.let { live -> tool.pen?.let { live.second to it } })
@@ -465,9 +496,12 @@ fun PagedScreen(vm: PagedViewModel, state: PagedUiState, reading: ReadingSetting
                 }
             }
         }
-        BottomAppBar {
+        if (word?.editing == true) {
+            WordEditBar(word, onSave = { startWordSave(false) })
+        } else BottomAppBar {
             // Scrolls sideways when the buttons do not fit (narrow phones, large text).
             Row(Modifier.horizontalScroll(rememberScrollState())) {
+                if (word != null) TextButton(onClick = word::startEditing) { Text(stringResource(R.string.edit)) }
                 TextButton(onClick = { showReading = true }) { Text(stringResource(R.string.reading)) }
                 TextButton(onClick = { showPages = true }) { Text(stringResource(R.string.pages)) }
                 if (pdf != null) {
@@ -741,8 +775,12 @@ fun PagedScreen(vm: PagedViewModel, state: PagedUiState, reading: ReadingSetting
             confirmButton = {
                 TextButton(onClick = {
                     vm.answerClose(null)
-                    closeAfterSave = pdf?.redactionMarks == 0
-                    startSave()
+                    if (word != null) {
+                        startWordSave(true)
+                    } else {
+                        closeAfterSave = pdf?.redactionMarks == 0
+                        startSave()
+                    }
                 }) { Text(stringResource(R.string.save)) }
             },
             dismissButton = {

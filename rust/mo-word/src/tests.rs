@@ -222,3 +222,41 @@ fn notices_signed_udf_and_rejects_broken_ones() {
     assert!(WordDoc::open("imzali.udf", &sample_udf(true), None).unwrap().is_signed());
     assert!(matches!(WordDoc::open("bozuk.udf", b"PK\x03\x04 nope", None), Err(WordError::Open(_))));
 }
+
+#[test]
+fn types_formats_and_undoes_where_the_page_was_tapped() {
+    let mut doc = WordDoc::open("a.md", "Birinci paragraf.\n\nİkinci paragraf.\n".as_bytes(), None).unwrap();
+    assert!(!doc.is_dirty());
+    // A tap at the start of the first line of text puts the caret there.
+    let first = doc.find("Birinci")[0].clone();
+    doc.tap(first.page, first.x + 0.5, first.y + first.h / 2.0, false).unwrap();
+    let caret = doc.caret().unwrap();
+    assert_eq!(caret.page, first.page);
+    assert!((caret.x - first.x).abs() < 2.0 && caret.height > 5.0, "{caret:?} vs {first:?}");
+    doc.execute("text.insert", r#"{"text": "Şimdi İĞDIR ığüş "}"#).unwrap();
+    assert!(doc.is_dirty());
+    assert!(doc.caret().unwrap().x > caret.x + 20.0, "the caret moves on with the text");
+    assert_eq!(doc.find("şimdi iğdir").len(), 1);
+    // Select the new word and make it bold.
+    let hit = doc.find("Şimdi")[0].clone();
+    doc.tap(hit.page, hit.x + 0.5, hit.y + hit.h / 2.0, false).unwrap();
+    doc.tap(hit.page, hit.x + hit.w - 0.5, hit.y + hit.h / 2.0, true).unwrap();
+    assert_eq!(doc.selected_text(), "Şimdi");
+    assert!(!doc.selection().is_empty());
+    doc.execute("format.bold", "").unwrap();
+    let state: serde_json::Value = serde_json::from_str(&doc.execute("format.state", "").unwrap()).unwrap();
+    assert_eq!(state["bold"], true);
+    // New paragraph and backspace, then undo all the way back.
+    doc.execute("select.collapse", r#"{"end": true}"#).unwrap();
+    doc.execute("text.newParagraph", "").unwrap();
+    doc.execute("text.backspace", "").unwrap();
+    let docx = doc.export("a.docx").unwrap();
+    let body = zip_entry(&docx, "word/document.xml");
+    assert!(body.contains("Şimdi") && body.contains("<w:b/>"), "bold kept in DOCX");
+    for _ in 0..10 {
+        let _ = doc.execute("edit.undo", "");
+    }
+    assert!(doc.find("Şimdi").is_empty(), "undo takes the typing back");
+    assert!(doc.execute("no.such.command", "").is_err());
+    assert!(doc.execute("text.insert", "not json").is_err());
+}
