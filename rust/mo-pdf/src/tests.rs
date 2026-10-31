@@ -309,3 +309,15 @@ fn shows_signatures_and_typed_text_to_a_renderer_that_draws_no_annotations() {
     let mut back = reopened(doc.display_copy().unwrap());
     assert!(!back.page_text(0).unwrap().contains("Şişli"));
 }
+
+#[test]
+fn reads_forms_made_by_browser_pdf_libraries() {
+    // jsPDF's AcroForm plugin (what browser-made forms such as Gemini's often use) and pdf-lib.
+    for bytes in [&include_bytes!("../testdata/jspdf-form.pdf")[..], &include_bytes!("../testdata/pdflib-form.pdf")[..]] {
+        let doc = reopened(bytes.to_vec());
+        let kinds: Vec<FieldKind> = doc.fields().iter().map(|f| f.kind).collect();
+        assert_eq!(kinds, vec![FieldKind::Text, FieldKind::CheckBox, FieldKind::Choice, FieldKind::Radio]);
+        assert!(doc.form_diagnosis().starts_with("AcroForm: var"), "{}", doc.form_diagnosis());
+    }
+    assert!(reopened(pdf(1, "x")).form_diagnosis().starts_with("AcroForm: yok"));
+}

@@ -175,7 +175,7 @@
     <string name="signature_saved">Kayıtlı imzalar</string>
     <string name="signature_keep">Bu imzayı bu telefonda sakla</string>
     <string name="form_fill">Formu doldur</string>
-    <string name="form_none">Bu PDF\'te doldurulabilir form alanı yok; kutular yalnızca çizim olabilir. İmzala ve yaz → Metin ile istediğiniz yere yazabilirsiniz.</string>
+    <string name="form_none">Bu PDF\'te doldurulabilir alan bulunamadı. Bu satırı geliştiriciye iletirseniz nedeni bulunur; o zamana kadar İmzala ve yaz → Metin ile yazabilirsiniz:</string>
     <string name="form_page">Sayfa %1$d</string>
     <string name="apply">Uygula</string>
     <string name="annotate">İmzala ve yaz</string>

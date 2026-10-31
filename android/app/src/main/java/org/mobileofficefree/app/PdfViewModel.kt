@@ -200,12 +200,19 @@ class PdfViewModel(app: Application) : PagedViewModel(app, DocumentKind.PDF) {
         val app = getApplication<Application>()
         busy = true
         viewModelScope.launch {
-            val result = withContext(engine) { runCatching { editor().fields() } }
+            val result = withContext(engine) {
+                runCatching {
+                    val doc = editor()
+                    val fields = doc.fields()
+                    // When none can be filled, what the file holds tells why (shown with the message).
+                    fields to if (fields.none { f -> f.kind != FormFieldKind.OTHER }) doc.formDiagnosis() else null
+                }
+            }
             busy = false
             result.fold(
-                onSuccess = {
-                    if (it.none { f -> f.kind != FormFieldKind.OTHER }) tell(app.getString(R.string.form_none))
-                    formFields = it
+                onSuccess = { (fields, why) ->
+                    if (why != null) tell(app.getString(R.string.form_none) + "\n" + why)
+                    formFields = fields
                 },
                 onFailure = { tell(app.getString(R.string.pdf_edit_failed, it.message ?: it.javaClass.simpleName)) },
             )

@@ -176,7 +176,7 @@
     <string name="signature_saved">Kept signatures</string>
     <string name="signature_keep">Keep this signature on this phone</string>
     <string name="form_fill">Fill in form</string>
-    <string name="form_none">This PDF has no fillable form fields; the boxes may only be drawn. Use Sign &amp; write → Text to type anywhere.</string>
+    <string name="form_none">No fillable field was found in this PDF. Sending the line below to the developer helps find why; meanwhile use Sign &amp; write → Text:</string>
     <string name="form_page">Page %1$d</string>
     <string name="apply">Apply</string>
     <string name="annotate">Sign &amp; write</string>

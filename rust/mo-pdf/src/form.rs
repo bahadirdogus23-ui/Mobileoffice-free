@@ -43,6 +43,36 @@ pub struct FormField {
     pub page: Option<u32>,
 }
 
+/// What the file holds of a form, for telling why no field was found: the catalog's AcroForm
+/// (and how many fields it lists), widget annotations on the pages, an XFA form, and whether the
+/// file had to be repaired to be read.
+pub(crate) fn diagnosis(doc: &Document) -> String {
+    let root = doc.root().and_then(|r| doc.get(r).as_dict().cloned());
+    let af = root.as_ref().and_then(|c| c.get(b"AcroForm").cloned()).map(|o| doc.resolve(&o));
+    let af = af.as_ref().and_then(|o| o.as_dict().cloned());
+    let listed =
+        af.as_ref().and_then(|d| d.get(b"Fields").cloned()).map(|o| doc.resolve(&o)).and_then(|o| o.as_array().map(|a| a.len())).unwrap_or(0);
+    let xfa = af.as_ref().is_some_and(|d| d.get(b"XFA").is_some());
+    let widgets: usize = pdfcraft_annot::page_refs(doc)
+        .unwrap_or_default()
+        .iter()
+        .map(|p| {
+            let list = doc.get(*p).as_dict().and_then(|d| d.get(b"Annots").cloned()).map(|o| doc.resolve(&o));
+            list.as_ref()
+                .and_then(|o| o.as_array())
+                .map_or(0, |a| a.iter().filter(|o| doc.resolve(o).as_dict().is_some_and(|d| d.name(b"Subtype") == Some(b"Widget"))).count())
+        })
+        .sum();
+    format!(
+        "AcroForm: {} ({} alan) · widget: {} · XFA: {} · onarıldı: {}",
+        if af.is_some() { "var" } else { "yok" },
+        listed,
+        widgets,
+        if xfa { "var" } else { "yok" },
+        if doc.reconstructed() { "evet" } else { "hayır" },
+    )
+}
+
 pub(crate) fn fields(doc: &Document) -> Vec<FormField> {
     forms::fields(doc)
         .into_iter()

@@ -863,6 +863,11 @@ impl PdfDocument {
         self.doc().has_drawn_annotations()
     }
 
+    /// What the file holds of a form, in one line (shown when no field is found).
+    pub fn form_diagnosis(&self) -> String {
+        self.doc().form_diagnosis()
+    }
+
     /// Removes the last signature, drawing or note added; false when there is none.
     pub fn undo_annotation(&self) -> Result<bool, MoError> {
         Ok(self.doc().undo_annotation()?)

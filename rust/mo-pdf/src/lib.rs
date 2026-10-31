@@ -300,6 +300,11 @@ impl PdfDoc {
     }
 
     /// The form's fields, in document order (none when there is no form).
+    /// What the file holds of a form, in one line, for when no field is found.
+    pub fn form_diagnosis(&self) -> String {
+        form::diagnosis(&self.doc)
+    }
+
     pub fn fields(&self) -> Vec<FormField> {
         form::fields(&self.doc)
     }
