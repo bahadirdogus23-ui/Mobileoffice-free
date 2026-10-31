@@ -10,8 +10,8 @@ class ScanImageTest {
     fun straightenedSizeTakesTheLongerEdges() {
         val corners = listOf(10f to 10f, 210f to 20f, 220f to 320f, 0f to 300f)
         val (w, h) = ScanImage.outputSize(corners)
-        assertEquals(220, w) // bottom edge 220 > top edge ~200
-        assertEquals(310, h)
+        assertEquals(221, w) // bottom edge ~221 > top edge ~200
+        assertEquals(300, h)
     }
 
     @Test
