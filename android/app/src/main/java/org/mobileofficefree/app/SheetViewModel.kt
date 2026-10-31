@@ -17,6 +17,8 @@ import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import org.json.JSONObject
+import java.util.Locale
+import org.mobileofficefree.engine.CellLook
 import org.mobileofficefree.engine.SheetDocument
 import org.mobileofficefree.engine.nativeVersion
 
@@ -72,7 +74,18 @@ class SheetViewModel(app: Application) : AndroidViewModel(app) {
 
     /** Cell texts, fetched from the engine in blocks of [BLOCK_ROWS]×[BLOCK_COLS] as the grid scrolls. */
     private val blocks = mutableStateMapOf<Long, List<String>>()
+    /** How the cells of each block look (bold, colours, alignment), fetched with the texts. */
+    private val looks = mutableStateMapOf<Long, List<CellLook>>()
     private val pending = HashSet<Long>()
+    /** Where each loaded block is, so that an edit can fetch them all again. */
+    private val blockAt = HashMap<Long, Triple<Int, Int, Int>>()
+
+    /** The opened file, saved over by "Save" when it is an XLSX. */
+    private var source: Uri? = null
+    var canSaveInPlace by mutableStateOf(false)
+        private set
+    var hasUnsaved by mutableStateOf(false)
+        private set
 
     val engineVersion: String by lazy { runCatching { nativeVersion() }.getOrDefault("?") }
 
@@ -86,6 +99,10 @@ class SheetViewModel(app: Application) : AndroidViewModel(app) {
 
     /** Edits since the workbook was opened or last saved; closing asks first while true. */
     private var unsaved = false
+        set(value) {
+            field = value
+            hasUnsaved = value
+        }
     private var closeAfterSave = false
     var askClose by mutableStateOf(false)
         private set
@@ -124,6 +141,8 @@ class SheetViewModel(app: Application) : AndroidViewModel(app) {
                     val bytes = resolver.openInputStream(uri)?.use { it.readBytes() }
                         ?: error("no data")
                     val state = replaceDocument(SheetDocument.open(name, bytes, null))
+                    source = uri
+                    canSaveInPlace = name.endsWith(".xlsx", ignoreCase = true)
                     Diagnostics.record("SHEET ${name.substringAfterLast('.')} açma (${sizeLabel(info.size)})", started)
                     RecentFiles(getApplication()).remember(uri, info.name, DocumentKind.SHEET, info.size)
                     state to name
@@ -148,6 +167,8 @@ class SheetViewModel(app: Application) : AndroidViewModel(app) {
         val started = SystemClock.elapsedRealtime()
         viewModelScope.launch {
             val name = text(R.string.new_workbook_name)
+            source = null
+            canSaveInPlace = false
             screen = Screen.Sheet(withContext(engine) { replaceDocument(SheetDocument.blank()) }.copy(fileName = name))
         }
     }
@@ -158,6 +179,8 @@ class SheetViewModel(app: Application) : AndroidViewModel(app) {
         val old = doc
         doc = null
         blocks.clear()
+        looks.clear()
+        blockAt.clear()
         screen = Screen.Home
         viewModelScope.launch(engine) { old?.close() }
     }
@@ -171,6 +194,8 @@ class SheetViewModel(app: Application) : AndroidViewModel(app) {
                 stateFor(d, current.fileName, index, 0, 0)
             } ?: return@launch
             blocks.clear()
+            looks.clear()
+            blockAt.clear()
             pending.clear()
             screen = Screen.Sheet(state)
         }
@@ -193,29 +218,57 @@ class SheetViewModel(app: Application) : AndroidViewModel(app) {
     /** Enters [input] (a value or =formula) in the selected cell through GridCraft's `cell.set`. */
     fun commitCell(input: String) {
         val current = (screen as? Screen.Sheet)?.state ?: return
-        val params = JSONObject()
-            .put("cell", cellName(current.selectedRow, current.selectedCol))
-            .put("input", input)
-            .toString()
+        edit { d -> d.setInput(current.selectedRow.toUInt(), current.selectedCol.toUInt(), input) }
+    }
+
+    /**
+     * Runs GridCraft command [id] on the selected cell (its `range`, unless [params] names the
+     * rows or columns), then shows the result.
+     */
+    fun format(id: String, params: JSONObject = JSONObject()) {
+        val current = (screen as? Screen.Sheet)?.state ?: return
+        if (!params.has("rows") && !params.has("cols")) params.put("range", cellName(current.selectedRow, current.selectedCol))
+        edit { d -> d.execute(id, params.toString()) }
+    }
+
+    /** Inserts ([insert]) or deletes a whole row ([rows]) or column at the selection. */
+    fun lines(rows: Boolean, insert: Boolean) {
+        val current = (screen as? Screen.Sheet)?.state ?: return
+        val at = if (rows) "${current.selectedRow + 1}" else columnName(current.selectedCol)
+        val id = (if (insert) "home.insert" else "home.delete") + (if (rows) "Rows" else "Columns")
+        edit { d -> d.execute(id, JSONObject().put(if (rows) "rows" else "cols", "$at:$at").toString()) }
+    }
+
+    fun undo() = edit { d -> d.execute("edit.undo", "{}") }
+
+    fun redo() = edit { d -> d.execute("edit.redo", "{}") }
+
+    /** Runs [op] on the engine thread, then refreshes the sheet; the old cells stay until the new ones arrive. */
+    private fun edit(op: (SheetDocument) -> Unit) {
+        val current = (screen as? Screen.Sheet)?.state ?: return
         viewModelScope.launch {
             val result = withContext(engine) {
                 runCatching {
                     val d = doc ?: error("no document")
-                    d.execute("cell.set", params)
+                    op(d)
                     stateFor(d, current.fileName, current.sheet, current.selectedRow, current.selectedCol)
                 }
             }
             result.fold(
                 onSuccess = {
                     unsaved = true
-                    // A formula can change any cell: refetch everything visible.
-                    blocks.clear()
-                    pending.clear()
                     screen = Screen.Sheet(it)
+                    // A formula, a new row or a format can change any cell: fetch the loaded ones again.
+                    for ((key, at) in blockAt.toMap()) requestBlock(at.first, at.second, at.third, key)
                 },
                 onFailure = { message = text(R.string.cell_update_failed, it.message ?: "") },
             )
         }
+    }
+
+    /** Writes over the opened XLSX. */
+    fun saveInPlace() {
+        source?.let(::saveTo)
     }
 
     fun saveTo(uri: Uri) {
@@ -287,22 +340,30 @@ class SheetViewModel(app: Application) : AndroidViewModel(app) {
         return block[(row - br * BLOCK_ROWS) * BLOCK_COLS + (col - bc * BLOCK_COLS)]
     }
 
+    /** How a cell looks, if its block is loaded (see [cellText]). */
+    fun cellLook(sheet: Int, row: Int, col: Int): CellLook? {
+        val br = row / BLOCK_ROWS
+        val bc = col / BLOCK_COLS
+        return looks[blockKey(sheet, br, bc)]?.getOrNull((row - br * BLOCK_ROWS) * BLOCK_COLS + (col - bc * BLOCK_COLS))
+    }
+
     private fun requestBlock(sheet: Int, br: Int, bc: Int, key: Long) {
         if (!pending.add(key)) return
+        blockAt[key] = Triple(sheet, br, bc)
         viewModelScope.launch {
-            val texts = withContext(engine) {
+            val got = withContext(engine) {
                 runCatching {
-                    doc?.cellTexts(
-                        sheet.toUInt(),
-                        (br * BLOCK_ROWS).toUInt(),
-                        (bc * BLOCK_COLS).toUInt(),
-                        BLOCK_ROWS.toUInt(),
-                        BLOCK_COLS.toUInt(),
-                    )
+                    val d = doc ?: return@runCatching null
+                    val (r, c) = (br * BLOCK_ROWS).toUInt() to (bc * BLOCK_COLS).toUInt()
+                    d.cellTexts(sheet.toUInt(), r, c, BLOCK_ROWS.toUInt(), BLOCK_COLS.toUInt()) to
+                        d.cellLooks(sheet.toUInt(), r, c, BLOCK_ROWS.toUInt(), BLOCK_COLS.toUInt())
                 }.getOrNull()
             }
             pending.remove(key)
-            if (texts != null) blocks[key] = texts
+            if (got != null) {
+                blocks[key] = got.first
+                looks[key] = got.second
+            }
         }
     }
 
@@ -310,7 +371,11 @@ class SheetViewModel(app: Application) : AndroidViewModel(app) {
     private fun replaceDocument(next: SheetDocument): SheetUiState {
         doc?.close()
         doc = next
+        // Numbers and formulas the Turkish way when the phone speaks Turkish ("1.250,5", =TOPLA(…;…)).
+        next.setTurkish(Locale.getDefault().language == "tr")
         blocks.clear()
+        looks.clear()
+        blockAt.clear()
         pending.clear()
         val sheet = next.activeSheet().toInt()
         return stateFor(next, "", sheet, 0, 0).copy(editText = next.editText(sheet.toUInt(), 0u, 0u))

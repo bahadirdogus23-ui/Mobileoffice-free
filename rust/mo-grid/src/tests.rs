@@ -79,3 +79,35 @@ fn pdf_follows_page_setup_commands_and_range() {
     assert!(text.contains("/MediaBox [0 0 841.89 595.28]"), "{}", &text[..text.len().min(2000)]);
     assert!(doc.export_pdf(false, Some("bad range"), false).is_err());
 }
+
+#[test]
+fn formats_cells_and_inserts_rows_through_commands() {
+    let mut doc = GridDoc::blank();
+    doc.execute("cell.set", r#"{"cell":"A1","input":"Başlık"}"#).unwrap();
+    doc.set_turkish(true);
+    doc.set_input(1, 0, "1.250,5").unwrap();
+    assert_eq!(doc.cell_texts(0, 1, 0, 1, 1).unwrap()[0], "1250,5");
+    assert_eq!(doc.edit_text(0, 1, 0).unwrap(), "1250,5");
+    doc.set_input(2, 0, "=TOPLA(A2;10,5)").unwrap();
+    assert_eq!(doc.cell_texts(0, 2, 0, 1, 1).unwrap()[0], "1261");
+    assert_eq!(doc.edit_text(0, 2, 0).unwrap(), "=TOPLA(A2;10,5)");
+    doc.set_input(3, 0, "31.10.2026").unwrap();
+    assert!(doc.cell_texts(0, 3, 0, 1, 1).unwrap()[0].contains("2026"), "a date stays a date");
+    doc.execute("home.bold", r#"{"range":"A1"}"#).unwrap();
+    doc.execute("home.fillColor", r##"{"range":"A1","color":"#FFFF00"}"##).unwrap();
+    doc.execute("home.alignCenter", r#"{"range":"A1"}"#).unwrap();
+    let looks = doc.cell_looks(0, 0, 0, 2, 1).unwrap();
+    // Saved files keep the English forms other programs read.
+    assert!(doc.execute("cell.get", r#"{"cell":"A3"}"#).unwrap().contains("SUM(A2,10.5)"));
+    assert!(looks[0].bold && looks[0].align == 2);
+    assert_eq!(looks[0].fill, 0xFFFF_FF00);
+    assert_eq!(looks[1], CellLook::default());
+    // A row inserted above the number moves it down a row.
+    doc.execute("home.insertRows", r#"{"rows":"2:2"}"#).unwrap();
+    assert_eq!(doc.cell_texts(0, 1, 0, 2, 1).unwrap()[0], "");
+    assert!(!doc.cell_texts(0, 2, 0, 1, 1).unwrap()[0].is_empty());
+    doc.execute("edit.undo", "{}").unwrap();
+    assert!(!doc.cell_texts(0, 1, 0, 1, 1).unwrap()[0].is_empty());
+    doc.execute("home.percent", r#"{"range":"A2"}"#).unwrap();
+    assert_eq!(doc.cell_texts(0, 1, 0, 1, 1).unwrap()[0], "125050%");
+}

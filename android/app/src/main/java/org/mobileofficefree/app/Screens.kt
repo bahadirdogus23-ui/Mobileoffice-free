@@ -5,6 +5,7 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -20,7 +21,10 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FilledIconToggleButton
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -46,9 +50,14 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.font.FontStyle
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.dp
 import java.util.Locale
+import org.json.JSONObject
+import org.mobileofficefree.engine.CellLook
 
 /** Spreadsheet types the picker offers (the engine also sniffs content, so a wrong type still opens). */
 internal val SPREADSHEET_TYPES = arrayOf(
@@ -81,6 +90,9 @@ internal fun SheetScreen(vm: SheetViewModel, state: SheetUiState) {
                 }
             },
             actions = {
+                if (vm.canSaveInPlace && vm.hasUnsaved) {
+                    TextButton(onClick = vm::saveInPlace) { Text(stringResource(R.string.save)) }
+                }
                 TextButton(onClick = { showPdf = true }) { Text("PDF") }
                 TextButton(onClick = { saveAs.launch(saveName(state.fileName)) }) {
                     Text(stringResource(R.string.save_as))
@@ -88,6 +100,7 @@ internal fun SheetScreen(vm: SheetViewModel, state: SheetUiState) {
             },
         )
         FormulaBar(state, onCommit = vm::commitCell)
+        SheetToolBar(vm, vm.cellLook(state.sheet, state.selectedRow, state.selectedCol))
         HorizontalDivider()
         SheetGrid(
             sheet = state.sheet,
@@ -96,6 +109,7 @@ internal fun SheetScreen(vm: SheetViewModel, state: SheetUiState) {
             selectedRow = state.selectedRow,
             selectedCol = state.selectedCol,
             cellText = vm::cellText,
+            cellLook = vm::cellLook,
             onSelect = vm::selectCell,
             modifier = Modifier.weight(1f),
         )
@@ -142,6 +156,60 @@ internal fun SheetScreen(vm: SheetViewModel, state: SheetUiState) {
         )
     }
 }
+
+/** Formatting and rows/columns for the selected cell, all through GridCraft commands. */
+@Composable
+private fun SheetToolBar(vm: SheetViewModel, look: CellLook?) {
+    var fillMenu by remember { mutableStateOf(false) }
+    Row(
+        Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(horizontal = 4.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        FilledIconToggleButton(checked = look?.bold == true, onCheckedChange = { vm.format("home.bold", JSONObject().put("on", it)) }) {
+            Text("K", fontWeight = FontWeight.Bold)
+        }
+        FilledIconToggleButton(checked = look?.italic == true, onCheckedChange = { vm.format("home.italic", JSONObject().put("on", it)) }) {
+            Text("İ", fontStyle = FontStyle.Italic)
+        }
+        FilledIconToggleButton(checked = look?.underline == true, onCheckedChange = { vm.format("home.underline", JSONObject().put("on", it)) }) {
+            Text("A", textDecoration = TextDecoration.Underline)
+        }
+        Box {
+            TextButton(onClick = { fillMenu = true }) { Text("🎨") }
+            DropdownMenu(expanded = fillMenu, onDismissRequest = { fillMenu = false }) {
+                for ((label, color) in FILLS) {
+                    DropdownMenuItem(text = { Text(stringResource(label)) }, onClick = {
+                        fillMenu = false
+                        vm.format("home.fillColor", JSONObject().put("color", color))
+                    })
+                }
+            }
+        }
+        TextButton(onClick = { vm.format("home.alignLeft") }) { Text("⇤") }
+        TextButton(onClick = { vm.format("home.alignCenter") }) { Text("≡") }
+        TextButton(onClick = { vm.format("home.alignRight") }) { Text("⇥") }
+        TextButton(onClick = { vm.format("home.accounting", JSONObject().put("symbol", "₺")) }) { Text("₺") }
+        TextButton(onClick = { vm.format("home.percent") }) { Text("%") }
+        TextButton(onClick = { vm.format("home.increaseDecimal") }) { Text(",0→") }
+        TextButton(onClick = { vm.format("home.decreaseDecimal") }) { Text("←,0") }
+        TextButton(onClick = { vm.lines(rows = true, insert = true) }) { Text(stringResource(R.string.row_insert)) }
+        TextButton(onClick = { vm.lines(rows = true, insert = false) }) { Text(stringResource(R.string.row_delete)) }
+        TextButton(onClick = { vm.lines(rows = false, insert = true) }) { Text(stringResource(R.string.col_insert)) }
+        TextButton(onClick = { vm.lines(rows = false, insert = false) }) { Text(stringResource(R.string.col_delete)) }
+        TextButton(onClick = vm::undo) { Text(stringResource(R.string.undo)) }
+        TextButton(onClick = vm::redo) { Text(stringResource(R.string.redo)) }
+    }
+}
+
+/** Fill colours offered: none, and the light shades people mark rows with. */
+private val FILLS = listOf(
+    R.string.fill_none to "none",
+    R.string.fill_yellow to "#FFF2CC",
+    R.string.fill_green to "#E2EFDA",
+    R.string.fill_blue to "#DDEBF7",
+    R.string.fill_red to "#FCE4D6",
+    R.string.fill_grey to "#EDEDED",
+)
 
 @Composable
 private fun FormulaBar(state: SheetUiState, onCommit: (String) -> Unit) {

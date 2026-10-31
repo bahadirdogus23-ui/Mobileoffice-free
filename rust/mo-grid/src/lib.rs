@@ -31,6 +31,20 @@ pub enum GridError {
 pub struct GridDoc {
     session: Session,
     warnings: Vec<String>,
+    /// Numbers and formulas typed and shown the Turkish way (see `turkish.rs`).
+    turkish: bool,
+}
+
+/// How a cell looks in the grid. Colours are 0xAARRGGBB; 0 means the default (black text, no
+/// fill). `align`: 0 general (numbers right, text left), 1 left, 2 centre, 3 right.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct CellLook {
+    pub bold: bool,
+    pub italic: bool,
+    pub underline: bool,
+    pub color: u32,
+    pub fill: u32,
+    pub align: u8,
 }
 
 /// The rectangle from A1 to the last used cell, as counts.
@@ -45,7 +59,7 @@ impl GridDoc {
     pub fn blank() -> GridDoc {
         let mut session = Session::new();
         session.new_workbook();
-        GridDoc { session, warnings: Vec::new() }
+        GridDoc { session, warnings: Vec::new(), turkish: false }
     }
 
     /// Opens an XLSX/XLSM/XLS/XLSB/ODS/CSV/TSV file from its bytes. `name` is the file name; its
@@ -65,7 +79,7 @@ impl GridDoc {
         let title = std::path::Path::new(name).file_name().and_then(|n| n.to_str()).unwrap_or("Book").to_string();
         let mut session = Session::new();
         session.add_document(DocState::new(wb, None, title, Trust::FromFile));
-        Ok(GridDoc { session, warnings })
+        Ok(GridDoc { session, warnings, turkish: false })
     }
 
     /// What the import could not keep (shown to the person before they edit).
@@ -112,17 +126,62 @@ impl GridDoc {
         let mut out = Vec::with_capacity((rows as usize) * (cols as usize));
         for r in row..row.saturating_add(rows) {
             for c in col..col.saturating_add(cols) {
-                out.push(display::cell_text(wb, sh, gridcraft_engine::cell(r, c)));
+                let cell = gridcraft_engine::cell(r, c);
+                let text = display::cell_text(wb, sh, cell);
+                out.push(if self.turkish && shows_number(wb, sh, cell) { number_display(&text) } else { text });
             }
         }
         Ok(out)
+    }
+
+    /// How each cell of a `rows`×`cols` window looks, row by row, for drawing the grid: the
+    /// cell's own style (conditional formats are left to the PDF and print paths).
+    pub fn cell_looks(&self, sheet: u32, row: u32, col: u32, rows: u32, cols: u32) -> Result<Vec<CellLook>, GridError> {
+        use gridcraft_engine::model::style::{HAlign, PatternType, Underline};
+        let wb = self.wb();
+        let sh = wb.sheets.get(sheet as usize).ok_or(GridError::NoSheet(sheet))?;
+        let argb = |rgb: Option<[u8; 3]>| rgb.map_or(0, |[r, g, b]| 0xFF00_0000 | u32::from(r) << 16 | u32::from(g) << 8 | u32::from(b));
+        let mut out = Vec::with_capacity((rows as usize) * (cols as usize));
+        for r in row..row.saturating_add(rows) {
+            for c in col..col.saturating_add(cols) {
+                let st = wb.styles.get(sh.style_id(gridcraft_engine::cell(r, c)));
+                out.push(CellLook {
+                    bold: st.font.bold,
+                    italic: st.font.italic,
+                    underline: st.font.underline != Underline::None,
+                    color: argb(st.font.color.resolve(&wb.theme)),
+                    fill: if st.fill.pattern == PatternType::Solid { argb(st.fill.fg.resolve(&wb.theme)) } else { 0 },
+                    align: match st.align.h {
+                        HAlign::Left => 1,
+                        HAlign::Center | HAlign::CenterAcross => 2,
+                        HAlign::Right => 3,
+                        _ => 0,
+                    },
+                });
+            }
+        }
+        Ok(out)
+    }
+
+    /// Type and show numbers and formulas the Turkish way ("1.250,5", `=TOPLA(A1;A2)`).
+    pub fn set_turkish(&mut self, on: bool) {
+        self.turkish = on;
+    }
+
+    /// Enters what the person typed in cell (`row`, `col`) of the active sheet, read the
+    /// Turkish way when that is on.
+    pub fn set_input(&mut self, row: u32, col: u32, input: &str) -> Result<(), GridError> {
+        let input = if self.turkish { to_engine(input) } else { input.to_string() };
+        let params = serde_json::json!({ "cell": gridcraft_engine::cell(row, col).a1(), "input": input });
+        self.execute("cell.set", &params.to_string()).map(|_| ())
     }
 
     /// What the formula bar shows for a cell: the formula, or the value as typed.
     pub fn edit_text(&self, sheet: u32, row: u32, col: u32) -> Result<String, GridError> {
         let wb = self.wb();
         let sh = wb.sheets.get(sheet as usize).ok_or(GridError::NoSheet(sheet))?;
-        Ok(display::edit_text(wb, sh, gridcraft_engine::cell(row, col)))
+        let text = display::edit_text(wb, sh, gridcraft_engine::cell(row, col));
+        Ok(if self.turkish { from_engine(&text) } else { text })
     }
 
     /// Runs one GridCraft command by id with JSON parameters and returns its JSON result.
@@ -168,6 +227,8 @@ fn is_delimited_text(name: &str) -> bool {
 
 #[cfg(test)]
 mod tests;
+mod turkish;
+pub use turkish::{from_engine, number_display, to_engine};
 
 /// Hands WordCraft's bundled fonts (OFL: Source Sans 3, Source Serif 4, JetBrains Mono) to the
 /// PDF writer once, so spreadsheet PDFs embed real fonts with every Turkish letter instead of
@@ -186,4 +247,13 @@ fn register_pdf_fonts() {
         let mono = b[12];
         gridcraft_pdf::set_text_fonts([sans, sans_bold, sans_it, sans_bold, serif, serif_bold, serif_it, serif_bold_it, mono, mono, mono, mono]);
     });
+}
+
+/// Whether a cell shows a number (not a date, time or text), whose separators follow the locale.
+fn shows_number(wb: &Workbook, sh: &gridcraft_engine::model::Sheet, c: gridcraft_engine::core::CellRef) -> bool {
+    if !matches!(sh.value(c), gridcraft_engine::core::Value::Number(_)) || sh.cell(c).is_some_and(|x| x.formula.is_some() && sh.show_formulas) {
+        return false;
+    }
+    let fmt = gridcraft_engine::numfmt::NumberFormat::parse_cached(wb.styles.get(sh.style_id(c)).num_fmt.as_str());
+    !fmt.is_date() && !fmt.is_text()
 }

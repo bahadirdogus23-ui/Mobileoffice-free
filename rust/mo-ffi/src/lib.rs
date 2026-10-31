@@ -174,6 +174,26 @@ impl SheetDocument {
         Ok(self.doc().edit_text(sheet, row, col)?)
     }
 
+    /// Numbers and formulas typed and shown the Turkish way ("1.250,5", `=TOPLA(A1;A2)`).
+    pub fn set_turkish(&self, on: bool) {
+        self.doc().set_turkish(on)
+    }
+
+    /// Enters what the person typed in (`row`, `col`) of the active sheet.
+    pub fn set_input(&self, row: u32, col: u32, input: String) -> Result<(), MoError> {
+        Ok(self.doc().set_input(row, col, &input)?)
+    }
+
+    /// How each cell of a `rows`×`cols` window looks, row by row.
+    pub fn cell_looks(&self, sheet: u32, row: u32, col: u32, rows: u32, cols: u32) -> Result<Vec<CellLook>, MoError> {
+        Ok(self
+            .doc()
+            .cell_looks(sheet, row, col, rows, cols)?
+            .into_iter()
+            .map(|l| CellLook { bold: l.bold, italic: l.italic, underline: l.underline, color: l.color, fill: l.fill, align: l.align })
+            .collect())
+    }
+
     /// Runs a GridCraft command (e.g. `cell.set`, `home.bold`) with JSON parameters.
     pub fn execute(&self, id: String, params_json: String) -> Result<String, MoError> {
         Ok(self.doc().execute(&id, &params_json)?)
@@ -590,6 +610,18 @@ impl From<FormField> for PdfFormField {
             page: f.page,
         }
     }
+}
+
+/// How a cell looks in the grid: colours 0xAARRGGBB (0 = default), `align` 0 general, 1 left,
+/// 2 centre, 3 right.
+#[derive(uniffi::Record)]
+pub struct CellLook {
+    pub bold: bool,
+    pub italic: bool,
+    pub underline: bool,
+    pub color: u32,
+    pub fill: u32,
+    pub align: u8,
 }
 
 /// A PDF whose pages are being reorganised (rotate, delete, move, combine, extract). Viewing

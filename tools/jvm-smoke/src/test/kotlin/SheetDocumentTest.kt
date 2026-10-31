@@ -41,4 +41,17 @@ class SheetDocumentTest {
             assertFailsWith<MoException.NotFound> { doc.usedSize(7u) }
         }
     }
+
+    @Test
+    fun turkishInputAndLooks() {
+        SheetDocument.blank().use { doc ->
+            doc.setTurkish(true)
+            doc.setInput(0u, 0u, "1.250,5")
+            doc.setInput(1u, 0u, "=TOPLA(A1;0,5)")
+            assertEquals(listOf("1250,5", "1251"), doc.cellTexts(0u, 0u, 0u, 2u, 1u))
+            assertEquals("=TOPLA(A1;0,5)", doc.editText(0u, 1u, 0u))
+            doc.execute("home.bold", """{"range":"A1"}""")
+            assertEquals(true, doc.cellLooks(0u, 0u, 0u, 1u, 1u)[0].bold)
+        }
+    }
 }

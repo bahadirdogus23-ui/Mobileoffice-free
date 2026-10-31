@@ -239,4 +239,14 @@
     <string name="cut">Cut</string>
     <string name="copy">Copy</string>
     <string name="paste">Paste</string>
+    <string name="row_insert">+ Row</string>
+    <string name="row_delete">− Row</string>
+    <string name="col_insert">+ Column</string>
+    <string name="col_delete">− Column</string>
+    <string name="fill_none">No fill</string>
+    <string name="fill_yellow">Yellow</string>
+    <string name="fill_green">Green</string>
+    <string name="fill_blue">Blue</string>
+    <string name="fill_red">Red</string>
+    <string name="fill_grey">Grey</string>
 </resources>

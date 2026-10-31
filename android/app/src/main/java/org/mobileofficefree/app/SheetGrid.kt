@@ -14,16 +14,21 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.font.FontStyle
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.drawText
 import androidx.compose.ui.text.rememberTextMeasurer
+import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import org.mobileofficefree.engine.CellLook
 import kotlin.math.max
 import kotlin.math.min
 
@@ -44,6 +49,7 @@ fun SheetGrid(
     selectedRow: Int,
     selectedCol: Int,
     cellText: (sheet: Int, row: Int, col: Int) -> String?,
+    cellLook: (sheet: Int, row: Int, col: Int) -> CellLook?,
     onSelect: (row: Int, col: Int) -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -112,18 +118,38 @@ fun SheetGrid(
                 if (r == firstRow) {
                     drawLine(colors.outlineVariant, Offset(x + cw, colHeader), Offset(x + cw, size.height), 1f)
                 }
+                val look = cellLook(sheet, r, c)
+                if (look != null && look.fill != 0u) {
+                    drawRect(Color(look.fill.toInt()), Offset(x + 0.5f, y + 0.5f), Size(cw - 1f, rh - 1f))
+                }
                 val text = cellText(sheet, r, c)
                 if (!text.isNullOrEmpty()) {
+                    val style = if (look == null) cellStyle else cellStyle.copy(
+                        fontWeight = if (look.bold) FontWeight.Bold else null,
+                        fontStyle = if (look.italic) FontStyle.Italic else null,
+                        textDecoration = if (look.underline) TextDecoration.Underline else null,
+                        // Text keeps its own colour; on a filled cell the default is black, as on paper.
+                        color = when {
+                            look.color != 0u -> Color(look.color.toInt())
+                            look.fill != 0u -> Color.Black
+                            else -> cellStyle.color
+                        },
+                    )
                     val layout = measurer.measure(
                         text,
-                        cellStyle,
+                        style,
                         overflow = TextOverflow.Clip,
                         softWrap = false,
                         maxLines = 1,
                         constraints = Constraints(maxWidth = max(1, (cw - 2 * pad).toInt())),
                     )
                     val numeric = text.first().isDigit() || text.first() == '-' || text.first() == '₺'
-                    val tx = if (numeric) x + cw - pad - layout.size.width else x + pad
+                    val tx = when (look?.align?.toInt()) {
+                        1 -> x + pad
+                        2 -> x + (cw - layout.size.width) / 2
+                        3 -> x + cw - pad - layout.size.width
+                        else -> if (numeric) x + cw - pad - layout.size.width else x + pad
+                    }
                     drawText(layout, topLeft = Offset(tx, y + (rh - layout.size.height) / 2))
                 }
             }

@@ -238,4 +238,14 @@
     <string name="cut">Kes</string>
     <string name="copy">Kopyala</string>
     <string name="paste">Yapıştır</string>
+    <string name="row_insert">+ Satır</string>
+    <string name="row_delete">− Satır</string>
+    <string name="col_insert">+ Sütun</string>
+    <string name="col_delete">− Sütun</string>
+    <string name="fill_none">Dolgu yok</string>
+    <string name="fill_yellow">Sarı</string>
+    <string name="fill_green">Yeşil</string>
+    <string name="fill_blue">Mavi</string>
+    <string name="fill_red">Kırmızı</string>
+    <string name="fill_grey">Gri</string>
 </resources>
