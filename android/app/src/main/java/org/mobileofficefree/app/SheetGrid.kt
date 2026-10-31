@@ -26,6 +26,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.drawText
 import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.text.style.TextDecoration
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.dp
@@ -154,20 +155,40 @@ fun SheetGrid(
             )
             val numeric = text.first().isDigit() || text.first() == '-' || text.first() == '₺'
             val align = look?.align?.toInt() ?: 0
+            // Text that wraps (or has its own line breaks) stays inside its cell, line by line;
+            // other text is one line that may run on over empty cells.
+            val wraps = look?.wrap == true || '\n' in text
+            val lineAlign = when {
+                align == 2 -> TextAlign.Center
+                align == 3 || (align == 0 && numeric) -> TextAlign.End
+                else -> TextAlign.Start
+            }
+            val box = max(1, ((if (wraps) w else room) - 2 * pad).toInt())
             val layout = measurer.measure(
                 text,
-                style,
+                style.copy(textAlign = lineAlign),
                 overflow = TextOverflow.Clip,
-                softWrap = false,
-                maxLines = 1,
-                constraints = Constraints(maxWidth = max(1, (room - 2 * pad).toInt())),
+                softWrap = look?.wrap == true,
+                maxLines = if (wraps) Int.MAX_VALUE else 1,
+                constraints = Constraints(minWidth = if (wraps) box else 0, maxWidth = box),
             )
             val tx = when {
+                wraps -> x + pad
                 align == 2 -> x + (w - layout.size.width) / 2
                 align == 3 || (align == 0 && numeric) -> x + w - pad - layout.size.width
                 else -> x + pad
             }
-            drawText(layout, topLeft = Offset(tx, y + (h - layout.size.height) / 2))
+            // Excel puts text at the bottom unless the cell says centre or top.
+            val ty = when (look?.valign?.toInt() ?: 0) {
+                2 -> y + pad / 2
+                1 -> y + (h - layout.size.height) / 2
+                else -> y + h - layout.size.height - pad / 2
+            }
+            if (wraps) {
+                clipRect(x, y, x + w, y + h) { drawText(layout, topLeft = Offset(tx, max(y, ty))) }
+            } else {
+                drawText(layout, topLeft = Offset(tx, ty))
+            }
         }
 
         /** Fills, lines, then texts (a long text may run over the empty cells to its right). */

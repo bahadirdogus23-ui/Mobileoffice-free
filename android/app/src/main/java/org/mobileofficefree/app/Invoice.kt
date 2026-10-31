@@ -130,9 +130,31 @@ object Invoices {
      */
     fun html(bytes: ByteArray, summary: InvoiceSummary): Pair<String, Boolean> {
         summary.xslt?.let { xslt ->
-            runCatching { transform(bytes, xslt) }.getOrNull()?.takeIf { it.isNotBlank() }?.let { return it to true }
+            runCatching { transform(bytes, xslt) }.getOrNull()?.takeIf { it.isNotBlank() }?.let { return asPaper(it) to true }
         }
         return plainHtml(summary) to false
+    }
+
+    /**
+     * The seller's design laid out as it prints: on an A4-wide sheet (794 CSS pixels, 210 mm at
+     * 96 dpi) shown whole across the screen, white on a grey desk. Invoice designs are drawn for
+     * paper in fixed sizes; given the phone's narrow width they wrap and overlap. Any viewport the
+     * design sets is replaced.
+     */
+    fun asPaper(html: String): String {
+        val head = "<meta name=\"viewport\" content=\"width=$PAPER_VIEWPORT\">" +
+            "<style>html{background:#d6d9dc}body{width:${A4_CSS_PX}px;min-height:${A4_CSS_HEIGHT_PX}px;margin:12px auto !important;" +
+            "background:#fff;box-shadow:0 1px 4px rgba(0,0,0,.25);box-sizing:border-box}</style>"
+        val withoutViewport = html.replace(Regex("<meta[^>]*name\\s*=\\s*[\"']?viewport[^>]*>", RegexOption.IGNORE_CASE), "")
+        val at = Regex("<head(\\s[^>]*)?>", RegexOption.IGNORE_CASE).find(withoutViewport)
+        return when {
+            at != null -> withoutViewport.substring(0, at.range.last + 1) + head + withoutViewport.substring(at.range.last + 1)
+            else -> {
+                val html0 = Regex("<html[^>]*>", RegexOption.IGNORE_CASE).find(withoutViewport)
+                if (html0 != null) withoutViewport.substring(0, html0.range.last + 1) + "<head>$head</head>" + withoutViewport.substring(html0.range.last + 1)
+                else "<head>$head</head>$withoutViewport"
+            }
+        }
     }
 
     private fun transform(xml: ByteArray, xslt: ByteArray): String {
@@ -279,3 +301,9 @@ object Invoices {
         return "$text $sym"
     }
 }
+
+/** A4 in CSS pixels (96 per inch): 210 × 297 mm. */
+internal const val A4_CSS_PX = 794
+internal const val A4_CSS_HEIGHT_PX = 1123
+/** The page's width plus a margin of grey on each side. */
+private const val PAPER_VIEWPORT = A4_CSS_PX + 24

@@ -62,6 +62,10 @@ pub struct CellLook {
     pub borders: u32,
     /// The borders' colour (0 = automatic, black).
     pub border_color: u32,
+    /// Text wraps onto more lines within the cell.
+    pub wrap: bool,
+    /// 0 bottom (Excel's default), 1 centre, 2 top.
+    pub valign: u8,
 }
 
 /// The rectangle from A1 to the last used cell, as counts.
@@ -177,7 +181,7 @@ impl GridDoc {
     /// How each cell of a `rows`×`cols` window looks, row by row, for drawing the grid: the
     /// cell's own style (conditional formats are left to the PDF and print paths).
     pub fn cell_looks(&self, sheet: u32, row: u32, col: u32, rows: u32, cols: u32) -> Result<Vec<CellLook>, GridError> {
-        use gridcraft_engine::model::style::{BorderLine, BorderStyle, HAlign, PatternType, Underline};
+        use gridcraft_engine::model::style::{BorderLine, BorderStyle, HAlign, PatternType, Underline, VAlign};
         // 0 none, 1 thin (hair, dashed, dotted too), 2 medium or double, 3 thick.
         let weight = |b: &BorderLine| -> u32 {
             match b.style {
@@ -211,6 +215,12 @@ impl GridDoc {
                     underline: st.font.underline != Underline::None,
                     color: argb(st.font.color.resolve(&wb.theme)),
                     fill: if st.fill.pattern == PatternType::Solid { argb(st.fill.fg.resolve(&wb.theme)) } else { 0 },
+                    wrap: st.align.wrap,
+                    valign: match st.align.v {
+                        VAlign::Center | VAlign::Justify | VAlign::Distributed => 1,
+                        VAlign::Top => 2,
+                        _ => 0,
+                    },
                     align: match st.align.h {
                         HAlign::Left => 1,
                         HAlign::Center | HAlign::CenterAcross => 2,

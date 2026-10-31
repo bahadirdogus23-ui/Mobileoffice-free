@@ -237,6 +237,8 @@ impl SheetDocument {
                 align: l.align,
                 borders: l.borders,
                 border_color: l.border_color,
+                wrap: l.wrap,
+                valign: l.valign,
             })
             .collect())
     }
@@ -784,6 +786,10 @@ pub struct CellLook {
     pub borders: u32,
     /// The borders' colour (0 = black).
     pub border_color: u32,
+    /// Text wraps onto more lines within the cell.
+    pub wrap: bool,
+    /// 0 bottom (Excel's default), 1 centre, 2 top.
+    pub valign: u8,
 }
 
 /// A PDF whose pages are being reorganised (rotate, delete, move, combine, extract). Viewing

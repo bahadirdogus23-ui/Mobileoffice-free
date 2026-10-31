@@ -129,4 +129,14 @@ class InvoiceTest {
         assertEquals("e-Arşiv Fatura", Invoices.title(s))
         assertFalse(Invoices.html(plain, s).second)
     }
+
+    @Test
+    fun theSellersDesignIsLaidOutOnAnA4Sheet() {
+        val paper = Invoices.asPaper("<html><head><meta name='viewport' content='width=device-width'><title>F</title></head><body><header>x</header></body></html>")
+        assertTrue(paper.contains("content=\"width=818\""))
+        assertTrue(!paper.contains("device-width"))
+        // Inserted in the head, not after <header>.
+        assertTrue(paper.indexOf("width:794px") < paper.indexOf("<title>"))
+        assertTrue(Invoices.asPaper("<p>x</p>").startsWith("<head><meta name=\"viewport\""))
+    }
 }
