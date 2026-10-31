@@ -120,6 +120,7 @@ internal fun SheetScreen(vm: SheetViewModel, state: SheetUiState) {
             rowAxis = state.rows,
             frozenRows = state.frozenRows,
             frozenCols = state.frozenCols,
+            merges = state.merges,
             onSelect = vm::selectCell,
             modifier = Modifier.weight(1f),
         )

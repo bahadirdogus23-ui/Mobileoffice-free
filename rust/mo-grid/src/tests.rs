@@ -152,3 +152,11 @@ fn reports_column_widths_and_row_heights() {
     doc.execute("view.freezeTopRow", "{}").unwrap();
     assert_eq!(doc.sizes(0, 1, 1).unwrap().frozen_rows, 1);
 }
+
+#[test]
+fn reports_merged_ranges() {
+    let mut doc = GridDoc::blank();
+    doc.execute("cell.set", r#"{"cell":"B2","input":"Başlık"}"#).unwrap();
+    doc.execute("home.mergeCenter", r#"{"range":"B2:D3"}"#).unwrap();
+    assert_eq!(doc.merges(0).unwrap(), vec![[1, 1, 2, 3]]);
+}

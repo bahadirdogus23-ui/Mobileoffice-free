@@ -195,6 +195,11 @@ impl SheetDocument {
         Ok(self.doc().set_input(row, col, &input)?)
     }
 
+    /// Merged ranges as flat [first row, first column, last row, last column] quadruples.
+    pub fn merges(&self, sheet: u32) -> Result<Vec<u32>, MoError> {
+        Ok(self.doc().merges(sheet)?.into_iter().flatten().collect())
+    }
+
     /// Column widths and row heights in points for the first `cols` columns and `rows` rows.
     pub fn sizes(&self, sheet: u32, cols: u32, rows: u32) -> Result<SheetSizes, MoError> {
         let s = self.doc().sizes(sheet, cols, rows)?;

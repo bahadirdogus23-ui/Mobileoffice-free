@@ -15,6 +15,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.clipRect
 import androidx.compose.ui.input.pointer.pointerInput
@@ -57,6 +58,8 @@ fun SheetGrid(
     modifier: Modifier = Modifier,
     frozenRows: Int = 0,
     frozenCols: Int = 0,
+    /** Merged ranges: [first row, first column, last row, last column]. */
+    merges: List<IntArray> = emptyList(),
 ) {
     val density = LocalDensity.current
     // Pixels per point at zoom 1: the file's sizes, a little larger than on paper for fingers.
@@ -133,6 +136,37 @@ fun SheetGrid(
 
         drawRect(colors.surface)
 
+        /** [text] in a box at ([x], [y]) [w]×[h], aligned by [look], given [room] to run to the right. */
+        fun DrawScope.drawCell(text: String, look: CellLook?, x: Float, y: Float, w: Float, h: Float, room: Float) {
+            val style = if (look == null) cellStyle else cellStyle.copy(
+                fontWeight = if (look.bold) FontWeight.Bold else null,
+                fontStyle = if (look.italic) FontStyle.Italic else null,
+                textDecoration = if (look.underline) TextDecoration.Underline else null,
+                // Text keeps its own colour; on a filled cell the default is black, as on paper.
+                color = when {
+                    look.color != 0u -> Color(look.color.toInt())
+                    look.fill != 0u -> Color.Black
+                    else -> cellStyle.color
+                },
+            )
+            val numeric = text.first().isDigit() || text.first() == '-' || text.first() == '₺'
+            val align = look?.align?.toInt() ?: 0
+            val layout = measurer.measure(
+                text,
+                style,
+                overflow = TextOverflow.Clip,
+                softWrap = false,
+                maxLines = 1,
+                constraints = Constraints(maxWidth = max(1, (room - 2 * pad).toInt())),
+            )
+            val tx = when {
+                align == 2 -> x + (w - layout.size.width) / 2
+                align == 3 || (align == 0 && numeric) -> x + w - pad - layout.size.width
+                else -> x + pad
+            }
+            drawText(layout, topLeft = Offset(tx, y + (h - layout.size.height) / 2))
+        }
+
         /** Fills, lines, then texts (a long text may run over the empty cells to its right). */
         fun cells(rowList: List<Int>, colList: List<Int>, left: Float, top: Float, right: Float, bottom: Float) {
             if (rowList.isEmpty() || colList.isEmpty() || right <= left || bottom <= top) return
@@ -155,6 +189,19 @@ fun SheetGrid(
                     val x = xOf(c)
                     drawLine(colors.outlineVariant, Offset(x + cw, top), Offset(x + cw, bottom), 1f)
                 }
+                // Merged ranges: one box (its first cell's fill, or paper over the inner lines)
+                // and the first cell's text across all of it.
+                val shown = merges.filter { m -> m[2] >= rowList.first() && m[0] <= rowList.last() && m[3] >= colList.first() && m[1] <= colList.last() }
+                for (m in shown) {
+                    val x0 = xOf(m[1])
+                    val y0 = yOf(m[0])
+                    val w = (columnAxis.start(m[3] + 1) - columnAxis.start(m[1])) * k
+                    val h = (rowAxis.start(m[2] + 1) - rowAxis.start(m[0])) * k
+                    val look = cellLook(sheet, m[0], m[1])
+                    drawRect(if (look != null && look.fill != 0u) Color(look.fill.toInt()) else colors.surface, Offset(x0 + 0.5f, y0 + 0.5f), Size(w - 1f, h - 1f))
+                    val text = cellText(sheet, m[0], m[1])
+                    if (!text.isNullOrEmpty()) drawCell(text, look, x0, y0, w, h, w)
+                }
                 for (r in rowList) {
                     val rh = rowAxis.size(r) * k
                     if (rh <= 0f) continue
@@ -162,46 +209,22 @@ fun SheetGrid(
                     for ((i, c) in colList.withIndex()) {
                         val cw = columnAxis.size(c) * k
                         if (cw <= 0f) continue
+                        if (shown.any { m -> r in m[0]..m[2] && c in m[1]..m[3] }) continue
                         val text = cellText(sheet, r, c)
                         if (text.isNullOrEmpty()) continue
                         val look = cellLook(sheet, r, c)
-                        val x = xOf(c)
-                        val style = if (look == null) cellStyle else cellStyle.copy(
-                            fontWeight = if (look.bold) FontWeight.Bold else null,
-                            fontStyle = if (look.italic) FontStyle.Italic else null,
-                            textDecoration = if (look.underline) TextDecoration.Underline else null,
-                            // Text keeps its own colour; on a filled cell the default is black, as on paper.
-                            color = when {
-                                look.color != 0u -> Color(look.color.toInt())
-                                look.fill != 0u -> Color.Black
-                                else -> cellStyle.color
-                            },
-                        )
                         val numeric = text.first().isDigit() || text.first() == '-' || text.first() == '₺'
                         val align = look?.align?.toInt() ?: 0
                         // Room to the right: the cell, and the empty cells after it for left-aligned text.
                         var room = cw
                         if (align == 1 || (align == 0 && !numeric)) {
                             var n = i + 1
-                            while (n < colList.size && cellText(sheet, r, colList[n]) == "") {
+                            while (n < colList.size && cellText(sheet, r, colList[n]) == "" && shown.none { m -> r in m[0]..m[2] && colList[n] in m[1]..m[3] }) {
                                 room += columnAxis.size(colList[n]) * k
                                 n++
                             }
                         }
-                        val layout = measurer.measure(
-                            text,
-                            style,
-                            overflow = TextOverflow.Clip,
-                            softWrap = false,
-                            maxLines = 1,
-                            constraints = Constraints(maxWidth = max(1, (room - 2 * pad).toInt())),
-                        )
-                        val tx = when {
-                            align == 2 -> x + (cw - layout.size.width) / 2
-                            align == 3 || (align == 0 && numeric) -> x + cw - pad - layout.size.width
-                            else -> x + pad
-                        }
-                        drawText(layout, topLeft = Offset(tx, y + (rh - layout.size.height) / 2))
+                        drawCell(text, look, xOf(c), y, cw, rh, room)
                     }
                 }
             }

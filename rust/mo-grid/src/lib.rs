@@ -160,6 +160,12 @@ impl GridDoc {
         })
     }
 
+    /// The merged ranges of `sheet` as (first row, first column, last row, last column).
+    pub fn merges(&self, sheet: u32) -> Result<Vec<[u32; 4]>, GridError> {
+        let sh = self.wb().sheets.get(sheet as usize).ok_or(GridError::NoSheet(sheet))?;
+        Ok(sh.merges.iter().map(|m| [m.start.row, m.start.col, m.end.row, m.end.col]).collect())
+    }
+
     /// How each cell of a `rows`×`cols` window looks, row by row, for drawing the grid: the
     /// cell's own style (conditional formats are left to the PDF and print paths).
     pub fn cell_looks(&self, sheet: u32, row: u32, col: u32, rows: u32, cols: u32) -> Result<Vec<CellLook>, GridError> {

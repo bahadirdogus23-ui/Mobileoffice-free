@@ -51,6 +51,8 @@ data class SheetUiState(
     /** Rows at the top and columns at the left that stay in view (Excel's frozen panes). */
     val frozenRows: Int = 0,
     val frozenCols: Int = 0,
+    /** Merged ranges: [first row, first column, last row, last column]. */
+    val merges: List<IntArray> = emptyList(),
 )
 
 sealed interface Screen {
@@ -463,6 +465,7 @@ class SheetViewModel(app: Application) : AndroidViewModel(app) {
             rows = GridAxis(sizes.rowHeights.toFloatArray(), sizes.defaultRow),
             frozenRows = sizes.frozenRows.toInt(),
             frozenCols = sizes.frozenCols.toInt(),
+            merges = d.merges(sheet.toUInt()).map { it.toInt() }.chunked(4).map { it.toIntArray() },
         )
     }
 
