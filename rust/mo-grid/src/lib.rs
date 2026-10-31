@@ -176,6 +176,42 @@ impl GridDoc {
         self.execute("cell.set", &params.to_string()).map(|_| ())
     }
 
+    /// Sorts the active sheet's table (A1 to the last used cell; a header row stays on top) by
+    /// column `col`. Turkish text follows the Turkish alphabet when Turkish is on.
+    pub fn sort_column(&mut self, col: u32, ascending: bool) -> Result<(), GridError> {
+        let sheet = self.active_sheet();
+        let used = self.used_size(sheet)?;
+        if used.rows < 2 || used.cols == 0 {
+            return Ok(());
+        }
+        let last = gridcraft_engine::cell(used.rows - 1, used.cols - 1).a1();
+        let column = gridcraft_engine::cell(0, col).a1().trim_end_matches(|c: char| c.is_ascii_digit()).to_string();
+        let order = if ascending { "asc" } else { "desc" };
+        let mut texts: Vec<String> = {
+            let wb = self.wb();
+            let sh = wb.sheets.get(sheet as usize).ok_or(GridError::NoSheet(sheet))?;
+            (0..used.rows)
+                .filter_map(|r| match sh.value(gridcraft_engine::cell(r, col)) {
+                    gridcraft_engine::core::Value::Text(t) => Some(t.to_string()),
+                    _ => None,
+                })
+                .collect()
+        };
+        let params = if self.turkish && !texts.is_empty() {
+            // The engine orders text by code point (Ç and Ş after Z); a list in Turkish order
+            // sorts the text, and a plain key after it sorts numbers among themselves.
+            texts.sort_by_key(|t| collation_key(t));
+            texts.dedup_by(|a, b| a.to_lowercase() == b.to_lowercase());
+            serde_json::json!({ "range": format!("A1:{last}"), "keys": [
+                { "column": column, "order": order, "customList": texts },
+                { "column": column, "order": order },
+            ] })
+        } else {
+            serde_json::json!({ "range": format!("A1:{last}"), "keys": [{ "column": column, "order": order }] })
+        };
+        self.execute("data.sort", &params.to_string()).map(|_| ())
+    }
+
     /// What the formula bar shows for a cell: the formula, or the value as typed.
     pub fn edit_text(&self, sheet: u32, row: u32, col: u32) -> Result<String, GridError> {
         let wb = self.wb();
@@ -228,7 +264,7 @@ fn is_delimited_text(name: &str) -> bool {
 #[cfg(test)]
 mod tests;
 mod turkish;
-pub use turkish::{from_engine, number_display, to_engine};
+pub use turkish::{collation_key, from_engine, number_display, to_engine};
 
 /// Hands WordCraft's bundled fonts (OFL: Source Sans 3, Source Serif 4, JetBrains Mono) to the
 /// PDF writer once, so spreadsheet PDFs embed real fonts with every Turkish letter instead of

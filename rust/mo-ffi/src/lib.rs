@@ -179,6 +179,11 @@ impl SheetDocument {
         self.doc().set_turkish(on)
     }
 
+    /// Sorts the active sheet's table by column `col` (Turkish alphabet when Turkish is on).
+    pub fn sort_column(&self, col: u32, ascending: bool) -> Result<(), MoError> {
+        Ok(self.doc().sort_column(col, ascending)?)
+    }
+
     /// Enters what the person typed in (`row`, `col`) of the active sheet.
     pub fn set_input(&self, row: u32, col: u32, input: String) -> Result<(), MoError> {
         Ok(self.doc().set_input(row, col, &input)?)

@@ -198,6 +198,27 @@ fn formula(body: &str, to_english: bool) -> String {
     out
 }
 
+/// The Turkish alphabet, for sorting: ç after c, ğ after g, ı before i, ö after o, ş after s,
+/// ü after u.
+const ALPHABET: &str = "abcçdefgğhıijklmnoöprsştuüvwxyz";
+
+/// A sort key that orders text as a Turkish reader expects (case ignored).
+pub fn collation_key(text: &str) -> Vec<u32> {
+    text.chars()
+        .flat_map(|c| match c {
+            'I' => vec!['ı'],
+            'İ' => vec!['i'],
+            c => c.to_lowercase().collect(),
+        })
+        .map(|c| match ALPHABET.chars().position(|a| a == c) {
+            // Letters after digits and punctuation, in alphabet order.
+            Some(p) => 0x1_0000 + p as u32,
+            None if c.is_alphabetic() => 0x2_0000 + c as u32,
+            None => c as u32,
+        })
+        .collect()
+}
+
 /// A number the engine formatted ("1,250.50", "12.5%") with Turkish separators ("1.250,50").
 pub fn number_display(text: &str) -> String {
     text.chars()
@@ -237,6 +258,13 @@ mod tests {
         assert_eq!(from_engine("=IF(SUM(A1:A3)>2.5,\"a,b\",FALSE)"), "=EĞER(TOPLA(A1:A3)>2,5;\"a,b\";YANLIŞ)");
         // A cell named like a function is a reference, not a call.
         assert_eq!(to_engine("=AY1+1"), "=AY1+1");
+    }
+
+    #[test]
+    fn sorts_in_turkish_alphabet_order() {
+        let mut names = vec!["Zeynep", "şule", "Çiğdem", "cemil", "Işık", "İrem", "ılgın", "Ahmet", "Ömer", "osman"];
+        names.sort_by_key(|n| collation_key(n));
+        assert_eq!(names, ["Ahmet", "cemil", "Çiğdem", "ılgın", "Işık", "İrem", "osman", "Ömer", "şule", "Zeynep"]);
     }
 
     #[test]

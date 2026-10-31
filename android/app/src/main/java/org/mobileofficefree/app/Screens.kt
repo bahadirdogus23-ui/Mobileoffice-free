@@ -79,6 +79,9 @@ internal fun SheetScreen(vm: SheetViewModel, state: SheetUiState) {
     ) { uri -> if (uri != null) vm.saveTo(uri) else vm.saveCancelled() }
     var pdfSetup by remember { mutableStateOf(PdfSetup()) }
     var showPdf by remember { mutableStateOf(false) }
+    var sheetMenu by remember { mutableStateOf(false) }
+    var renaming by remember { mutableStateOf<String?>(null) }
+    var confirmDelete by remember { mutableStateOf(false) }
     val savePdf = rememberLauncherForActivityResult(CreateFile()) { uri -> if (uri != null) vm.exportPdfTo(uri, pdfSetup) }
 
     Column(Modifier.fillMaxSize().navigationBarsPadding()) {
@@ -113,10 +116,31 @@ internal fun SheetScreen(vm: SheetViewModel, state: SheetUiState) {
             onSelect = vm::selectCell,
             modifier = Modifier.weight(1f),
         )
-        if (state.sheetNames.size > 1) {
-            PrimaryScrollableTabRow(selectedTabIndex = state.sheet) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            PrimaryScrollableTabRow(selectedTabIndex = state.sheet, modifier = Modifier.weight(1f)) {
                 state.sheetNames.forEachIndexed { i, name ->
                     Tab(selected = i == state.sheet, onClick = { vm.selectSheet(i) }, text = { Text(name) })
+                }
+            }
+            Box {
+                TextButton(onClick = { sheetMenu = true }) { Text(stringResource(R.string.sheet_menu)) }
+                DropdownMenu(expanded = sheetMenu, onDismissRequest = { sheetMenu = false }) {
+                    DropdownMenuItem(text = { Text(stringResource(R.string.sheet_add)) }, onClick = {
+                        sheetMenu = false
+                        vm.addSheet()
+                    })
+                    DropdownMenuItem(text = { Text(stringResource(R.string.sheet_rename)) }, onClick = {
+                        sheetMenu = false
+                        renaming = state.sheetNames.getOrElse(state.sheet) { "" }
+                    })
+                    DropdownMenuItem(
+                        text = { Text(stringResource(R.string.sheet_delete)) },
+                        enabled = state.sheetNames.size > 1,
+                        onClick = {
+                            sheetMenu = false
+                            confirmDelete = true
+                        },
+                    )
                 }
             }
         }
@@ -140,6 +164,36 @@ internal fun SheetScreen(vm: SheetViewModel, state: SheetUiState) {
                     TextButton(onClick = { vm.answerClose(false) }) { Text(stringResource(R.string.discard)) }
                 }
             },
+        )
+    }
+
+    renaming?.let { old ->
+        var name by remember { mutableStateOf(old) }
+        AlertDialog(
+            onDismissRequest = { renaming = null },
+            title = { Text(stringResource(R.string.sheet_rename)) },
+            text = { OutlinedTextField(value = name, onValueChange = { name = it.take(31) }, singleLine = true) },
+            confirmButton = {
+                TextButton(enabled = name.isNotBlank() && name.none { it in "\\/?*[]:" }, onClick = {
+                    renaming = null
+                    vm.renameSheet(name.trim())
+                }) { Text(stringResource(R.string.ok)) }
+            },
+            dismissButton = { TextButton(onClick = { renaming = null }) { Text(stringResource(R.string.cancel)) } },
+        )
+    }
+    if (confirmDelete) {
+        AlertDialog(
+            onDismissRequest = { confirmDelete = false },
+            title = { Text(stringResource(R.string.sheet_delete)) },
+            text = { Text(stringResource(R.string.sheet_delete_body, state.sheetNames.getOrElse(state.sheet) { "" })) },
+            confirmButton = {
+                TextButton(onClick = {
+                    confirmDelete = false
+                    vm.deleteSheet()
+                }) { Text(stringResource(R.string.delete)) }
+            },
+            dismissButton = { TextButton(onClick = { confirmDelete = false }) { Text(stringResource(R.string.cancel)) } },
         )
     }
 
@@ -190,6 +244,8 @@ private fun SheetToolBar(vm: SheetViewModel, look: CellLook?) {
         TextButton(onClick = { vm.format("home.alignRight") }) { Text("⇥") }
         TextButton(onClick = { vm.format("home.accounting", JSONObject().put("symbol", "₺")) }) { Text("₺") }
         TextButton(onClick = { vm.format("home.percent") }) { Text("%") }
+        TextButton(onClick = { vm.sort(true) }) { Text("A→Z") }
+        TextButton(onClick = { vm.sort(false) }) { Text("Z→A") }
         TextButton(onClick = { vm.format("home.increaseDecimal") }) { Text(",0→") }
         TextButton(onClick = { vm.format("home.decreaseDecimal") }) { Text("←,0") }
         TextButton(onClick = { vm.lines(rows = true, insert = true) }) { Text(stringResource(R.string.row_insert)) }

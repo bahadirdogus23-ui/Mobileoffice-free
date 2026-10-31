@@ -239,6 +239,53 @@ class SheetViewModel(app: Application) : AndroidViewModel(app) {
         edit { d -> d.execute(id, JSONObject().put(if (rows) "rows" else "cols", "$at:$at").toString()) }
     }
 
+    /** Sorts the table by the selected column. */
+    fun sort(ascending: Boolean) {
+        val current = (screen as? Screen.Sheet)?.state ?: return
+        edit { d -> d.sortColumn(current.selectedCol.toUInt(), ascending) }
+    }
+
+    /** Adds a sheet and shows it. */
+    fun addSheet() = sheetEdit { d -> d.execute("home.insertSheet", "{}") }
+
+    fun renameSheet(name: String) {
+        val current = (screen as? Screen.Sheet)?.state ?: return
+        sheetEdit { d -> d.execute("sheet.rename", JSONObject().put("sheet", current.sheet).put("name", name).toString()) }
+    }
+
+    /** Deletes the shown sheet (a workbook keeps at least one). */
+    fun deleteSheet() {
+        val current = (screen as? Screen.Sheet)?.state ?: return
+        if (current.sheetNames.size < 2) return
+        sheetEdit { d -> d.execute("home.deleteSheet", JSONObject().put("sheet", current.sheet).toString()) }
+    }
+
+    /** Like [edit], for changes that add, remove or rename sheets: shows the engine's active sheet afterwards. */
+    private fun sheetEdit(op: (SheetDocument) -> Unit) {
+        val current = (screen as? Screen.Sheet)?.state ?: return
+        viewModelScope.launch {
+            val result = withContext(engine) {
+                runCatching {
+                    val d = doc ?: error("no document")
+                    op(d)
+                    val sheet = d.activeSheet().toInt()
+                    stateFor(d, current.fileName, sheet, 0, 0)
+                }
+            }
+            result.fold(
+                onSuccess = {
+                    unsaved = true
+                    blocks.clear()
+                    looks.clear()
+                    blockAt.clear()
+                    pending.clear()
+                    screen = Screen.Sheet(it)
+                },
+                onFailure = { message = text(R.string.cell_update_failed, it.message ?: "") },
+            )
+        }
+    }
+
     fun undo() = edit { d -> d.execute("edit.undo", "{}") }
 
     fun redo() = edit { d -> d.execute("edit.redo", "{}") }

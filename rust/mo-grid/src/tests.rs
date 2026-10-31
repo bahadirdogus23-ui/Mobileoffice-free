@@ -111,3 +111,29 @@ fn formats_cells_and_inserts_rows_through_commands() {
     doc.execute("home.percent", r#"{"range":"A2"}"#).unwrap();
     assert_eq!(doc.cell_texts(0, 1, 0, 1, 1).unwrap()[0], "125050%");
 }
+
+#[test]
+fn sorts_and_manages_sheets() {
+    let mut doc = GridDoc::blank();
+    doc.set_turkish(true);
+    for (r, (name, n)) in [("Şule", "3"), ("Ahmet", "1"), ("Çiğdem", "2"), ("Zeynep", "10")].iter().enumerate() {
+        doc.set_input(r as u32, 0, name).unwrap();
+        doc.set_input(r as u32, 1, n).unwrap();
+    }
+    doc.sort_column(1, false).unwrap();
+    assert_eq!(doc.cell_texts(0, 0, 0, 4, 1).unwrap(), ["Zeynep", "Şule", "Çiğdem", "Ahmet"]);
+    doc.sort_column(0, true).unwrap();
+    // Turkish alphabet order: Ç after C, Ş after S, all before Z; numbers move with their names.
+    assert_eq!(doc.cell_texts(0, 0, 0, 4, 1).unwrap(), ["Ahmet", "Çiğdem", "Şule", "Zeynep"]);
+    assert_eq!(doc.cell_texts(0, 0, 1, 4, 1).unwrap(), ["1", "2", "3", "10"]);
+    doc.execute("home.insertSheet", "{}").unwrap();
+    assert_eq!(doc.sheet_names().len(), 2);
+    let added = doc.active_sheet();
+    doc.execute("sheet.rename", &serde_json::json!({ "sheet": added, "name": "Gelir Gider" }).to_string()).unwrap();
+    assert!(doc.sheet_names().contains(&"Gelir Gider".to_string()));
+    doc.execute("home.deleteSheet", &serde_json::json!({ "sheet": added }).to_string()).unwrap();
+    assert_eq!(doc.sheet_names().len(), 1);
+    // The delete dialog promises that Undo brings the sheet back.
+    doc.execute("edit.undo", "{}").unwrap();
+    assert!(doc.sheet_names().contains(&"Gelir Gider".to_string()));
+}

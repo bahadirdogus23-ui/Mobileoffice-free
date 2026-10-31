@@ -253,4 +253,9 @@
     <string name="speaker_notes">Notes</string>
     <string name="end_show">End</string>
     <string name="no_notes">This slide has no speaker notes.</string>
+    <string name="sheet_menu">Sheet ▾</string>
+    <string name="sheet_add">New sheet</string>
+    <string name="sheet_rename">Rename sheet</string>
+    <string name="sheet_delete">Delete sheet</string>
+    <string name="sheet_delete_body">Delete “%1$s” and everything on it? Undo brings it back until you close the file.</string>
 </resources>

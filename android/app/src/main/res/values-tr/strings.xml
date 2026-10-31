@@ -252,4 +252,9 @@
     <string name="speaker_notes">Notlar</string>
     <string name="end_show">Bitir</string>
     <string name="no_notes">Bu slaytta konuşmacı notu yok.</string>
+    <string name="sheet_menu">Sayfa ▾</string>
+    <string name="sheet_add">Yeni sayfa</string>
+    <string name="sheet_rename">Sayfayı yeniden adlandır</string>
+    <string name="sheet_delete">Sayfayı sil</string>
+    <string name="sheet_delete_body">“%1$s” ve içindeki her şey silinsin mi? Dosyayı kapatana kadar Geri al ile geri getirebilirsiniz.</string>
 </resources>
