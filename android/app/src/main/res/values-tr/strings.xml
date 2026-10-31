@@ -295,4 +295,8 @@
     <string name="lock_title">Mobile Office kilidini aç</string>
     <string name="lock_body">Uygulama kilitli.</string>
     <string name="lock_unlock">Kilidi aç</string>
+    <string name="reflow">Metin görünümü</string>
+    <string name="reflow_hint">Metin ekran genişliğine akar, seçtiğiniz boyutta okunur; yakınlaştırma gerekmez.</string>
+    <string name="reflow_no_text">Bu belgede gösterilecek metin yok (taranmış bir belge olabilir).</string>
+    <string name="pages_view">Sayfalar</string>
 </resources>

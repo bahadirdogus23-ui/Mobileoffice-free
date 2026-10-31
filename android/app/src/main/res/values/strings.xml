@@ -296,4 +296,8 @@
     <string name="lock_title">Unlock Mobile Office</string>
     <string name="lock_body">The app is locked.</string>
     <string name="lock_unlock">Unlock</string>
+    <string name="reflow">Text view</string>
+    <string name="reflow_hint">The text flows to the screen\'s width, at the size you choose; no zooming.</string>
+    <string name="reflow_no_text">This document has no text to show (a scan, perhaps).</string>
+    <string name="pages_view">Pages</string>
 </resources>

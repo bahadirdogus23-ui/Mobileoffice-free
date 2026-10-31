@@ -234,6 +234,9 @@ abstract class PagedViewModel(app: Application, private val kind: DocumentKind) 
         private set
     private var voice: ReadAloud? = null
 
+    /** The document's text page by page, for the reflowing text view (empty while it loads). */
+    suspend fun textPages(): List<String> = withContext(engine) { runCatching { pageTexts() }.getOrDefault(emptyList()) }
+
     fun startReading(fromPage: Int) {
         readAloudProblem = null
         readingPage = fromPage

@@ -145,6 +145,8 @@ fun PagedScreen(vm: PagedViewModel, state: PagedUiState, reading: ReadingSetting
     val word = vm as? WordViewModel
     val slides = vm as? SlidesViewModel
     var presenting by remember(state.uri) { mutableStateOf(false) }
+    // The reflowing text view, from this page (null: the pages are shown).
+    var reflowFrom by remember(state.uri) { mutableStateOf<Int?>(null) }
     var selecting by remember(state.uri) { mutableStateOf(false) }
     val selected = remember(state.uri) { mutableStateListOf<Int>() }
     var extractPages by remember { mutableStateOf<List<Int>>(emptyList()) }
@@ -279,6 +281,11 @@ fun PagedScreen(vm: PagedViewModel, state: PagedUiState, reading: ReadingSetting
             }
         }
         onDispose { activity?.volumeKeyHandler = null }
+    }
+
+    reflowFrom?.let { from ->
+        ReflowScreen(vm, state.fileName.substringBeforeLast('.'), from, reading, onClose = { reflowFrom = null })
+        return
     }
 
     Column(Modifier.fillMaxSize().imePadding()) {
@@ -729,6 +736,14 @@ fun PagedScreen(vm: PagedViewModel, state: PagedUiState, reading: ReadingSetting
                 modifier = Modifier.padding(horizontal = 24.dp, vertical = 8.dp),
             )
             if (vm.canReadAloud) {
+                ListItem(
+                    headlineContent = { Text(stringResource(R.string.reflow)) },
+                    supportingContent = { Text(stringResource(R.string.reflow_hint)) },
+                    modifier = Modifier.clickable {
+                        showReading = false
+                        reflowFrom = current - 1
+                    },
+                )
                 ListItem(
                     headlineContent = { Text(stringResource(R.string.read_aloud)) },
                     supportingContent = { Text(stringResource(R.string.read_aloud_hint)) },
