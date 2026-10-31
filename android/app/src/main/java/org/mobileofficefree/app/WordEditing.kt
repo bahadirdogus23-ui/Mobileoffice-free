@@ -2,7 +2,13 @@ package org.mobileofficefree.app
 
 import android.content.ClipData
 import android.content.ClipboardManager
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.foundation.layout.Box
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
@@ -77,6 +83,55 @@ fun WordEditBar(vm: WordViewModel, onSave: () -> Unit) {
     var field by remember { mutableStateOf(EMPTY_INPUT) }
     var fontMenu by remember { mutableStateOf(false) }
     var sizeMenu by remember { mutableStateOf(false) }
+    var styleMenu by remember { mutableStateOf(false) }
+    var insertMenu by remember { mutableStateOf(false) }
+    var tableDialog by remember { mutableStateOf(false) }
+    var replaceDialog by remember { mutableStateOf(false) }
+    val pickPicture = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri -> if (uri != null) vm.insertPicture(uri) }
+    if (tableDialog) {
+        var rows by remember { mutableStateOf("3") }
+        var cols by remember { mutableStateOf("3") }
+        val r = rows.toIntOrNull()?.takeIf { it in 1..100 }
+        val c = cols.toIntOrNull()?.takeIf { it in 1..20 }
+        AlertDialog(
+            onDismissRequest = { tableDialog = false },
+            title = { Text(stringResource(R.string.insert_table)) },
+            text = {
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    OutlinedTextField(rows, { rows = it.filter(Char::isDigit).take(3) }, label = { Text(stringResource(R.string.table_rows)) }, singleLine = true, modifier = Modifier.weight(1f), keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number))
+                    OutlinedTextField(cols, { cols = it.filter(Char::isDigit).take(2) }, label = { Text(stringResource(R.string.table_cols)) }, singleLine = true, modifier = Modifier.weight(1f), keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number))
+                }
+            },
+            confirmButton = {
+                TextButton(enabled = r != null && c != null, onClick = {
+                    tableDialog = false
+                    if (r != null && c != null) vm.insertTable(r, c)
+                }) { Text(stringResource(R.string.add)) }
+            },
+            dismissButton = { TextButton(onClick = { tableDialog = false }) { Text(stringResource(R.string.cancel)) } },
+        )
+    }
+    if (replaceDialog) {
+        var find by remember { mutableStateOf(vm.selectedTextHint) }
+        var with by remember { mutableStateOf("") }
+        AlertDialog(
+            onDismissRequest = { replaceDialog = false },
+            title = { Text(stringResource(R.string.replace)) },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    OutlinedTextField(find, { find = it }, label = { Text(stringResource(R.string.replace_find)) }, singleLine = true)
+                    OutlinedTextField(with, { with = it }, label = { Text(stringResource(R.string.replace_with)) }, singleLine = true)
+                }
+            },
+            confirmButton = {
+                TextButton(enabled = find.isNotEmpty(), onClick = {
+                    replaceDialog = false
+                    vm.replaceAll(find, with)
+                }) { Text(stringResource(R.string.replace_all)) }
+            },
+            dismissButton = { TextButton(onClick = { replaceDialog = false }) { Text(stringResource(R.string.cancel)) } },
+        )
+    }
     val context = LocalContext.current
     val clipboard = remember { context.getSystemService(ClipboardManager::class.java) }
     val focus = remember { FocusRequester() }
@@ -142,6 +197,35 @@ fun WordEditBar(vm: WordViewModel, onSave: () -> Unit) {
                 TextButton(onClick = { vm.command("para.alignRight") }) { Text("⇥") }
                 TextButton(onClick = { vm.command("para.bullets") }) { Text("•") }
                 TextButton(onClick = { vm.command("para.numbering") }) { Text("1.") }
+                Box {
+                    TextButton(onClick = { styleMenu = true }) { Text(stringResource(R.string.style)) }
+                    DropdownMenu(expanded = styleMenu, onDismissRequest = { styleMenu = false }) {
+                        for ((label, id) in STYLES) {
+                            DropdownMenuItem(text = { Text(stringResource(label)) }, onClick = {
+                                styleMenu = false
+                                vm.command(id)
+                            })
+                        }
+                    }
+                }
+                Box {
+                    TextButton(onClick = { insertMenu = true }) { Text(stringResource(R.string.insert)) }
+                    DropdownMenu(expanded = insertMenu, onDismissRequest = { insertMenu = false }) {
+                        DropdownMenuItem(text = { Text(stringResource(R.string.insert_picture)) }, onClick = {
+                            insertMenu = false
+                            pickPicture.launch(arrayOf("image/*"))
+                        })
+                        DropdownMenuItem(text = { Text(stringResource(R.string.insert_table)) }, onClick = {
+                            insertMenu = false
+                            tableDialog = true
+                        })
+                        DropdownMenuItem(text = { Text(stringResource(R.string.insert_page_break)) }, onClick = {
+                            insertMenu = false
+                            vm.command("text.pageBreak")
+                        })
+                    }
+                }
+                TextButton(onClick = { replaceDialog = true }) { Text(stringResource(R.string.replace)) }
                 TextButton(onClick = { vm.command("edit.undo") }) { Text(stringResource(R.string.undo)) }
                 TextButton(onClick = { vm.command("edit.redo") }) { Text(stringResource(R.string.redo)) }
                 TextButton(onClick = onSave, enabled = vm.dirty) { Text(stringResource(R.string.save)) }
@@ -163,6 +247,14 @@ fun WordEditBar(vm: WordViewModel, onSave: () -> Unit) {
         }
     }
 }
+
+/** Paragraph styles offered: the engine's built-in Normal and Heading 1–3. */
+private val STYLES = listOf(
+    R.string.style_normal to "para.normal",
+    R.string.style_heading1 to "para.heading1",
+    R.string.style_heading2 to "para.heading2",
+    R.string.style_heading3 to "para.heading3",
+)
 
 /** Fonts offered: the bundled ones, and the common Office names (drawn with a matching bundled one). */
 private val FONTS = listOf("Calibri", "Arial", "Times New Roman", "Source Sans 3", "Source Serif 4", "Inter", "JetBrains Mono")

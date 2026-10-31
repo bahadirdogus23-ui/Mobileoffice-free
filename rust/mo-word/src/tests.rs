@@ -281,3 +281,26 @@ fn selects_by_dragging_pastes_and_sizes_text() {
     let body = zip_entry(&doc.export("a.docx").unwrap(), "word/document.xml");
     assert!(body.contains("Yapıştırılan") && body.contains("<w:b/>"), "HTML paste keeps bold");
 }
+
+#[test]
+fn inserts_tables_pictures_breaks_headings_and_replaces() {
+    let mut doc = WordDoc::open("a.md", "Başlık olacak\n\nMetin burada. Metin bitti.\n".as_bytes(), None).unwrap();
+    let pages = doc.page_count();
+    let h = doc.find("Başlık")[0].clone();
+    doc.tap(h.page, h.x + 0.5, h.y + h.h / 2.0, false).unwrap();
+    doc.execute("para.heading1", "").unwrap();
+    let state: serde_json::Value = serde_json::from_str(&doc.execute("format.state", "").unwrap()).unwrap();
+    assert!(state.to_string().contains("Heading") || state.to_string().contains("Başlık"), "{state}");
+    doc.execute("caret.docEnd", "").unwrap();
+    doc.execute("text.pageBreak", "").unwrap();
+    assert_eq!(doc.page_count(), pages + 1);
+    doc.execute("insert.table", r#"{"rows": 2, "cols": 3}"#).unwrap();
+    // A 1×1 red PNG.
+    let png = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAIAAACQd1PeAAAADElEQVR4nGP4z8AAAAMBAQDJ/pLvAAAAAElFTkSuQmCC";
+    doc.execute("insert.picture", &serde_json::json!({ "data": png, "width": 100.0, "alt": "Kırmızı nokta" }).to_string()).unwrap();
+    let out: serde_json::Value = serde_json::from_str(&doc.execute("edit.replaceAll", r#"{"text": "Metin", "with": "Yazı"}"#).unwrap()).unwrap();
+    assert!(doc.find("metin").is_empty(), "{out}");
+    assert_eq!(doc.find("yazı").len(), 2);
+    let body = zip_entry(&doc.export("a.docx").unwrap(), "word/document.xml");
+    assert!(body.contains("<w:tbl>") && body.contains("<w:drawing>") && body.contains("w:type=\"page\""), "table, picture and page break in DOCX");
+}

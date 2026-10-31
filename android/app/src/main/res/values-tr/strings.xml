@@ -257,4 +257,23 @@
     <string name="sheet_rename">Sayfayı yeniden adlandır</string>
     <string name="sheet_delete">Sayfayı sil</string>
     <string name="sheet_delete_body">“%1$s” ve içindeki her şey silinsin mi? Dosyayı kapatana kadar Geri al ile geri getirebilirsiniz.</string>
+    <string name="style">Stil</string>
+    <string name="style_normal">Normal</string>
+    <string name="style_heading1">Başlık 1</string>
+    <string name="style_heading2">Başlık 2</string>
+    <string name="style_heading3">Başlık 3</string>
+    <string name="insert">Ekle</string>
+    <string name="insert_picture">Resim</string>
+    <string name="insert_table">Tablo</string>
+    <string name="insert_page_break">Sayfa sonu</string>
+    <string name="table_rows">Satır</string>
+    <string name="table_cols">Sütun</string>
+    <string name="replace">Değiştir</string>
+    <string name="replace_find">Aranan</string>
+    <string name="replace_with">Yerine</string>
+    <string name="replace_all">Tümünü değiştir</string>
+    <plurals name="replaced">
+        <item quantity="one">%d yer değiştirildi.</item>
+        <item quantity="other">%d yer değiştirildi.</item>
+    </plurals>
 </resources>

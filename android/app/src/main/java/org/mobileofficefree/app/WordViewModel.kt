@@ -46,6 +46,9 @@ class WordViewModel(app: Application) : PagedViewModel(app, DocumentKind.WORD) {
         private set
     var dirty by mutableStateOf(false)
         private set
+    /** The selected text (short), offered as what to find when replacing. */
+    var selectedTextHint by mutableStateOf("")
+        private set
 
     override val hasUnsavedChanges: Boolean get() = dirty
 
@@ -97,6 +100,26 @@ class WordViewModel(app: Application) : PagedViewModel(app, DocumentKind.WORD) {
         command("edit.paste", params.toString())
     }
 
+    /** A picture from [uri] at the caret, [WIDTH_PT] wide at most (it keeps its proportions). */
+    fun insertPicture(uri: Uri) {
+        val app = getApplication<Application>()
+        perform(changes = true) { d ->
+            val bytes = app.contentResolver.openInputStream(uri)?.use { it.readBytes() } ?: error("no data")
+            val data = android.util.Base64.encodeToString(bytes, android.util.Base64.NO_WRAP)
+            d.execute("insert.picture", JSONObject().put("data", data).put("width", PICTURE_WIDTH_PT).toString())
+        }
+    }
+
+    fun insertTable(rows: Int, cols: Int) = command("insert.table", JSONObject().put("rows", rows).put("cols", cols).toString())
+
+    /** Replaces every [find] with [with]; tells how it went. */
+    fun replaceAll(find: String, with: String) = perform(changes = true) { d ->
+        val before = d.find(find).map { it.index }.distinct().size
+        d.execute("edit.replaceAll", JSONObject().put("text", find).put("with", with).toString())
+        val app = getApplication<Application>()
+        tellLater(app.resources.getQuantityString(R.plurals.replaced, before, before))
+    }
+
     fun setSize(points: Float) = command("format.size", JSONObject().put("size", points.toDouble()).toString())
 
     fun setFont(name: String) = command("format.font", JSONObject().put("name", name).toString())
@@ -120,7 +143,7 @@ class WordViewModel(app: Application) : PagedViewModel(app, DocumentKind.WORD) {
                     op(d)
                     val sizes = if (changes) (0u until d.pageCount()).map { d.pageSize(it).let { s -> s.width to s.height } } else null
                     val f = runCatching { JSONObject(d.execute("format.state", "")) }.getOrNull()
-                    Edited(sizes, d.caret(), d.selection(), f?.let { formatOf(it) } ?: WordFormat(), d.isDirty())
+                    Edited(sizes, d.caret(), d.selection(), f?.let { formatOf(it) } ?: WordFormat(), d.isDirty(), d.selectedText().take(200))
                 }
             }
             result.onSuccess { e ->
@@ -128,12 +151,18 @@ class WordViewModel(app: Application) : PagedViewModel(app, DocumentKind.WORD) {
                 selection = e.selection
                 format = e.format
                 dirty = e.dirty
+                selectedTextHint = e.selected
                 e.sizes?.let(::pagesEdited)
             }
         }
     }
 
-    private class Edited(val sizes: List<Pair<Float, Float>>?, val caret: WordCaret?, val selection: List<SearchHit>, val format: WordFormat, val dirty: Boolean)
+    /** A message from the engine thread, shown on the main thread. */
+    private fun tellLater(text: String) {
+        viewModelScope.launch { tell(text) }
+    }
+
+    private class Edited(val sizes: List<Pair<Float, Float>>?, val caret: WordCaret?, val selection: List<SearchHit>, val format: WordFormat, val dirty: Boolean, val selected: String)
 
     private fun formatOf(o: JSONObject) = WordFormat(
         bold = o.optBoolean("bold"),
@@ -220,6 +249,9 @@ class WordViewModel(app: Application) : PagedViewModel(app, DocumentKind.WORD) {
         }
     }
 }
+
+/** Pictures go in this wide (points) at most: a little under an A4 page's text width. */
+private const val PICTURE_WIDTH_PT = 400.0
 
 /** Formats the engine writes back without losing what it read. */
 private val IN_PLACE = setOf("docx", "docm", "odt", "rtf", "md", "txt", "html", "htm")

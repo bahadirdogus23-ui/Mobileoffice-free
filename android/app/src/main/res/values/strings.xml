@@ -258,4 +258,23 @@
     <string name="sheet_rename">Rename sheet</string>
     <string name="sheet_delete">Delete sheet</string>
     <string name="sheet_delete_body">Delete “%1$s” and everything on it? Undo brings it back until you close the file.</string>
+    <string name="style">Style</string>
+    <string name="style_normal">Normal</string>
+    <string name="style_heading1">Heading 1</string>
+    <string name="style_heading2">Heading 2</string>
+    <string name="style_heading3">Heading 3</string>
+    <string name="insert">Insert</string>
+    <string name="insert_picture">Picture</string>
+    <string name="insert_table">Table</string>
+    <string name="insert_page_break">Page break</string>
+    <string name="table_rows">Rows</string>
+    <string name="table_cols">Columns</string>
+    <string name="replace">Replace</string>
+    <string name="replace_find">Find</string>
+    <string name="replace_with">Replace with</string>
+    <string name="replace_all">Replace all</string>
+    <plurals name="replaced">
+        <item quantity="one">%d place replaced.</item>
+        <item quantity="other">%d places replaced.</item>
+    </plurals>
 </resources>
