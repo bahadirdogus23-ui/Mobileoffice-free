@@ -1,0 +1,644 @@
+{
+ "app": "MobileOffice",
+ "build": "0.1.0-dev.72",
+ "savedAt": "2026-10-31T22:57:43.661Z",
+ "count": 106,
+ "items": {
+  "Y1": {
+   "status": "ok",
+   "sonuc": "Çalıştı",
+   "note": "",
+   "task": "Word: Düzenle'de bir kelime yazın (Enter'a basmadan)"
+  },
+  "Y2": {
+   "status": "ok",
+   "sonuc": "Çalıştı",
+   "note": "",
+   "task": "Word: klavyeyi geri tuşuyla kapatın, sonra sayfaya dokunun (ya da ⌨ Klavye)"
+  },
+  "Y3": {
+   "status": "ok",
+   "sonuc": "Çalıştı",
+   "note": "",
+   "task": "Word: otomatik düzeltilen ya da önerilen bir kelimeyi seçin"
+  },
+  "Y4": {
+   "status": "ok",
+   "sonuc": "Çalıştı",
+   "note": "",
+   "task": "Word araç çubuğu"
+  },
+  "Y5": {
+   "status": "ok",
+   "sonuc": "Çalıştı",
+   "note": "",
+   "task": "Word: metin seçip Yazı rengi ve Vurgu"
+  },
+  "Y6": {
+   "status": "ok",
+   "sonuc": "Çalıştı",
+   "note": "",
+   "task": "PDF: İmzala → sayfaya dokun"
+  },
+  "Y7": {
+   "status": "ok",
+   "sonuc": "Çalıştı",
+   "note": "",
+   "task": "PDF: başka uygulamada imzalanmış ya da not eklenmiş bir PDF açın"
+  },
+  "Y8": {
+   "status": "ok",
+   "sonuc": "Çalıştı",
+   "note": "Ama bazı kutucukların başlıkları text siye görünüyor",
+   "task": "PDF: Gemini'nin formunda Formu doldur"
+  },
+  "Y9": {
+   "status": "bad",
+   "sonuc": "Sorunlu",
+   "note": "",
+   "task": "Excel: birleştirilmiş hücreli ve kenarlıklı dosya (XLSX ve XLS)"
+  },
+  "Y10": {
+   "status": "ok",
+   "sonuc": "Çalıştı",
+   "note": "",
+   "task": "Excel: koyu temada bir tablo açın"
+  },
+  "Y11": {
+   "status": "ok",
+   "sonuc": "Çalıştı",
+   "note": "",
+   "task": "Excel: =TOPLA( yazıp bir hücreye dokunun, sonra başka bir hücreye"
+  },
+  "Y12": {
+   "status": "ok",
+   "sonuc": "Çalıştı",
+   "note": "Formül açıllamaları  türkçe değil. Excele hücreye yazma olmalı illa formül çunuğuna yazım olmamalı",
+   "task": "Excel: formül yazarken ipucu ve ƒx → Tüm formüller"
+  },
+  "Y13": {
+   "status": "ok",
+   "sonuc": "Çalıştı",
+   "note": "",
+   "task": "Ana ekran: Sırala menüsü"
+  },
+  "Y14": {
+   "status": "ok",
+   "sonuc": "Çalıştı",
+   "note": "Dosya satırının en altında ince ve modern olmalı. Zaten uygulama baştan başa kötü görünüyor değişeceğiz ve ayarlara tema seçimi getireciz. Ve temayı kullanıcılar kendi de oluştursun diye özellik gelicek",
+   "task": "Ana ekran: okunmuş bir dosya"
+  },
+  "Y15": {
+   "status": "ok",
+   "sonuc": "Çalıştı",
+   "note": "Udfleri oto bulmuyor telefonda",
+   "task": "Ana ekran: \"ud\" ara, UDF aç"
+  },
+  "Y16": {
+   "status": "ok",
+   "sonuc": "Çalıştı",
+   "note": "Daha geliştirilmeli çok geride.",
+   "task": "Ayarlar ekranı"
+  },
+  "Y17": {
+   "status": "bad",
+   "sonuc": "Sorunlu",
+   "note": "Hala yazdırma ekranındaki gibi a4e göre görünmüyor",
+   "task": "e-Fatura açın (telefonda büyük yazı ayarı açıkken)"
+  },
+  "Y18": {
+   "status": "ok",
+   "sonuc": "Çalıştı",
+   "note": "",
+   "task": "Tara: masadaki kâğıdın fotoğrafını çekin"
+  },
+  "Y19": {
+   "status": "ok",
+   "sonuc": "Çalıştı",
+   "note": "Sayfaları değiştirme ekranı sürüklemeli ve modern olmalı",
+   "task": "Resimden PDF: birkaç resim seçin"
+  },
+  "Y20": {
+   "status": "ok",
+   "sonuc": "Çalıştı",
+   "note": "Açtığım bir dosyada boş layout 1 ve layout 2 sayfaları vardı",
+   "task": "DWG açın"
+  },
+  "A1": {
+   "status": "ok",
+   "sonuc": "Çalıştı",
+   "note": "",
+   "task": "APK'yı indirip kurun (eski sürümün üzerine)"
+  },
+  "A2": {
+   "status": "ok",
+   "sonuc": "Çalıştı",
+   "note": "Geliştirilmeli geliştirici adı ve iletişim gelmeli bilgi vermeli kullanım kılavuzu ve uygulama amacını açıklayan şeyler olmalı",
+   "task": "Ana ekranın üstüne bakın"
+  },
+  "A3": {
+   "status": "ok",
+   "sonuc": "Çalıştı",
+   "note": "",
+   "task": "Arama kutusuna istanbul yazın (adında İSTANBUL geçen bir dosya varsa)"
+  },
+  "A4": {
+   "status": "ok",
+   "sonuc": "Çalıştı",
+   "note": "Udf listelenmiyor",
+   "task": "Alttaki sekmeler ve UDF / e-Fatura / CAD filtreleri"
+  },
+  "B1": {
+   "status": "ok",
+   "sonuc": "Çalıştı",
+   "note": "",
+   "task": "Ayarlar → Uygulamayı kilitle'yi açın, uygulamayı kapatıp yeniden açın"
+  },
+  "B2": {
+   "status": "ok",
+   "sonuc": "Çalıştı",
+   "note": "",
+   "task": "Kilit açıkken başka uygulamaya geçip 10 sn içinde dönün"
+  },
+  "B3": {
+   "status": "ok",
+   "sonuc": "Çalıştı",
+   "note": "",
+   "task": "30 saniyeden uzun ayrılıp dönün"
+  },
+  "B4": {
+   "status": "ok",
+   "sonuc": "Çalıştı",
+   "note": "",
+   "task": "Telefonu yan çevirin (kilitliyken ve açıkken)"
+  },
+  "B5": {
+   "status": "ok",
+   "sonuc": "Çalıştı",
+   "note": "",
+   "task": "Ekran görüntüsünü engelle'yi açıp ekran görüntüsü almayı deneyin"
+  },
+  "B6": {
+   "status": "ok",
+   "sonuc": "Çalıştı",
+   "note": "",
+   "task": "Gizli mod'u açıp bir dosya açın, ana ekrana dönün"
+  },
+  "B7": {
+   "status": "ok",
+   "sonuc": "Çalıştı",
+   "note": "",
+   "task": "Son açılanları temizle"
+  },
+  "B8": {
+   "status": "skip",
+   "sonuc": "Denenmedi",
+   "note": "Gerek yok",
+   "task": "Telefonda ekran kilidi yoksa"
+  },
+  "C1": {
+   "status": "ok",
+   "sonuc": "Çalıştı",
+   "note": "",
+   "task": "DOCX açın, Düzenle'ye basın"
+  },
+  "C2": {
+   "status": "ok",
+   "sonuc": "Çalıştı",
+   "note": "",
+   "task": "Metnin ortasına dokunun"
+  },
+  "C3": {
+   "status": "ok",
+   "sonuc": "Çalıştı",
+   "note": "",
+   "task": "Türkçe yazın: Şükrü Ağaoğlu İzmir'e ığdır (Samsung klavye, öneriler açık)"
+  },
+  "C4": {
+   "status": "ok",
+   "sonuc": "Çalıştı",
+   "note": "",
+   "task": "Enter, sonra Sil tuşu"
+  },
+  "C5": {
+   "status": "ok",
+   "sonuc": "Çalıştı",
+   "note": "Bu seçim sistemi kötü gelişmeli tıpkı normal android gibi",
+   "task": "Bir kelimeye basılı tutun, parmağı kaldırmadan sağa kaydırın"
+  },
+  "C6": {
+   "status": "ok",
+   "sonuc": "Çalıştı",
+   "note": "",
+   "task": "Seçiliyken K, İ, A"
+  },
+  "C7": {
+   "status": "ok",
+   "sonuc": "Çalıştı",
+   "note": "",
+   "task": "Yazı tipi (Aa) ve boyut (11) menüleri"
+  },
+  "C8": {
+   "status": "ok",
+   "sonuc": "Çalıştı",
+   "note": "",
+   "task": "Hizalama, madde (•) ve numara (1.)"
+  },
+  "C9": {
+   "status": "ok",
+   "sonuc": "Çalıştı",
+   "note": "",
+   "task": "Stil → Başlık 1"
+  },
+  "C10": {
+   "status": "part",
+   "sonuc": "Kısmen",
+   "note": "Resim boyutları ayarlanamıyor",
+   "task": "Ekle → Resim (galeriden bir fotoğraf)"
+  },
+  "C11": {
+   "status": "part",
+   "sonuc": "Kısmen",
+   "note": "Tablo boyutları ayarlanamıyor",
+   "task": "Ekle → Tablo (3×3) ve Sayfa sonu"
+  },
+  "C12": {
+   "status": "ok",
+   "sonuc": "Çalıştı",
+   "note": "",
+   "task": "Kes / Kopyala / Yapıştır; başka uygulamadan kalın bir yazı kopyalayıp yapıştırın"
+  },
+  "C13": {
+   "status": "ok",
+   "sonuc": "Çalıştı",
+   "note": "",
+   "task": "Değiştir: bir kelimeyi başka kelimeyle değiştir"
+  },
+  "C14": {
+   "status": "ok",
+   "sonuc": "Çalıştı",
+   "note": "",
+   "task": "Klavyenin kapattığı alt kısımda yazın"
+  },
+  "C15": {
+   "status": "ok",
+   "sonuc": "Çalıştı",
+   "note": "",
+   "task": "Geri al / Yinele"
+  },
+  "C16": {
+   "status": "ok",
+   "sonuc": "Çalıştı",
+   "note": "",
+   "task": "Kaydet, dosyayı kapatıp yeniden açın; bilgisayarda/Word'de açın"
+  },
+  "C17": {
+   "status": "ok",
+   "sonuc": "Çalıştı",
+   "note": "",
+   "task": "Kaydetmeden geri tuşuna basın"
+  },
+  "C18": {
+   "status": "ok",
+   "sonuc": "Çalıştı",
+   "note": "",
+   "task": "DOC veya UDF dosyasında Düzenle → Kaydet"
+  },
+  "C19": {
+   "status": "ok",
+   "sonuc": "Çalıştı",
+   "note": "Bu okuma tuşuna basmadan ekranda göründenden de seçme falan yapılmalı",
+   "task": "Okuma → Metin görünümü"
+  },
+  "D1": {
+   "status": "ok",
+   "sonuc": "Çalıştı",
+   "note": "",
+   "task": "Gerçek bir XLSX açın"
+  },
+  "D2": {
+   "status": "bad",
+   "sonuc": "Sorunlu",
+   "note": "",
+   "task": "Birleştirilmiş başlık hücreleri"
+  },
+  "D3": {
+   "status": "ok",
+   "sonuc": "Çalıştı",
+   "note": "",
+   "task": "Dondurulmuş başlık satırı/sütunu olan dosyada kaydırın"
+  },
+  "D4": {
+   "status": "bad",
+   "sonuc": "Sorunlu",
+   "note": "",
+   "task": "Uzun bir yazının sağı boşsa"
+  },
+  "D5": {
+   "status": "ok",
+   "sonuc": "Çalıştı",
+   "note": "",
+   "task": "Kalın, renkli, dolgulu, kenarlıklı hücreler"
+  },
+  "D6": {
+   "status": "part",
+   "sonuc": "Kısmen",
+   "note": "Sağa kaymadı",
+   "task": "Bir hücreye 1.250,5 yazıp Tamam"
+  },
+  "D7": {
+   "status": "ok",
+   "sonuc": "Çalıştı",
+   "note": "Formül detayları türkçe görünmüyor",
+   "task": "=TOPLA(A1;A2), =EĞER(A1>100;\"Yüksek\";\"Düşük\"), =DÜŞEYARA(...)"
+  },
+  "D8": {
+   "status": "ok",
+   "sonuc": "Çalıştı",
+   "note": "",
+   "task": "Formül çubuğuna =top yazın"
+  },
+  "D9": {
+   "status": "ok",
+   "sonuc": "Çalıştı",
+   "note": "",
+   "task": "Öneri yokken alttaki = + - * / ( ) ; : $ tuşları"
+  },
+  "D10": {
+   "status": "bad",
+   "sonuc": "Sorunlu",
+   "note": "Hücre biçimlendirme yok ki",
+   "task": "31.10.2026 yazın"
+  },
+  "D11": {
+   "status": "ok",
+   "sonuc": "Çalıştı",
+   "note": "",
+   "task": "Araç çubuğu: K, İ, A, 🎨 dolgu, ▦ kenarlık, hizalama, ₺, %, ondalık"
+  },
+  "D12": {
+   "status": "ok",
+   "sonuc": "Çalıştı",
+   "note": "",
+   "task": "+ Satır / − Satır / + Sütun / − Sütun"
+  },
+  "D13": {
+   "status": "bad",
+   "sonuc": "Sorunlu",
+   "note": "Çoklu hücre seçemiyoruz ve tablo biçimi yok programda",
+   "task": "İsim sütunu seçip A→Z (ör. Şule, Ahmet, Çiğdem, Zeynep)"
+  },
+  "D14": {
+   "status": "ok",
+   "sonuc": "Çalıştı",
+   "note": "",
+   "task": "Sayfa ▾: Yeni sayfa, yeniden adlandır (Türkçe ad), sil → Geri al"
+  },
+  "D15": {
+   "status": "ok",
+   "sonuc": "Çalıştı",
+   "note": "",
+   "task": "Sayfa ▾ → Üst satırı dondur"
+  },
+  "D16": {
+   "status": "ok",
+   "sonuc": "Çalıştı",
+   "note": "",
+   "task": "Kaydet (XLSX'te) ve bilgisayardaki Excel'de açın"
+  },
+  "D17": {
+   "status": "part",
+   "sonuc": "Kısmen",
+   "note": "Daha çok gelişmeli normal excel örnek alınmalı. İstenileni almak çok zor",
+   "task": "PDF (sayfa yapısı, yatay, yazdırma alanı)"
+  },
+  "E1": {
+   "status": "ok",
+   "sonuc": "Çalıştı",
+   "note": "",
+   "task": "PPTX açıp Sun"
+  },
+  "E2": {
+   "status": "ok",
+   "sonuc": "Çalıştı",
+   "note": "",
+   "task": "Sağa dokun / sola kaydır / sola dokun"
+  },
+  "E3": {
+   "status": "ok",
+   "sonuc": "Çalıştı",
+   "note": "",
+   "task": "Ekrana basılı tutup parmağı gezdirin"
+  },
+  "E4": {
+   "status": "ok",
+   "sonuc": "Çalıştı",
+   "note": "",
+   "task": "Ortaya dokunun → Notlar"
+  },
+  "E5": {
+   "status": "bad",
+   "sonuc": "Sorunlu",
+   "note": "Başlık değişiyor iç metinler değişmiyor. Burada canva örnek alınmalı. Canvanın metin kutusu mantığı gelmeli ve resimler de öyle olmalı",
+   "task": "Düzenle → bir başlığa dokunun → metni değiştirin → Uygula"
+  },
+  "E6": {
+   "status": "ok",
+   "sonuc": "Çalıştı",
+   "note": "",
+   "task": "Boş bir yere dokunun"
+  },
+  "E7": {
+   "status": "ok",
+   "sonuc": "Çalıştı",
+   "note": "",
+   "task": "Yeni slayt, Çoğalt, ▲ ▼, Sil"
+  },
+  "E8": {
+   "status": "ok",
+   "sonuc": "Çalıştı",
+   "note": "",
+   "task": "Kaydet ve PowerPoint'te/başka uygulamada açın"
+  },
+  "F1": {
+   "status": "ok",
+   "sonuc": "Çalıştı",
+   "note": "",
+   "task": "Ara (Android sürümü ne olursa olsun) istanbul, cicek"
+  },
+  "F2": {
+   "status": "ok",
+   "sonuc": "Çalıştı",
+   "note": "",
+   "task": "Okuma → Sesli oku ve Metin görünümü"
+  },
+  "F3": {
+   "status": "skip",
+   "sonuc": "Denenmedi",
+   "note": "Ayıkla ne?",
+   "task": "Sayfalar → Seç: döndür, sil, ayıkla, PDF ekle"
+  },
+  "F4": {
+   "status": "ok",
+   "sonuc": "Çalıştı",
+   "note": "",
+   "task": "İmzala → çiz → Bitti → sayfaya dokun"
+  },
+  "F5": {
+   "status": "ok",
+   "sonuc": "Çalıştı",
+   "note": "",
+   "task": "İmzayı sakla işaretli bırakın, tekrar İmzala"
+  },
+  "F6": {
+   "status": "ok",
+   "sonuc": "Çalıştı",
+   "note": "",
+   "task": "Çiz → Kalem/Kırmızı/Mavi/Fosforlu → çizin → Bitti"
+  },
+  "F7": {
+   "status": "ok",
+   "sonuc": "Çalıştı",
+   "note": "Fakat metin acrobat gibi kutucuk gibi taşınmalı küçülüp büyülmeli. Burada canvadan kullanım kolaylığı ve özellikler alanında çok örnek alınabilir.",
+   "task": "İmzala ve yaz → Metin → sayfaya dokun → Türkçe metin, boyut, yazı tipi, renk seçin"
+  },
+  "F8": {
+   "status": "ok",
+   "sonuc": "Çalıştı",
+   "note": "",
+   "task": "Geri al (çizim modunda)"
+  },
+  "F9": {
+   "status": "ok",
+   "sonuc": "Çalıştı",
+   "note": "Bazı form alanları başlıkları text diye çıkıyor",
+   "task": "Formu doldur (gerçek bir form) → Türkçe ad soyad, onay kutusu → Uygula → Kaydet"
+  },
+  "F10": {
+   "status": "ok",
+   "sonuc": "Çalıştı",
+   "note": "",
+   "task": "Parola → Parolayla koru → Kaydet → kaydedilen dosyayı açın"
+  },
+  "F11": {
+   "status": "ok",
+   "sonuc": "Çalıştı",
+   "note": "",
+   "task": "Parolalı bir PDF açın"
+  },
+  "F12": {
+   "status": "ok",
+   "sonuc": "Çalıştı",
+   "note": "",
+   "task": "Küçült → Standart / En küçük (fotoğraflı PDF)"
+  },
+  "F13": {
+   "status": "part",
+   "sonuc": "Kısmen",
+   "note": "57 tc karardı bir tc kararmadı neden acaba",
+   "task": "Karart: T.C. kimlik, IBAN, telefon, e-posta + bir isim → Bul ve işaretle"
+  },
+  "F14": {
+   "status": "ok",
+   "sonuc": "Çalıştı",
+   "note": "",
+   "task": "Karartmadan Kaydet'e basın"
+  },
+  "F15": {
+   "status": "ok",
+   "sonuc": "Çalıştı",
+   "note": "",
+   "task": "Kalıcı olarak karart → Kaydet → yeni dosyada aynı numarayı arayın"
+  },
+  "F16": {
+   "status": "ok",
+   "sonuc": "Çalıştı",
+   "note": "",
+   "task": "İşaretleri kaldır"
+  },
+  "F17": {
+   "status": "ok",
+   "sonuc": "Çalıştı",
+   "note": "",
+   "task": "Dönüştür → TXT ve JPEG (ZIP)"
+  },
+  "F18": {
+   "status": "ok",
+   "sonuc": "Çalıştı",
+   "note": "",
+   "task": "Yazdır"
+  },
+  "G1": {
+   "status": "ok",
+   "sonuc": "Çalıştı",
+   "note": "",
+   "task": "Tara → Fotoğraf çek (masada bir kağıt, hafif gölgeli)"
+  },
+  "G2": {
+   "status": "ok",
+   "sonuc": "Çalıştı",
+   "note": "",
+   "task": "Dört mavi köşeyi kağıdın köşelerine sürükleyin"
+  },
+  "G3": {
+   "status": "ok",
+   "sonuc": "Çalıştı",
+   "note": "Piyasadaki programlar gibi kontrast ayarları gelmeli",
+   "task": "Belge / Siyah-beyaz / Renkli"
+  },
+  "G4": {
+   "status": "ok",
+   "sonuc": "Çalıştı",
+   "note": "",
+   "task": "Döndür, Sil, + Fotoğraf çek, Galeriden"
+  },
+  "G5": {
+   "status": "ok",
+   "sonuc": "Çalıştı",
+   "note": "",
+   "task": "PDF yap → kaydet"
+  },
+  "G6": {
+   "status": "ok",
+   "sonuc": "Çalıştı",
+   "note": "",
+   "task": "Resimden PDF → 3 fotoğraf (biri yatay) → A4 sayfalara"
+  },
+  "G7": {
+   "status": "ok",
+   "sonuc": "Çalıştı",
+   "note": "",
+   "task": "Aynısını Her sayfa resim boyutunda"
+  },
+  "H1": {
+   "status": "ok",
+   "sonuc": "Çalıştı",
+   "note": "Telefondaki udfleri bulmada sıkıntı",
+   "task": "UDF belgesi aç, PDF/DOCX'e dönüştür"
+  },
+  "H2": {
+   "status": "ok",
+   "sonuc": "Çalıştı",
+   "note": "Xml görünüm yazdırmadaki gibi değil",
+   "task": "e-Fatura XML aç"
+  },
+  "H3": {
+   "status": "ok",
+   "sonuc": "Çalıştı",
+   "note": "",
+   "task": "TXT aç, düzenle, kaydet; Dönüştür → PDF (sayfa yapısı sorar)"
+  },
+  "H4": {
+   "status": "ok",
+   "sonuc": "Çalıştı",
+   "note": "Dwglerde iyileştime istiyorum",
+   "task": "DWG/DXF aç"
+  },
+  "H5": {
+   "status": "ok",
+   "sonuc": "Çalıştı",
+   "note": "",
+   "task": "Yakınlaştırma, gece modu, ses tuşlarıyla sayfa çevirme"
+  }
+ }
+}
