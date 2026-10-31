@@ -23,7 +23,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardOptions
-import androidx.compose.material3.FilledIconToggleButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -51,6 +50,16 @@ import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.dp
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.unit.sp
 
 /**
  * Stands in the keyboard's input field so that deleting it can be told apart from deleting a
@@ -60,22 +69,35 @@ internal const val SENTINEL = "\u200B"
 internal val EMPTY_INPUT = TextFieldValue(SENTINEL, TextRange(1))
 
 /**
- * What the keyboard sends, turned into engine commands. A word being composed (predictive
- * keyboards, Turkish suggestions) stays in the field until the keyboard commits it, then is typed
- * into the document at once; deleting past the start of the field is a backspace in the document.
+ * What the keyboard sends, turned into engine edits. The field mirrors the text typed since the
+ * caret last moved, so the keyboard sees real context (capitals, suggestions); every change to it
+ * (a letter, a word still being composed, an autocorrection) is applied to the document at once as
+ * "delete this many characters before the caret, then type this". Deleting past the start of the
+ * field is a backspace in the document.
+ *
+ * [old] is the field as it was, [new] as the keyboard left it; returns what the field shows now.
  */
-fun keyboardEdit(new: TextFieldValue, type: (String) -> Unit, backspace: () -> Unit): TextFieldValue {
+fun keyboardEdit(old: TextFieldValue, new: TextFieldValue, replace: (delete: Int, text: String) -> Unit): TextFieldValue {
+    val before = old.text.removePrefix(SENTINEL)
     if (!new.text.startsWith(SENTINEL)) {
-        // The stand-in went: one backspace, and anything else in the field is typed.
+        // The stand-in went: everything typed since, and one character before it, is deleted.
         val rest = new.text.replace(SENTINEL, "")
-        if (rest.isEmpty()) backspace() else type(rest)
+        replace(before.codePointCount(0, before.length) + 1, rest)
         return EMPTY_INPUT
     }
-    val typed = new.text.substring(SENTINEL.length)
-    if (new.composition != null && typed.isNotEmpty()) return new
-    if (typed.isNotEmpty()) type(typed)
-    return EMPTY_INPUT
+    val after = new.text.substring(SENTINEL.length)
+    var same = 0
+    val limit = minOf(before.length, after.length)
+    while (same < limit && before[same] == after[same]) same++
+    if (same > 0 && same < before.length && Character.isLowSurrogate(before[same])) same--
+    val delete = before.codePointCount(same, before.length)
+    val typed = after.substring(same)
+    if (delete > 0 || typed.isNotEmpty()) replace(delete, typed)
+    // A finished line (or a long run) starts the field afresh, keeping it small.
+    return if (new.composition == null && (after.endsWith('\n') || after.length > MAX_FIELD)) EMPTY_INPUT else new
 }
+
+private const val MAX_FIELD = 200
 
 /** The editing tool bar and the keyboard's input, shown while a Word document is being edited. */
 @Composable
@@ -136,33 +158,32 @@ fun WordEditBar(vm: WordViewModel, onSave: () -> Unit) {
     val clipboard = remember { context.getSystemService(ClipboardManager::class.java) }
     val focus = remember { FocusRequester() }
     val keyboard = LocalSoftwareKeyboardController.current
-    LaunchedEffect(vm.editing) {
+    LaunchedEffect(vm.editing, vm.keyboardAsks) {
         if (vm.editing) {
             focus.requestFocus()
             keyboard?.show()
         }
     }
+    LaunchedEffect(vm.inputEpoch) { field = EMPTY_INPUT }
+    var colorMenu by remember { mutableStateOf(false) }
+    var highlightMenu by remember { mutableStateOf(false) }
     Surface(color = MaterialTheme.colorScheme.surfaceContainer, modifier = Modifier.fillMaxWidth()) {
         Column {
             Row(
-                Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(horizontal = 4.dp),
+                Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(horizontal = 4.dp, vertical = 2.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 val f = vm.format
                 val hasSelection = vm.selection.isNotEmpty()
-                TextButton(onClick = { vm.cut { clipboard.setPrimaryClip(ClipData.newPlainText("text", it)) } }, enabled = hasSelection) {
-                    Text(stringResource(R.string.cut))
+                Tool("⌨", R.string.tool_keyboard) {
+                    focus.requestFocus()
+                    keyboard?.show()
                 }
-                TextButton(onClick = { vm.copy { clipboard.setPrimaryClip(ClipData.newPlainText("text", it)) } }, enabled = hasSelection) {
-                    Text(stringResource(R.string.copy))
-                }
-                TextButton(onClick = {
-                    val item = clipboard.primaryClip?.takeIf { it.itemCount > 0 }?.getItemAt(0)
-                    val text = item?.coerceToText(context)?.toString().orEmpty()
-                    if (text.isNotEmpty()) vm.paste(text, item?.htmlText)
-                }) { Text(stringResource(R.string.paste)) }
+                Tool("↶", R.string.undo) { vm.command("edit.undo") }
+                Tool("↷", R.string.redo) { vm.command("edit.redo") }
+                ToolDivider()
                 Box {
-                    TextButton(onClick = { fontMenu = true }) { Text(f.font?.take(12) ?: "Aa", maxLines = 1) }
+                    Tool(f.font?.take(10) ?: "Aa", R.string.tool_font, glyphSize = 15) { fontMenu = true }
                     DropdownMenu(expanded = fontMenu, onDismissRequest = { fontMenu = false }) {
                         for (name in FONTS) {
                             DropdownMenuItem(text = { Text(name) }, onClick = {
@@ -173,7 +194,7 @@ fun WordEditBar(vm: WordViewModel, onSave: () -> Unit) {
                     }
                 }
                 Box {
-                    TextButton(onClick = { sizeMenu = true }) { Text(f.size?.let { "%.0f".format(Locale.ROOT, it) } ?: "–") }
+                    Tool(f.size?.let { "%.0f".format(Locale.ROOT, it) } ?: "–", R.string.tool_size) { sizeMenu = true }
                     DropdownMenu(expanded = sizeMenu, onDismissRequest = { sizeMenu = false }) {
                         for (size in SIZES) {
                             DropdownMenuItem(text = { Text(size.toString()) }, onClick = {
@@ -183,22 +204,43 @@ fun WordEditBar(vm: WordViewModel, onSave: () -> Unit) {
                         }
                     }
                 }
-                FilledIconToggleButton(checked = f.bold, onCheckedChange = { vm.command("format.bold") }) {
-                    Text("K", fontWeight = FontWeight.Bold)
-                }
-                FilledIconToggleButton(checked = f.italic, onCheckedChange = { vm.command("format.italic") }) {
-                    Text("İ", fontStyle = FontStyle.Italic)
-                }
-                FilledIconToggleButton(checked = f.underline, onCheckedChange = { vm.command("format.underline") }) {
-                    Text("A", textDecoration = TextDecoration.Underline)
-                }
-                TextButton(onClick = { vm.command("para.alignLeft") }) { Text("⇤") }
-                TextButton(onClick = { vm.command("para.alignCenter") }) { Text("≡") }
-                TextButton(onClick = { vm.command("para.alignRight") }) { Text("⇥") }
-                TextButton(onClick = { vm.command("para.bullets") }) { Text("•") }
-                TextButton(onClick = { vm.command("para.numbering") }) { Text("1.") }
+                Tool("K", R.string.tool_bold, on = f.bold, weight = FontWeight.Bold) { vm.command("format.bold") }
+                Tool("İ", R.string.tool_italic, on = f.italic, style = FontStyle.Italic) { vm.command("format.italic") }
+                Tool("A", R.string.tool_underline, on = f.underline, decoration = TextDecoration.Underline) { vm.command("format.underline") }
                 Box {
-                    TextButton(onClick = { styleMenu = true }) { Text(stringResource(R.string.style)) }
+                    Tool("A", R.string.tool_text_color, glyphColor = f.color?.let(::hexColor), bar = f.color?.let(::hexColor) ?: Color.Red) { colorMenu = true }
+                    DropdownMenu(expanded = colorMenu, onDismissRequest = { colorMenu = false }) {
+                        DropdownMenuItem(text = { Text(stringResource(R.string.color_automatic)) }, onClick = {
+                            colorMenu = false
+                            vm.setColor("auto")
+                        })
+                        Swatches(TEXT_COLORS) { hex ->
+                            colorMenu = false
+                            vm.setColor(hex)
+                        }
+                    }
+                }
+                Box {
+                    Tool("ab", R.string.tool_highlight, bar = Color(0xFFFFEB3B)) { highlightMenu = true }
+                    DropdownMenu(expanded = highlightMenu, onDismissRequest = { highlightMenu = false }) {
+                        DropdownMenuItem(text = { Text(stringResource(R.string.highlight_none)) }, onClick = {
+                            highlightMenu = false
+                            vm.setHighlight("none")
+                        })
+                        Swatches(HIGHLIGHTS.map { it.second }) { hex ->
+                            highlightMenu = false
+                            vm.setHighlight(HIGHLIGHTS.first { it.second == hex }.first)
+                        }
+                    }
+                }
+                ToolDivider()
+                Tool("⇤", R.string.tool_left) { vm.command("para.alignLeft") }
+                Tool("≡", R.string.tool_center) { vm.command("para.alignCenter") }
+                Tool("⇥", R.string.tool_right) { vm.command("para.alignRight") }
+                Tool("•", R.string.tool_bullets) { vm.command("para.bullets") }
+                Tool("1.", R.string.tool_numbering) { vm.command("para.numbering") }
+                Box {
+                    Tool("¶", R.string.style) { styleMenu = true }
                     DropdownMenu(expanded = styleMenu, onDismissRequest = { styleMenu = false }) {
                         for ((label, id) in STYLES) {
                             DropdownMenuItem(text = { Text(stringResource(label)) }, onClick = {
@@ -208,8 +250,16 @@ fun WordEditBar(vm: WordViewModel, onSave: () -> Unit) {
                         }
                     }
                 }
+                ToolDivider()
+                Tool("✂", R.string.tool_cut, enabled = hasSelection) { vm.cut { clipboard.setPrimaryClip(ClipData.newPlainText("text", it)) } }
+                Tool("⧉", R.string.tool_copy, enabled = hasSelection) { vm.copy { clipboard.setPrimaryClip(ClipData.newPlainText("text", it)) } }
+                Tool("📋", R.string.tool_paste, glyphSize = 16) {
+                    val item = clipboard.primaryClip?.takeIf { it.itemCount > 0 }?.getItemAt(0)
+                    val text = item?.coerceToText(context)?.toString().orEmpty()
+                    if (text.isNotEmpty()) vm.paste(text, item?.htmlText)
+                }
                 Box {
-                    TextButton(onClick = { insertMenu = true }) { Text(stringResource(R.string.insert)) }
+                    Tool("+", R.string.insert) { insertMenu = true }
                     DropdownMenu(expanded = insertMenu, onDismissRequest = { insertMenu = false }) {
                         DropdownMenuItem(text = { Text(stringResource(R.string.insert_picture)) }, onClick = {
                             insertMenu = false
@@ -225,28 +275,109 @@ fun WordEditBar(vm: WordViewModel, onSave: () -> Unit) {
                         })
                     }
                 }
-                TextButton(onClick = { replaceDialog = true }) { Text(stringResource(R.string.replace)) }
-                TextButton(onClick = { vm.command("edit.undo") }) { Text(stringResource(R.string.undo)) }
-                TextButton(onClick = { vm.command("edit.redo") }) { Text(stringResource(R.string.redo)) }
-                TextButton(onClick = onSave, enabled = vm.dirty) { Text(stringResource(R.string.save)) }
-                TextButton(onClick = {
+                Tool("⇄", R.string.replace) { replaceDialog = true }
+                ToolDivider()
+                Tool("💾", R.string.save, enabled = vm.dirty, glyphSize = 16, onClick = onSave)
+                Tool("✓", R.string.done) {
                     keyboard?.hide()
                     vm.stopEditing()
-                }) { Text(stringResource(R.string.done)) }
+                }
             }
+            // The keyboard's field: invisible, it only carries what is typed to the document.
             BasicTextField(
                 value = field,
-                onValueChange = { new ->
-                    field = keyboardEdit(new, type = vm::type, backspace = { vm.command("text.backspace") })
-                },
+                onValueChange = { new -> field = keyboardEdit(field, new, vm::replaceTyped) },
                 keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Sentences),
-                textStyle = MaterialTheme.typography.bodyMedium.copy(color = MaterialTheme.colorScheme.onSurfaceVariant),
-                cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
-                modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 6.dp).focusRequester(focus),
+                textStyle = MaterialTheme.typography.bodySmall.copy(color = Color.Transparent),
+                cursorBrush = SolidColor(Color.Transparent),
+                modifier = Modifier.fillMaxWidth().height(1.dp).focusRequester(focus),
             )
         }
     }
 }
+
+/** A tool: a large sign over its name, so what it does is plain. [on] marks a format in force. */
+@Composable
+private fun Tool(
+    glyph: String,
+    label: Int,
+    on: Boolean = false,
+    enabled: Boolean = true,
+    glyphSize: Int = 20,
+    weight: FontWeight? = null,
+    style: FontStyle? = null,
+    decoration: TextDecoration? = null,
+    glyphColor: Color? = null,
+    bar: Color? = null,
+    onClick: () -> Unit,
+) {
+    val colors = MaterialTheme.colorScheme
+    val content = if (enabled) colors.onSurface else colors.onSurface.copy(alpha = 0.38f)
+    Column(
+        horizontalAlignment = Alignment.CenterHorizontally,
+        modifier = Modifier
+            .padding(horizontal = 1.dp)
+            .clip(RoundedCornerShape(10.dp))
+            .background(if (on) colors.secondaryContainer else Color.Transparent)
+            .clickable(enabled = enabled, onClick = onClick)
+            .widthIn(min = 52.dp)
+            .padding(horizontal = 6.dp, vertical = 4.dp),
+    ) {
+        Text(
+            glyph,
+            fontSize = glyphSize.sp,
+            fontWeight = weight,
+            fontStyle = style,
+            textDecoration = decoration,
+            color = if (enabled) glyphColor ?: content else content,
+            maxLines = 1,
+        )
+        if (bar != null) Box(Modifier.size(width = 20.dp, height = 3.dp).background(bar))
+        Text(stringResource(label), fontSize = 11.sp, color = content, maxLines = 1)
+    }
+}
+
+@Composable
+private fun ToolDivider() {
+    Box(Modifier.padding(horizontal = 4.dp).size(width = 1.dp, height = 36.dp).background(MaterialTheme.colorScheme.outlineVariant))
+}
+
+/** A grid of colour swatches (`RRGGBB`), five to a row. */
+@Composable
+private fun Swatches(colors: List<String>, onPick: (String) -> Unit) {
+    Column(Modifier.padding(horizontal = 12.dp, vertical = 4.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        for (row in colors.chunked(5)) {
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                for (hex in row) {
+                    Box(
+                        Modifier
+                            .size(32.dp)
+                            .clip(CircleShape)
+                            .background(hexColor(hex))
+                            .border(1.dp, MaterialTheme.colorScheme.outline, CircleShape)
+                            .clickable { onPick(hex) },
+                    )
+                }
+            }
+        }
+    }
+}
+
+internal fun hexColor(hex: String): Color = Color(0xFF000000 or hex.toLong(16))
+
+/** Office's standard text colours. */
+private val TEXT_COLORS = listOf(
+    "000000", "404040", "7F7F7F", "C00000", "FF0000",
+    "FFC000", "FFFF00", "92D050", "00B050", "00B0F0",
+    "0070C0", "002060", "7030A0", "1F3864", "833C0B",
+)
+
+/** The highlighter colours Word has, by the engine's name. */
+private val HIGHLIGHTS = listOf(
+    "yellow" to "FFFF00", "brightGreen" to "00FF00", "turquoise" to "00FFFF", "pink" to "FF00FF", "blue" to "0000FF",
+    "red" to "FF0000", "darkBlue" to "000080", "teal" to "008080", "green" to "008000", "violet" to "800080",
+    "darkRed" to "800000", "darkYellow" to "808000", "gray50" to "808080", "gray25" to "C0C0C0", "black" to "000000",
+)
 
 /** Paragraph styles offered: the engine's built-in Normal and Heading 1–3. */
 private val STYLES = listOf(

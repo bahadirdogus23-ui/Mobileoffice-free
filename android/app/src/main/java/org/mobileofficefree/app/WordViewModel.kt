@@ -4,6 +4,7 @@ import android.app.Application
 import android.graphics.Bitmap
 import android.net.Uri
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.core.graphics.createBitmap
@@ -25,6 +26,8 @@ data class WordFormat(
     /** Null when the selection mixes sizes or fonts. */
     val size: Float? = null,
     val font: String? = null,
+    /** The text colour as `RRGGBB`, or null for automatic or mixed. */
+    val color: String? = null,
 )
 
 /**
@@ -50,6 +53,13 @@ class WordViewModel(app: Application) : PagedViewModel(app, DocumentKind.WORD) {
     var selectedTextHint by mutableStateOf("")
         private set
 
+    /** Grows when the caret moves other than by typing: the keyboard's field starts afresh. */
+    var inputEpoch by mutableIntStateOf(0)
+        private set
+    /** Grows on every tap on a page: the keyboard is shown again if it was closed. */
+    var keyboardAsks by mutableIntStateOf(0)
+        private set
+
     override val hasUnsavedChanges: Boolean get() = dirty
 
     /** Saving writes the opened file again only in formats the engine writes faithfully. */
@@ -65,7 +75,10 @@ class WordViewModel(app: Application) : PagedViewModel(app, DocumentKind.WORD) {
     }
 
     /** Caret to (`x`, `y`) points on [page], or the selection extended there. */
-    fun tap(page: Int, x: Float, y: Float, extend: Boolean = false) = perform(changes = false) { it.tap(page.toUInt(), x, y, extend) }
+    fun tap(page: Int, x: Float, y: Float, extend: Boolean = false) {
+        if (!extend) keyboardAsks++
+        perform(changes = false) { it.tap(page.toUInt(), x, y, extend) }
+    }
 
     /** The word at (`x`, `y`) selected. */
     fun selectWord(page: Int, x: Float, y: Float) = perform(changes = false) {
@@ -124,19 +137,35 @@ class WordViewModel(app: Application) : PagedViewModel(app, DocumentKind.WORD) {
 
     fun setFont(name: String) = command("format.font", JSONObject().put("name", name).toString())
 
+    /** What the keyboard did: [delete] characters before the caret removed, then [text] typed. */
+    fun replaceTyped(delete: Int, text: String) = perform(changes = true, moves = false) { d ->
+        repeat(delete) { d.execute("text.backspace", "") }
+        typeInto(d, text)
+    }
+
     /** Typed text: lines become paragraphs. */
-    fun type(text: String) = perform(changes = true) { d ->
+    fun type(text: String) = perform(changes = true) { d -> typeInto(d, text) }
+
+    private fun typeInto(d: WordDocument, text: String) {
         text.replace("\r\n", "\n").split('\n').forEachIndexed { i, line ->
             if (i > 0) d.execute("text.newParagraph", "")
             if (line.isNotEmpty()) d.execute("text.insert", JSONObject().put("text", line).toString())
         }
     }
 
+    /** The text colour, `RRGGBB` or `auto`. */
+    fun setColor(hex: String) = command("format.color", JSONObject().put("color", hex).toString())
+
+    /** The highlight behind the text: a highlighter colour name, or `none`. */
+    fun setHighlight(name: String) = command("format.highlight", JSONObject().put("color", name).toString())
+
     /** Runs engine command [id]; [changes] says whether it can change the text or its look. */
     fun command(id: String, params: String = "", changes: Boolean = true) = perform(changes) { it.execute(id, params) }
 
-    private fun perform(changes: Boolean, op: (WordDocument) -> Unit) {
+    /** [moves] says whether the caret can move other than by the keyboard's own typing. */
+    private fun perform(changes: Boolean, moves: Boolean = true, op: (WordDocument) -> Unit) {
         val d = doc ?: return
+        if (moves) inputEpoch++
         viewModelScope.launch {
             val result = withContext(engine) {
                 runCatching {
@@ -170,6 +199,7 @@ class WordViewModel(app: Application) : PagedViewModel(app, DocumentKind.WORD) {
         underline = o.opt("underline").let { it == true || (it is String && it != "none" && it.isNotEmpty()) },
         size = (o.opt("size") as? Number)?.toFloat(),
         font = o.opt("font") as? String,
+        color = (o.opt("color") as? String)?.takeIf { it.length == 6 },
     )
 
     /** Writes the document over the opened file, in its own format. */

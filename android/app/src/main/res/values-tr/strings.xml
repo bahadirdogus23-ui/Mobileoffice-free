@@ -307,4 +307,22 @@
     <string name="border_thick_outside">Kalın dış kenarlık</string>
     <string name="border_bottom">Alt kenarlık</string>
     <string name="border_none">Kenarlık yok</string>
+    <string name="tool_bold">Kalın</string>
+    <string name="tool_italic">İtalik</string>
+    <string name="tool_underline">Altı çizili</string>
+    <string name="tool_left">Sola</string>
+    <string name="tool_center">Ortala</string>
+    <string name="tool_right">Sağa</string>
+    <string name="tool_bullets">Madde</string>
+    <string name="tool_numbering">Numara</string>
+    <string name="tool_text_color">Yazı rengi</string>
+    <string name="tool_highlight">Vurgu</string>
+    <string name="tool_font">Yazı tipi</string>
+    <string name="tool_size">Boyut</string>
+    <string name="tool_keyboard">Klavye</string>
+    <string name="tool_cut">Kes</string>
+    <string name="tool_copy">Kopyala</string>
+    <string name="tool_paste">Yapıştır</string>
+    <string name="color_automatic">Otomatik</string>
+    <string name="highlight_none">Vurgu yok</string>
 </resources>

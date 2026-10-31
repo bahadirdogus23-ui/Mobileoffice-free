@@ -308,4 +308,22 @@
     <string name="border_thick_outside">Thick outside border</string>
     <string name="border_bottom">Bottom border</string>
     <string name="border_none">No border</string>
+    <string name="tool_bold">Bold</string>
+    <string name="tool_italic">Italic</string>
+    <string name="tool_underline">Underline</string>
+    <string name="tool_left">Left</string>
+    <string name="tool_center">Center</string>
+    <string name="tool_right">Right</string>
+    <string name="tool_bullets">Bullets</string>
+    <string name="tool_numbering">Numbers</string>
+    <string name="tool_text_color">Text colour</string>
+    <string name="tool_highlight">Highlight</string>
+    <string name="tool_font">Font</string>
+    <string name="tool_size">Size</string>
+    <string name="tool_keyboard">Keyboard</string>
+    <string name="tool_cut">Cut</string>
+    <string name="tool_copy">Copy</string>
+    <string name="tool_paste">Paste</string>
+    <string name="color_automatic">Automatic</string>
+    <string name="highlight_none">No highlight</string>
 </resources>
