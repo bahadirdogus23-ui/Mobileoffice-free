@@ -372,4 +372,5 @@
     <string name="scan_not_found">Drag the corners onto the page\'s corners</string>
     <string name="scan_detect">Find edges</string>
     <string name="scan_whole">Whole photo</string>
+    <string name="form_detected">%1$d fillable fields were found in the printed form. Fill them in and save.</string>
 </resources>

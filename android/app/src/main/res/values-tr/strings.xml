@@ -371,4 +371,5 @@
     <string name="scan_not_found">Köşeleri sayfanın köşelerine sürükleyin</string>
     <string name="scan_detect">Kenarları bul</string>
     <string name="scan_whole">Tüm fotoğraf</string>
+    <string name="form_detected">Basılı formda %1$d doldurulabilir alan bulundu. Doldurup kaydedebilirsiniz.</string>
 </resources>

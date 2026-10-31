@@ -863,6 +863,12 @@ impl PdfDocument {
         self.doc().has_drawn_annotations()
     }
 
+    /// Adds fillable fields where a printed form's boxes, lines and squares are (for forms whose
+    /// fields were lost, e.g. printed from a browser); returns how many were added.
+    pub fn detect_fields(&self) -> Result<u32, MoError> {
+        Ok(self.doc().detect_fields()?)
+    }
+
     /// What the file holds of a form, in one line (shown when no field is found).
     pub fn form_diagnosis(&self) -> String {
         self.doc().form_diagnosis()

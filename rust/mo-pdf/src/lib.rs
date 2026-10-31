@@ -300,6 +300,85 @@ impl PdfDoc {
     }
 
     /// The form's fields, in document order (none when there is no form).
+    /// Finds where a printed form expects answers (empty boxes, lines to write on, small squares
+    /// to tick, underscore runs) and adds a fillable field for each, named from its label, as
+    /// Acrobat's "Prepare form" does: for forms printed from a browser or a word processor, which
+    /// keep the boxes but lose the fields. Fields already there are left alone. Returns how many
+    /// were added.
+    pub fn detect_fields(&mut self) -> Result<u32, PdfError> {
+        self.refuse_unfillable()?;
+        use pdfcraft_forms::detect;
+        let n = self.page_count()?;
+        let boxes = organize::page_boxes(&self.doc).map_err(edit)?;
+        let sizes: Vec<(f32, f32)> = (0..n).map(|p| self.view_size(p)).collect::<Result<_, _>>()?;
+        let turns: Vec<i64> = (0..n as usize).map(|p| organize::page_rotation(&self.doc, p)).collect::<Result<_, _>>().map_err(edit)?;
+        let existing_fields = pdfcraft_forms::fields(&self.doc);
+        let mut taken: Vec<String> = existing_fields.iter().map(|f| f.name.clone()).collect();
+        let mut found: Vec<(usize, detect::Candidate)> = Vec::new();
+        for page in 0..n as usize {
+            let (w, h) = sizes[page];
+            let crop = boxes[page][1];
+            let to_user = |x: f32, y: f32| user_point(crop, turns[page], [f64::from(x / w), f64::from(y / h)]);
+            let layer = self.text_layer()?;
+            let words = match layer.filtered_text(page, Default::default()) {
+                Ok(text) => page_words(&text)
+                    .into_iter()
+                    .map(|(t, r)| {
+                        let (a, b) = (to_user(r[0], r[1]), to_user(r[2], r[3]));
+                        detect::Word { text: t, rect: [a[0].min(b[0]), a[1].min(b[1]), a[0].max(b[0]), a[1].max(b[1])] }
+                    })
+                    .collect(),
+                Err(_) => Vec::new(),
+            };
+            // Shapes from the drawing's paths, and from a picture of the page for those the
+            // paths don't give as plain rectangles (rounded boxes, as browsers draw them).
+            let picture = layer.render(pdfcraft_render::RenderRequest { page, scale: DETECT_SCALE, ..Default::default() });
+            let mut shapes = detect::page_shapes(&self.doc, page);
+            if picture.error.is_none() {
+                let seen = detect::raster::shapes(&picture.rgba, picture.width, picture.height, f64::from(DETECT_SCALE));
+                // The picture's frame is the displayed page, y up from its bottom.
+                let to_user_up = |r: [f64; 4]| {
+                    let a = to_user(r[0] as f32, h - r[1] as f32);
+                    let b = to_user(r[2] as f32, h - r[3] as f32);
+                    [a[0].min(b[0]), a[1].min(b[1]), a[0].max(b[0]), a[1].max(b[1])]
+                };
+                shapes.boxes.extend(seen.boxes.into_iter().map(to_user_up));
+                shapes.rules.extend(seen.rules.into_iter().map(to_user_up));
+            }
+            let existing: Vec<[f64; 4]> =
+                existing_fields.iter().flat_map(|f| f.widgets.iter()).filter(|wd| wd.page == Some(page)).map(|wd| wd.rect).collect();
+            for c in detect::detect(&words, &shapes, &existing, &taken) {
+                taken.push(c.name.clone());
+                found.push((page, c));
+            }
+        }
+        let mut added = 0;
+        for (page, c) in found {
+            let tall = c.rect[3] - c.rect[1];
+            let (kind, comb) = match c.kind {
+                detect::Kind::Text => (pdfcraft_forms::NewField::Text { multiline: tall > 30.0 }, None),
+                detect::Kind::CheckBox => (pdfcraft_forms::NewField::CheckBox, None),
+                detect::Kind::Comb { cells } => (pdfcraft_forms::NewField::Text { multiline: false }, Some(cells)),
+            };
+            let Ok(name) = pdfcraft_forms::add_field(&mut self.doc, page, c.rect, &kind, Some(&c.name)) else { continue };
+            // The page already draws the box or line: the field gets no border or fill of its own.
+            let mut props = pdfcraft_forms::FieldProps {
+                appearance: Some(pdfcraft_forms::LookPatch { border: Some(None), fill: Some(None), ..Default::default() }),
+                ..Default::default()
+            };
+            if let Some(cells) = comb {
+                props.max_len = Some(Some(cells));
+                props.flags = vec![(pdfcraft_forms::flags::COMB, true)];
+            }
+            let _ = pdfcraft_forms::set_props(&mut self.doc, &name, &props);
+            added += 1;
+        }
+        if added > 0 {
+            self.text = None;
+        }
+        Ok(added)
+    }
+
     /// What the file holds of a form, in one line, for when no field is found.
     pub fn form_diagnosis(&self) -> String {
         form::diagnosis(&self.doc)
@@ -457,6 +536,43 @@ impl PdfDoc {
     pub fn save(&self) -> Result<Vec<u8>, PdfError> {
         pdfcraft_cos::write_full(&self.doc, &SaveOptions::default()).map_err(|e| PdfError::Save(e.to_string()))
     }
+}
+
+/// Pixels per point of the page picture field detection looks for boxes in.
+const DETECT_SCALE: f32 = 2.0;
+
+/// A page's words in reading order with their boxes in view space (points, y down); runs of
+/// underscores (a form's blanks) are words of their own.
+fn page_words(text: &pdfcraft_render::PageText) -> Vec<(String, [f32; 4])> {
+    let mut words: Vec<(String, [f32; 4])> = Vec::new();
+    let mut last_line = u32::MAX;
+    let mut gap = false;
+    let mut last_under = false;
+    for (i, g) in text.glyphs.iter().enumerate() {
+        let line = text.line_of.get(i).copied().unwrap_or(0);
+        if g.text.trim().is_empty() {
+            gap = true;
+            continue;
+        }
+        let under = g.text.chars().all(|c| c == '_');
+        let breaks = words.is_empty() || gap || line != last_line || text.space_before.get(i).copied().unwrap_or(false) || last_under != under;
+        gap = false;
+        last_line = line;
+        match words.last_mut() {
+            Some((w, r)) if !breaks => {
+                w.push_str(&g.text);
+                r[0] = r[0].min(g.rect[0]);
+                r[1] = r[1].min(g.rect[1]);
+                r[2] = r[2].max(g.rect[2]);
+                r[3] = r[3].max(g.rect[3]);
+            }
+            _ => {
+                words.push((g.text.clone(), g.rect));
+                last_under = under;
+            }
+        }
+    }
+    words
 }
 
 /// A point given as a fraction of the displayed page (y down) in the page's user space: the crop

@@ -321,3 +321,23 @@ fn reads_forms_made_by_browser_pdf_libraries() {
     }
     assert!(reopened(pdf(1, "x")).form_diagnosis().starts_with("AcroForm: yok"));
 }
+
+#[test]
+fn finds_the_fields_of_a_form_printed_from_a_browser() {
+    // An HTML form printed to PDF by Chromium (as AI assistants' "fillable" forms often are):
+    // the boxes are drawn, rounded, and the fields are gone.
+    let mut doc = reopened(include_bytes!("../testdata/browser-printed-form.pdf").to_vec());
+    assert!(doc.fields().is_empty());
+    assert_eq!(doc.detect_fields().unwrap(), 5);
+    let fields: Vec<(String, FieldKind)> = doc.fields().into_iter().map(|f| (f.name, f.kind)).collect();
+    assert!(fields.contains(&("Adı Soyadı".into(), FieldKind::Text)), "{fields:?}");
+    assert!(fields.contains(&("Onaylıyorum".into(), FieldKind::CheckBox)), "{fields:?}");
+    doc.set_text("Adı Soyadı", "Şükrü Ağaoğlu").unwrap();
+    doc.set_check("Onaylıyorum", true).unwrap();
+    // Shown and saved with the value; finding again adds nothing.
+    let mut shown = reopened(doc.display_copy().unwrap());
+    assert!(shown.page_text(0).unwrap().contains("Şükrü Ağaoğlu"));
+    let mut saved = reopened(doc.save().unwrap());
+    assert_eq!(saved.fields().len(), 5);
+    assert_eq!(saved.detect_fields().unwrap(), 0);
+}

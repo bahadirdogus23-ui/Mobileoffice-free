@@ -204,18 +204,41 @@ class PdfViewModel(app: Application) : PagedViewModel(app, DocumentKind.PDF) {
                 runCatching {
                     val doc = editor()
                     val fields = doc.fields()
-                    // When none can be filled, what the file holds tells why (shown with the message).
-                    fields to if (fields.none { f -> f.kind != FormFieldKind.OTHER }) doc.formDiagnosis() else null
+                    fields to fields.none { f -> f.kind != FormFieldKind.OTHER }
                 }
             }
             busy = false
             result.fold(
-                onSuccess = { (fields, why) ->
-                    if (why != null) tell(app.getString(R.string.form_none) + "\n" + why)
-                    formFields = fields
+                onSuccess = { (fields, none) ->
+                    if (none) findPrintedFields() else formFields = fields
                 },
                 onFailure = { tell(app.getString(R.string.pdf_edit_failed, it.message ?: it.javaClass.simpleName)) },
             )
+        }
+    }
+
+    /**
+     * A form without fields (printed from a browser or a word processor keeps only the boxes):
+     * fields are added where its boxes, lines and squares are, then offered for filling. When
+     * none is found, what the file holds is told with the message.
+     */
+    private fun findPrintedFields() {
+        val app = getApplication<Application>()
+        var found = 0
+        var why = ""
+        val wasEdited = edited
+        edit(after = {
+            if (found > 0) {
+                tell(app.getString(R.string.form_detected, found))
+                loadForm()
+            } else {
+                // Nothing was added: the document is as it was.
+                edited = wasEdited
+                tell(app.getString(R.string.form_none) + "\n" + why)
+            }
+        }) { doc ->
+            found = doc.detectFields().toInt()
+            if (found == 0) why = doc.formDiagnosis()
         }
     }
 
@@ -248,7 +271,7 @@ class PdfViewModel(app: Application) : PagedViewModel(app, DocumentKind.PDF) {
         }
     }
 
-    private fun edit(op: (PdfDocument) -> Unit) {
+    private fun edit(after: () -> Unit = {}, op: (PdfDocument) -> Unit) {
         val app = getApplication<Application>()
         busy = true
         viewModelScope.launch {
@@ -270,6 +293,7 @@ class PdfViewModel(app: Application) : PagedViewModel(app, DocumentKind.PDF) {
                 onSuccess = {
                     edited = true
                     pagesChanged(it)
+                    after()
                 },
                 onFailure = { tell(app.getString(R.string.pdf_edit_failed, it.message ?: it.javaClass.simpleName)) },
             )
