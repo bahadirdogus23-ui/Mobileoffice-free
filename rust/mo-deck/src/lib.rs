@@ -1,6 +1,9 @@
 //! Presentation bridge: reads PPTX/PPSX/POTX with DeckCraft and renders slides to premultiplied
-//! RGBA, the layout Android's ARGB_8888 `Bitmap` uses. Editing will go through DeckCraft's
-//! command registry later; viewing needs only the reader and the renderer.
+//! RGBA, the layout Android's ARGB_8888 `Bitmap` uses. Editing (text, slides) works on the model
+//! (see `edit.rs`), so the app carries neither the editing engine nor its media decoders.
+
+mod edit;
+pub use edit::TextShape;
 
 use deckcraft_model::Presentation;
 use deckcraft_render::RenderOpts;
@@ -13,6 +16,8 @@ pub enum DeckError {
     NoSlide(u32),
     #[error("{0}")]
     Export(String),
+    #[error("{0}")]
+    Edit(String),
 }
 
 /// A slide picture: `width`×`height` premultiplied RGBA8, row by row.
@@ -25,6 +30,7 @@ pub struct Raster {
 pub struct DeckDoc {
     pres: Presentation,
     warnings: Vec<String>,
+    dirty: bool,
 }
 
 impl DeckDoc {
@@ -42,12 +48,12 @@ impl DeckDoc {
             return Err(DeckError::Open("Not a PowerPoint (.pptx) presentation.".into()));
         }
         let (pres, warnings) = deckcraft_pptx::import_checked(bytes).map_err(|e| DeckError::Open(e.to_string()))?;
-        Ok(DeckDoc { pres, warnings })
+        Ok(DeckDoc { pres, warnings, dirty: false })
     }
 
     #[cfg(test)]
     fn from_presentation(pres: Presentation) -> DeckDoc {
-        DeckDoc { pres, warnings: Vec::new() }
+        DeckDoc { pres, warnings: Vec::new(), dirty: false }
     }
 
     /// What the import could not keep.
@@ -84,6 +90,57 @@ impl DeckDoc {
         let opts = RenderOpts { scale: scale as f64, offset: (-(x as f64), -(y as f64)), size: Some((width, height)), ..Default::default() };
         let img = deckcraft_render::render_slide(&self.pres, slide as usize, &opts);
         Ok(Raster { width: img.width, height: img.height, pixels: img.pixels })
+    }
+
+    /// The shapes with text on `slide`, with their boxes in points (for tapping on them).
+    pub fn text_shapes(&self, slide: u32) -> Result<Vec<TextShape>, DeckError> {
+        edit::text_shapes(&self.pres, slide as usize)
+    }
+
+    /// Makes shape `id`'s text on `slide` read `text`, keeping the formatting of what stays.
+    pub fn set_text(&mut self, slide: u32, id: u32, text: &str) -> Result<(), DeckError> {
+        edit::set_text(&mut self.pres, slide as usize, id, text)?;
+        self.dirty = true;
+        Ok(())
+    }
+
+    /// A new slide after `slide` with the same layout; returns its index.
+    pub fn new_slide(&mut self, slide: u32) -> Result<u32, DeckError> {
+        let at = edit::new_slide(&mut self.pres, slide as usize)?;
+        self.dirty = true;
+        Ok(at as u32)
+    }
+
+    /// A copy of `slide` right after it; returns its index.
+    pub fn duplicate_slide(&mut self, slide: u32) -> Result<u32, DeckError> {
+        let at = edit::duplicate_slide(&mut self.pres, slide as usize)?;
+        self.dirty = true;
+        Ok(at as u32)
+    }
+
+    pub fn delete_slide(&mut self, slide: u32) -> Result<(), DeckError> {
+        edit::delete_slide(&mut self.pres, slide as usize)?;
+        self.dirty = true;
+        Ok(())
+    }
+
+    pub fn move_slide(&mut self, from: u32, to: u32) -> Result<(), DeckError> {
+        edit::move_slide(&mut self.pres, from as usize, to as usize)?;
+        self.dirty = true;
+        Ok(())
+    }
+
+    /// Changes not yet saved.
+    pub fn is_dirty(&self) -> bool {
+        self.dirty
+    }
+
+    /// The presentation as PPTX bytes (`file_name`'s extension may also be ppsx or potx).
+    pub fn save(&mut self, file_name: &str) -> Result<Vec<u8>, DeckError> {
+        let ext = file_name.rsplit('.').next().unwrap_or("pptx").to_ascii_lowercase();
+        let bytes = deckcraft_pptx::export_as(&self.pres, &ext).map_err(|e| DeckError::Export(e.to_string()))?;
+        self.dirty = false;
+        Ok(bytes)
     }
 
     fn check(&self, slide: u32) -> Result<(), DeckError> {

@@ -190,6 +190,21 @@ fun PagedScreen(vm: PagedViewModel, state: PagedUiState, reading: ReadingSetting
             saveWordAs.launch(CreateFile.Request(wordName, "application/vnd.openxmlformats-officedocument.wordprocessingml.document"))
         }
     }
+    // Slides: save over the opened PPTX, else as a new one.
+    val slidesName = convertedName(state.fileName, "pptx")
+    val saveSlidesAs = rememberLauncherForActivityResult(CreateFile()) { uri ->
+        val close = closeAfterWordSave
+        closeAfterWordSave = false
+        if (uri != null) slides?.save(uri, slidesName, then = { if (close) vm.answerClose(true) })
+    }
+    val startSlidesSave = { close: Boolean ->
+        if (slides?.savesInPlace == true) {
+            slides.saveInPlace(then = { if (close) vm.answerClose(true) })
+        } else {
+            closeAfterWordSave = close
+            saveSlidesAs.launch(CreateFile.Request(slidesName, "application/vnd.openxmlformats-officedocument.presentationml.presentation"))
+        }
+    }
     // Marks not yet blacked out would be saved with the text still under them: black them out first.
     val startSave = {
         if ((pdf?.redactionMarks ?: 0) > 0) {
@@ -223,6 +238,7 @@ fun PagedScreen(vm: PagedViewModel, state: PagedUiState, reading: ReadingSetting
 
     BackHandler { vm.requestClose() }
     BackHandler(enabled = word?.editing == true) { word?.stopEditing() }
+    BackHandler(enabled = slides?.editing == true) { slides?.editing = false }
     BackHandler(enabled = annotating) {
         commitStrokes()
         annotating = false
@@ -282,6 +298,9 @@ fun PagedScreen(vm: PagedViewModel, state: PagedUiState, reading: ReadingSetting
                 }
             },
             actions = {
+                if (slides?.dirty == true) {
+                    TextButton(onClick = { startSlidesSave(false) }) { Text(stringResource(R.string.save)) }
+                }
                 if (word?.dirty == true && !word.editing) {
                     TextButton(onClick = { startWordSave(false) }) { Text(stringResource(R.string.save)) }
                 }
@@ -466,6 +485,11 @@ fun PagedScreen(vm: PagedViewModel, state: PagedUiState, reading: ReadingSetting
                                     detectTapGestures(onTap = { at -> notePlace = Triple(i, at.x / size.width, at.y / size.height) })
                                 }
                             }
+                        } else if (slides?.editing == true) {
+                            // Editing slides: a tap opens the text under the finger.
+                            Modifier.pointerInput(i) {
+                                detectTapGestures(onTap = { at -> slides.tapText(i, at.x * w / size.width, at.y * w / size.width) })
+                            }
                         } else if (word?.editing == true) {
                             // Editing: a tap puts the caret there; a long press selects the word and
                             // dragging on from it extends the selection.
@@ -521,11 +545,32 @@ fun PagedScreen(vm: PagedViewModel, state: PagedUiState, reading: ReadingSetting
         }
         if (word?.editing == true) {
             WordEditBar(word, onSave = { startWordSave(false) })
+        } else if (slides?.editing == true) {
+            Surface(color = MaterialTheme.colorScheme.surfaceContainer, modifier = Modifier.fillMaxWidth()) {
+                Column {
+                    Text(
+                        stringResource(R.string.slide_edit_hint),
+                        style = MaterialTheme.typography.bodySmall,
+                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
+                    )
+                    Row(Modifier.horizontalScroll(rememberScrollState())) {
+                        val at = current - 1
+                        TextButton(onClick = { slides.newSlide(at) }) { Text(stringResource(R.string.slide_new)) }
+                        TextButton(onClick = { slides.duplicateSlide(at) }) { Text(stringResource(R.string.slide_duplicate)) }
+                        TextButton(onClick = { slides.moveSlide(at, at - 1) }, enabled = at > 0) { Text("▲") }
+                        TextButton(onClick = { slides.moveSlide(at, at + 1) }, enabled = at < state.pages.lastIndex) { Text("▼") }
+                        TextButton(onClick = { slides.deleteSlide(at) }, enabled = state.pages.size > 1) { Text(stringResource(R.string.delete)) }
+                        TextButton(onClick = { startSlidesSave(false) }, enabled = slides.dirty) { Text(stringResource(R.string.save)) }
+                        TextButton(onClick = { slides.editing = false }) { Text(stringResource(R.string.done)) }
+                    }
+                }
+            }
         } else BottomAppBar {
             // Scrolls sideways when the buttons do not fit (narrow phones, large text).
             Row(Modifier.horizontalScroll(rememberScrollState())) {
                 if (word != null) TextButton(onClick = word::startEditing) { Text(stringResource(R.string.edit)) }
                 if (slides != null) TextButton(onClick = { presenting = true }) { Text(stringResource(R.string.present)) }
+                if (slides != null) TextButton(onClick = { slides.editing = true }) { Text(stringResource(R.string.edit)) }
                 TextButton(onClick = { showReading = true }) { Text(stringResource(R.string.reading)) }
                 TextButton(onClick = { showPages = true }) { Text(stringResource(R.string.pages)) }
                 if (pdf != null) {
@@ -653,6 +698,23 @@ fun PagedScreen(vm: PagedViewModel, state: PagedUiState, reading: ReadingSetting
             drawSignature = false
             placing = it
         }
+    }
+
+    // After a slide is added, copied, moved or deleted, show it.
+    LaunchedEffect(slides?.goTo) {
+        val target = slides?.goTo ?: return@LaunchedEffect
+        slides.goTo = null
+        list.animateScrollToItem(target.coerceIn(0, state.pages.lastIndex.coerceAtLeast(0)))
+    }
+    slides?.editingText?.let { (_, shape) ->
+        var text by remember(shape) { mutableStateOf(shape.text) }
+        AlertDialog(
+            onDismissRequest = slides::cancelText,
+            title = { Text(stringResource(R.string.slide_text)) },
+            text = { OutlinedTextField(value = text, onValueChange = { text = it }, minLines = 3, modifier = Modifier.fillMaxWidth()) },
+            confirmButton = { TextButton(onClick = { slides.setText(text) }) { Text(stringResource(R.string.apply)) } },
+            dismissButton = { TextButton(onClick = slides::cancelText) { Text(stringResource(R.string.cancel)) } },
+        )
     }
 
     if (presenting && slides != null) {
@@ -803,7 +865,9 @@ fun PagedScreen(vm: PagedViewModel, state: PagedUiState, reading: ReadingSetting
             confirmButton = {
                 TextButton(onClick = {
                     vm.answerClose(null)
-                    if (word != null) {
+                    if (slides != null) {
+                        startSlidesSave(true)
+                    } else if (word != null) {
                         startWordSave(true)
                     } else {
                         closeAfterSave = pdf?.redactionMarks == 0

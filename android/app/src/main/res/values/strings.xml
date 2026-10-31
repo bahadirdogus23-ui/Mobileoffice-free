@@ -277,4 +277,9 @@
         <item quantity="one">%d place replaced.</item>
         <item quantity="other">%d places replaced.</item>
     </plurals>
+    <string name="slide_edit_hint">Tap a text on the slide to change it.</string>
+    <string name="slide_new">New slide</string>
+    <string name="slide_duplicate">Duplicate</string>
+    <string name="slide_text">Slide text</string>
+    <string name="slide_no_text_here">There is no text here. Tap a title or a text box.</string>
 </resources>

@@ -276,4 +276,9 @@
         <item quantity="one">%d yer değiştirildi.</item>
         <item quantity="other">%d yer değiştirildi.</item>
     </plurals>
+    <string name="slide_edit_hint">Değiştirmek için slayttaki bir yazıya dokunun.</string>
+    <string name="slide_new">Yeni slayt</string>
+    <string name="slide_duplicate">Çoğalt</string>
+    <string name="slide_text">Slayt metni</string>
+    <string name="slide_no_text_here">Burada yazı yok. Bir başlığa veya metin kutusuna dokunun.</string>
 </resources>

@@ -55,3 +55,41 @@ fn exports_a_pdf() {
     assert!(pdf.starts_with(b"%PDF"));
     assert!(pdf.len() > 1000, "{} bytes", pdf.len());
 }
+
+#[test]
+fn edits_text_and_slides_and_saves_pptx() {
+    let mut doc = DeckDoc::open(&sample_pptx()).unwrap();
+    let n = doc.slide_count();
+    let shapes = doc.text_shapes(0).unwrap();
+    let first = shapes.iter().find(|s| !s.text.is_empty()).expect("a slide with text").clone();
+    assert!(first.w > 10.0 && first.h > 5.0, "{first:?}");
+    let old = first.text.clone();
+    let new = format!("{old} — İğdır'da güneşli");
+    doc.set_text(0, first.id, &new).unwrap();
+    assert!(doc.is_dirty());
+    let dup = doc.duplicate_slide(0).unwrap();
+    assert_eq!((dup, doc.slide_count()), (1, n + 1));
+    let added = doc.new_slide(1).unwrap();
+    assert_eq!((added, doc.slide_count()), (2, n + 2));
+    doc.move_slide(2, 0).unwrap();
+    doc.delete_slide(0).unwrap();
+    assert_eq!(doc.slide_count(), n + 1);
+    let saved = doc.save("a.pptx").unwrap();
+    assert!(!doc.is_dirty());
+    // Read back: the new text on the first two slides (original and copy), ids not clashing.
+    let back = DeckDoc::open(&saved).unwrap();
+    assert_eq!(back.slide_count(), n + 1);
+    for i in 0..2 {
+        assert!(back.text_shapes(i).unwrap().iter().any(|s| s.text == new), "slide {i}");
+    }
+    let ids: Vec<u32> = (0..2).flat_map(|i| back.text_shapes(i).unwrap().into_iter().map(|s| s.id)).collect();
+    let mut unique = ids.clone();
+    unique.sort();
+    unique.dedup();
+    assert_eq!(unique.len(), ids.len(), "the copy has its own shape ids");
+    let mut one = DeckDoc::open(&saved).unwrap();
+    while one.slide_count() > 1 {
+        one.delete_slide(0).unwrap();
+    }
+    assert!(one.delete_slide(0).is_err(), "the last slide stays");
+}

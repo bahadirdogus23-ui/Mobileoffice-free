@@ -61,6 +61,7 @@ impl From<DeckError> for MoError {
             DeckError::Open(m) => MoError::Open(m),
             DeckError::Export(m) => MoError::Save(m),
             e @ DeckError::NoSlide(_) => MoError::NotFound(e.to_string()),
+            DeckError::Edit(m) => MoError::Command(m),
         }
     }
 }
@@ -391,47 +392,106 @@ impl WordDocument {
 /// A presentation (PPTX, PPSX, POTX) open in the DeckCraft renderer.
 #[derive(uniffi::Object)]
 pub struct SlidesDocument {
-    doc: DeckDoc,
+    doc: Mutex<DeckDoc>,
+}
+
+impl SlidesDocument {
+    fn doc(&self) -> MutexGuard<'_, DeckDoc> {
+        self.doc.lock().unwrap_or_else(std::sync::PoisonError::into_inner)
+    }
+}
+
+/// A shape with text on a slide: its id, its box in points and its text.
+#[derive(uniffi::Record)]
+pub struct SlideText {
+    pub id: u32,
+    pub x: f32,
+    pub y: f32,
+    pub width: f32,
+    pub height: f32,
+    pub text: String,
 }
 
 #[uniffi::export]
 impl SlidesDocument {
     #[uniffi::constructor]
     pub fn open(bytes: Vec<u8>) -> Result<Self, MoError> {
-        Ok(SlidesDocument { doc: DeckDoc::open(&bytes)? })
+        Ok(SlidesDocument { doc: Mutex::new(DeckDoc::open(&bytes)?) })
     }
 
     pub fn warnings(&self) -> Vec<String> {
-        self.doc.warnings().to_vec()
+        self.doc().warnings().to_vec()
     }
 
     pub fn slide_count(&self) -> u32 {
-        self.doc.slide_count()
+        self.doc().slide_count()
     }
 
     /// Slide size in points (the same for every slide).
     pub fn slide_size(&self) -> PageSize {
-        let (width, height) = self.doc.slide_size();
+        let (width, height) = self.doc().slide_size();
         PageSize { width, height }
     }
 
     pub fn notes(&self, slide: u32) -> Result<String, MoError> {
-        Ok(self.doc.notes(slide)?)
+        Ok(self.doc().notes(slide)?)
     }
 
     /// The whole slide at `scale` pixels per point.
     /// The presentation as a PDF, one slide per page.
     pub fn export_pdf(&self) -> Result<Vec<u8>, MoError> {
-        Ok(self.doc.export_pdf()?)
+        Ok(self.doc().export_pdf()?)
     }
 
     pub fn render_slide(&self, slide: u32, scale: f32) -> Result<Raster, MoError> {
-        Ok(self.doc.render_slide(slide, scale)?.into())
+        Ok(self.doc().render_slide(slide, scale)?.into())
     }
 
     /// A `width`×`height` tile whose corner is pixel `(x, y)` of the slide drawn at `scale`.
     pub fn render_tile(&self, slide: u32, scale: f32, x: f32, y: f32, width: u32, height: u32) -> Result<Raster, MoError> {
-        Ok(self.doc.render_tile(slide, scale, x, y, width, height)?.into())
+        Ok(self.doc().render_tile(slide, scale, x, y, width, height)?.into())
+    }
+
+    /// The shapes with text on `slide` (to tap on and edit).
+    pub fn text_shapes(&self, slide: u32) -> Result<Vec<SlideText>, MoError> {
+        Ok(self
+            .doc()
+            .text_shapes(slide)?
+            .into_iter()
+            .map(|t| SlideText { id: t.id, x: t.x, y: t.y, width: t.w, height: t.h, text: t.text })
+            .collect())
+    }
+
+    /// Makes shape `id`'s text read `text` (`\n` between paragraphs), keeping what stays formatted.
+    pub fn set_text(&self, slide: u32, id: u32, text: String) -> Result<(), MoError> {
+        Ok(self.doc().set_text(slide, id, &text)?)
+    }
+
+    /// A new slide after `slide`; returns its index.
+    pub fn new_slide(&self, slide: u32) -> Result<u32, MoError> {
+        Ok(self.doc().new_slide(slide)?)
+    }
+
+    /// A copy of `slide` after it; returns its index.
+    pub fn duplicate_slide(&self, slide: u32) -> Result<u32, MoError> {
+        Ok(self.doc().duplicate_slide(slide)?)
+    }
+
+    pub fn delete_slide(&self, slide: u32) -> Result<(), MoError> {
+        Ok(self.doc().delete_slide(slide)?)
+    }
+
+    pub fn move_slide(&self, from: u32, to: u32) -> Result<(), MoError> {
+        Ok(self.doc().move_slide(from, to)?)
+    }
+
+    pub fn is_dirty(&self) -> bool {
+        self.doc().is_dirty()
+    }
+
+    /// The presentation as PPTX (or PPSX/POTX, by `file_name`'s extension).
+    pub fn save(&self, file_name: String) -> Result<Vec<u8>, MoError> {
+        Ok(self.doc().save(&file_name)?)
     }
 }
 
