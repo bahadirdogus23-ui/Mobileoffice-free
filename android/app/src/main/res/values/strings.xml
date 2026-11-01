@@ -38,7 +38,7 @@
     <string name="cad_white_sheet">White sheet</string>
     <string name="reading">Reading</string>
     <string name="night_mode">Night mode</string>
-    <string name="night_mode_hint">Shows pages on a dark background, easy on the eyes.</string>
+    <string name="night_mode_hint">Darkens what is around the pages; documents and pictures keep their own colours.</string>
     <string name="keep_screen_on">Keep screen on</string>
     <string name="volume_keys">Turn pages with volume keys</string>
     <string name="volume_keys_hint">Volume down: next page, volume up: previous page</string>
@@ -415,4 +415,6 @@
     <string name="coffee_global">Buy Me a Coffee — from abroad</string>
     <string name="coffee_global_hint">Card, Apple Pay or Google Pay</string>
     <string name="coffee_later">Maybe later</string>
+    <string name="dark_pages">Dark pages</string>
+    <string name="dark_pages_hint">In night mode, pages too turn dark (colours keep their hue); off: documents keep their own colours.</string>
 </resources>

@@ -13,6 +13,9 @@ class ReadingSettings(context: Context) {
 
     var night by mutableStateOf(prefs.getBoolean(NIGHT, false))
         private set
+    /** In night mode, pages are drawn dark too (off by default: documents keep their colours). */
+    var darkPages by mutableStateOf(prefs.getBoolean(DARK_PAGES, false))
+        private set
     var keepScreenOn by mutableStateOf(prefs.getBoolean(KEEP_ON, false))
         private set
     var volumeKeys by mutableStateOf(prefs.getBoolean(VOLUME_KEYS, false))
@@ -31,6 +34,11 @@ class ReadingSettings(context: Context) {
         prefs.edit { putBoolean(NIGHT, on) }
     }
 
+    fun updateDarkPages(on: Boolean) {
+        darkPages = on
+        prefs.edit { putBoolean(DARK_PAGES, on) }
+    }
+
     fun updateKeepScreenOn(on: Boolean) {
         keepScreenOn = on
         prefs.edit { putBoolean(KEEP_ON, on) }
@@ -44,6 +52,7 @@ class ReadingSettings(context: Context) {
     private companion object {
         const val NIGHT = "night"
         const val KEEP_ON = "keep_screen_on"
+        const val DARK_PAGES = "dark_pages"
         const val VOLUME_KEYS = "volume_keys"
         const val TEXT_SIZE = "text_size"
     }

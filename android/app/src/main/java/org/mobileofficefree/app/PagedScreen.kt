@@ -108,17 +108,24 @@ private const val DOUBLE_TAP_ZOOM = 2.5f
 /** The widest page picture drawn; zooming further scales it up (sharp tiles come with the zoom work in phase 1). */
 private const val MAX_RENDER_WIDTH = 2400
 
-/** Night mode for pages whose engine cannot draw dark ones: invert every colour on screen. */
+/**
+ * Dark pages for engines that cannot draw them: lightness turned over but hues kept ("smart
+ * invert": 255 minus a 180° hue turn, whose channels are 2 × luma − itself), so red stays red and
+ * photos are less of a negative.
+ */
 private val invertColors = ColorFilter.colorMatrix(
     ColorMatrix(
         floatArrayOf(
-            -1f, 0f, 0f, 0f, 255f,
-            0f, -1f, 0f, 0f, 255f,
-            0f, 0f, -1f, 0f, 255f,
+            1 - 2 * LUMA_R, -2 * LUMA_G, -2 * LUMA_B, 0f, 255f,
+            -2 * LUMA_R, 1 - 2 * LUMA_G, -2 * LUMA_B, 0f, 255f,
+            -2 * LUMA_R, -2 * LUMA_G, 1 - 2 * LUMA_B, 0f, 255f,
             0f, 0f, 0f, 1f, 0f,
         ),
     ),
 )
+private const val LUMA_R = 0.213f
+private const val LUMA_G = 0.715f
+private const val LUMA_B = 0.072f
 
 /**
  * Word, PDF and presentations: pages one under another with a page counter. Pinch or double tap
@@ -235,8 +242,10 @@ fun PagedScreen(vm: PagedViewModel, state: PagedUiState, reading: ReadingSetting
     }
     var showSearch by remember(state.uri) { mutableStateOf(false) }
     val hitsByPage = remember(vm.found) { vm.found.groupBy { it.page } }
+    // Night mode darkens what is around the pages; the pages themselves only when asked.
     val night = reading.night
-    val invertOnScreen = night && !vm.drawsNight
+    val pagesDark = night && reading.darkPages
+    val invertOnScreen = pagesDark && !vm.drawsNight
 
     BackHandler { vm.requestClose() }
     BackHandler(enabled = word?.editing == true) { word?.stopEditing() }
@@ -470,7 +479,7 @@ fun PagedScreen(vm: PagedViewModel, state: PagedUiState, reading: ReadingSetting
                     items(state.pages.size, key = { it }) { i ->
                         val (w, h) = state.pages[i]
                         val paper = when {
-                            !night -> Color.White
+                            !pagesDark -> Color.White
                             invertOnScreen -> Color.Black
                             else -> Color(0xFF333333)
                         }
@@ -516,7 +525,7 @@ fun PagedScreen(vm: PagedViewModel, state: PagedUiState, reading: ReadingSetting
                             Modifier
                         }
                         Box(Modifier.fillMaxWidth().aspectRatio(w / h).background(paper).then(tapToSign)) {
-                            val bmp = vm.page(i, renderPx, night)
+                            val bmp = vm.page(i, renderPx, pagesDark)
                             if (bmp != null) {
                                 Image(
                                     bmp.asImageBitmap(),
@@ -743,6 +752,7 @@ fun PagedScreen(vm: PagedViewModel, state: PagedUiState, reading: ReadingSetting
                 )
             }
             SettingRow(stringResource(R.string.night_mode), stringResource(R.string.night_mode_hint), reading.night, reading::updateNight)
+            if (reading.night) SettingRow(stringResource(R.string.dark_pages), stringResource(R.string.dark_pages_hint), reading.darkPages, reading::updateDarkPages)
             SettingRow(stringResource(R.string.keep_screen_on), null, reading.keepScreenOn, reading::updateKeepScreenOn)
             SettingRow(stringResource(R.string.volume_keys), stringResource(R.string.volume_keys_hint), reading.volumeKeys, reading::updateVolumeKeys)
             Spacer(Modifier.height(24.dp))

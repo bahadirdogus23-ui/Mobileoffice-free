@@ -37,7 +37,7 @@
     <string name="cad_white_sheet">Beyaz zemin</string>
     <string name="reading">Okuma</string>
     <string name="night_mode">Gece modu</string>
-    <string name="night_mode_hint">Sayfaları koyu zeminde gösterir; gözü yormaz.</string>
+    <string name="night_mode_hint">Ekranın çevresi koyulaşır; belgeler ve resimler kendi renklerinde kalır.</string>
     <string name="keep_screen_on">Ekranı açık tut</string>
     <string name="volume_keys">Ses tuşlarıyla sayfa çevir</string>
     <string name="volume_keys_hint">Ses kısma: sonraki sayfa, ses açma: önceki sayfa</string>
@@ -414,4 +414,6 @@
     <string name="coffee_global">Buy Me a Coffee — yurt dışından</string>
     <string name="coffee_global_hint">Kart, Apple Pay ya da Google Pay</string>
     <string name="coffee_later">Belki sonra</string>
+    <string name="dark_pages">Sayfaları koyulaştır</string>
+    <string name="dark_pages_hint">Gece modunda sayfalar da koyulaşır (renkler tonunu korur). Kapalıyken belgeler kendi renklerinde kalır.</string>
 </resources>

@@ -78,6 +78,9 @@ fun SettingsSheet(
                 Section(stringResource(R.string.settings_section_look)) { AppearanceSettings() }
                 Section(stringResource(R.string.settings_section_reading)) {
                     Toggle("☾", Color(0xFF3949AB), stringResource(R.string.night_mode), stringResource(R.string.night_mode_hint), reading.night, true, reading::updateNight)
+                    if (reading.night) {
+                        Toggle("◑", Color(0xFF283593), stringResource(R.string.dark_pages), stringResource(R.string.dark_pages_hint), reading.darkPages, true, reading::updateDarkPages)
+                    }
                     Toggle("☀", Color(0xFFF9A825), stringResource(R.string.keep_screen_on), null, reading.keepScreenOn, true, reading::updateKeepScreenOn)
                     Toggle("⇅", Color(0xFF00897B), stringResource(R.string.volume_keys), stringResource(R.string.volume_keys_hint), reading.volumeKeys, true, reading::updateVolumeKeys)
                     Item(
