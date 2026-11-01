@@ -27,14 +27,12 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
-import androidx.compose.material3.ExtendedFloatingActionButton
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.IconButton
@@ -42,10 +40,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.PrimaryTabRow
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Tab
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -58,6 +53,11 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
@@ -264,45 +264,33 @@ fun HomeScreen(onOpen: (Uri) -> Unit, onNewSheet: () -> Unit, onDiagnostics: () 
                 }
             }
         },
-        floatingActionButton = {
-            ExtendedFloatingActionButton(onClick = { pick.launch(DocumentKind.openableTypes) }) {
-                Text(stringResource(R.string.open_file))
-            }
-        },
     ) { padding ->
         Column(Modifier.padding(padding).fillMaxSize()) {
-            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(start = 20.dp, top = 16.dp, end = 8.dp)) {
-                Text(
-                    stringResource(R.string.app_name),
-                    style = MaterialTheme.typography.headlineSmall,
-                    fontWeight = FontWeight.SemiBold,
-                    modifier = Modifier.weight(1f),
-                )
-                TextButton(onClick = { showSettings = true }) { Text("⚙ " + stringResource(R.string.settings)) }
+            // Large title and settings, as iPhone screens open.
+            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(start = 20.dp, top = 18.dp, end = 12.dp)) {
+                Column(Modifier.weight(1f)) {
+                    Text(stringResource(R.string.home_title), style = MaterialTheme.typography.headlineMedium)
+                    Text(
+                        stringResource(R.string.home_tagline),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 2,
+                    )
+                }
+                Box(
+                    Modifier.size(40.dp).clip(CircleShape).background(MaterialTheme.colorScheme.surfaceContainerHigh).clickable { showSettings = true },
+                    contentAlignment = Alignment.Center,
+                ) { Text("⚙", fontSize = 20.sp, color = MaterialTheme.colorScheme.primary) }
             }
-            Text(
-                stringResource(R.string.home_tagline),
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.padding(horizontal = 20.dp, vertical = 4.dp),
-            )
-            // Making a new PDF: from the camera, or from pictures already on the phone.
-            Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                OutlinedButton(onClick = scan, modifier = Modifier.weight(1f)) { Text(stringResource(R.string.scan), maxLines = 1) }
-                OutlinedButton(onClick = imagesToPdf, modifier = Modifier.weight(1f)) { Text(stringResource(R.string.images_to_pdf), maxLines = 1) }
+            // Search, as a soft pill.
+            SearchPill(query, onChange = { query = it }, modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp))
+            // Quick actions: lively tiles.
+            Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                QuickTile("📷", stringResource(R.string.scan), Color(0xFF0A84FF), Modifier.weight(1f), scan)
+                QuickTile("🖼", stringResource(R.string.images_to_pdf), Color(0xFFFF9F0A), Modifier.weight(1f), imagesToPdf)
+                QuickTile("📂", stringResource(R.string.open_short), Color(0xFF34C759), Modifier.weight(1f)) { pick.launch(DocumentKind.openableTypes) }
             }
-            OutlinedTextField(
-                value = query,
-                onValueChange = { query = it },
-                placeholder = { Text(stringResource(R.string.search_files)) },
-                singleLine = true,
-                trailingIcon = if (query.isNotEmpty()) {
-                    { IconButton(onClick = { query = "" }) { Text("✕") } }
-                } else {
-                    null
-                },
-                modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
-            )
+            Spacer(Modifier.height(10.dp))
             if (current.kind == null) {
                 Row(
                     Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(horizontal = 16.dp),
@@ -317,10 +305,12 @@ fun HomeScreen(onOpen: (Uri) -> Unit, onNewSheet: () -> Unit, onDiagnostics: () 
                     }
                 }
             }
-            PrimaryTabRow(selectedTabIndex = source) {
-                Tab(selected = source == 0, onClick = { source = 0 }, text = { Text(stringResource(R.string.all_documents)) })
-                Tab(selected = source == 1, onClick = { source = 1 }, text = { Text(stringResource(R.string.recently_opened)) })
-            }
+            Segmented(
+                listOf(stringResource(R.string.all_documents), stringResource(R.string.recently_opened)),
+                source,
+                { source = it },
+                Modifier.padding(horizontal = 16.dp, vertical = 10.dp),
+            )
             if (shown.isNotEmpty()) {
                 Row(
                     Modifier.fillMaxWidth().padding(start = 16.dp, end = 4.dp),
@@ -394,30 +384,35 @@ fun HomeScreen(onOpen: (Uri) -> Unit, onNewSheet: () -> Unit, onDiagnostics: () 
             } else if (shown.isEmpty() && !(source == 0 && listsDevice && device == null)) {
                 EmptyState(engineVersion)
             } else {
-                LazyColumn(Modifier.fillMaxSize()) {
-                    items(shown, key = { it.uri.toString() }) { f ->
-                        DocumentRow(
-                            file = f,
-                            onOpen = { onOpen(f.uri) },
-                            onShare = {
-                                val send = Intent(Intent.ACTION_SEND)
-                                    .setType(context.contentResolver.getType(f.uri) ?: "*/*")
-                                    .putExtra(Intent.EXTRA_STREAM, f.uri)
-                                    .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-                                context.startActivity(Intent.createChooser(send, f.name))
-                            },
-                            onForget = if (source == 1 || !listsDevice) {
-                                {
-                                    recents.forget(f.uri)
-                                    files = recents.all()
-                                }
-                            } else {
-                                null
-                            },
-                        )
-                        HorizontalDivider(Modifier.padding(start = 76.dp))
+                LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(start = 16.dp, end = 16.dp, bottom = 96.dp)) {
+                    itemsIndexed(shown, key = { _, f -> f.uri.toString() }) { i, f ->
+                        // One white rounded group, as iPhone lists: the first and last rows round it off.
+                        val r = 16.dp
+                        val shape = RoundedCornerShape(topStart = if (i == 0) r else 0.dp, topEnd = if (i == 0) r else 0.dp, bottomStart = if (i == shown.lastIndex) r else 0.dp, bottomEnd = if (i == shown.lastIndex) r else 0.dp)
+                        Column(Modifier.clip(shape).background(MaterialTheme.colorScheme.surfaceContainerLow)) {
+                            DocumentRow(
+                                file = f,
+                                onOpen = { onOpen(f.uri) },
+                                onShare = {
+                                    val send = Intent(Intent.ACTION_SEND)
+                                        .setType(context.contentResolver.getType(f.uri) ?: "*/*")
+                                        .putExtra(Intent.EXTRA_STREAM, f.uri)
+                                        .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                                    context.startActivity(Intent.createChooser(send, f.name))
+                                },
+                                onForget = if (source == 1 || !listsDevice) {
+                                    {
+                                        recents.forget(f.uri)
+                                        files = recents.all()
+                                    }
+                                } else {
+                                    null
+                                },
+                            )
+                            if (i < shown.lastIndex) HorizontalDivider(Modifier.padding(start = 72.dp), color = MaterialTheme.colorScheme.outlineVariant)
+                        }
                     }
-                    item(key = "support") { SupportCard(Modifier.padding(16.dp)) }
+                    item(key = "support") { SupportCard(Modifier.padding(vertical = 16.dp)) }
                 }
             }
         }
@@ -507,5 +502,47 @@ private fun EmptyState(engineVersion: String) {
         )
         Spacer(Modifier.height(24.dp))
         SupportCard()
+    }
+}
+
+/** A soft, pill-shaped search field. */
+@Composable
+private fun SearchPill(query: String, onChange: (String) -> Unit, modifier: Modifier = Modifier) {
+    val colors = MaterialTheme.colorScheme
+    Row(
+        modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(colors.surfaceVariant).padding(horizontal = 12.dp, vertical = 10.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text("🔍", fontSize = 15.sp, color = colors.onSurfaceVariant)
+        Spacer(Modifier.width(8.dp))
+        Box(Modifier.weight(1f)) {
+            if (query.isEmpty()) Text(stringResource(R.string.search_files), color = colors.onSurfaceVariant, style = MaterialTheme.typography.bodyLarge)
+            BasicTextField(
+                value = query,
+                onValueChange = onChange,
+                singleLine = true,
+                textStyle = MaterialTheme.typography.bodyLarge.copy(color = colors.onSurface),
+                cursorBrush = SolidColor(colors.primary),
+                modifier = Modifier.fillMaxWidth(),
+            )
+        }
+        if (query.isNotEmpty()) {
+            Text("✕", color = colors.onSurfaceVariant, modifier = Modifier.clip(CircleShape).clickable { onChange("") }.padding(4.dp))
+        }
+    }
+}
+
+/** A lively action tile: a glyph on a coloured circle over its name. */
+@Composable
+private fun QuickTile(glyph: String, label: String, tint: Color, modifier: Modifier = Modifier, onClick: () -> Unit) {
+    Column(
+        modifier.clip(RoundedCornerShape(16.dp)).background(MaterialTheme.colorScheme.surfaceContainerLow).clickable(onClick = onClick).padding(vertical = 12.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(6.dp),
+    ) {
+        Box(Modifier.size(40.dp).clip(CircleShape).background(tint.copy(alpha = 0.16f)), contentAlignment = Alignment.Center) {
+            Text(glyph, fontSize = 20.sp)
+        }
+        Text(label, style = MaterialTheme.typography.labelMedium, maxLines = 1, color = MaterialTheme.colorScheme.onSurface)
     }
 }

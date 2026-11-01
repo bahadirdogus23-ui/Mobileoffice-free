@@ -75,6 +75,7 @@ fun SettingsSheet(
             Column(
                 Modifier.padding(padding).fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = 16.dp),
             ) {
+                Section(stringResource(R.string.settings_section_look)) { AppearanceSettings() }
                 Section(stringResource(R.string.settings_section_reading)) {
                     Toggle("☾", Color(0xFF3949AB), stringResource(R.string.night_mode), stringResource(R.string.night_mode_hint), reading.night, true, reading::updateNight)
                     Toggle("☀", Color(0xFFF9A825), stringResource(R.string.keep_screen_on), null, reading.keepScreenOn, true, reading::updateKeepScreenOn)
@@ -115,12 +116,21 @@ fun SettingsSheet(
                 }
                 Section(stringResource(R.string.settings_section_about)) {
                     Item("?", Color(0xFF00897B), stringResource(R.string.guide), stringResource(R.string.guide_hint)) { guide = true }
+                    Item("👤", Color(0xFF5856D6), stringResource(R.string.about_developer), Support.DEVELOPER)
+                    Item("✉", Color(0xFF0A84FF), stringResource(R.string.about_contact), Support.EMAIL) { Support.mail(context) }
                     Item("ℹ", Color(0xFF757575), stringResource(R.string.about_version), version)
                     Item("⚙", Color(0xFF757575), stringResource(R.string.about_engines), engineVersion)
                     Item("⏱", Color(0xFF757575), stringResource(R.string.diagnostics), stringResource(R.string.about_diagnostics_hint)) {
                         onDismiss()
                         onDiagnostics()
                     }
+                }
+                Section(stringResource(R.string.about_purpose)) {
+                    Text(
+                        stringResource(R.string.about_purpose_text),
+                        style = MaterialTheme.typography.bodyMedium,
+                        modifier = Modifier.padding(16.dp),
+                    )
                 }
                 Text(
                     stringResource(R.string.about_promise),
@@ -142,12 +152,15 @@ fun SettingsSheet(
 @Composable
 private fun Section(title: String, rows: @Composable () -> Unit) {
     Text(
-        title,
-        style = MaterialTheme.typography.titleSmall,
-        color = MaterialTheme.colorScheme.primary,
-        modifier = Modifier.padding(start = 8.dp, top = 20.dp, bottom = 8.dp),
+        title.uppercase(java.util.Locale.forLanguageTag("tr")),
+        style = MaterialTheme.typography.labelSmall,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+        modifier = Modifier.padding(start = 16.dp, top = 24.dp, bottom = 6.dp),
     )
-    Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow)) {
+    Card(
+        shape = MaterialTheme.shapes.large,
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow),
+    ) {
         Column { rows() }
     }
 }

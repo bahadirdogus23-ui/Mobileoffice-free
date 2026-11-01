@@ -37,9 +37,23 @@ import androidx.core.net.toUri
 object Support {
     const val PROJECT_URL = "https://github.com/bahadirdogus23-ui/Mobileoffice-free"
     const val ISSUES_URL = "$PROJECT_URL/issues"
+    const val DEVELOPER = "Bahadır Dögüş"
+    const val EMAIL = "bahadirdogus23@gmail.com"
 
-    /** The donation page; empty until there is one (the person is told so instead). */
-    const val COFFEE_URL = ""
+    /** A new e-mail to the developer in the person's mail app. */
+    fun mail(context: Context) {
+        val intent = Intent(Intent.ACTION_SENDTO, "mailto:$EMAIL".toUri())
+            .putExtra(Intent.EXTRA_SUBJECT, "MobileOffice")
+            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        try {
+            context.startActivity(intent)
+        } catch (_: ActivityNotFoundException) {
+            Toast.makeText(context, EMAIL, Toast.LENGTH_LONG).show()
+        }
+    }
+
+    /** The donation page (Buy Me a Coffee). */
+    const val COFFEE_URL = "https://buymeacoffee.com/bado23"
 
     fun open(context: Context, url: String) {
         try {
