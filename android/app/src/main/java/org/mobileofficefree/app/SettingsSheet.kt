@@ -115,6 +115,11 @@ fun SettingsSheet(
                     Item("♥", Color(0xFFD81B60), stringResource(R.string.support_developer), stringResource(R.string.support_developer_hint)) { support = true }
                     Item("☕", Color(0xFF795548), stringResource(R.string.buy_coffee), stringResource(R.string.buy_coffee_hint)) { Coffee.open() }
                     Item("📣", Color(0xFF1E88E5), stringResource(R.string.support_share_app), null) { Support.shareApp(context) }
+                    Item("🐞", Color(0xFFE53935), stringResource(R.string.report_problem), stringResource(R.string.report_problem_hint)) {
+                        Diagnostics.emailReport(context, "Hata bildirimi")
+                    }
+                    val reports = remember { ReportSettings.get(context) }
+                    Toggle("📷", Color(0xFF6D4C41), stringResource(R.string.report_screenshots), stringResource(R.string.report_screenshots_hint), reports.screenshots, true, reports::updateScreenshots)
                     Item("✉", Color(0xFF43A047), stringResource(R.string.support_report), null) { Support.open(context, Support.ISSUES_URL) }
                 }
                 Section(stringResource(R.string.settings_section_about)) {

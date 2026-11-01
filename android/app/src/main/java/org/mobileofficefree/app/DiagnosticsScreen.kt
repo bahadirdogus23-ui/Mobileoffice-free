@@ -56,6 +56,7 @@ fun DiagnosticsScreen(onBack: () -> Unit) {
         BottomAppBar {
             TextButton(onClick = { refresh++ }) { Text(stringResource(R.string.refresh)) }
             TextButton(onClick = { shareText(context, report) }) { Text(stringResource(R.string.share)) }
+            TextButton(onClick = { Diagnostics.emailReport(context, "Ölçümler") }) { Text(stringResource(R.string.report_email)) }
         }
     }
 }

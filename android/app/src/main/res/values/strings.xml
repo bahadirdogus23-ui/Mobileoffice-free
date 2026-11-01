@@ -72,7 +72,7 @@
     <string name="diagnostics_hint">Your phone, the app size, memory and how long files opened in this session took. Tap “Share” to send it to the developers; the app itself never goes online.</string>
     <string name="refresh">Refresh</string>
     <string name="crash_title">The app closed unexpectedly</string>
-    <string name="crash_body">Sorry about that. Would you like to send the error report to the developers? It only has the phone model, Android version and the technical details of the error, none of your documents. You pick the app to send it with.</string>
+    <string name="crash_body">Sorry about that. Would you like to e-mail the report to the developer? It holds the phone model, Android and app versions, the last steps and the technical detail of the error; when one could be taken, a picture of the screen at the crash is attached (a document on screen may show; you can remove it before sending). You do the sending.</string>
     <string name="close">Close</string>
     <string name="pages">Pages</string>
     <string name="read_aloud">Read aloud</string>
@@ -451,4 +451,11 @@
     <string name="table_fit_contents">Fit to contents</string>
     <string name="table_even_cols">Even columns</string>
     <string name="table_delete">Delete table</string>
+    <string name="report_send">Send the report with</string>
+    <string name="report_action">Report</string>
+    <string name="report_email">Report by e-mail</string>
+    <string name="report_problem">Report a problem by e-mail</string>
+    <string name="report_problem_hint">Your mail app opens with the report and a picture of the screen; you send it.</string>
+    <string name="report_screenshots">Picture the screen when something goes wrong</string>
+    <string name="report_screenshots_hint">Kept on the phone and attached only to reports you send. Off while screenshots are blocked.</string>
 </resources>

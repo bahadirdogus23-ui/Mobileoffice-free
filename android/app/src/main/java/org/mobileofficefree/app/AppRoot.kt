@@ -3,6 +3,7 @@ package org.mobileofficefree.app
 import android.net.Uri
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
@@ -14,6 +15,8 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.SnackbarResult
+import androidx.compose.material3.SnackbarDuration
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -79,6 +82,13 @@ fun AppRoot(sheet: SheetViewModel, word: WordViewModel, pdf: PdfViewModel, slide
             onOpenHandled()
         }
     }
+    /** A problem the person sees: kept for the report, the screen pictured, "Report" offered. */
+    suspend fun showProblem(text: String) {
+        val shot = Diagnostics.problem(context, text)
+        val action = snackbar.showSnackbar(text, actionLabel = resources.getString(R.string.report_action), duration = SnackbarDuration.Long)
+        if (action == SnackbarResult.ActionPerformed) Diagnostics.emailReport(context, text, listOfNotNull(shot))
+    }
+
     LaunchedEffect(sheet.message) {
         sheet.message?.let {
             snackbar.showSnackbar(it)
@@ -88,44 +98,49 @@ fun AppRoot(sheet: SheetViewModel, word: WordViewModel, pdf: PdfViewModel, slide
     for (paged in listOf(word, pdf, slides)) {
         LaunchedEffect(paged, paged.error) {
             paged.error?.let {
-                snackbar.showSnackbar(resources.getString(R.string.open_failed, it))
+                showProblem(resources.getString(R.string.open_failed, it))
                 paged.consumeError()
             }
         }
     }
     LaunchedEffect(cad.error) {
         cad.error?.let {
-            snackbar.showSnackbar(resources.getString(R.string.open_failed, it))
+            showProblem(resources.getString(R.string.open_failed, it))
             cad.consumeError()
         }
     }
     LaunchedEffect(image.error) {
         image.error?.let {
-            snackbar.showSnackbar(resources.getString(R.string.open_failed, it))
+            showProblem(resources.getString(R.string.open_failed, it))
             image.consumeError()
         }
     }
     LaunchedEffect(invoice.error) {
         invoice.error?.let {
-            snackbar.showSnackbar(resources.getString(R.string.open_failed, it))
+            showProblem(resources.getString(R.string.open_failed, it))
             invoice.consumeError()
         }
     }
     LaunchedEffect(archive.error) {
         archive.error?.let {
-            snackbar.showSnackbar(resources.getString(R.string.open_failed, it))
+            showProblem(resources.getString(R.string.open_failed, it))
             archive.consumeError()
         }
     }
     LaunchedEffect(text.error) {
         text.error?.let {
-            snackbar.showSnackbar(resources.getString(R.string.open_failed, it))
+            showProblem(resources.getString(R.string.open_failed, it))
             text.consumeError()
         }
     }
     LaunchedEffect(notice) {
         notice?.let {
-            snackbar.showSnackbar(it)
+            // Opening failures are problems (pictured, with a "Report" action); other notices not.
+            if (it.startsWith(resources.getString(R.string.open_failed, "").trim()) || it == resources.getString(R.string.unsupported_file)) {
+                showProblem(it)
+            } else {
+                snackbar.showSnackbar(it)
+            }
             notice = null
         }
     }
@@ -193,10 +208,18 @@ fun AppRoot(sheet: SheetViewModel, word: WordViewModel, pdf: PdfViewModel, slide
             confirmButton = {
                 TextButton(onClick = {
                     crashReport = null
-                    shareText(context, report)
-                }) { Text(stringResource(R.string.share)) }
+                    Diagnostics.emailReport(context, "Uygulama kapandı.\n\n$report")
+                }) { Text(stringResource(R.string.report_email)) }
             },
-            dismissButton = { TextButton(onClick = { crashReport = null }) { Text(stringResource(R.string.close)) } },
+            dismissButton = {
+                Row {
+                    TextButton(onClick = {
+                        crashReport = null
+                        shareText(context, report)
+                    }) { Text(stringResource(R.string.share)) }
+                    TextButton(onClick = { crashReport = null }) { Text(stringResource(R.string.close)) }
+                }
+            },
         )
     }
     if (sheet.importNotes.isNotEmpty()) {
