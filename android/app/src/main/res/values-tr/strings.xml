@@ -416,4 +416,22 @@
     <string name="coffee_later">Belki sonra</string>
     <string name="dark_pages">Sayfaları koyulaştır</string>
     <string name="dark_pages_hint">Gece modunda sayfalar da koyulaşır (renkler tonunu korur). Kapalıyken belgeler kendi renklerinde kalır.</string>
+    <string name="cell_format">Biçim</string>
+    <string name="cell_format_title">Hücreleri biçimlendir</string>
+    <string name="number_format">Sayı biçimi</string>
+    <string name="nf_general">Genel</string>
+    <string name="nf_number">Sayı</string>
+    <string name="nf_currency">TL</string>
+    <string name="nf_percent">Yüzde</string>
+    <string name="nf_date">Tarih</string>
+    <string name="nf_time">Saat</string>
+    <string name="nf_text">Metin</string>
+    <string name="font_size_label">Yazı boyutu</string>
+    <string name="font_color">Yazı rengi</string>
+    <string name="wrap_text">Metni kaydır</string>
+    <string name="merge_center">Birleştir ve ortala</string>
+    <string name="unmerge">Birleştirmeyi kaldır</string>
+    <string name="autofit">Sütunu sığdır</string>
+    <string name="format_as_table">Tablo olarak biçimlendir</string>
+    <string name="table_style_hint">Seçimi, ilk satırı başlık olan bantlı bir tabloya çevirir.</string>
 </resources>

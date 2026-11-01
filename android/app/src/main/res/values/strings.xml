@@ -417,4 +417,22 @@
     <string name="coffee_later">Maybe later</string>
     <string name="dark_pages">Dark pages</string>
     <string name="dark_pages_hint">In night mode, pages too turn dark (colours keep their hue); off: documents keep their own colours.</string>
+    <string name="cell_format">Format</string>
+    <string name="cell_format_title">Format cells</string>
+    <string name="number_format">Number format</string>
+    <string name="nf_general">General</string>
+    <string name="nf_number">Number</string>
+    <string name="nf_currency">Lira</string>
+    <string name="nf_percent">Percent</string>
+    <string name="nf_date">Date</string>
+    <string name="nf_time">Time</string>
+    <string name="nf_text">Text</string>
+    <string name="font_size_label">Text size</string>
+    <string name="font_color">Text colour</string>
+    <string name="wrap_text">Wrap text</string>
+    <string name="merge_center">Merge and centre</string>
+    <string name="unmerge">Unmerge</string>
+    <string name="autofit">Fit column</string>
+    <string name="format_as_table">Format as table</string>
+    <string name="table_style_hint">Turns the selection (headers in its first row) into a table with banded rows.</string>
 </resources>

@@ -187,3 +187,20 @@ fn reads_fills_borders_and_fonts_from_an_xls_file() {
     assert_eq!(fills[3], 0xFFC0_C0C0);
     assert!(doc.warnings().iter().all(|w| !w.contains("Fonts, fills, borders")), "{:?}", doc.warnings());
 }
+
+#[test]
+fn format_as_table_shows_its_header_and_bands() {
+    let mut doc = GridDoc::blank();
+    for (r, row) in [["Ad", "Şehir"], ["Şule", "Ankara"], ["Ahmet", "İzmir"], ["Zeynep", "Bursa"]].iter().enumerate() {
+        for (c, v) in row.iter().enumerate() {
+            doc.set_input(r as u32, c as u32, v).unwrap();
+        }
+    }
+    let before = doc.cell_looks(0, 0, 0, 4, 2).unwrap();
+    assert!(before.iter().all(|l| l.fill == 0));
+    doc.execute("home.formatAsTable", r#"{"range": "A1:B4", "style": "TableStyleMedium2"}"#).unwrap();
+    let after = doc.cell_looks(0, 0, 0, 4, 2).unwrap();
+    // The header row is filled and bold; data rows are banded (alternate rows differ).
+    assert!(after[0].fill != 0 && after[0].bold, "{:?}", after[0]);
+    assert_ne!(after[2].fill, after[4].fill, "{after:?}");
+}

@@ -76,6 +76,12 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.graphics.Color
+import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.ui.draw.clip
+import androidx.compose.material3.OutlinedButton
 import org.json.JSONObject
 import org.mobileofficefree.engine.CellLook
 
@@ -311,12 +317,15 @@ internal fun SheetScreen(vm: SheetViewModel, state: SheetUiState) {
 /** Formatting and rows/columns for the selected cell, all through GridCraft commands. */
 @Composable
 private fun SheetToolBar(vm: SheetViewModel, look: CellLook?) {
+    var formatSheet by remember { mutableStateOf(false) }
+    if (formatSheet) CellFormatSheet(vm, look, onDismiss = { formatSheet = false })
     var fillMenu by remember { mutableStateOf(false) }
     var borderMenu by remember { mutableStateOf(false) }
     Row(
         Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(horizontal = 4.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
+        TextButton(onClick = { formatSheet = true }) { Text("Aa " + stringResource(R.string.cell_format)) }
         FilledIconToggleButton(checked = look?.bold == true, onCheckedChange = { vm.format("home.bold", JSONObject().put("on", it)) }) {
             Text("K", fontWeight = FontWeight.Bold)
         }
@@ -582,4 +591,90 @@ private fun CellEditor(value: TextFieldValue, onValue: (TextFieldValue) -> Unit,
             .focusRequester(focus)
             .onFocusChanged { onFocus(it.isFocused) },
     )
+}
+
+/** Number formats offered: label and Excel format code. */
+private val NUMBER_FORMATS = listOf(
+    R.string.nf_general to "General",
+    R.string.nf_number to "#,##0.00",
+    R.string.nf_currency to "#,##0.00 \"₺\"",
+    R.string.nf_percent to "0%",
+    R.string.nf_date to "dd.mm.yyyy",
+    R.string.nf_time to "hh:mm",
+    R.string.nf_text to "@",
+)
+
+/** Table styles offered, with a colour that shows each one. */
+private val TABLE_STYLES = listOf(
+    "TableStyleMedium2" to Color(0xFF4472C4),
+    "TableStyleMedium4" to Color(0xFF70AD47),
+    "TableStyleMedium3" to Color(0xFFED7D31),
+    "TableStyleMedium7" to Color(0xFFFFC000),
+    "TableStyleLight9" to Color(0xFF5B9BD5),
+    "TableStyleMedium1" to Color(0xFF404040),
+)
+
+private val FONT_COLORS = listOf("#000000", "#C00000", "#FF0000", "#ED7D31", "#00B050", "#0070C0", "#7030A0", "#808080")
+
+/** Everything about how the selected cells look and read, in one sheet. */
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
+@Composable
+private fun CellFormatSheet(vm: SheetViewModel, look: CellLook?, onDismiss: () -> Unit) {
+    ModalBottomSheet(onDismissRequest = onDismiss) {
+        Column(Modifier.padding(horizontal = 20.dp).verticalScroll(rememberScrollState()).padding(bottom = 24.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            Text(stringResource(R.string.cell_format_title), style = MaterialTheme.typography.titleLarge)
+            Text(stringResource(R.string.number_format), style = MaterialTheme.typography.labelLarge)
+            FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                for ((label, code) in NUMBER_FORMATS) {
+                    AssistChip(onClick = { vm.format("home.numberFormat", JSONObject().put("code", code)) }, label = { Text(stringResource(label)) })
+                }
+            }
+            Text(stringResource(R.string.font_size_label), style = MaterialTheme.typography.labelLarge)
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+                OutlinedButton(onClick = { vm.format("home.decreaseFontSize") }) { Text("A−") }
+                OutlinedButton(onClick = { vm.format("home.increaseFontSize") }) { Text("A+") }
+                for (size in listOf(10, 11, 12, 14, 16, 20)) {
+                    TextButton(onClick = { vm.format("home.fontSize", JSONObject().put("size", size)) }, contentPadding = PaddingValues(6.dp)) { Text(size.toString()) }
+                }
+            }
+            Text(stringResource(R.string.font_color), style = MaterialTheme.typography.labelLarge)
+            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                for (hex in FONT_COLORS) {
+                    Box(
+                        Modifier.size(32.dp).clip(CircleShape).background(Color(android.graphics.Color.parseColor(hex)))
+                            .border(1.dp, MaterialTheme.colorScheme.outline, CircleShape)
+                            .clickable { vm.format("home.fontColor", JSONObject().put("color", hex)) },
+                    )
+                }
+            }
+            ListItem(
+                headlineContent = { Text(stringResource(R.string.wrap_text)) },
+                trailingContent = { Switch(checked = look?.wrap == true, onCheckedChange = { vm.format("home.wrapText", JSONObject().put("on", it)) }) },
+            )
+            FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                OutlinedButton(onClick = { vm.format("home.mergeCenter") }) { Text(stringResource(R.string.merge_center)) }
+                OutlinedButton(onClick = { vm.format("home.unmergeCells") }) { Text(stringResource(R.string.unmerge)) }
+                OutlinedButton(onClick = { vm.format("home.autofitColumnWidth") }) { Text(stringResource(R.string.autofit)) }
+            }
+            Text(stringResource(R.string.format_as_table), style = MaterialTheme.typography.labelLarge)
+            Text(stringResource(R.string.table_style_hint), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                for ((style, color) in TABLE_STYLES) {
+                    // A tiny table: a coloured header over banded rows.
+                    Column(
+                        Modifier.size(44.dp, 40.dp).clip(RoundedCornerShape(6.dp)).border(1.dp, MaterialTheme.colorScheme.outlineVariant, RoundedCornerShape(6.dp))
+                            .clickable {
+                                vm.format("home.formatAsTable", JSONObject().put("style", style))
+                                onDismiss()
+                            },
+                    ) {
+                        Box(Modifier.fillMaxWidth().weight(1f).background(color))
+                        Box(Modifier.fillMaxWidth().weight(1f).background(color.copy(alpha = 0.25f)))
+                        Box(Modifier.fillMaxWidth().weight(1f).background(Color.White))
+                        Box(Modifier.fillMaxWidth().weight(1f).background(color.copy(alpha = 0.25f)))
+                    }
+                }
+            }
+        }
+    }
 }

@@ -202,7 +202,11 @@ impl GridDoc {
         let mut out = Vec::with_capacity((rows as usize) * (cols as usize));
         for r in row..row.saturating_add(rows) {
             for c in col..col.saturating_add(cols) {
-                let st = wb.styles.get(sh.style_id(gridcraft_engine::cell(r, c)));
+                let at = gridcraft_engine::cell(r, c);
+                // Inside a table (Format as Table, or one in the file): its banding and header.
+                let table_style =
+                    sh.tables.iter().find(|t| t.range.contains(at)).map(|t| gridcraft_engine::tables::table_cell_style(wb, sheet as usize, t, at));
+                let st = table_style.as_ref().unwrap_or_else(|| wb.styles.get(sh.style_id(at)));
                 let b = &st.borders;
                 let sides = [&b.left, &b.right, &b.top, &b.bottom];
                 let borders = sides.iter().enumerate().fold(0u32, |acc, (i, l)| acc | weight(l) << (8 * i));
