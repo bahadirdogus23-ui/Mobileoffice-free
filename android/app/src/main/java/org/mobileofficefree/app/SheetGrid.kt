@@ -33,6 +33,12 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import org.mobileofficefree.engine.CellLook
 import kotlin.math.max
+import kotlin.math.roundToInt
+import androidx.compose.ui.unit.IntOffset
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.offset
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
 import kotlin.math.min
 
 /** Excel's sheet size; the grid never scrolls past it. */
@@ -61,6 +67,17 @@ fun SheetGrid(
     frozenCols: Int = 0,
     /** Merged ranges: [first row, first column, last row, last column]. */
     merges: List<IntArray> = emptyList(),
+    /** The far corner of the selected range (the selected cell when one is chosen). */
+    endRow: Int = selectedRow,
+    endCol: Int = selectedCol,
+    /** A long press and drag stretches the selection to this cell. */
+    onExtend: (row: Int, col: Int) -> Unit = { _, _ -> },
+    /** A tap on a row number or a column letter: the whole row or column. */
+    onLine: (row: Int?, col: Int?) -> Unit = { _, _ -> },
+    /** A tap on the cell that is already selected: type in it. */
+    onEditCell: () -> Unit = {},
+    /** Shown over the selected cell while it is typed in. */
+    cellEditor: (@Composable (Modifier) -> Unit)? = null,
 ) {
     val density = LocalDensity.current
     // Pixels per point at zoom 1: the file's sizes, a little larger than on paper for fingers.
@@ -82,8 +99,24 @@ fun SheetGrid(
     val fr = frozenRows.coerceIn(0, rows - 1)
     val fc = frozenCols.coerceIn(0, cols - 1)
 
+    val extend by rememberUpdatedState(onExtend)
+    val line by rememberUpdatedState(onLine)
+    val edit by rememberUpdatedState(onEditCell)
+    /** The cell under screen point [p] (inside the cells area). */
+    fun cellAt(p: Offset): Pair<Int, Int> {
+        val k = unit * scale
+        val gx = p.x - rowHeader
+        val gy = p.y - colHeader
+        val frozenW = columnAxis.start(fc) * k
+        val frozenH = rowAxis.start(fr) * k
+        val c = if (gx < frozenW) columnAxis.at(gx / k) else columnAxis.at(columnAxis.start(fc) + (gx - frozenW + offsetX) / k)
+        val r = if (gy < frozenH) rowAxis.at(gy / k) else rowAxis.at(rowAxis.start(fr) + (gy - frozenH + offsetY) / k)
+        return r.coerceIn(0, MAX_ROWS - 1) to c.coerceIn(0, MAX_COLS - 1)
+    }
+
+    Box(modifier.fillMaxSize()) {
     Canvas(
-        modifier
+        Modifier
             .fillMaxSize()
             .pointerInput(sheet, rows, cols, columnAxis, rowAxis, fr, fc) {
                 detectTransformGestures { centroid, pan, zoom, _ ->
@@ -104,16 +137,24 @@ fun SheetGrid(
             }
             .pointerInput(sheet, columnAxis, rowAxis, fr, fc) {
                 detectTapGestures { p ->
-                    if (p.x > rowHeader && p.y > colHeader) {
-                        val k = unit * scale
-                        val gx = p.x - rowHeader
-                        val gy = p.y - colHeader
-                        val frozenW = columnAxis.start(fc) * k
-                        val frozenH = rowAxis.start(fr) * k
-                        val c = if (gx < frozenW) columnAxis.at(gx / k) else columnAxis.at(columnAxis.start(fc) + (gx - frozenW + offsetX) / k)
-                        val r = if (gy < frozenH) rowAxis.at(gy / k) else rowAxis.at(rowAxis.start(fr) + (gy - frozenH + offsetY) / k)
-                        select(r.coerceAtMost(MAX_ROWS - 1), c.coerceAtMost(MAX_COLS - 1))
+                    when {
+                        p.x > rowHeader && p.y > colHeader -> {
+                            val (r, c) = cellAt(p)
+                            if (r == selectedRow && c == selectedCol && endRow == selectedRow && endCol == selectedCol) edit() else select(r, c)
+                        }
+                        p.y <= colHeader && p.x > rowHeader -> line(null, cellAt(Offset(p.x, colHeader + 1f)).second)
+                        p.x <= rowHeader && p.y > colHeader -> line(cellAt(Offset(rowHeader + 1f, p.y)).first, null)
                     }
+                }
+            }
+            .pointerInput(sheet, columnAxis, rowAxis, fr, fc) {
+                // Hold a cell, then drag: the selection stretches with the finger.
+                detectDragGesturesAfterLongPress(
+                    onDragStart = { p -> if (p.x > rowHeader && p.y > colHeader) cellAt(p).let { (r, c) -> select(r, c) } },
+                ) { change, _ ->
+                    change.consume()
+                    val p = change.position
+                    if (p.x > rowHeader && p.y > colHeader) cellAt(p).let { (r, c) -> extend(r, c) }
                 }
             },
     ) {
@@ -296,14 +337,18 @@ fun SheetGrid(
         if (fr > 0) drawLine(colors.outline, Offset(rowHeader, bodyTop), Offset(size.width, bodyTop), 2.dp.toPx())
         if (fc > 0) drawLine(colors.outline, Offset(bodyLeft, colHeader), Offset(bodyLeft, size.height), 2.dp.toPx())
 
-        // Selection.
-        val selVisible = (selectedCol < fc || selectedCol >= firstCol) && (selectedRow < fr || selectedRow >= firstRow)
-        if (selVisible) {
-            val sx = xOf(selectedCol)
-            val sy = yOf(selectedRow)
-            clipRect(if (selectedCol < fc) rowHeader else bodyLeft, if (selectedRow < fr) colHeader else bodyTop, size.width, size.height) {
-                drawRect(colors.primary, Offset(sx, sy), Size(columnAxis.size(selectedCol) * k, rowAxis.size(selectedRow) * k), style = Stroke(2.dp.toPx()))
-            }
+        // Selection: the range tinted and framed, its first cell framed.
+        val r0 = min(selectedRow, endRow)
+        val r1 = max(selectedRow, endRow)
+        val c0 = min(selectedCol, endCol)
+        val c1 = max(selectedCol, endCol)
+        clipRect(rowHeader, colHeader, size.width, size.height) {
+            val x0 = xOf(c0)
+            val y0 = yOf(r0)
+            val w = (columnAxis.start(c1 + 1) - columnAxis.start(c0)) * k
+            val h = (rowAxis.start(r1 + 1) - rowAxis.start(r0)) * k
+            if (r0 != r1 || c0 != c1) drawRect(colors.primary.copy(alpha = 0.12f), Offset(x0, y0), Size(w, h))
+            drawRect(colors.primary, Offset(x0, y0), Size(w, h), style = Stroke(2.dp.toPx()))
         }
 
         // Headers: column letters and row numbers.
@@ -315,7 +360,7 @@ fun SheetGrid(
             val x = xOf(c)
             if (c >= fc && x + cw < bodyLeft) continue
             clipRect(if (c < fc) rowHeader else bodyLeft, 0f, size.width, colHeader) {
-                if (c == selectedCol) drawRect(colors.secondaryContainer, Offset(x, 0f), Size(cw, colHeader))
+                if (c in c0..c1) drawRect(colors.secondaryContainer, Offset(x, 0f), Size(cw, colHeader))
                 val l = measurer.measure(columnName(c), headerStyle)
                 drawText(l, topLeft = Offset(x + (cw - l.size.width) / 2, (colHeader - l.size.height) / 2))
                 drawLine(colors.outline, Offset(x + cw, 0f), Offset(x + cw, colHeader), 1f)
@@ -327,12 +372,28 @@ fun SheetGrid(
             val y = yOf(r)
             if (r >= fr && y + rh < bodyTop) continue
             clipRect(0f, if (r < fr) colHeader else bodyTop, rowHeader, size.height) {
-                if (r == selectedRow) drawRect(colors.secondaryContainer, Offset(0f, y), Size(rowHeader, rh))
+                if (r in r0..r1) drawRect(colors.secondaryContainer, Offset(0f, y), Size(rowHeader, rh))
                 val l = measurer.measure((r + 1).toString(), headerStyle)
                 drawText(l, topLeft = Offset((rowHeader - l.size.width) / 2, y + (rh - l.size.height) / 2))
                 drawLine(colors.outline, Offset(0f, y + rh), Offset(rowHeader, y + rh), 1f)
             }
         }
         drawRect(colors.surfaceVariant, Offset.Zero, Size(rowHeader, colHeader))
+    }
+    // Typing in the cell: a field laid exactly over it (at least a comfortable size).
+    if (cellEditor != null) {
+        val k = unit * scale
+        val frozenW = columnAxis.start(fc) * k
+        val frozenH = rowAxis.start(fr) * k
+        val x = if (selectedCol < fc) rowHeader + columnAxis.start(selectedCol) * k else rowHeader + frozenW + (columnAxis.start(selectedCol) - columnAxis.start(fc)) * k - offsetX
+        val y = if (selectedRow < fr) colHeader + rowAxis.start(selectedRow) * k else colHeader + frozenH + (rowAxis.start(selectedRow) - rowAxis.start(fr)) * k - offsetY
+        val w = max(columnAxis.size(selectedCol) * k, with(density) { 120.dp.toPx() })
+        val h = max(rowAxis.size(selectedRow) * k, with(density) { 40.dp.toPx() })
+        cellEditor(
+            Modifier
+                .offset { IntOffset(max(x, rowHeader).roundToInt(), max(y, colHeader).roundToInt()) }
+                .size(with(density) { w.toDp() }, with(density) { h.toDp() }),
+        )
+    }
     }
 }

@@ -66,6 +66,16 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.clickable
 import androidx.compose.ui.text.style.TextOverflow
 import org.mobileofficefree.engine.FunctionDoc
+import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.draw.shadow
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.ui.graphics.Color
 import org.json.JSONObject
 import org.mobileofficefree.engine.CellLook
 
@@ -98,6 +108,8 @@ internal fun SheetScreen(vm: SheetViewModel, state: SheetUiState) {
         mutableStateOf(TextFieldValue(state.editText, TextRange(state.editText.length)))
     }
     var formulaFocused by remember { mutableStateOf(false) }
+    // Typing straight into the selected cell (a second tap on it); ends with Enter or another cell.
+    var cellEditing by remember(state.sheet) { mutableStateOf(false) }
     var lastReference by remember(state.sheet, state.selectedRow, state.selectedCol) { mutableStateOf<TextRange?>(null) }
     var showFormulas by remember { mutableStateOf(false) }
     if (showFormulas) {
@@ -145,6 +157,8 @@ internal fun SheetScreen(vm: SheetViewModel, state: SheetUiState) {
             usedCols = state.usedCols,
             selectedRow = state.selectedRow,
             selectedCol = state.selectedCol,
+            endRow = state.endRow,
+            endCol = state.endCol,
             cellText = vm::cellText,
             cellLook = vm::cellLook,
             columnAxis = state.columns,
@@ -153,13 +167,39 @@ internal fun SheetScreen(vm: SheetViewModel, state: SheetUiState) {
             frozenCols = state.frozenCols,
             merges = state.merges,
             onSelect = { row, col ->
-                if (formulaFocused && pointing(formula)) {
+                if ((formulaFocused || cellEditing) && pointing(formula)) {
                     val (v, r) = insertReference(formula, cellName(row, col), lastReference)
                     formula = v
                     lastReference = r
                 } else {
+                    if (cellEditing) {
+                        // Leaving a cell being typed in keeps what was typed, as Excel does.
+                        if (formula.text != state.editText) vm.commitCell(formula.text)
+                        cellEditing = false
+                    }
                     vm.selectCell(row, col)
                 }
+            },
+            onExtend = vm::extendSelection,
+            onLine = vm::selectLine,
+            onEditCell = { cellEditing = true },
+            cellEditor = if (cellEditing) {
+                { m ->
+                    CellEditor(
+                        value = formula,
+                        onValue = { formula = it },
+                        onFocus = { formulaFocused = it },
+                        onDone = {
+                            vm.commitCell(formula.text)
+                            cellEditing = false
+                            // Enter moves down, as in Excel.
+                            vm.selectCell(state.selectedRow + 1, state.selectedCol)
+                        },
+                        modifier = m,
+                    )
+                }
+            } else {
+                null
             },
             modifier = Modifier.weight(1f),
         )
@@ -361,7 +401,7 @@ private fun FormulaBar(
     Column {
         Row(Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
             Text(
-                cellName(state.selectedRow, state.selectedCol),
+                rangeName(state),
                 Modifier.width(56.dp),
                 fontFamily = FontFamily.Monospace,
                 style = MaterialTheme.typography.labelLarge,
@@ -519,4 +559,27 @@ private fun Choice(title: String, chips: @Composable () -> Unit) {
 @Composable
 private fun Chip(label: String, selected: Boolean, onClick: () -> Unit) {
     FilterChip(selected = selected, onClick = onClick, label = { Text(label) })
+}
+
+/** The field laid over a cell being typed in: opens the keyboard at once, Enter finishes. */
+@Composable
+private fun CellEditor(value: TextFieldValue, onValue: (TextFieldValue) -> Unit, onFocus: (Boolean) -> Unit, onDone: () -> Unit, modifier: Modifier) {
+    val focus = remember { FocusRequester() }
+    LaunchedEffect(Unit) { focus.requestFocus() }
+    BasicTextField(
+        value = value,
+        onValueChange = onValue,
+        singleLine = true,
+        textStyle = MaterialTheme.typography.bodyLarge.copy(color = Color.Black),
+        cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
+        keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
+        keyboardActions = KeyboardActions(onDone = { onDone() }),
+        modifier = modifier
+            .shadow(6.dp, RoundedCornerShape(4.dp))
+            .background(Color.White, RoundedCornerShape(4.dp))
+            .border(2.dp, MaterialTheme.colorScheme.primary, RoundedCornerShape(4.dp))
+            .padding(horizontal = 6.dp, vertical = 8.dp)
+            .focusRequester(focus)
+            .onFocusChanged { onFocus(it.isFocused) },
+    )
 }

@@ -44,6 +44,9 @@ data class SheetUiState(
     val usedCols: Int,
     val selectedRow: Int = 0,
     val selectedCol: Int = 0,
+    /** The far corner of the selected range (the selected cell itself when one cell is chosen). */
+    val endRow: Int = selectedRow,
+    val endCol: Int = selectedCol,
     /** What the formula bar shows for the selected cell. */
     val editText: String = "",
     /** Column widths and row heights (points) as the file has them. */
@@ -219,7 +222,7 @@ class SheetViewModel(app: Application) : AndroidViewModel(app) {
 
     fun selectCell(row: Int, col: Int) {
         val current = (screen as? Screen.Sheet)?.state ?: return
-        screen = Screen.Sheet(current.copy(selectedRow = row, selectedCol = col))
+        screen = Screen.Sheet(current.copy(selectedRow = row, selectedCol = col, endRow = row, endCol = col))
         viewModelScope.launch {
             val edit = withContext(engine) {
                 doc?.editText(current.sheet.toUInt(), row.toUInt(), col.toUInt())
@@ -227,6 +230,30 @@ class SheetViewModel(app: Application) : AndroidViewModel(app) {
             val now = (screen as? Screen.Sheet)?.state ?: return@launch
             if (now.selectedRow == row && now.selectedCol == col) {
                 screen = Screen.Sheet(now.copy(editText = edit))
+            }
+        }
+    }
+
+    /** Stretches the selection from the selected cell to (`row`, `col`). */
+    fun extendSelection(row: Int, col: Int) {
+        val current = (screen as? Screen.Sheet)?.state ?: return
+        if (current.endRow == row && current.endCol == col) return
+        screen = Screen.Sheet(current.copy(endRow = row, endCol = col))
+    }
+
+    /** Selects a whole row ([row]) or column ([col]) across the used area. */
+    fun selectLine(row: Int?, col: Int?) {
+        val current = (screen as? Screen.Sheet)?.state ?: return
+        val lastRow = (current.usedRows - 1).coerceAtLeast(0)
+        val lastCol = (current.usedCols - 1).coerceAtLeast(0)
+        when {
+            row != null -> {
+                selectCell(row, 0)
+                extendSelection(row, lastCol)
+            }
+            col != null -> {
+                selectCell(0, col)
+                extendSelection(lastRow, col)
             }
         }
     }
@@ -243,7 +270,7 @@ class SheetViewModel(app: Application) : AndroidViewModel(app) {
      */
     fun format(id: String, params: JSONObject = JSONObject()) {
         val current = (screen as? Screen.Sheet)?.state ?: return
-        if (!params.has("rows") && !params.has("cols")) params.put("range", cellName(current.selectedRow, current.selectedCol))
+        if (!params.has("rows") && !params.has("cols")) params.put("range", rangeName(current))
         edit { d -> d.execute(id, params.toString()) }
     }
 
@@ -318,12 +345,17 @@ class SheetViewModel(app: Application) : AndroidViewModel(app) {
                     val d = doc ?: error("no document")
                     op(d)
                     stateFor(d, current.fileName, current.sheet, current.selectedRow, current.selectedCol)
+                        .copy(endRow = current.endRow, endCol = current.endCol)
                 }
             }
             result.fold(
                 onSuccess = {
                     unsaved = true
-                    screen = Screen.Sheet(it)
+                    // The selection may have moved while the engine worked (Enter in a cell).
+                    val now = (screen as? Screen.Sheet)?.state
+                    screen = Screen.Sheet(
+                        if (now != null) it.copy(selectedRow = now.selectedRow, selectedCol = now.selectedCol, endRow = now.endRow, endCol = now.endCol, editText = if (now.selectedRow == current.selectedRow && now.selectedCol == current.selectedCol) it.editText else now.editText) else it,
+                    )
                     // A formula, a new row or a format can change any cell: fetch the loaded ones again.
                     for ((key, at) in blockAt.toMap()) requestBlock(at.first, at.second, at.third, key)
                 },
@@ -506,3 +538,12 @@ fun columnName(col: Int): String {
 }
 
 fun cellName(row: Int, col: Int): String = columnName(col) + (row + 1)
+
+/** The selection as A1 text: one cell ("B3") or a range ("B3:D9"). */
+fun rangeName(s: SheetUiState): String {
+    val r0 = minOf(s.selectedRow, s.endRow)
+    val r1 = maxOf(s.selectedRow, s.endRow)
+    val c0 = minOf(s.selectedCol, s.endCol)
+    val c1 = maxOf(s.selectedCol, s.endCol)
+    return if (r0 == r1 && c0 == c1) cellName(r0, c0) else cellName(r0, c0) + ":" + cellName(r1, c1)
+}
