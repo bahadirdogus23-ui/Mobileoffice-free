@@ -49,6 +49,10 @@ class WordViewModel(app: Application) : PagedViewModel(app, DocumentKind.WORD) {
         private set
     var dirty by mutableStateOf(false)
         private set
+    /** A picture or shape is selected (tapped): the tool bar offers sizing. */
+    var objectSelected by mutableStateOf(false)
+        private set
+
     /** The selected text (short), offered as what to find when replacing. */
     var selectedTextHint by mutableStateOf("")
         private set
@@ -139,6 +143,8 @@ class WordViewModel(app: Application) : PagedViewModel(app, DocumentKind.WORD) {
 
     /** What the keyboard did: [delete] characters before the caret removed, then [text] typed. */
     fun replaceTyped(delete: Int, text: String) = perform(changes = true, moves = false) { d ->
+        // Typing while a picture is selected goes after it; it must not replace the picture.
+        if (text.isNotEmpty() && d.objectSelected()) d.execute("caret.right", "")
         repeat(delete) { d.execute("text.backspace", "") }
         typeInto(d, text)
     }
@@ -151,6 +157,15 @@ class WordViewModel(app: Application) : PagedViewModel(app, DocumentKind.WORD) {
             if (i > 0) d.execute("text.newParagraph", "")
             if (line.isNotEmpty()) d.execute("text.insert", JSONObject().put("text", line).toString())
         }
+    }
+
+    /** Sizes the selected picture: [scale] percent of its size, [width] points, or its [original] size. */
+    fun sizePicture(scale: Int? = null, width: Double? = null, original: Boolean = false) {
+        val p = JSONObject()
+        scale?.let { p.put("scale", it) }
+        width?.let { p.put("width", it) }
+        if (original) p.put("original", true)
+        command("picture.size", p.toString())
     }
 
     /** The text colour, `RRGGBB` or `auto`. */
@@ -172,7 +187,7 @@ class WordViewModel(app: Application) : PagedViewModel(app, DocumentKind.WORD) {
                     op(d)
                     val sizes = if (changes) (0u until d.pageCount()).map { d.pageSize(it).let { s -> s.width to s.height } } else null
                     val f = runCatching { JSONObject(d.execute("format.state", "")) }.getOrNull()
-                    Edited(sizes, d.caret(), d.selection(), f?.let { formatOf(it) } ?: WordFormat(), d.isDirty(), d.selectedText().take(200))
+                    Edited(sizes, d.caret(), d.selection(), f?.let { formatOf(it) } ?: WordFormat(), d.isDirty(), d.selectedText().take(200), d.objectSelected())
                 }
             }
             result.onSuccess { e ->
@@ -181,6 +196,7 @@ class WordViewModel(app: Application) : PagedViewModel(app, DocumentKind.WORD) {
                 format = e.format
                 dirty = e.dirty
                 selectedTextHint = e.selected
+                objectSelected = e.objectSelected
                 e.sizes?.let(::pagesEdited)
             }
         }
@@ -191,7 +207,15 @@ class WordViewModel(app: Application) : PagedViewModel(app, DocumentKind.WORD) {
         viewModelScope.launch { tell(text) }
     }
 
-    private class Edited(val sizes: List<Pair<Float, Float>>?, val caret: WordCaret?, val selection: List<SearchHit>, val format: WordFormat, val dirty: Boolean, val selected: String)
+    private class Edited(
+        val sizes: List<Pair<Float, Float>>?,
+        val caret: WordCaret?,
+        val selection: List<SearchHit>,
+        val format: WordFormat,
+        val dirty: Boolean,
+        val selected: String,
+        val objectSelected: Boolean,
+    )
 
     private fun formatOf(o: JSONObject) = WordFormat(
         bold = o.optBoolean("bold"),

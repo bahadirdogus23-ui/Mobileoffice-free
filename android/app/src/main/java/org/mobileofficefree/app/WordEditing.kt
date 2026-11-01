@@ -24,6 +24,8 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -167,8 +169,23 @@ fun WordEditBar(vm: WordViewModel, onSave: () -> Unit) {
     LaunchedEffect(vm.inputEpoch) { field = EMPTY_INPUT }
     var colorMenu by remember { mutableStateOf(false) }
     var highlightMenu by remember { mutableStateOf(false) }
+    var tableMenu by remember { mutableStateOf(false) }
     Surface(color = MaterialTheme.colorScheme.surfaceContainer, modifier = Modifier.fillMaxWidth()) {
         Column {
+            // A tapped picture: sizing, in steps or to a width.
+            if (vm.objectSelected) {
+                Row(
+                    Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(horizontal = 12.dp, vertical = 4.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                ) {
+                    Text(stringResource(R.string.picture_selected), style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary)
+                    FilledTonalButton(onClick = { vm.sizePicture(scale = 80) }) { Text("− " + stringResource(R.string.picture_smaller)) }
+                    FilledTonalButton(onClick = { vm.sizePicture(scale = 125) }) { Text("+ " + stringResource(R.string.picture_larger)) }
+                    OutlinedButton(onClick = { vm.sizePicture(width = PAGE_TEXT_WIDTH_PT) }) { Text(stringResource(R.string.picture_page_width)) }
+                    OutlinedButton(onClick = { vm.sizePicture(original = true) }) { Text(stringResource(R.string.picture_original)) }
+                }
+            }
             Row(
                 Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(horizontal = 4.dp, vertical = 2.dp),
                 verticalAlignment = Alignment.CenterVertically,
@@ -275,6 +292,17 @@ fun WordEditBar(vm: WordViewModel, onSave: () -> Unit) {
                         })
                     }
                 }
+                Box {
+                    Tool("▦", R.string.table_menu) { tableMenu = true }
+                    DropdownMenu(expanded = tableMenu, onDismissRequest = { tableMenu = false }) {
+                        for ((label, id, params) in TABLE_COMMANDS) {
+                            DropdownMenuItem(text = { Text(stringResource(label)) }, onClick = {
+                                tableMenu = false
+                                vm.command(id, params)
+                            })
+                        }
+                    }
+                }
                 Tool("⇄", R.string.replace) { replaceDialog = true }
                 ToolDivider()
                 Tool("💾", R.string.save, enabled = vm.dirty, glyphSize = 16, onClick = onSave)
@@ -364,6 +392,23 @@ private fun Swatches(colors: List<String>, onPick: (String) -> Unit) {
 }
 
 internal fun hexColor(hex: String): Color = Color(0xFF000000 or hex.toLong(16))
+
+/** About an A4 page's text width with 2.5 cm margins, in points. */
+private const val PAGE_TEXT_WIDTH_PT = 450.0
+
+/** Table commands offered while the caret is in a table: label, engine command, parameters. */
+private val TABLE_COMMANDS = listOf(
+    Triple(R.string.table_row_above, "table.insertRowAbove", ""),
+    Triple(R.string.table_row_below, "table.insertRowBelow", ""),
+    Triple(R.string.table_col_left, "table.insertColumnLeft", ""),
+    Triple(R.string.table_col_right, "table.insertColumnRight", ""),
+    Triple(R.string.table_delete_row, "table.deleteRow", ""),
+    Triple(R.string.table_delete_col, "table.deleteColumn", ""),
+    Triple(R.string.table_fit_window, "table.autofit", "{\"mode\": \"window\"}"),
+    Triple(R.string.table_fit_contents, "table.autofit", "{\"mode\": \"contents\"}"),
+    Triple(R.string.table_even_cols, "table.distributeColumns", ""),
+    Triple(R.string.table_delete, "table.deleteTable", ""),
+)
 
 /** Office's standard text colours. */
 private val TEXT_COLORS = listOf(

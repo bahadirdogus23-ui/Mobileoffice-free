@@ -435,4 +435,20 @@
     <string name="autofit">Fit column</string>
     <string name="format_as_table">Format as table</string>
     <string name="table_style_hint">Turns the selection (headers in its first row) into a table with banded rows.</string>
+    <string name="picture_selected">Picture:</string>
+    <string name="picture_smaller">Smaller</string>
+    <string name="picture_larger">Larger</string>
+    <string name="picture_page_width">Page width</string>
+    <string name="picture_original">Original size</string>
+    <string name="table_menu">Table</string>
+    <string name="table_row_above">Insert row above</string>
+    <string name="table_row_below">Insert row below</string>
+    <string name="table_col_left">Insert column left</string>
+    <string name="table_col_right">Insert column right</string>
+    <string name="table_delete_row">Delete row</string>
+    <string name="table_delete_col">Delete column</string>
+    <string name="table_fit_window">Fit to page</string>
+    <string name="table_fit_contents">Fit to contents</string>
+    <string name="table_even_cols">Even columns</string>
+    <string name="table_delete">Delete table</string>
 </resources>

@@ -361,6 +361,11 @@ impl WordDocument {
         self.doc().selected_text()
     }
 
+    /// Whether the selection is one picture or shape (a tap on it selects it), ready for sizing.
+    pub fn object_selected(&self) -> bool {
+        self.doc().object_selected()
+    }
+
     /// Edits not yet saved.
     pub fn is_dirty(&self) -> bool {
         self.doc().is_dirty()

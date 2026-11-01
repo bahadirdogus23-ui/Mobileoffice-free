@@ -133,6 +133,14 @@ impl WordDoc {
 
     /// Puts the caret at (`x`, `y`) points on `page`, or extends the selection there.
     pub fn tap(&mut self, page: u32, x: f32, y: f32, extend: bool) -> Result<(), WordError> {
+        // A tap on a picture or shape selects it, as Word does, so it can be sized; a text box
+        // is entered instead (its inside is text).
+        if !extend && let Some(hit) = self.layout.object_at(page as usize, x, y, 4.0).filter(|h| h.text_box.is_none()) {
+            let at = wordcraft_doc::Pos { story: hit.story, path: hit.path.clone(), off: hit.off };
+            let end = wordcraft_doc::Pos { off: hit.off + wordcraft_doc::para::OBJ.len_utf8(), ..at.clone() };
+            self.session.sel = wordcraft_engine::Selection { anchor: at, focus: end };
+            return Ok(());
+        }
         let params = serde_json::json!({ "page": page, "x": x, "y": y, "extend": extend });
         self.execute("caret.set", &params.to_string()).map(|_| ())
     }
@@ -141,6 +149,11 @@ impl WordDoc {
     pub fn caret(&self) -> Option<CaretBox> {
         let c = self.layout.caret_on(&self.session.sel.focus, self.session.page_hint)?;
         Some(CaretBox { page: c.page as u32, x: c.x, top: c.top, height: c.height })
+    }
+
+    /// Whether the selection is one picture or shape (after a tap on it): it can then be sized.
+    pub fn object_selected(&self) -> bool {
+        wordcraft_engine::cmd::objects::object_selection(&self.session).is_some()
     }
 
     /// The selected text's rectangles (none when the selection is just a caret).

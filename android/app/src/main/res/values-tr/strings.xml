@@ -434,4 +434,20 @@
     <string name="autofit">Sütunu sığdır</string>
     <string name="format_as_table">Tablo olarak biçimlendir</string>
     <string name="table_style_hint">Seçimi, ilk satırı başlık olan bantlı bir tabloya çevirir.</string>
+    <string name="picture_selected">Resim:</string>
+    <string name="picture_smaller">Küçült</string>
+    <string name="picture_larger">Büyüt</string>
+    <string name="picture_page_width">Sayfa genişliği</string>
+    <string name="picture_original">Özgün boyut</string>
+    <string name="table_menu">Tablo</string>
+    <string name="table_row_above">Üste satır ekle</string>
+    <string name="table_row_below">Alta satır ekle</string>
+    <string name="table_col_left">Sola sütun ekle</string>
+    <string name="table_col_right">Sağa sütun ekle</string>
+    <string name="table_delete_row">Satırı sil</string>
+    <string name="table_delete_col">Sütunu sil</string>
+    <string name="table_fit_window">Sayfaya sığdır</string>
+    <string name="table_fit_contents">İçeriğe sığdır</string>
+    <string name="table_even_cols">Sütunları eşitle</string>
+    <string name="table_delete">Tabloyu sil</string>
 </resources>

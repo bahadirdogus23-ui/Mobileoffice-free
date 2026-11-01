@@ -304,3 +304,39 @@ fn inserts_tables_pictures_breaks_headings_and_replaces() {
     let body = zip_entry(&doc.export("a.docx").unwrap(), "word/document.xml");
     assert!(body.contains("<w:tbl>") && body.contains("<w:drawing>") && body.contains("w:type=\"page\""), "table, picture and page break in DOCX");
 }
+
+#[test]
+fn a_tap_on_a_picture_selects_it_for_sizing() {
+    let mut doc = WordDoc::open("a.md", "Önce bir satır.\n".as_bytes(), None).unwrap();
+    doc.execute("caret.docEnd", "").unwrap();
+    let png = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAIAAACQd1PeAAAADElEQVR4nGP4z8AAAAMBAQDJ/pLvAAAAAElFTkSuQmCC";
+    doc.execute("insert.picture", &serde_json::json!({ "data": png, "width": 100.0 }).to_string()).unwrap();
+    // Find the picture on the first page by probing a grid of points.
+    let (w, h) = doc.page_size(0).unwrap();
+    let mut at = None;
+    'find: for yi in 0..200 {
+        for xi in 0..100 {
+            let (x, y) = (xi as f32 * w / 100.0, yi as f32 * h / 200.0);
+            if doc.layout.object_at(0, x, y, 0.0).is_some() {
+                at = Some((x, y));
+                break 'find;
+            }
+        }
+    }
+    let (x, y) = at.expect("the picture is on the page");
+    assert!(!doc.object_selected());
+    doc.tap(0, x, y, false).unwrap();
+    assert!(doc.object_selected());
+    doc.execute("picture.size", r#"{"width": 200}"#).unwrap();
+    let hit = doc.layout.object_at(0, x + 1.0, y + 1.0, 0.0).expect("still there");
+    assert!((hit.rect.w - 200.0).abs() < 1.0, "{:?}", hit.rect);
+    // Typing with the picture selected (the app first steps past it) keeps the picture.
+    doc.execute("caret.right", "").unwrap();
+    assert!(!doc.object_selected());
+    doc.execute("text.insert", r#"{"text": "yazı"}"#).unwrap();
+    assert!(doc.layout.object_at(0, x + 1.0, y + 1.0, 0.0).is_some(), "the picture is still there");
+    // A tap on text puts the caret there instead.
+    let t = doc.find("satır")[0].clone();
+    doc.tap(t.page, t.x + 1.0, t.y + t.h / 2.0, false).unwrap();
+    assert!(!doc.object_selected());
+}
