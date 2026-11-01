@@ -23,6 +23,8 @@ pub struct TextShape {
     pub w: f32,
     pub h: f32,
     pub text: String,
+    /// For a table cell: its row and column in the table whose shape is `id`.
+    pub cell: Option<(u32, u32)>,
 }
 
 /// The shapes of slide `index` that hold text (placeholders and text boxes), front-most last.
@@ -51,7 +53,35 @@ fn collect_text(s: &deckcraft_model::Shape, x: deckcraft_model::Xfrm, out: &mut 
             w: x.w as f32,
             h: x.h as f32,
             text: s.text.as_ref().map(|t| t.text()).unwrap_or_default(),
+            cell: None,
         }),
+        // Every cell of a table, placed by the column widths and row heights scaled to the frame.
+        ShapeKind::Table(t) => {
+            let total_w: f64 = t.cols.iter().sum();
+            let total_h: f64 = t.rows.iter().map(|r| r.height).sum();
+            let (sx, sy) = (if total_w > 0.0 { x.w / total_w } else { 1.0 }, if total_h > 0.0 { x.h / total_h } else { 1.0 });
+            let mut top = 0.0;
+            for (ri, row) in t.rows.iter().enumerate() {
+                let mut left = 0.0;
+                for (ci, cell) in row.cells.iter().enumerate() {
+                    let span_w: f64 = t.cols.iter().skip(ci).take(cell.grid_span.max(1) as usize).sum();
+                    let span_h: f64 = t.rows.iter().skip(ri).take(cell.row_span.max(1) as usize).map(|r| r.height).sum();
+                    if !cell.is_covered() {
+                        out.push(TextShape {
+                            id: s.id.0,
+                            x: (x.x + left * sx) as f32,
+                            y: (x.y + top * sy) as f32,
+                            w: (span_w * sx) as f32,
+                            h: (span_h * sy) as f32,
+                            text: cell.text.text(),
+                            cell: Some((ri as u32, ci as u32)),
+                        });
+                    }
+                    left += t.cols.get(ci).copied().unwrap_or(0.0);
+                }
+                top += row.height;
+            }
+        }
         ShapeKind::Group { children, child } => {
             let (sx, sy) = (if child.w != 0.0 { x.w / child.w } else { 1.0 }, if child.h != 0.0 { x.h / child.h } else { 1.0 });
             for c in children.iter().filter(|c| !c.hidden) {
@@ -89,6 +119,17 @@ fn find_shape(shapes: &mut [deckcraft_model::Shape], id: u32) -> Option<&mut dec
         }
     }
     None
+}
+
+/// Makes cell (`row`, `col`) of the table shape `id` on slide `index` read `text`.
+pub fn set_cell_text(pres: &mut Presentation, index: usize, id: u32, row: u32, col: u32, text: &str) -> Result<(), DeckError> {
+    let slide = pres.slides.get_mut(index).ok_or(DeckError::NoSlide(index as u32))?;
+    let slide = Arc::make_mut(slide);
+    let shape = find_shape(&mut slide.shapes, id).ok_or_else(|| edit_err("no such shape"))?;
+    let ShapeKind::Table(t) = &mut shape.kind else { return Err(edit_err("not a table")) };
+    let cell = t.rows.get_mut(row as usize).and_then(|r| r.cells.get_mut(col as usize)).ok_or_else(|| edit_err("no such cell"))?;
+    deckcraft_model::edit::replace_text(&mut cell.text, text);
+    Ok(())
 }
 
 /// A new slide after `index`, with the same layout and empty placeholders. Returns its index.

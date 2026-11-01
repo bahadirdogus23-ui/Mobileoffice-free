@@ -104,6 +104,13 @@ impl DeckDoc {
         Ok(())
     }
 
+    /// Makes cell (`row`, `col`) of table `id` on `slide` read `text`.
+    pub fn set_cell_text(&mut self, slide: u32, id: u32, row: u32, col: u32, text: &str) -> Result<(), DeckError> {
+        edit::set_cell_text(&mut self.pres, slide as usize, id, row, col, text)?;
+        self.dirty = true;
+        Ok(())
+    }
+
     /// A new slide after `slide` with the same layout; returns its index.
     pub fn new_slide(&mut self, slide: u32) -> Result<u32, DeckError> {
         let at = edit::new_slide(&mut self.pres, slide as usize)?;

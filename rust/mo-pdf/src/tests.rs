@@ -343,3 +343,33 @@ fn finds_the_fields_of_a_form_printed_from_a_browser() {
     assert_eq!(saved.fields().len(), 5);
     assert_eq!(saved.detect_fields().unwrap(), 0);
 }
+
+#[test]
+fn typed_text_can_be_moved_restyled_and_removed() {
+    let mut doc = reopened(pdf(1, "Sayfa"));
+    doc.add_text(0, [0.1, 0.1], "Taşınacak yazı", 14.0, TextFont::Sans, [0.0, 0.0, 0.0]).unwrap();
+    let t = doc.typed_texts(0).unwrap();
+    assert_eq!(t.len(), 1);
+    assert_eq!((t[0].text.as_str(), t[0].size, t[0].font), ("Taşınacak yazı", 14.0, TextFont::Sans));
+    // Its box starts where it was put (fractions of the page, y down).
+    assert!((t[0].rect[0] - 0.1).abs() < 0.01 && (t[0].rect[1] - 0.1).abs() < 0.01, "{:?}", t[0].rect);
+
+    let look = TextLook { size: 24.0, font: TextFont::SerifBold, color: [0.8, 0.0, 0.0] };
+    doc.update_text(0, t[0].index, [0.5, 0.6], "Taşındı ve büyüdü", look).unwrap();
+    let t = doc.typed_texts(0).unwrap();
+    assert_eq!(t.len(), 1);
+    assert_eq!((t[0].text.as_str(), t[0].size, t[0].font), ("Taşındı ve büyüdü", 24.0, TextFont::SerifBold));
+    assert!((t[0].rect[0] - 0.5).abs() < 0.01 && (t[0].rect[1] - 0.6).abs() < 0.01, "{:?}", t[0].rect);
+    // Kept after saving; the shown page has the new text in its place.
+    let saved = reopened(doc.save().unwrap());
+    assert_eq!(saved.typed_texts(0).unwrap()[0].text, "Taşındı ve büyüdü");
+    assert!(reopened(doc.display_copy().unwrap()).page_text(0).unwrap().contains("Taşındı ve büyüdü"));
+    // Undo takes back the moved text (one step); deleting removes it.
+    assert!(doc.undo_annotation().unwrap());
+    assert!(doc.typed_texts(0).unwrap().is_empty());
+    doc.add_text(0, [0.2, 0.2], "Silinecek", 12.0, TextFont::Mono, [0.0, 0.0, 0.0]).unwrap();
+    let i = doc.typed_texts(0).unwrap()[0].index;
+    doc.delete_text(0, i).unwrap();
+    assert!(doc.typed_texts(0).unwrap().is_empty());
+    assert!(!doc.undo_annotation().unwrap());
+}

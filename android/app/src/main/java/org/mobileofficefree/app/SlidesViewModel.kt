@@ -58,7 +58,7 @@ class SlidesViewModel(app: Application) : PagedViewModel(app, DocumentKind.SLIDE
         val (slide, shape) = editingText ?: return
         editingText = null
         change {
-            it.setText(slide.toUInt(), shape.id, text)
+            if (shape.row >= 0) it.setCellText(slide.toUInt(), shape.id, shape.row.toUInt(), shape.col.toUInt(), text) else it.setText(slide.toUInt(), shape.id, text)
             null
         }
     }

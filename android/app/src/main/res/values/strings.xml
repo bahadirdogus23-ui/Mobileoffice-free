@@ -26,7 +26,7 @@
     <string name="unsupported_file">This file type is not supported yet.</string>
     <string name="share">Share</string>
     <string name="remove_from_list">Remove from list</string>
-    <string name="no_recent_files">No files yet. Tap “Open file”, or open a document from another app with “Open with”.</string>
+    <string name="no_recent_files">No documents yet. Pick one with “Open” above, or open one from another app with “Open with”.</string>
     <string name="page_counter">%1$d/%2$d</string>
     <string name="all_documents">All documents</string>
     <string name="recently_opened">Recently opened</string>

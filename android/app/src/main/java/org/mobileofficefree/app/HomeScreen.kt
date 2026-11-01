@@ -399,7 +399,7 @@ fun HomeScreen(onOpen: (Uri) -> Unit, onNewSheet: () -> Unit, onDiagnostics: () 
                                 onShare = {
                                     val send = Intent(Intent.ACTION_SEND)
                                         .setType(context.contentResolver.getType(f.uri) ?: "*/*")
-                                        .putExtra(Intent.EXTRA_STREAM, f.uri)
+                                        .putExtra(Intent.EXTRA_STREAM, shareable(context, f.uri))
                                         .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
                                     context.startActivity(Intent.createChooser(send, f.name))
                                 },
@@ -549,3 +549,11 @@ private fun QuickTile(glyph: String, label: String, tint: Color, modifier: Modif
         Text(label, style = MaterialTheme.typography.labelMedium, maxLines = 1, color = MaterialTheme.colorScheme.onSurface)
     }
 }
+
+/** A content address other apps can open: files listed by path go through the app's provider. */
+private fun shareable(context: android.content.Context, uri: Uri): Uri =
+    if (uri.scheme == "file") {
+        runCatching { androidx.core.content.FileProvider.getUriForFile(context, "${context.packageName}.files", java.io.File(uri.path!!)) }.getOrDefault(uri)
+    } else {
+        uri
+    }

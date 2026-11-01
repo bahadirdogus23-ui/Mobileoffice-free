@@ -20,6 +20,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardOptions
@@ -171,7 +172,8 @@ fun WordEditBar(vm: WordViewModel, onSave: () -> Unit) {
     var highlightMenu by remember { mutableStateOf(false) }
     var tableMenu by remember { mutableStateOf(false) }
     Surface(color = MaterialTheme.colorScheme.surfaceContainer, modifier = Modifier.fillMaxWidth()) {
-        Column {
+        // Above the system's navigation buttons (and the keyboard, which lifts the screen).
+        Column(Modifier.navigationBarsPadding()) {
             // A tapped picture: sizing, in steps or to a width.
             if (vm.objectSelected) {
                 Row(

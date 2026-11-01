@@ -26,6 +26,8 @@ data class DeviceFile(val uri: Uri, val name: String, val kind: DocumentKind, va
 object DeviceFiles {
     /** When the folders were last walked for unindexed documents (elapsed realtime). */
     @Volatile private var lastWalk = 0L
+    /** Documents the last walk found that the system would not index: listed by path every scan. */
+    @Volatile private var byPath: List<java.io.File> = emptyList()
 
     fun hasAccess(context: Context): Boolean =
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
@@ -98,13 +100,25 @@ object DeviceFiles {
             val root = Environment.getExternalStorageDirectory()
             // XML is left to the index: most of it belongs to apps, not people.
             val missing = findDocuments(root, extensions.map { it.lowercase(java.util.Locale.ROOT) }.toSet() - "xml") { it.path !in known }.take(MAX_INDEXED)
-            out += indexed(context, missing.map { it.path }).mapNotNull { (file, uri) ->
+            val got = indexed(context, missing.map { it.path })
+            val gotPaths = got.map { it.first.path }.toSet()
+            // What the system would not index is listed by its path: with access to every file
+            // the app reads it directly.
+            byPath = missing.filter { it.path !in gotPaths }
+            out += got.mapNotNull { (file, uri) ->
                 val kind = listedKind(context, uri, file.name, null) ?: return@mapNotNull null
                 DeviceFile(uri = uri, name = file.name, kind = kind, size = file.length(), modifiedAt = file.lastModified())
             }
-            out.sortByDescending { it.modifiedAt }
         }
-        return out.take(limit)
+        if (hasAccess(context)) {
+            out += byPath.filter { it.isFile && it.path !in known }.mapNotNull { file ->
+                val uri = android.net.Uri.fromFile(file)
+                val kind = listedKind(context, uri, file.name, null) ?: return@mapNotNull null
+                DeviceFile(uri = uri, name = file.name, kind = kind, size = file.length(), modifiedAt = file.lastModified())
+            }
+        }
+        out.sortByDescending { it.modifiedAt }
+        return out.distinctBy { it.uri }.take(limit)
     }
 
     /**
@@ -123,7 +137,11 @@ object DeviceFiles {
                 if (++seen > maxEntries) break
                 if (f.name.startsWith(".")) continue
                 if (f.isDirectory) {
-                    if (!(dir == root && f.name.equals("Android", ignoreCase = true))) stack.add(f)
+                    // Android/data and Android/obb are apps' own; Android/media holds what apps
+                    // share, such as WhatsApp's received documents (UDF files among them).
+                    val appsOwn = dir.name.equals("Android", ignoreCase = true) && dir.parentFile == root &&
+                        (f.name.equals("data", ignoreCase = true) || f.name.equals("obb", ignoreCase = true))
+                    if (!appsOwn) stack.add(f)
                 } else if (f.name.substringAfterLast('.', "").lowercase(java.util.Locale.ROOT) in extensions && wanted(f)) {
                     found += f
                 }

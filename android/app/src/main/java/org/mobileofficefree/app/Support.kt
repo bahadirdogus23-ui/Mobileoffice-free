@@ -13,6 +13,8 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
+import androidx.compose.material3.Button
+import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ListItem
 import androidx.compose.material3.MaterialTheme
@@ -167,13 +169,13 @@ fun SupportCard(modifier: Modifier = Modifier) {
     CoffeeDialog()
     Card(
         modifier = modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.5f)),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow),
     ) {
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
             Text(stringResource(R.string.support_developer_hint), style = MaterialTheme.typography.bodySmall)
-            FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                TextButton(onClick = { dialog = true }) { Text("♥ " + stringResource(R.string.support_developer)) }
-                TextButton(onClick = { Coffee.open() }) { Text("☕ " + stringResource(R.string.buy_coffee)) }
+            FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                FilledTonalButton(onClick = { dialog = true }) { Text("♥ " + stringResource(R.string.support_developer)) }
+                Button(onClick = { Coffee.open() }) { Text("☕ " + stringResource(R.string.buy_coffee)) }
             }
         }
     }

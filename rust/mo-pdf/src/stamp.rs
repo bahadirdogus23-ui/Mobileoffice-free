@@ -19,6 +19,27 @@ pub enum TextFont {
 }
 
 impl TextFont {
+    /// The name kept with the text so it can be restyled later.
+    pub(crate) fn key(self) -> &'static str {
+        match self {
+            TextFont::Sans => "sans",
+            TextFont::SansBold => "sansBold",
+            TextFont::Serif => "serif",
+            TextFont::SerifBold => "serifBold",
+            TextFont::Mono => "mono",
+        }
+    }
+
+    pub(crate) fn from_key(k: &str) -> TextFont {
+        match k {
+            "sansBold" => TextFont::SansBold,
+            "serif" => TextFont::Serif,
+            "serifBold" => TextFont::SerifBold,
+            "mono" => TextFont::Mono,
+            _ => TextFont::Sans,
+        }
+    }
+
     fn data(self) -> Option<&'static [u8]> {
         let i = match self {
             TextFont::Sans => 0,
@@ -29,6 +50,50 @@ impl TextFont {
         };
         wordcraft_fonts::bundled().get(i).copied()
     }
+}
+
+/// The annotation key holding how the app typed a text: "font|size|r g b".
+pub(crate) const LOOK_KEY: &[u8] = b"MOTextLook";
+
+/// A text the app typed on a page, as found again: where it is (user space), what it says and how.
+pub(crate) struct Typed {
+    pub index: usize,
+    pub rect: [f64; 4],
+    pub text: String,
+    pub size: f64,
+    pub font: TextFont,
+    pub color: [f64; 3],
+}
+
+/// The texts the app typed on `page`, with their places in the page's `/Annots`.
+pub(crate) fn typed_on(doc: &Document, page: usize) -> Vec<Typed> {
+    let Some(page_ref) = annot::page_refs(doc).ok().and_then(|p| p.get(page).copied()) else { return Vec::new() };
+    let Some(list) = doc.get(page_ref).as_dict().and_then(|d| d.get(b"Annots").cloned()) else { return Vec::new() };
+    let list = doc.resolve(&list);
+    let Some(items) = list.as_array() else { return Vec::new() };
+    items
+        .iter()
+        .enumerate()
+        .filter_map(|(index, o)| {
+            let d = doc.resolve(o);
+            let d = d.as_dict()?;
+            let look = d.get(LOOK_KEY)?.as_string()?.to_text();
+            let mut parts = look.split('|');
+            let font = TextFont::from_key(parts.next()?);
+            let size: f64 = parts.next()?.parse().ok()?;
+            let rgb: Vec<f64> = parts.next()?.split(' ').filter_map(|v| v.parse().ok()).collect();
+            let rect: Vec<f64> = doc.resolve(d.get(b"Rect")?).as_array()?.iter().filter_map(|v| doc.resolve(v).as_f64()).collect();
+            let text = d.get(b"Contents").map(|c| doc.resolve(c)).and_then(|c| c.as_string().map(|s| s.to_text())).unwrap_or_default();
+            (rect.len() == 4 && rgb.len() == 3).then(|| Typed {
+                index,
+                rect: [rect[0], rect[1], rect[2], rect[3]],
+                text,
+                size,
+                font,
+                color: [rgb[0], rgb[1], rgb[2]],
+            })
+        })
+        .collect()
 }
 
 /// Line spacing, in font sizes.
@@ -112,11 +177,14 @@ pub(crate) fn add_text(
     ap.set(b"N".to_vec(), Object::Ref(ap_stream));
 
     let da = format!("/F1 {} Tf {} {} {} rg", n(size), n(color[0]), n(color[1]), n(color[2]));
+    let look_text = format!("{}|{}|{} {} {}", font.key(), n(size), n(color[0]), n(color[1]), n(color[2]));
     doc.update_dict(annot_ref, |d| {
         d.set(b"AP".to_vec(), Object::Dict(ap.clone()));
         d.set(b"Contents".to_vec(), Object::String(PdfString::text(&text)));
         d.set(b"DA".to_vec(), Object::String(PdfString::literal(da.clone().into_bytes())));
         d.remove(pdfcraft_fonts::UNDRAWN_MARK);
+        // How it was typed, so the app can move and restyle it later (other readers ignore it).
+        d.set(LOOK_KEY.to_vec(), Object::String(PdfString::literal(look_text.clone().into_bytes())));
     })
     .map_err(|e| edit(&e))?;
     Ok(index)

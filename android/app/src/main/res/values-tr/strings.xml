@@ -25,7 +25,7 @@
     <string name="unsupported_file">Bu dosya türü henüz desteklenmiyor.</string>
     <string name="share">Paylaş</string>
     <string name="remove_from_list">Listeden kaldır</string>
-    <string name="no_recent_files">Henüz dosya yok. “Dosya aç”a dokun ya da başka bir uygulamadan “Birlikte aç” ile bir belge aç.</string>
+    <string name="no_recent_files">Henüz belge yok. Üstteki “Aç” ile bir dosya seçin ya da başka bir uygulamadan “Birlikte aç” ile açın.</string>
     <string name="page_counter">%1$d/%2$d</string>
     <string name="all_documents">Tüm belgeler</string>
     <string name="recently_opened">Son açılanlar</string>

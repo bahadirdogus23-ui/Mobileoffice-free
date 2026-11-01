@@ -16,6 +16,27 @@ mod text;
 pub use create::images_to_pdf;
 pub use form::{FieldKind, FormField};
 pub use stamp::TextFont;
+
+/// How typed text looks: `size` points, `font`, `color` 0–1 RGB.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct TextLook {
+    pub size: f64,
+    pub font: TextFont,
+    pub color: [f64; 3],
+}
+
+/// A text typed on a page with [`PdfDoc::add_text`], found again for moving and restyling.
+#[derive(Clone, Debug, PartialEq)]
+pub struct TypedText {
+    /// Its place in the page's annotations (changes when annotations before it are removed).
+    pub index: u32,
+    /// Left, top, right, bottom as fractions of the displayed page (y down).
+    pub rect: [f64; 4],
+    pub text: String,
+    pub size: f64,
+    pub font: TextFont,
+    pub color: [f64; 3],
+}
 pub use text::{Sensitive, fold, turkish_id_ok};
 
 #[derive(Debug, thiserror::Error, PartialEq, Eq)]
@@ -169,6 +190,71 @@ impl PdfDoc {
         let index = stamp::add_text(&mut self.doc, page as usize, [x, y], text, size, font, color)?;
         self.added.push((page as usize, index));
         Ok(())
+    }
+
+    /// The texts typed with [`PdfDoc::add_text`] on `page`, to select, move and restyle: their
+    /// boxes as fractions of the displayed page (left, top, right, bottom; y down).
+    pub fn typed_texts(&self, page: u32) -> Result<Vec<TypedText>, PdfError> {
+        let boxes = organize::page_boxes(&self.doc).map_err(edit)?;
+        let crop = boxes.get(page as usize).ok_or_else(|| PdfError::Edit("no such page".into()))?[1];
+        let turn = organize::page_rotation(&self.doc, page as usize).map_err(edit)?;
+        Ok(stamp::typed_on(&self.doc, page as usize)
+            .into_iter()
+            .map(|t| {
+                let a = display_point(crop, turn, [t.rect[0], t.rect[1]]);
+                let b = display_point(crop, turn, [t.rect[2], t.rect[3]]);
+                TypedText {
+                    index: t.index as u32,
+                    rect: [a[0].min(b[0]), a[1].min(b[1]), a[0].max(b[0]), a[1].max(b[1])],
+                    text: t.text,
+                    size: t.size,
+                    font: t.font,
+                    color: t.color,
+                }
+            })
+            .collect())
+    }
+
+    /// Typed text `index` on `page` moved to `at` (its top-left, a fraction of the displayed page)
+    /// and given `text`, `size`, `font` and `color`. One undo step (it was one annotation).
+    pub fn update_text(&mut self, page: u32, index: u32, at: [f64; 2], text: &str, look: TextLook) -> Result<(), PdfError> {
+        let TextLook { size, font, color } = look;
+        self.refuse_restricted()?;
+        let (page_i, index) = (page as usize, index as usize);
+        if !stamp::typed_on(&self.doc, page_i).iter().any(|t| t.index == index) {
+            return Err(PdfError::Edit("that is not a text typed here".into()));
+        }
+        self.text = None;
+        let [x, y] = self.user_strokes(page, &[vec![at]])?[0][0];
+        annot::delete_annotation(&mut self.doc, page_i, index).map_err(edit)?;
+        self.forget_added(page_i, index);
+        let new = stamp::add_text(&mut self.doc, page_i, [x, y], text, size, font, color)?;
+        self.added.push((page_i, new));
+        Ok(())
+    }
+
+    /// Typed text `index` on `page` removed.
+    pub fn delete_text(&mut self, page: u32, index: u32) -> Result<(), PdfError> {
+        self.refuse_restricted()?;
+        let (page_i, index) = (page as usize, index as usize);
+        if !stamp::typed_on(&self.doc, page_i).iter().any(|t| t.index == index) {
+            return Err(PdfError::Edit("that is not a text typed here".into()));
+        }
+        self.text = None;
+        annot::delete_annotation(&mut self.doc, page_i, index).map_err(edit)?;
+        self.forget_added(page_i, index);
+        Ok(())
+    }
+
+    /// After annotation `index` on `page` went: it is no longer undoable, and the later ones on
+    /// that page moved up by one.
+    fn forget_added(&mut self, page: usize, index: usize) {
+        self.added.retain(|(p, i)| !(*p == page && *i == index));
+        for (p, i) in &mut self.added {
+            if *p == page && *i > index {
+                *i -= 1;
+            }
+        }
     }
 
     /// Removes the last signature, drawing or note added since the document was opened (or
@@ -618,6 +704,18 @@ fn user_point(crop: [f64; 4], turn: i64, [u, v]: [f64; 2]) -> [f64; 2] {
         180 => [x1 - u * w, y0 + v * h],
         270 => [x1 - v * w, y1 - u * h],
         _ => [x0 + u * w, y1 - v * h],
+    }
+}
+
+/// The inverse of [`user_point`]: a user-space point as a fraction of the displayed page.
+fn display_point(crop: [f64; 4], turn: i64, [x, y]: [f64; 2]) -> [f64; 2] {
+    let [x0, y0, x1, y1] = crop;
+    let (w, h) = ((x1 - x0).max(1e-9), (y1 - y0).max(1e-9));
+    match turn.rem_euclid(360) {
+        90 => [(y - y0) / h, (x - x0) / w],
+        180 => [(x1 - x) / w, (y - y0) / h],
+        270 => [(y1 - y) / h, (x1 - x) / w],
+        _ => [(x - x0) / w, (y1 - y) / h],
     }
 }
 

@@ -458,6 +458,9 @@ pub struct SlideText {
     pub width: f32,
     pub height: f32,
     pub text: String,
+    /// For a table cell: its row and column (both -1 for a text box or placeholder).
+    pub row: i32,
+    pub col: i32,
 }
 
 #[uniffi::export]
@@ -506,11 +509,25 @@ impl SlidesDocument {
             .doc()
             .text_shapes(slide)?
             .into_iter()
-            .map(|t| SlideText { id: t.id, x: t.x, y: t.y, width: t.w, height: t.h, text: t.text })
+            .map(|t| SlideText {
+                id: t.id,
+                x: t.x,
+                y: t.y,
+                width: t.w,
+                height: t.h,
+                text: t.text,
+                row: t.cell.map_or(-1, |c| c.0 as i32),
+                col: t.cell.map_or(-1, |c| c.1 as i32),
+            })
             .collect())
     }
 
     /// Makes shape `id`'s text read `text` (`\n` between paragraphs), keeping what stays formatted.
+    /// Makes cell (`row`, `col`) of table `id` on `slide` read `text`.
+    pub fn set_cell_text(&self, slide: u32, id: u32, row: u32, col: u32, text: String) -> Result<(), MoError> {
+        Ok(self.doc().set_cell_text(slide, id, row, col, &text)?)
+    }
+
     pub fn set_text(&self, slide: u32, id: u32, text: String) -> Result<(), MoError> {
         Ok(self.doc().set_text(slide, id, &text)?)
     }
@@ -658,6 +675,32 @@ impl From<PdfTextFont> for mo_pdf::TextFont {
             PdfTextFont::Mono => mo_pdf::TextFont::Mono,
         }
     }
+}
+
+impl From<mo_pdf::TextFont> for PdfTextFont {
+    fn from(f: mo_pdf::TextFont) -> Self {
+        match f {
+            mo_pdf::TextFont::Sans => PdfTextFont::Sans,
+            mo_pdf::TextFont::SansBold => PdfTextFont::SansBold,
+            mo_pdf::TextFont::Serif => PdfTextFont::Serif,
+            mo_pdf::TextFont::SerifBold => PdfTextFont::SerifBold,
+            mo_pdf::TextFont::Mono => PdfTextFont::Mono,
+        }
+    }
+}
+
+/// A text typed on a PDF page, for selecting, moving and restyling.
+#[derive(uniffi::Record)]
+pub struct TypedText {
+    /// Its place among the page's annotations.
+    pub index: u32,
+    /// Left, top, right, bottom as fractions of the displayed page (y down).
+    pub left: f64,
+    pub top: f64,
+    pub right: f64,
+    pub bottom: f64,
+    pub text: String,
+    pub look: TextLook,
 }
 
 /// How typed text looks: `size` in points, `color` 0–1 RGB.
@@ -866,6 +909,36 @@ impl PdfDocument {
     pub fn add_text(&self, page: u32, x: f64, y: f64, text: String, look: TextLook) -> Result<(), MoError> {
         let c = [0, 1, 2].map(|i| look.color.get(i).copied().unwrap_or(0.0).clamp(0.0, 1.0));
         Ok(self.doc().add_text(page, [x, y], &text, look.size, look.font.into(), c)?)
+    }
+
+    /// The texts typed on `page` (see [`PdfDocument::add_text`]).
+    pub fn typed_texts(&self, page: u32) -> Result<Vec<TypedText>, MoError> {
+        Ok(self
+            .doc()
+            .typed_texts(page)?
+            .into_iter()
+            .map(|t| TypedText {
+                index: t.index,
+                left: t.rect[0],
+                top: t.rect[1],
+                right: t.rect[2],
+                bottom: t.rect[3],
+                text: t.text,
+                look: TextLook { size: t.size, font: t.font.into(), color: t.color.to_vec() },
+            })
+            .collect())
+    }
+
+    /// Typed text `index` on `page` moved to (`x`, `y`) (its top-left, fractions of the page)
+    /// with `text` and `look`.
+    pub fn update_text(&self, page: u32, index: u32, x: f64, y: f64, text: String, look: TextLook) -> Result<(), MoError> {
+        let c = [0, 1, 2].map(|i| look.color.get(i).copied().unwrap_or(0.0).clamp(0.0, 1.0));
+        Ok(self.doc().update_text(page, index, [x, y], &text, mo_pdf::TextLook { size: look.size, font: look.font.into(), color: c })?)
+    }
+
+    /// Typed text `index` on `page` removed.
+    pub fn delete_text(&self, page: u32, index: u32) -> Result<(), MoError> {
+        Ok(self.doc().delete_text(page, index)?)
     }
 
     /// Whether Android's renderer would leave out something on the pages (comments, signatures,

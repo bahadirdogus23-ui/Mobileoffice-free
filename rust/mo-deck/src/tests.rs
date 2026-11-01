@@ -98,7 +98,7 @@ fn edits_text_and_slides_and_saves_pptx() {
 fn text_inside_groups_can_be_edited() {
     // Made with python-pptx: a title, a two-line body and a text box inside a group.
     let mut d = DeckDoc::open(include_bytes!("../testdata/grouped-text.pptx")).unwrap();
-    let shapes = d.text_shapes(0).unwrap();
+    let shapes: Vec<_> = d.text_shapes(0).unwrap().into_iter().filter(|s| s.cell.is_none()).collect();
     let texts: Vec<&str> = shapes.iter().map(|s| s.text.as_str()).collect();
     assert_eq!(texts, ["Başlık", "Birinci madde\nİkinci madde", "Gruptaki yazı"]);
     // The grouped box is where it shows: 1 inch from the left, 6 down (72, 432 points).
@@ -107,6 +107,24 @@ fn text_inside_groups_can_be_edited() {
     d.set_text(0, g.id, "Değişti").unwrap();
     d.set_text(0, shapes[1].id, "Yeni içerik").unwrap();
     let saved = DeckDoc::open(&d.save("x.pptx").unwrap()).unwrap();
-    let texts: Vec<String> = saved.text_shapes(0).unwrap().into_iter().map(|s| s.text).collect();
+    let texts: Vec<String> = saved.text_shapes(0).unwrap().into_iter().filter(|s| s.cell.is_none()).map(|s| s.text).collect();
     assert_eq!(texts, ["Başlık", "Yeni içerik", "Değişti"]);
+}
+
+#[test]
+fn table_cells_on_slides_can_be_edited() {
+    // The same python-pptx slide has a 2×2 table at (5, 6) inches, 3 × 1 inches, "Tablo hücresi" in A1.
+    let mut d = DeckDoc::open(include_bytes!("../testdata/grouped-text.pptx")).unwrap();
+    let cells: Vec<_> = d.text_shapes(0).unwrap().into_iter().filter(|s| s.cell.is_some()).collect();
+    assert_eq!(cells.len(), 4);
+    let a1 = &cells[0];
+    assert_eq!((a1.cell, a1.text.as_str()), (Some((0, 0)), "Tablo hücresi"));
+    assert_eq!((a1.x, a1.y), (360.0, 432.0));
+    assert!((a1.w - 108.0).abs() < 0.5 && (a1.h - 36.0).abs() < 0.5, "{} {}", a1.w, a1.h);
+    let b2 = cells.iter().find(|c| c.cell == Some((1, 1))).unwrap();
+    assert!((b2.x - 468.0).abs() < 0.5 && (b2.y - 468.0).abs() < 0.5, "{} {}", b2.x, b2.y);
+    d.set_cell_text(0, b2.id, 1, 1, "ARGUVAN").unwrap();
+    let saved = DeckDoc::open(&d.save("x.pptx").unwrap()).unwrap();
+    let again: Vec<String> = saved.text_shapes(0).unwrap().into_iter().filter(|s| s.cell == Some((1, 1))).map(|s| s.text).collect();
+    assert_eq!(again, ["ARGUVAN"]);
 }

@@ -4,4 +4,7 @@
 <paths>
     <cache-path name="archive" path="archive/" />
     <cache-path name="scan" path="scan/" />
+    <!-- Documents found by walking shared storage that the system had not indexed (with "All
+         files access"), shared from the home list. -->
+    <external-path name="storage" path="." />
 </paths>
