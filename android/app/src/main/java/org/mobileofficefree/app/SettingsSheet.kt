@@ -110,7 +110,7 @@ fun SettingsSheet(
                 }
                 Section(stringResource(R.string.settings_section_support)) {
                     Item("♥", Color(0xFFD81B60), stringResource(R.string.support_developer), stringResource(R.string.support_developer_hint)) { support = true }
-                    Item("☕", Color(0xFF795548), stringResource(R.string.buy_coffee), stringResource(R.string.buy_coffee_hint)) { Coffee.open(context) }
+                    Item("☕", Color(0xFF795548), stringResource(R.string.buy_coffee), stringResource(R.string.buy_coffee_hint)) { Coffee.open() }
                     Item("📣", Color(0xFF1E88E5), stringResource(R.string.support_share_app), null) { Support.shareApp(context) }
                     Item("✉", Color(0xFF43A047), stringResource(R.string.support_report), null) { Support.open(context, Support.ISSUES_URL) }
                 }
@@ -145,7 +145,7 @@ fun SettingsSheet(
     // Composed after the settings screen, so they open over it.
     if (support) SupportDialog { support = false }
     if (guide) GuideScreen { guide = false }
-    CoffeeNotReadyDialog()
+    CoffeeDialog()
 }
 
 /** A titled card holding rows, separated by thin lines. */

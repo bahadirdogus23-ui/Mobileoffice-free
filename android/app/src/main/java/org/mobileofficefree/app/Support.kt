@@ -24,6 +24,12 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.draw.clip
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.background
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
@@ -52,7 +58,8 @@ object Support {
         }
     }
 
-    /** The donation page (Buy Me a Coffee). */
+    /** Donation pages: Bana Bi Coffee for Turkey (lira), Buy Me a Coffee from abroad. */
+    const val COFFEE_TR_URL = "https://banabicoffee.com/@bado233"
     const val COFFEE_URL = "https://buymeacoffee.com/bado23"
 
     fun open(context: Context, url: String) {
@@ -81,7 +88,7 @@ fun SupportDialog(onDismiss: () -> Unit) {
         text = {
             Column {
                 Text(stringResource(R.string.support_thanks), style = MaterialTheme.typography.bodyMedium)
-                SupportChoice("☕", stringResource(R.string.buy_coffee)) { Coffee.open(context) }
+                SupportChoice("☕", stringResource(R.string.buy_coffee)) { Coffee.open() }
                 SupportChoice("📣", stringResource(R.string.support_share_app)) { Support.shareApp(context) }
                 SupportChoice("⭐", stringResource(R.string.support_star)) { Support.open(context, Support.PROJECT_URL) }
                 SupportChoice("✉", stringResource(R.string.support_report)) { Support.open(context, Support.ISSUES_URL) }
@@ -100,42 +107,64 @@ private fun SupportChoice(sign: String, label: String, onClick: () -> Unit) {
     )
 }
 
-/** "Buy me a coffee": the donation page, or a word that it is not ready yet. */
+/** "Buy me a coffee": a word on why, and both donation pages to choose from. */
 object Coffee {
-    var notReady by mutableStateOf(false)
+    var choosing by mutableStateOf(false)
 
-    fun open(context: Context) {
-        if (Support.COFFEE_URL.isNotEmpty()) Support.open(context, Support.COFFEE_URL) else notReady = true
+    fun open() {
+        choosing = true
     }
 }
 
-/** Shown once [Coffee.open] found no donation page. */
+/** Shown after [Coffee.open]: why support matters, and the page for Turkey and the one for abroad. */
 @Composable
-fun CoffeeNotReadyDialog() {
-    if (!Coffee.notReady) return
+fun CoffeeDialog() {
+    if (!Coffee.choosing) return
     val context = LocalContext.current
     AlertDialog(
-        onDismissRequest = { Coffee.notReady = false },
+        onDismissRequest = { Coffee.choosing = false },
+        icon = { Text("☕", fontSize = 34.sp) },
         title = { Text(stringResource(R.string.buy_coffee)) },
-        text = { Text(stringResource(R.string.coffee_soon)) },
-        confirmButton = {
-            TextButton(onClick = {
-                Coffee.notReady = false
-                Support.shareApp(context)
-            }) { Text(stringResource(R.string.support_share_app)) }
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                Text(stringResource(R.string.coffee_pitch), style = MaterialTheme.typography.bodyMedium)
+                CoffeeChoice(stringResource(R.string.coffee_tr), stringResource(R.string.coffee_tr_hint), Color(0xFFE30A17)) {
+                    Coffee.choosing = false
+                    Support.open(context, Support.COFFEE_TR_URL)
+                }
+                CoffeeChoice(stringResource(R.string.coffee_global), stringResource(R.string.coffee_global_hint), Color(0xFFFFB300)) {
+                    Coffee.choosing = false
+                    Support.open(context, Support.COFFEE_URL)
+                }
+            }
         },
-        dismissButton = { TextButton(onClick = { Coffee.notReady = false }) { Text(stringResource(R.string.close)) } },
+        confirmButton = { TextButton(onClick = { Coffee.choosing = false }) { Text(stringResource(R.string.coffee_later)) } },
     )
+}
+
+@Composable
+private fun CoffeeChoice(title: String, hint: String, tint: Color, onClick: () -> Unit) {
+    Row(
+        Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(tint.copy(alpha = 0.12f)).clickable(onClick = onClick).padding(12.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(10.dp),
+    ) {
+        Text("☕", fontSize = 22.sp)
+        Column(Modifier.weight(1f)) {
+            Text(title, style = MaterialTheme.typography.titleSmall)
+            Text(hint, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
+        Text("›", fontSize = 22.sp, color = tint)
+    }
 }
 
 /** A quiet card for empty corners of the app: support and coffee, side by side. */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun SupportCard(modifier: Modifier = Modifier) {
-    val context = LocalContext.current
     var dialog by remember { mutableStateOf(false) }
     if (dialog) SupportDialog { dialog = false }
-    CoffeeNotReadyDialog()
+    CoffeeDialog()
     Card(
         modifier = modifier.fillMaxWidth(),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.5f)),
@@ -144,7 +173,7 @@ fun SupportCard(modifier: Modifier = Modifier) {
             Text(stringResource(R.string.support_developer_hint), style = MaterialTheme.typography.bodySmall)
             FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 TextButton(onClick = { dialog = true }) { Text("♥ " + stringResource(R.string.support_developer)) }
-                TextButton(onClick = { Coffee.open(context) }) { Text("☕ " + stringResource(R.string.buy_coffee)) }
+                TextButton(onClick = { Coffee.open() }) { Text("☕ " + stringResource(R.string.buy_coffee)) }
             }
         }
     }

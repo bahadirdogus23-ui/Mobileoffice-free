@@ -350,15 +350,14 @@
     <string name="settings_section_about">About</string>
     <string name="settings_text_size">Text view size: %1$d</string>
     <string name="support_developer">Support the developer</string>
-    <string name="support_developer_hint">Free, with no ads: your support keeps it so.</string>
+    <string name="support_developer_hint">Staying free and ad-free is possible with your support. Even one coffee makes a difference.</string>
     <string name="buy_coffee">Buy me a coffee</string>
-    <string name="buy_coffee_hint">A small thank-you for the work that goes into it.</string>
+    <string name="buy_coffee_hint">Bana Bi Coffee for Turkey, Buy Me a Coffee from abroad.</string>
     <string name="support_share_app">Tell a friend</string>
     <string name="support_share_text">MobileOffice: a free office app with no ads and no internet. %1$s</string>
     <string name="support_star">Star the project</string>
     <string name="support_report">Report a problem or idea</string>
     <string name="support_thanks">Thank you! Every bit of support helps the app stay free.</string>
-    <string name="coffee_soon">The donation page is not ready yet. Until then, telling a friend about the app helps a lot.</string>
     <string name="no_browser">No app on this phone can open the link.</string>
     <string name="about_version">Version</string>
     <string name="about_engines">Document engines</string>
@@ -410,4 +409,10 @@
     <string name="about_purpose_text">MobileOffice was made to be free, safe and at no cost. Your documents are yours alone: the app has no internet permission, shows no ads, asks for no account and collects nothing. It opens, edits and converts Word, Excel, PowerPoint, PDF, UYAP and e-invoice files with care for Turkish, so that everyone can have a capable office tool without paying and without giving up their privacy.</string>
     <string name="home_title">Documents</string>
     <string name="open_short">Open</string>
+    <string name="coffee_pitch">MobileOffice is made independently, with no ads, no selling of data and no paid version — and it should stay that way. The price of a coffee goes straight into new features, fixes and keeping the app free for everyone. If it made your work easier today, how about thanking it with a coffee? ☕</string>
+    <string name="coffee_tr">Bana Bi Coffee — from Turkey, in lira</string>
+    <string name="coffee_tr_hint">Card or bank transfer in Turkish lira</string>
+    <string name="coffee_global">Buy Me a Coffee — from abroad</string>
+    <string name="coffee_global_hint">Card, Apple Pay or Google Pay</string>
+    <string name="coffee_later">Maybe later</string>
 </resources>

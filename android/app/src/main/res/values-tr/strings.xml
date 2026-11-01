@@ -349,15 +349,14 @@
     <string name="settings_section_about">Hakkında</string>
     <string name="settings_text_size">Metin görünümü yazı boyutu: %1$d</string>
     <string name="support_developer">Geliştiriciyi destekle</string>
-    <string name="support_developer_hint">Ücretsiz ve reklamsız; desteğiniz böyle kalmasını sağlar.</string>
+    <string name="support_developer_hint">Reklamsız ve ücretsiz kalması sizin desteğinizle mümkün. Bir kahve bile fark yaratır.</string>
     <string name="buy_coffee">Bana bir kahve al</string>
-    <string name="buy_coffee_hint">Emeğe küçük bir teşekkür.</string>
+    <string name="buy_coffee_hint">Türkiye için Bana Bi Coffee, yurt dışı için Buy Me a Coffee.</string>
     <string name="support_share_app">Arkadaşına öner</string>
     <string name="support_share_text">MobileOffice: reklamsız, internetsiz, ücretsiz ofis uygulaması. %1$s</string>
     <string name="support_star">Projeye yıldız ver</string>
     <string name="support_report">Hata ya da öneri bildir</string>
     <string name="support_thanks">Teşekkürler! Her destek uygulamanın ücretsiz kalmasına yardım eder.</string>
-    <string name="coffee_soon">Bağış sayfası henüz hazır değil. O zamana kadar uygulamayı bir arkadaşınıza önermeniz çok yardımcı olur.</string>
     <string name="no_browser">Bu telefonda bağlantıyı açabilecek bir uygulama yok.</string>
     <string name="about_version">Sürüm</string>
     <string name="about_engines">Belge motorları</string>
@@ -409,4 +408,10 @@
     <string name="about_purpose_text">MobileOffice özgür, güvenli ve ücretsiz olsun diye yapıldı. Belgeleriniz yalnızca sizindir: uygulamanın internet izni yoktur, reklam göstermez, hesap istemez ve hiçbir veri toplamaz. Word, Excel, PowerPoint, PDF, UYAP ve e-Fatura dosyalarınızı Türkçeye özen göstererek açar, düzenler ve dönüştürür. Amacı, herkesin para ödemeden ve gizliliğinden ödün vermeden güçlü bir ofis aracına sahip olmasıdır.</string>
     <string name="home_title">Belgeler</string>
     <string name="open_short">Aç</string>
+    <string name="coffee_pitch">MobileOffice bağımsız olarak geliştiriliyor: reklam yok, veri satışı yok, ücretli sürüm yok ve hep böyle kalsın istiyoruz. Bir kahve parası; yeni özelliklere, hata düzeltmelerine ve uygulamanın herkes için ücretsiz kalmasına doğrudan destek demek. Bugün işinizi kolaylaştırdıysa, bir kahveyle teşekkür etmeye ne dersiniz? ☕</string>
+    <string name="coffee_tr">Bana Bi Coffee — Türkiye\'den, TL ile</string>
+    <string name="coffee_tr_hint">Banka kartı ya da havale ile, Türk lirası</string>
+    <string name="coffee_global">Buy Me a Coffee — yurt dışından</string>
+    <string name="coffee_global_hint">Kart, Apple Pay ya da Google Pay</string>
+    <string name="coffee_later">Belki sonra</string>
 </resources>
