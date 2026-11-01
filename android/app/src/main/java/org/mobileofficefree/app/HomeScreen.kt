@@ -392,7 +392,10 @@ fun HomeScreen(onOpen: (Uri) -> Unit, onNewSheet: () -> Unit, onDiagnostics: () 
                         Column(Modifier.clip(shape).background(MaterialTheme.colorScheme.surfaceContainerLow)) {
                             DocumentRow(
                                 file = f,
-                                onOpen = { onOpen(f.uri) },
+                                onOpen = {
+                                    FileInfo.rememberName(f.uri, f.name)
+                                    onOpen(f.uri)
+                                },
                                 onShare = {
                                     val send = Intent(Intent.ACTION_SEND)
                                         .setType(context.contentResolver.getType(f.uri) ?: "*/*")

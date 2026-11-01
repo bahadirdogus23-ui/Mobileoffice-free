@@ -43,8 +43,17 @@ fun AppRoot(sheet: SheetViewModel, word: WordViewModel, pdf: PdfViewModel, slide
     // A crash report from the last run, offered once for sharing.
     var crashReport by remember { mutableStateOf(Diagnostics.takeCrashReport(context)) }
 
-    val openAny: (Uri) -> Unit = { uri ->
-        val info = runCatching { FileInfo.of(context.contentResolver, uri) }.getOrNull()
+    val openAny: (Uri) -> Unit = openAny@{ uri ->
+        val found = runCatching { FileInfo.of(context.contentResolver, uri) }
+        val info = found.getOrNull()
+        // A file that cannot be read is not an unsupported type: say what went wrong.
+        val unreadable = info?.kind == DocumentKind.OTHER &&
+            runCatching { context.contentResolver.openInputStream(uri)?.close() ?: error("no data") }.exceptionOrNull()?.let { e ->
+                notice = resources.getString(R.string.open_failed, e.message ?: e.javaClass.simpleName)
+                true
+            } == true
+        if (found.isFailure) notice = resources.getString(R.string.open_failed, found.exceptionOrNull()?.message ?: "")
+        if (found.isFailure || unreadable) return@openAny
         when (info?.kind) {
             DocumentKind.WORD -> word.open(uri)
             DocumentKind.SHEET -> sheet.open(uri)

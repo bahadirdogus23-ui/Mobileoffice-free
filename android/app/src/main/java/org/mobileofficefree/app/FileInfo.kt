@@ -14,17 +14,28 @@ import java.util.zip.ZipInputStream
 data class FileInfo(val name: String, val size: Long, val mime: String?, val kind: DocumentKind, val typedName: String) {
 
     companion object {
+        /** Names the home list knows for addresses whose provider may not give one. */
+        private val knownNames = java.util.concurrent.ConcurrentHashMap<Uri, String>()
+
+        fun rememberName(uri: Uri, name: String) {
+            knownNames[uri] = name
+        }
+
         fun of(resolver: ContentResolver, uri: Uri): FileInfo {
             var name: String? = null
             var size = -1L
-            resolver.query(uri, arrayOf(OpenableColumns.DISPLAY_NAME, OpenableColumns.SIZE), null, null, null)?.use { c ->
-                if (c.moveToFirst()) {
-                    name = c.getString(0)
-                    if (!c.isNull(1)) size = c.getLong(1)
+            // Some providers answer no name (or refuse the question); the name the list showed,
+            // and then the content itself, still tell what the file is.
+            runCatching {
+                resolver.query(uri, arrayOf(OpenableColumns.DISPLAY_NAME, OpenableColumns.SIZE), null, null, null)?.use { c ->
+                    if (c.moveToFirst()) {
+                        name = c.getString(0)
+                        if (!c.isNull(1)) size = c.getLong(1)
+                    }
                 }
             }
-            val shown = name ?: uri.lastPathSegment?.substringAfterLast('/') ?: "document"
-            val mime = resolver.getType(uri)
+            val shown = name ?: knownNames[uri] ?: uri.lastPathSegment?.substringAfterLast('/') ?: "document"
+            val mime = runCatching { resolver.getType(uri) }.getOrNull()
             val byName = DocumentKind.of(shown, mime)
             val ext = shown.substringAfterLast('.', "").lowercase(Locale.ROOT)
             // An XML file may be a GİB e-invoice: look at its first few KB.
