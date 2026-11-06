@@ -712,6 +712,8 @@ fun PagedScreen(vm: PagedViewModel, state: PagedUiState, reading: ReadingSetting
                         SlideObjectBar(slides)
                     } else Row(Modifier.horizontalScroll(rememberScrollState())) {
                         val at = current - 1
+                        TextButton(onClick = slides::undo, enabled = slides.canUndo) { Text("↶") }
+                        TextButton(onClick = slides::redo, enabled = slides.canRedo) { Text("↷") }
                         TextButton(onClick = { newTextBoxOn = at }) { Text(stringResource(R.string.slide_add_text)) }
                         TextButton(onClick = {
                             pictureFor = at

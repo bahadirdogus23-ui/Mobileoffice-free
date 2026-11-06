@@ -39,6 +39,7 @@ fun SlideObjectBar(vm: SlidesViewModel) {
     var alignMenu by remember { mutableStateOf(false) }
     var arrangeMenu by remember { mutableStateOf(false) }
     Row(Modifier.horizontalScroll(rememberScrollState())) {
+        TextButton(onClick = vm::undo, enabled = vm.canUndo) { Text("↶") }
         if (vm.pickedHasText) TextButton(onClick = vm::editPickedText) { Text(stringResource(R.string.slide_edit_text)) }
         if (text) {
             TextButton(onClick = { vm.stylePicked(SlideStyle.TextSize(-2.0)) }) { Text("A−") }

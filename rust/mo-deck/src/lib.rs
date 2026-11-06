@@ -31,7 +31,13 @@ pub struct DeckDoc {
     pres: Presentation,
     warnings: Vec<String>,
     dirty: bool,
+    /// The presentation before each change (newest last), and changes taken back (for redo).
+    undo: Vec<Presentation>,
+    redo: Vec<Presentation>,
 }
+
+/// How many changes can be taken back.
+const UNDO_STEPS: usize = 30;
 
 impl DeckDoc {
     /// The presentation as a PDF, one slide per page, with real text and shapes.
@@ -48,12 +54,12 @@ impl DeckDoc {
             return Err(DeckError::Open("Not a PowerPoint (.pptx) presentation.".into()));
         }
         let (pres, warnings) = deckcraft_pptx::import_checked(bytes).map_err(|e| DeckError::Open(e.to_string()))?;
-        Ok(DeckDoc { pres, warnings, dirty: false })
+        Ok(DeckDoc { pres, warnings, dirty: false, undo: Vec::new(), redo: Vec::new() })
     }
 
     #[cfg(test)]
     fn from_presentation(pres: Presentation) -> DeckDoc {
-        DeckDoc { pres, warnings: Vec::new(), dirty: false }
+        DeckDoc { pres, warnings: Vec::new(), dirty: false, undo: Vec::new(), redo: Vec::new() }
     }
 
     /// What the import could not keep.
@@ -112,8 +118,7 @@ impl DeckDoc {
 
     /// Makes shape `id`'s text on `slide` read `text`, keeping the formatting of what stays.
     pub fn set_text(&mut self, slide: u32, id: u32, text: &str) -> Result<(), DeckError> {
-        edit::set_text(&mut self.pres, slide as usize, id, text)?;
-        self.dirty = true;
+        self.change(|p| edit::set_text(p, slide as usize, id, text))?;
         Ok(())
     }
 
@@ -125,51 +130,44 @@ impl DeckDoc {
     /// Moves object `id` by (`dx`, `dy`) points, scales it by `scale` about its centre and turns
     /// it `rotate` degrees clockwise.
     pub fn place_object(&mut self, slide: u32, id: u32, dx: f64, dy: f64, scale: f64, rotate: f64) -> Result<(), DeckError> {
-        edit::place_object(&mut self.pres, slide as usize, id, dx, dy, scale, rotate)?;
-        self.dirty = true;
+        self.change(|p| edit::place_object(p, slide as usize, id, dx, dy, scale, rotate))?;
         Ok(())
     }
 
     /// A new text box reading `text` in the middle of `slide`; returns its id.
     pub fn add_text_box(&mut self, slide: u32, text: &str) -> Result<u32, DeckError> {
-        let id = edit::add_text_box(&mut self.pres, slide as usize, text)?;
-        self.dirty = true;
+        let id = self.change(|p| edit::add_text_box(p, slide as usize, text))?;
         Ok(id)
     }
 
     /// Picture `data` (PNG or JPEG, `width`×`height` pixels) in the middle of `slide`; returns its id.
     pub fn add_picture(&mut self, slide: u32, data: Vec<u8>, width: u32, height: u32) -> Result<u32, DeckError> {
-        let id = edit::add_picture(&mut self.pres, slide as usize, data, width, height)?;
-        self.dirty = true;
+        let id = self.change(|p| edit::add_picture(p, slide as usize, data, width, height))?;
         Ok(id)
     }
 
     /// A new shape (PowerPoint's name for it, e.g. "ellipse") filled with 0xRRGGBB in the
     /// middle of `slide`; returns its id.
     pub fn add_shape(&mut self, slide: u32, preset: &str, fill: u32) -> Result<u32, DeckError> {
-        let id = edit::add_shape(&mut self.pres, slide as usize, preset, fill)?;
-        self.dirty = true;
+        let id = self.change(|p| edit::add_shape(p, slide as usize, preset, fill))?;
         Ok(id)
     }
 
     /// A copy of object `id` a little below and right of it; returns its id.
     pub fn duplicate_object(&mut self, slide: u32, id: u32) -> Result<u32, DeckError> {
-        let new = edit::duplicate_object(&mut self.pres, slide as usize, id)?;
-        self.dirty = true;
+        let new = self.change(|p| edit::duplicate_object(p, slide as usize, id))?;
         Ok(new)
     }
 
     /// Object `id` brought in front of the others, or sent behind them.
     pub fn arrange_object(&mut self, slide: u32, id: u32, to_front: bool) -> Result<(), DeckError> {
-        edit::arrange_object(&mut self.pres, slide as usize, id, to_front)?;
-        self.dirty = true;
+        self.change(|p| edit::arrange_object(p, slide as usize, id, to_front))?;
         Ok(())
     }
 
     /// Changes the look of object `id`'s text or box.
     pub fn style_object(&mut self, slide: u32, id: u32, style: ObjectStyle) -> Result<(), DeckError> {
-        edit::style_object(&mut self.pres, slide as usize, id, style)?;
-        self.dirty = true;
+        self.change(|p| edit::style_object(p, slide as usize, id, style))?;
         Ok(())
     }
 
@@ -180,41 +178,35 @@ impl DeckDoc {
 
     /// Removes object `id` from `slide`.
     pub fn delete_object(&mut self, slide: u32, id: u32) -> Result<(), DeckError> {
-        edit::delete_object(&mut self.pres, slide as usize, id)?;
-        self.dirty = true;
+        self.change(|p| edit::delete_object(p, slide as usize, id))?;
         Ok(())
     }
 
     /// Makes cell (`row`, `col`) of table `id` on `slide` read `text`.
     pub fn set_cell_text(&mut self, slide: u32, id: u32, row: u32, col: u32, text: &str) -> Result<(), DeckError> {
-        edit::set_cell_text(&mut self.pres, slide as usize, id, row, col, text)?;
-        self.dirty = true;
+        self.change(|p| edit::set_cell_text(p, slide as usize, id, row, col, text))?;
         Ok(())
     }
 
     /// A new slide after `slide` with the same layout; returns its index.
     pub fn new_slide(&mut self, slide: u32) -> Result<u32, DeckError> {
-        let at = edit::new_slide(&mut self.pres, slide as usize)?;
-        self.dirty = true;
+        let at = self.change(|p| edit::new_slide(p, slide as usize))?;
         Ok(at as u32)
     }
 
     /// A copy of `slide` right after it; returns its index.
     pub fn duplicate_slide(&mut self, slide: u32) -> Result<u32, DeckError> {
-        let at = edit::duplicate_slide(&mut self.pres, slide as usize)?;
-        self.dirty = true;
+        let at = self.change(|p| edit::duplicate_slide(p, slide as usize))?;
         Ok(at as u32)
     }
 
     pub fn delete_slide(&mut self, slide: u32) -> Result<(), DeckError> {
-        edit::delete_slide(&mut self.pres, slide as usize)?;
-        self.dirty = true;
+        self.change(|p| edit::delete_slide(p, slide as usize))?;
         Ok(())
     }
 
     pub fn move_slide(&mut self, from: u32, to: u32) -> Result<(), DeckError> {
-        edit::move_slide(&mut self.pres, from as usize, to as usize)?;
-        self.dirty = true;
+        self.change(|p| edit::move_slide(p, from as usize, to as usize))?;
         Ok(())
     }
 
@@ -229,6 +221,52 @@ impl DeckDoc {
         let bytes = deckcraft_pptx::export_as(&self.pres, &ext).map_err(|e| DeckError::Export(e.to_string()))?;
         self.dirty = false;
         Ok(bytes)
+    }
+
+    /// Runs `edit` on the presentation, remembering it as it was so the change can be taken
+    /// back; a failed edit leaves the presentation as it was.
+    fn change<T>(&mut self, edit: impl FnOnce(&mut Presentation) -> Result<T, DeckError>) -> Result<T, DeckError> {
+        // Slides and media are shared, so a copy costs little.
+        let before = self.pres.clone();
+        match edit(&mut self.pres) {
+            Ok(v) => {
+                self.undo.push(before);
+                if self.undo.len() > UNDO_STEPS {
+                    self.undo.remove(0);
+                }
+                self.redo.clear();
+                self.dirty = true;
+                Ok(v)
+            }
+            Err(e) => {
+                self.pres = before;
+                Err(e)
+            }
+        }
+    }
+
+    /// Takes back the last change; false when there is none.
+    pub fn undo(&mut self) -> bool {
+        let Some(before) = self.undo.pop() else { return false };
+        self.redo.push(std::mem::replace(&mut self.pres, before));
+        self.dirty = true;
+        true
+    }
+
+    /// Makes again the last change taken back; false when there is none.
+    pub fn redo(&mut self) -> bool {
+        let Some(after) = self.redo.pop() else { return false };
+        self.undo.push(std::mem::replace(&mut self.pres, after));
+        self.dirty = true;
+        true
+    }
+
+    pub fn can_undo(&self) -> bool {
+        !self.undo.is_empty()
+    }
+
+    pub fn can_redo(&self) -> bool {
+        !self.redo.is_empty()
     }
 
     fn check(&self, slide: u32) -> Result<(), DeckError> {

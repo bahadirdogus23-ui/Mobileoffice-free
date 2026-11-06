@@ -720,6 +720,24 @@ impl SlidesDocument {
         Ok(self.doc().set_text(slide, id, &text)?)
     }
 
+    /// Takes back the last change; false when there is none.
+    pub fn undo(&self) -> bool {
+        self.doc().undo()
+    }
+
+    /// Makes again the last change taken back; false when there is none.
+    pub fn redo(&self) -> bool {
+        self.doc().redo()
+    }
+
+    pub fn can_undo(&self) -> bool {
+        self.doc().can_undo()
+    }
+
+    pub fn can_redo(&self) -> bool {
+        self.doc().can_redo()
+    }
+
     /// A new slide after `slide`; returns its index.
     pub fn new_slide(&self, slide: u32) -> Result<u32, MoError> {
         Ok(self.doc().new_slide(slide)?)

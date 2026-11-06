@@ -264,6 +264,25 @@ class SlidesViewModel(app: Application) : PagedViewModel(app, DocumentKind.SLIDE
         to
     }
 
+    /** Whether a change can be taken back, or made again. */
+    var canUndo by mutableStateOf(false)
+        private set
+    var canRedo by mutableStateOf(false)
+        private set
+
+    /** Takes back the last change (the picked object is let go: it may be gone). */
+    fun undo() {
+        picked = null
+        pickedLook = null
+        change { it.undo(); null }
+    }
+
+    fun redo() {
+        picked = null
+        pickedLook = null
+        change { it.redo(); null }
+    }
+
     /** Runs [op] on the engine thread (it may name a slide to show) and shows the slides as they are now. */
     private fun change(op: (SlidesDocument) -> Int?) {
         val d = doc ?: return
@@ -273,11 +292,13 @@ class SlidesViewModel(app: Application) : PagedViewModel(app, DocumentKind.SLIDE
                 runCatching {
                     val show = op(d)
                     val size = d.slideSize()
-                    List(d.slideCount().toInt()) { size.width to size.height } to show
+                    Triple(List(d.slideCount().toInt()) { size.width to size.height }, show, d.canUndo() to d.canRedo())
                 }
             }
             result.fold(
-                onSuccess = { (pages, show) ->
+                onSuccess = { (pages, show, history) ->
+                    canUndo = history.first
+                    canRedo = history.second
                     dirty = true
                     pagesEdited(pages)
                     if (show != null) goTo = show
@@ -348,6 +369,8 @@ class SlidesViewModel(app: Application) : PagedViewModel(app, DocumentKind.SLIDE
             editingText = null
             picked = null
             pickedLook = null
+            canUndo = false
+            canRedo = false
         }
     }
 }

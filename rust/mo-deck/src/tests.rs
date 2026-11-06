@@ -262,3 +262,34 @@ fn shapes_can_be_added_and_typed_into() {
     let px = &r.pixels[((y * r.width + r.width / 2) * 4) as usize..][..4];
     assert!(px[2] > 150 && px[0] < 60, "{px:?}");
 }
+
+#[test]
+fn changes_can_be_taken_back_and_made_again() {
+    let mut d = DeckDoc::open(include_bytes!("../testdata/grouped-text.pptx")).unwrap();
+    assert!(!d.can_undo() && !d.undo());
+    let before = d.objects(0).unwrap();
+    let id = d.add_shape(0, "star5", 0xFFC000).unwrap();
+    d.place_object(0, id, 40.0, 0.0, 1.0, 0.0).unwrap();
+    d.new_slide(0).unwrap();
+    assert_eq!(d.slide_count(), 2);
+    assert!(d.undo());
+    assert_eq!(d.slide_count(), 1);
+    assert!(d.undo());
+    let star = d.objects(0).unwrap().into_iter().find(|o| o.id == id).unwrap();
+    assert!(d.undo());
+    assert_eq!(d.objects(0).unwrap(), before);
+    assert!(!d.can_undo());
+    assert!(d.redo() && d.redo());
+    // Back to the star after its move.
+    let again = d.objects(0).unwrap().into_iter().find(|o| o.id == id).unwrap();
+    assert_eq!((again.x, again.y), (star.x + 40.0, star.y));
+    // A new change forgets what was taken back.
+    d.delete_object(0, id).unwrap();
+    assert!(!d.can_redo());
+    // A failed change is not remembered and changes nothing.
+    let now = d.objects(0).unwrap();
+    assert!(d.delete_object(0, 999_999).is_err());
+    assert_eq!(d.objects(0).unwrap(), now);
+    assert!(d.undo());
+    assert!(d.objects(0).unwrap().iter().any(|o| o.id == id));
+}
