@@ -216,3 +216,32 @@ fn objects_turn_and_can_be_drawn_left_out() {
     assert!(!red(&saved.render_slide_without(0, o.id, 0.5).unwrap()));
     assert!(red(&saved.render_slide(0, 0.5).unwrap()), "the deck itself is untouched");
 }
+
+#[test]
+fn objects_are_copied_arranged_and_restyled() {
+    let mut d = DeckDoc::open(include_bytes!("../testdata/grouped-text.pptx")).unwrap();
+    let box_id = d.add_text_box(0, "Merhaba").unwrap();
+    let copy = d.duplicate_object(0, box_id).unwrap();
+    let objs = d.objects(0).unwrap();
+    let (a, b) = (objs.iter().find(|o| o.id == box_id).unwrap(), objs.iter().find(|o| o.id == copy).unwrap());
+    assert_eq!((b.x - a.x, b.y - a.y), (18.0, 18.0));
+    assert_eq!(objs.last().unwrap().id, copy);
+    d.arrange_object(0, copy, false).unwrap();
+    assert_eq!(d.objects(0).unwrap()[0].id, copy);
+    assert!(!d.text_is_bold(0, box_id));
+    d.style_object(0, box_id, ObjectStyle::Bold(true)).unwrap();
+    d.style_object(0, box_id, ObjectStyle::TextSize(10.0)).unwrap();
+    d.style_object(0, box_id, ObjectStyle::TextColor(0xC00000)).unwrap();
+    d.style_object(0, box_id, ObjectStyle::Align(1)).unwrap();
+    d.style_object(0, box_id, ObjectStyle::Fill(Some(0xFFFF00))).unwrap();
+    // A picture has no text to style.
+    let saved = DeckDoc::open(&d.save("x.pptx").unwrap()).unwrap();
+    assert!(saved.text_is_bold(0, box_id));
+    let shape = saved.pres.slides[0].shapes.iter().find(|s| s.id.0 == box_id).unwrap();
+    let run = &shape.text.as_ref().unwrap().paragraphs[0].runs[0].props;
+    assert_eq!(run.size, Some(28.0));
+    assert!(matches!(shape.fill, Some(deckcraft_model::Fill::Solid { .. })));
+    assert_eq!(shape.text.as_ref().unwrap().paragraphs[0].props.align, Some(deckcraft_model::text::Align::Center));
+    // The copy is untouched.
+    assert!(!saved.text_is_bold(0, copy));
+}

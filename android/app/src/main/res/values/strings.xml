@@ -517,4 +517,16 @@
     <string name="merge_working">Combining the PDFs…</string>
     <string name="merge_cannot_read">%1$s could not be read (it may be damaged or password protected).</string>
     <string name="slide_upright">Upright</string>
+    <string name="slide_text_color">Colour</string>
+    <string name="slide_align">Align</string>
+    <string name="align_left">Left</string>
+    <string name="align_center">Centre</string>
+    <string name="align_right">Right</string>
+    <string name="align_justify">Justify</string>
+    <string name="slide_fill">Fill</string>
+    <string name="slide_fill_none">No fill</string>
+    <string name="slide_duplicate_object">Duplicate</string>
+    <string name="slide_arrange">Arrange</string>
+    <string name="slide_to_front">Bring to front</string>
+    <string name="slide_to_back">Send to back</string>
 </resources>

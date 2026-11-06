@@ -258,6 +258,140 @@ fn push_shape(pres: &mut Presentation, index: usize, mut shape: deckcraft_model:
     Ok(id)
 }
 
+/// A copy of object `id` on slide `index`, a little down and to the right of it; returns its id.
+pub fn duplicate_object(pres: &mut Presentation, index: usize, id: u32) -> Result<u32, DeckError> {
+    let (mut copy, at) = {
+        let slide = pres.slides.get(index).ok_or(DeckError::NoSlide(index as u32))?;
+        let shape = slide.shapes.iter().find(|s| s.id.0 == id).ok_or_else(|| edit_err("no such object"))?;
+        let at = match deckcraft_model::resolve::Ctx::for_slide(pres, slide) {
+            Some(c) => deckcraft_model::resolve::xfrm(&c, shape),
+            None => shape.xfrm.unwrap_or_default(),
+        };
+        (shape.clone(), at)
+    };
+    // A copy is no placeholder: it keeps its own box and look.
+    copy.ph = None;
+    copy.xfrm = Some(deckcraft_model::Xfrm { x: at.x + 18.0, y: at.y + 18.0, ..at });
+    renumber_children(pres, &mut copy)?;
+    let name = copy.name.split(' ').next().unwrap_or("Shape").to_string();
+    copy.name = name;
+    push_shape(pres, index, copy)
+}
+
+/// Fresh ids for the shapes inside a group being copied.
+fn renumber_children(pres: &mut Presentation, shape: &mut deckcraft_model::Shape) -> Result<(), DeckError> {
+    if let ShapeKind::Group { children, .. } = &mut shape.kind {
+        for child in children.iter_mut() {
+            child.id = ShapeId(pres.alloc_id().ok_or_else(|| edit_err("the presentation cannot grow further"))?);
+            renumber_children(pres, child)?;
+        }
+    }
+    Ok(())
+}
+
+/// Object `id` brought in front of everything on slide `index`, or sent behind everything.
+pub fn arrange_object(pres: &mut Presentation, index: usize, id: u32, to_front: bool) -> Result<(), DeckError> {
+    let slide = Arc::make_mut(pres.slides.get_mut(index).ok_or(DeckError::NoSlide(index as u32))?);
+    let at = slide.shapes.iter().position(|s| s.id.0 == id).ok_or_else(|| edit_err("no such object"))?;
+    let shape = slide.shapes.remove(at);
+    if to_front {
+        slide.shapes.push(shape);
+    } else {
+        slide.shapes.insert(0, shape);
+    }
+    Ok(())
+}
+
+/// A change to the look of an object's text, or to its box.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub enum ObjectStyle {
+    /// Every letter `step` points larger (smaller when negative).
+    TextSize(f64),
+    Bold(bool),
+    Italic(bool),
+    /// Text colour as 0xRRGGBB.
+    TextColor(u32),
+    /// 0 left, 1 centre, 2 right, 3 justified.
+    Align(u8),
+    /// The box filled with 0xRRGGBB, or left clear (None).
+    Fill(Option<u32>),
+}
+
+/// Applies `style` to object `id` on slide `index` (all of its text for the text changes).
+pub fn style_object(pres: &mut Presentation, index: usize, id: u32, style: ObjectStyle) -> Result<(), DeckError> {
+    // The size each run shows now (from the run, its placeholder, layout and master), for steps.
+    let sizes: Vec<Vec<f64>> = {
+        let slide = pres.slides.get(index).ok_or(DeckError::NoSlide(index as u32))?;
+        let shape = slide.shapes.iter().find(|s| s.id.0 == id).ok_or_else(|| edit_err("no such object"))?;
+        let ctx = deckcraft_model::resolve::Ctx::for_slide(pres, slide);
+        shape
+            .text
+            .as_ref()
+            .map(|body| {
+                body.paragraphs
+                    .iter()
+                    .map(|p| {
+                        p.runs
+                            .iter()
+                            .map(|r| {
+                                ctx.as_ref().and_then(|c| deckcraft_model::resolve::run(c, shape, p, &r.props).size).or(r.props.size).unwrap_or(18.0)
+                            })
+                            .collect()
+                    })
+                    .collect()
+            })
+            .unwrap_or_default()
+    };
+    let rgb = |c: u32| deckcraft_model::ColorRef::rgb(deckcraft_model::Rgba { r: (c >> 16) as u8, g: (c >> 8) as u8, b: c as u8, a: 255 });
+    let slide = Arc::make_mut(pres.slides.get_mut(index).ok_or(DeckError::NoSlide(index as u32))?);
+    let shape = slide.shapes.iter_mut().find(|s| s.id.0 == id).ok_or_else(|| edit_err("no such object"))?;
+    if let ObjectStyle::Fill(fill) = style {
+        shape.fill = Some(match fill {
+            Some(c) => deckcraft_model::Fill::Solid { color: rgb(c) },
+            None => deckcraft_model::Fill::None,
+        });
+        return Ok(());
+    }
+    let body = shape.text.as_mut().ok_or_else(|| edit_err("this object has no text"))?;
+    for (pi, para) in body.paragraphs.iter_mut().enumerate() {
+        if let ObjectStyle::Align(a) = style {
+            para.props.align = Some(match a {
+                1 => deckcraft_model::text::Align::Center,
+                2 => deckcraft_model::text::Align::Right,
+                3 => deckcraft_model::text::Align::Justify,
+                _ => deckcraft_model::text::Align::Left,
+            });
+            continue;
+        }
+        for (ri, run) in para.runs.iter_mut().enumerate() {
+            let p = &mut run.props;
+            match style {
+                ObjectStyle::TextSize(step) => {
+                    let now = sizes.get(pi).and_then(|r| r.get(ri)).copied().unwrap_or(18.0);
+                    p.size = Some((now + step).clamp(4.0, 400.0));
+                }
+                ObjectStyle::Bold(on) => p.bold = Some(on),
+                ObjectStyle::Italic(on) => p.italic = Some(on),
+                ObjectStyle::TextColor(c) => p.fill = Some(deckcraft_model::Fill::Solid { color: rgb(c) }),
+                ObjectStyle::Align(_) | ObjectStyle::Fill(_) => {}
+            }
+        }
+    }
+    Ok(())
+}
+
+/// Whether the first letter of object `id`'s text is bold (as shown).
+pub fn text_is_bold(pres: &Presentation, index: usize, id: u32) -> bool {
+    let Some(slide) = pres.slides.get(index) else { return false };
+    let Some(shape) = slide.shapes.iter().find(|s| s.id.0 == id) else { return false };
+    let Some(ctx) = deckcraft_model::resolve::Ctx::for_slide(pres, slide) else { return false };
+    let Some(body) = &shape.text else { return false };
+    body.paragraphs
+        .iter()
+        .find_map(|p| p.runs.first().map(|r| deckcraft_model::resolve::run(&ctx, shape, p, &r.props).bold.unwrap_or(false)))
+        .unwrap_or(false)
+}
+
 /// Removes object `id` from slide `index`, with its animations.
 pub fn delete_object(pres: &mut Presentation, index: usize, id: u32) -> Result<(), DeckError> {
     let slide = Arc::make_mut(pres.slides.get_mut(index).ok_or(DeckError::NoSlide(index as u32))?);

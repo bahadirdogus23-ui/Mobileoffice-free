@@ -69,6 +69,7 @@ class SlidesViewModel(app: Application) : PagedViewModel(app, DocumentKind.SLIDE
             pickedAt = x to y
             picked = hit?.let { slide to it }
             pickedLook = null
+            pickedBold = hit != null && withContext(engine) { runCatching { d.textIsBold(slide.toUInt(), hit.id) }.getOrDefault(false) }
             if (hit != null) refreshLook(slide, hit.id)
         }
     }
@@ -181,6 +182,37 @@ class SlidesViewModel(app: Application) : PagedViewModel(app, DocumentKind.SLIDE
             pickedAt = (o.x + o.width / 2) to (o.y + o.height / 2)
             picked = slide to o
             refreshLook(slide, o.id)
+        }
+    }
+
+    /** Whether the picked object's text starts bold (for the bold button). */
+    var pickedBold by mutableStateOf(false)
+        private set
+
+    /** A copy of the picked object, picked in its place. */
+    fun duplicatePicked() {
+        val (slide, o) = picked ?: return
+        change {
+            val id = it.duplicateObject(slide.toUInt(), o.id)
+            pickLater(it, slide, id)
+            null
+        }
+    }
+
+    /** The picked object brought in front of the others ([front]) or sent behind them. */
+    fun arrangePicked(front: Boolean) = restyle { d, slide, id -> d.arrangeObject(slide, id, front) }
+
+    /** Changes the look of the picked object's text or box. */
+    fun stylePicked(style: org.mobileofficefree.engine.SlideStyle) = restyle { d, slide, id -> d.styleObject(slide, id, style) }
+
+    private fun restyle(op: (SlidesDocument, UInt, UInt) -> Unit) {
+        val (slide, o) = picked ?: return
+        change {
+            op(it, slide.toUInt(), o.id)
+            val bold = it.textIsBold(slide.toUInt(), o.id)
+            pickLater(it, slide, o.id)
+            viewModelScope.launch { pickedBold = bold }
+            null
         }
     }
 

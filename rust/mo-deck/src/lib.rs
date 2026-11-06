@@ -3,7 +3,7 @@
 //! (see `edit.rs`), so the app carries neither the editing engine nor its media decoders.
 
 mod edit;
-pub use edit::{ObjectKind, SlideObject, TextShape};
+pub use edit::{ObjectKind, ObjectStyle, SlideObject, TextShape};
 
 use deckcraft_model::Presentation;
 use deckcraft_render::RenderOpts;
@@ -142,6 +142,32 @@ impl DeckDoc {
         let id = edit::add_picture(&mut self.pres, slide as usize, data, width, height)?;
         self.dirty = true;
         Ok(id)
+    }
+
+    /// A copy of object `id` a little below and right of it; returns its id.
+    pub fn duplicate_object(&mut self, slide: u32, id: u32) -> Result<u32, DeckError> {
+        let new = edit::duplicate_object(&mut self.pres, slide as usize, id)?;
+        self.dirty = true;
+        Ok(new)
+    }
+
+    /// Object `id` brought in front of the others, or sent behind them.
+    pub fn arrange_object(&mut self, slide: u32, id: u32, to_front: bool) -> Result<(), DeckError> {
+        edit::arrange_object(&mut self.pres, slide as usize, id, to_front)?;
+        self.dirty = true;
+        Ok(())
+    }
+
+    /// Changes the look of object `id`'s text or box.
+    pub fn style_object(&mut self, slide: u32, id: u32, style: ObjectStyle) -> Result<(), DeckError> {
+        edit::style_object(&mut self.pres, slide as usize, id, style)?;
+        self.dirty = true;
+        Ok(())
+    }
+
+    /// Whether object `id`'s text starts bold.
+    pub fn text_is_bold(&self, slide: u32, id: u32) -> bool {
+        edit::text_is_bold(&self.pres, slide as usize, id)
     }
 
     /// Removes object `id` from `slide`.

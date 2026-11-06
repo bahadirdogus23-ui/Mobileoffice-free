@@ -688,16 +688,8 @@ fun PagedScreen(vm: PagedViewModel, state: PagedUiState, reading: ReadingSetting
                         style = MaterialTheme.typography.bodySmall,
                         modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
                     )
-                    if (slides.picked != null) Row(Modifier.horizontalScroll(rememberScrollState())) {
-                        if (slides.pickedHasText) TextButton(onClick = slides::editPickedText) { Text(stringResource(R.string.slide_edit_text)) }
-                        TextButton(onClick = { slides.placePicked(0.0, 0.0, 0.9) }) { Text(stringResource(R.string.slide_smaller)) }
-                        TextButton(onClick = { slides.placePicked(0.0, 0.0, 1.1) }) { Text(stringResource(R.string.slide_bigger)) }
-                        TextButton(onClick = { slides.placePicked(0.0, 0.0, 1.0, 90.0) }) { Text("⟳ 90°") }
-                        TextButton(onClick = { slides.placePicked(0.0, 0.0, 1.0, -(slides.picked?.second?.rotation ?: 0f).toDouble()) }, enabled = (slides.picked?.second?.rotation ?: 0f) != 0f) {
-                            Text(stringResource(R.string.slide_upright))
-                        }
-                        TextButton(onClick = slides::deletePicked) { Text(stringResource(R.string.delete)) }
-                        TextButton(onClick = slides::dropPick) { Text(stringResource(R.string.done)) }
+                    if (slides.picked != null) {
+                        SlideObjectBar(slides)
                     } else Row(Modifier.horizontalScroll(rememberScrollState())) {
                         val at = current - 1
                         TextButton(onClick = { newTextBoxOn = at }) { Text(stringResource(R.string.slide_add_text)) }

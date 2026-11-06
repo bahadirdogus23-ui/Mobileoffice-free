@@ -516,4 +516,16 @@
     <string name="merge_working">PDF\'ler birleştiriliyor…</string>
     <string name="merge_cannot_read">%1$s okunamadı (bozuk ya da parolalı olabilir).</string>
     <string name="slide_upright">Düzelt</string>
+    <string name="slide_text_color">Renk</string>
+    <string name="slide_align">Hizala</string>
+    <string name="align_left">Sola</string>
+    <string name="align_center">Ortala</string>
+    <string name="align_right">Sağa</string>
+    <string name="align_justify">İki yana</string>
+    <string name="slide_fill">Dolgu</string>
+    <string name="slide_fill_none">Dolgu yok</string>
+    <string name="slide_duplicate_object">Çoğalt</string>
+    <string name="slide_arrange">Sırala</string>
+    <string name="slide_to_front">Öne getir</string>
+    <string name="slide_to_back">Arkaya gönder</string>
 </resources>

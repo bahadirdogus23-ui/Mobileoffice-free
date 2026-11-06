@@ -515,6 +515,33 @@ pub struct SlideText {
     pub col: i32,
 }
 
+/// A change to the look of a slide object's text or box.
+#[derive(uniffi::Enum)]
+pub enum SlideStyle {
+    /// Every letter `step` points larger (smaller when negative).
+    TextSize {
+        step: f64,
+    },
+    Bold {
+        on: bool,
+    },
+    Italic {
+        on: bool,
+    },
+    /// 0xRRGGBB.
+    TextColor {
+        rgb: u32,
+    },
+    /// 0 left, 1 centre, 2 right, 3 justified.
+    Align {
+        align: u8,
+    },
+    /// 0xRRGGBB, or none for a clear box.
+    Fill {
+        rgb: Option<u32>,
+    },
+}
+
 #[derive(uniffi::Enum)]
 pub enum SlideObjectKind {
     Text,
@@ -642,6 +669,34 @@ impl SlidesDocument {
     /// Picture `data` (PNG or JPEG, `width`×`height` pixels) in the middle of `slide`; returns its id.
     pub fn add_picture(&self, slide: u32, data: Vec<u8>, width: u32, height: u32) -> Result<u32, MoError> {
         Ok(self.doc().add_picture(slide, data, width, height)?)
+    }
+
+    /// A copy of object `id` a little below and right of it; returns its id.
+    pub fn duplicate_object(&self, slide: u32, id: u32) -> Result<u32, MoError> {
+        Ok(self.doc().duplicate_object(slide, id)?)
+    }
+
+    /// Object `id` brought in front of the others, or sent behind them.
+    pub fn arrange_object(&self, slide: u32, id: u32, to_front: bool) -> Result<(), MoError> {
+        Ok(self.doc().arrange_object(slide, id, to_front)?)
+    }
+
+    /// Changes the look of object `id`'s text or box.
+    pub fn style_object(&self, slide: u32, id: u32, style: SlideStyle) -> Result<(), MoError> {
+        let style = match style {
+            SlideStyle::TextSize { step } => mo_deck::ObjectStyle::TextSize(step),
+            SlideStyle::Bold { on } => mo_deck::ObjectStyle::Bold(on),
+            SlideStyle::Italic { on } => mo_deck::ObjectStyle::Italic(on),
+            SlideStyle::TextColor { rgb } => mo_deck::ObjectStyle::TextColor(rgb),
+            SlideStyle::Align { align } => mo_deck::ObjectStyle::Align(align),
+            SlideStyle::Fill { rgb } => mo_deck::ObjectStyle::Fill(rgb),
+        };
+        Ok(self.doc().style_object(slide, id, style)?)
+    }
+
+    /// Whether object `id`'s text starts bold.
+    pub fn text_is_bold(&self, slide: u32, id: u32) -> bool {
+        self.doc().text_is_bold(slide, id)
     }
 
     /// Removes object `id` (and its animations) from `slide`.
