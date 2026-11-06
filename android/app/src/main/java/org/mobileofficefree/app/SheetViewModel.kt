@@ -284,6 +284,51 @@ class SheetViewModel(app: Application) : AndroidViewModel(app) {
         edit { d -> d.execute(id, params.toString()) }
     }
 
+    /** The text last copied from the sheet: a paste of the same text uses the engine's own copy (formulas and formats kept). */
+    private var copiedText: String? = null
+
+    /** Copies ([cut] false) or cuts the selection; [onText] gets it as tab-separated text for the phone's clipboard. */
+    fun copySelection(cut: Boolean, onText: (String) -> Unit) {
+        val current = (screen as? Screen.Sheet)?.state ?: return
+        val range = formatRange(current)
+        val run: (SheetDocument) -> Unit = { d ->
+            val text = runCatching { JSONObject(d.execute(if (cut) "edit.cut" else "edit.copy", JSONObject().put("range", range).toString())).optString("text") }.getOrDefault("")
+            viewModelScope.launch {
+                copiedText = text
+                if (text.isNotEmpty()) onText(text)
+            }
+        }
+        if (cut) {
+            edit(run)
+        } else {
+            val d = doc ?: return
+            viewModelScope.launch { withContext(engine) { run(d) } }
+        }
+    }
+
+    /**
+     * Pastes at the selected cell: what was copied here (with its formulas and formats), or
+     * [clipboard] (text from another app, tab-separated cells and lines) when that is newer.
+     */
+    fun paste(clipboard: String?) {
+        val current = (screen as? Screen.Sheet)?.state ?: return
+        val p = JSONObject().put("at", cellName(current.selectedRow, current.selectedCol))
+        if (clipboard != null && clipboard.isNotEmpty() && clipboard != copiedText) p.put("text", clipboard)
+        edit { d -> d.execute("edit.paste", p.toString()) }
+    }
+
+    /** Empties the selected cells (their formats stay). */
+    fun clearSelection() {
+        val current = (screen as? Screen.Sheet)?.state ?: return
+        edit { d -> d.execute("edit.clearContents", JSONObject().put("range", formatRange(current)).toString()) }
+    }
+
+    /** Copies the selection's first row down through the rest of it, as Excel's Fill Down. */
+    fun fillDown() {
+        val current = (screen as? Screen.Sheet)?.state ?: return
+        edit { d -> d.execute("edit.fillDown", JSONObject().put("range", formatRange(current)).toString()) }
+    }
+
     /** Inserts ([insert]) or deletes a whole row ([rows]) or column at the selection. */
     fun lines(rows: Boolean, insert: Boolean) {
         val current = (screen as? Screen.Sheet)?.state ?: return

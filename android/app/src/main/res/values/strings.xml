@@ -557,4 +557,6 @@
     <string name="mark_strike">Strike out</string>
     <string name="tool_smaller">Smaller</string>
     <string name="tool_bigger">Bigger</string>
+    <string name="sheet_clear">Clear</string>
+    <string name="sheet_fill_down">Fill down</string>
 </resources>

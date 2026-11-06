@@ -385,6 +385,19 @@ private fun SheetToolBar(vm: SheetViewModel, look: CellLook?) {
         TextButton(onClick = { vm.format("home.alignRight") }) { Text("⇥") }
         TextButton(onClick = { vm.format("home.accounting", JSONObject().put("symbol", "₺")) }) { Text("₺") }
         TextButton(onClick = { vm.format("home.percent") }) { Text("%") }
+        val clipboardContext = androidx.compose.ui.platform.LocalContext.current
+        val clipboard = remember { clipboardContext.getSystemService(android.content.ClipboardManager::class.java) }
+        TextButton(onClick = {
+            vm.copySelection(cut = false) { clipboard?.setPrimaryClip(android.content.ClipData.newPlainText("cells", it)) }
+        }) { Text(stringResource(R.string.copy)) }
+        TextButton(onClick = {
+            vm.copySelection(cut = true) { clipboard?.setPrimaryClip(android.content.ClipData.newPlainText("cells", it)) }
+        }) { Text(stringResource(R.string.cut)) }
+        TextButton(onClick = {
+            vm.paste(clipboard?.primaryClip?.takeIf { it.itemCount > 0 }?.getItemAt(0)?.coerceToText(clipboardContext)?.toString())
+        }) { Text(stringResource(R.string.paste)) }
+        TextButton(onClick = vm::clearSelection) { Text(stringResource(R.string.sheet_clear)) }
+        TextButton(onClick = vm::fillDown) { Text(stringResource(R.string.sheet_fill_down)) }
         TextButton(onClick = { vm.sort(true) }) { Text("A→Z") }
         TextButton(onClick = { vm.sort(false) }) { Text("Z→A") }
         TextButton(onClick = vm::openFilter) { Text((if (vm.hasFilter) "▼● " else "▼ ") + stringResource(R.string.filter)) }
