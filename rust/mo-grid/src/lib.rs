@@ -28,6 +28,17 @@ pub enum GridError {
 }
 
 /// One open workbook in its own engine session.
+/// One value a column filter can show.
+#[derive(Clone, Debug, PartialEq)]
+pub struct FilterValue {
+    /// As the filter matches it (the cell's text); empty for blank cells.
+    pub value: String,
+    /// As shown in the list (Turkish number style when that is on).
+    pub label: String,
+    pub count: u32,
+    pub selected: bool,
+}
+
 pub struct GridDoc {
     session: Session,
     warnings: Vec<String>,
@@ -294,6 +305,89 @@ impl GridDoc {
             serde_json::json!({ "range": format!("A1:{last}"), "keys": [{ "column": column, "order": order }] })
         };
         self.execute("data.sort", &params.to_string()).map(|_| ())
+    }
+
+    /// The different values in column `col` of the active sheet's filter range (or of the used
+    /// area under row 1 when it has none), sorted, each with how many rows hold it and whether
+    /// the column's filter shows it now. An empty `value` stands for blank cells.
+    pub fn filter_values(&self, col: u32) -> Result<Vec<FilterValue>, GridError> {
+        use gridcraft_engine::model::FilterCriterion;
+        let sheet = self.active_sheet();
+        let wb = self.wb();
+        let sh = wb.sheets.get(sheet as usize).ok_or(GridError::NoSheet(sheet))?;
+        let (first, last, shown): (u32, u32, Option<(Vec<String>, bool)>) = match &sh.autofilter {
+            Some(af) if col >= af.range.start.col && col <= af.range.end.col => {
+                let crit = af.criteria.iter().find(|(o, _)| *o == col - af.range.start.col).and_then(|(_, c)| match c {
+                    FilterCriterion::Values { values, blanks } => Some((values.clone(), *blanks)),
+                    _ => None,
+                });
+                (af.range.start.row + 1, af.range.end.row, crit)
+            }
+            _ => (1, self.used_size(sheet)?.rows.saturating_sub(1), None),
+        };
+        // Each value with its number, if it is one: numbers sort by size, before text.
+        let mut found: Vec<(FilterValue, Option<f64>)> = Vec::new();
+        for r in first..=last {
+            let cell = gridcraft_engine::cell(r, col);
+            let v = sh.value(cell);
+            let blank = v.is_empty() || matches!(&v, gridcraft_engine::core::Value::Text(t) if t.is_empty());
+            let value = if blank { String::new() } else { display::cell_text(wb, sh, cell) };
+            if let Some((f, _)) = found.iter_mut().find(|(f, _)| f.value.eq_ignore_ascii_case(&value)) {
+                f.count += 1;
+                continue;
+            }
+            let label = if self.turkish && !blank && shows_number(wb, sh, cell) { number_display(&value) } else { value.clone() };
+            let selected = match &shown {
+                None => true,
+                Some((_, blanks)) if blank => *blanks,
+                Some((values, _)) => values.iter().any(|x| x.eq_ignore_ascii_case(&value)),
+            };
+            found.push((FilterValue { value, label, count: 1, selected }, if blank { None } else { v.as_f64() }));
+        }
+        found.sort_by(|(a, na), (b, nb)| {
+            let text_key = |f: &FilterValue| -> Vec<u32> {
+                if self.turkish { collation_key(&f.label) } else { f.label.to_lowercase().chars().map(u32::from).collect() }
+            };
+            (a.value.is_empty(), na.is_none())
+                .cmp(&(b.value.is_empty(), nb.is_none()))
+                .then_with(|| na.unwrap_or(0.0).total_cmp(&nb.unwrap_or(0.0)))
+                .then_with(|| text_key(a).cmp(&text_key(b)))
+        });
+        Ok(found.into_iter().map(|(f, _)| f).collect())
+    }
+
+    /// Shows only the rows whose column `col` holds one of `values` (empty for blank cells),
+    /// putting a filter on the used area first when the sheet has none.
+    pub fn filter_column(&mut self, col: u32, values: &[String]) -> Result<(), GridError> {
+        let sheet = self.active_sheet();
+        let has_filter = self.wb().sheets.get(sheet as usize).ok_or(GridError::NoSheet(sheet))?.autofilter.is_some();
+        if !has_filter {
+            let used = self.used_size(sheet)?;
+            if used.rows < 2 || used.cols == 0 {
+                return Ok(());
+            }
+            let last = gridcraft_engine::cell(used.rows - 1, used.cols - 1).a1();
+            self.execute("data.filter", &serde_json::json!({ "range": format!("A1:{last}") }).to_string())?;
+        }
+        let letter = gridcraft_engine::cell(0, col).a1().trim_end_matches(|c: char| c.is_ascii_digit()).to_string();
+        let blanks = values.iter().any(String::is_empty);
+        let shown: Vec<&String> = values.iter().filter(|v| !v.is_empty()).collect();
+        self.execute("data.filterBy", &serde_json::json!({ "column": letter, "values": shown, "blanks": blanks }).to_string()).map(|_| ())
+    }
+
+    /// Shows every row again and takes the filter off the sheet.
+    pub fn remove_filter(&mut self) -> Result<(), GridError> {
+        let sheet = self.active_sheet();
+        if self.wb().sheets.get(sheet as usize).ok_or(GridError::NoSheet(sheet))?.autofilter.is_some() {
+            self.execute("data.clearFilter", "{}")?;
+            self.execute("data.filter", "{}")?;
+        }
+        Ok(())
+    }
+
+    /// Whether the active sheet has a filter on.
+    pub fn has_filter(&self) -> bool {
+        self.wb().sheets.get(self.active_sheet() as usize).is_some_and(|sh| sh.autofilter.is_some())
     }
 
     /// What the formula bar shows for a cell: the formula, or the value as typed.

@@ -500,4 +500,11 @@
     <string name="slide_add_text">Metin kutusu</string>
     <string name="slide_add_picture">Resim</string>
     <string name="slide_picture_unreadable">Bu resim okunamadı.</string>
+    <string name="filter">Filtrele</string>
+    <string name="filter_title">%1$s sütununu filtrele</string>
+    <string name="filter_nothing">Bu sütunda ilk satırın altında değer yok.</string>
+    <string name="filter_all">Tümünü seç</string>
+    <string name="filter_none">Hiçbiri</string>
+    <string name="filter_blanks">(Boş)</string>
+    <string name="filter_remove">Filtreyi kaldır</string>
 </resources>

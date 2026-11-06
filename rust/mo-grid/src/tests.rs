@@ -232,3 +232,34 @@ fn page_setup_from_the_pdf_sheet_fits_columns_and_repeats_the_header() {
     doc.execute("pageLayout.pageSetup", r#"{"titleRows": "", "fitToPage": false}"#).unwrap();
     assert!(doc.export_pdf(false, None, false).is_ok());
 }
+
+#[test]
+fn a_column_filter_lists_values_and_hides_rows() {
+    let mut doc = GridDoc::blank();
+    doc.set_turkish(true);
+    let rows = [["Ad", "Şehir", "Puan"], ["Şule", "Ankara", "10"], ["Ahmet", "İzmir", "9"], ["Çiğdem", "Ankara", "1.250,5"], ["Zeynep", "", "9"]];
+    for (r, row) in rows.iter().enumerate() {
+        for (c, v) in row.iter().enumerate() {
+            doc.set_input(r as u32, c as u32, v).unwrap();
+        }
+    }
+    let cities = doc.filter_values(1).unwrap();
+    let labels: Vec<(&str, u32)> = cities.iter().map(|f| (f.label.as_str(), f.count)).collect();
+    // Turkish order, blanks last.
+    assert_eq!(labels, [("Ankara", 2), ("İzmir", 1), ("", 1)]);
+    let points: Vec<String> = doc.filter_values(2).unwrap().into_iter().map(|f| f.label).collect();
+    assert_eq!(points, ["9", "10", "1250,5"]);
+    doc.filter_column(1, &["Ankara".to_string()]).unwrap();
+    assert!(doc.has_filter());
+    let heights = doc.sizes(0, 3, 5).unwrap().row_heights;
+    assert_eq!(heights.iter().map(|h| *h > 0.0).collect::<Vec<_>>(), [true, true, false, true, false]);
+    let again = doc.filter_values(1).unwrap();
+    assert_eq!(again.iter().map(|f| f.selected).collect::<Vec<_>>(), [true, false, false]);
+    // Blank cells can be picked too.
+    doc.filter_column(1, &["".to_string()]).unwrap();
+    let heights = doc.sizes(0, 3, 5).unwrap().row_heights;
+    assert_eq!(heights.iter().map(|h| *h > 0.0).collect::<Vec<_>>(), [true, false, false, false, true]);
+    doc.remove_filter().unwrap();
+    assert!(!doc.has_filter());
+    assert!(doc.sizes(0, 3, 5).unwrap().row_heights.iter().all(|h| *h > 0.0));
+}

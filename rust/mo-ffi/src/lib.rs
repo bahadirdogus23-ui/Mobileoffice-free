@@ -252,6 +252,30 @@ impl SheetDocument {
         self.doc().is_dirty()
     }
 
+    /// The different values of column `col` (active sheet) a filter can show, sorted.
+    pub fn filter_values(&self, col: u32) -> Result<Vec<SheetFilterValue>, MoError> {
+        Ok(self
+            .doc()
+            .filter_values(col)?
+            .into_iter()
+            .map(|f| SheetFilterValue { value: f.value, label: f.label, count: f.count, selected: f.selected })
+            .collect())
+    }
+
+    /// Shows only the rows whose column `col` holds one of `values` ("" for blank cells).
+    pub fn filter_column(&self, col: u32, values: Vec<String>) -> Result<(), MoError> {
+        Ok(self.doc().filter_column(col, &values)?)
+    }
+
+    /// Shows every row again and takes the filter off the active sheet.
+    pub fn remove_filter(&self) -> Result<(), MoError> {
+        Ok(self.doc().remove_filter()?)
+    }
+
+    pub fn has_filter(&self) -> bool {
+        self.doc().has_filter()
+    }
+
     /// Encodes the workbook as `file_name`'s extension says (.xlsx by default).
     /// The workbook as a PDF following each sheet's Page Setup: every sheet when `all_sheets`,
     /// else the active one (only `range` of it, if given); `fit_to_page` puts each sheet on one page.
@@ -447,6 +471,16 @@ impl SlidesDocument {
     fn doc(&self) -> MutexGuard<'_, DeckDoc> {
         self.doc.lock().unwrap_or_else(std::sync::PoisonError::into_inner)
     }
+}
+
+/// One value a column filter can show: as matched (`value`, "" for blank cells), as shown,
+/// how many rows hold it and whether the filter shows it now.
+#[derive(uniffi::Record)]
+pub struct SheetFilterValue {
+    pub value: String,
+    pub label: String,
+    pub count: u32,
+    pub selected: bool,
 }
 
 /// A shape with text on a slide: its id, its box in points and its text.

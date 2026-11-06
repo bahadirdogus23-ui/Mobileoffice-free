@@ -298,6 +298,51 @@ class SheetViewModel(app: Application) : AndroidViewModel(app) {
         edit { d -> d.sortColumn(current.selectedCol.toUInt(), ascending) }
     }
 
+    /** The selected column's values for the filter sheet, or null while closed. */
+    var filterValues by mutableStateOf<List<org.mobileofficefree.engine.SheetFilterValue>?>(null)
+        private set
+    var filterColumn by mutableStateOf(0)
+        private set
+    var hasFilter by mutableStateOf(false)
+        private set
+
+    /** Opens the filter sheet for the selected column. */
+    fun openFilter() {
+        val current = (screen as? Screen.Sheet)?.state ?: return
+        val d = doc ?: return
+        viewModelScope.launch {
+            val (values, on) = withContext(engine) {
+                runCatching { d.filterValues(current.selectedCol.toUInt()) }.getOrNull() to runCatching { d.hasFilter() }.getOrDefault(false)
+            }
+            hasFilter = on
+            filterColumn = current.selectedCol
+            filterValues = values.orEmpty()
+        }
+    }
+
+    fun closeFilter() {
+        filterValues = null
+    }
+
+    /** Shows only the rows whose filtered column holds one of [values] ("" for blanks). */
+    fun applyFilter(values: List<String>) {
+        val col = filterColumn
+        filterValues = null
+        edit { d ->
+            d.filterColumn(col.toUInt(), values)
+            val on = d.hasFilter()
+            viewModelScope.launch { hasFilter = on }
+        }
+    }
+
+    fun removeFilter() {
+        filterValues = null
+        edit { d ->
+            d.removeFilter()
+            viewModelScope.launch { hasFilter = false }
+        }
+    }
+
     /** Adds a sheet and shows it. */
     fun addSheet() = sheetEdit { d -> d.execute("home.insertSheet", "{}") }
 
@@ -526,6 +571,7 @@ class SheetViewModel(app: Application) : AndroidViewModel(app) {
         next.setTurkish(Locale.getDefault().language == "tr")
         turkish = Locale.getDefault().language == "tr"
         functionDocs = next.functionDocs()
+        hasFilter = next.hasFilter()
         blocks.clear()
         looks.clear()
         blockAt.clear()

@@ -1,5 +1,7 @@
 package org.mobileofficefree.app
 
+import androidx.compose.runtime.mutableStateMapOf
+import androidx.compose.material3.Checkbox
 import androidx.compose.foundation.Image
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
@@ -323,6 +325,7 @@ internal fun SheetScreen(vm: SheetViewModel, state: SheetUiState) {
 /** Formatting and rows/columns for the selected cell, all through GridCraft commands. */
 @Composable
 private fun SheetToolBar(vm: SheetViewModel, look: CellLook?) {
+    vm.filterValues?.let { values -> FilterSheet(vm, values) }
     var formatSheet by remember { mutableStateOf(false) }
     if (formatSheet) CellFormatSheet(vm, look, onDismiss = { formatSheet = false })
     var fillMenu by remember { mutableStateOf(false) }
@@ -370,6 +373,7 @@ private fun SheetToolBar(vm: SheetViewModel, look: CellLook?) {
         TextButton(onClick = { vm.format("home.percent") }) { Text("%") }
         TextButton(onClick = { vm.sort(true) }) { Text("A→Z") }
         TextButton(onClick = { vm.sort(false) }) { Text("Z→A") }
+        TextButton(onClick = vm::openFilter) { Text((if (vm.hasFilter) "▼● " else "▼ ") + stringResource(R.string.filter)) }
         TextButton(onClick = { vm.format("home.increaseDecimal") }) { Text(",0→") }
         TextButton(onClick = { vm.format("home.decreaseDecimal") }) { Text("←,0") }
         TextButton(onClick = { vm.lines(rows = true, insert = true) }) { Text(stringResource(R.string.row_insert)) }
@@ -718,6 +722,53 @@ private fun CellFormatSheet(vm: SheetViewModel, look: CellLook?, onDismiss: () -
                         Box(Modifier.fillMaxWidth().weight(1f).background(color.copy(alpha = 0.25f)))
                     }
                 }
+            }
+        }
+    }
+}
+
+/** Excel's column filter: tick the values whose rows stay in view. */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun FilterSheet(vm: SheetViewModel, values: List<org.mobileofficefree.engine.SheetFilterValue>) {
+    val ticked = remember(values) { mutableStateMapOf<String, Boolean>().apply { values.forEach { put(it.value, it.selected) } } }
+    var query by remember { mutableStateOf("") }
+    val shown = values.filter { query.isBlank() || it.label.contains(query, ignoreCase = true) }
+    ModalBottomSheet(onDismissRequest = vm::closeFilter) {
+        Column(Modifier.padding(horizontal = 16.dp)) {
+            Text(stringResource(R.string.filter_title, columnName(vm.filterColumn)), style = MaterialTheme.typography.titleLarge)
+            if (values.isEmpty()) {
+                Text(stringResource(R.string.filter_nothing), modifier = Modifier.padding(vertical = 16.dp))
+            } else {
+                OutlinedTextField(
+                    value = query, onValueChange = { query = it }, singleLine = true,
+                    placeholder = { Text(stringResource(R.string.search)) },
+                    modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
+                )
+                Row {
+                    TextButton(onClick = { shown.forEach { ticked[it.value] = true } }) { Text(stringResource(R.string.filter_all)) }
+                    TextButton(onClick = { shown.forEach { ticked[it.value] = false } }) { Text(stringResource(R.string.filter_none)) }
+                }
+                LazyColumn(Modifier.heightIn(max = 360.dp)) {
+                    items(shown, key = { it.value }) { v ->
+                        Row(
+                            Modifier.fillMaxWidth().clickable { ticked[v.value] = !(ticked[v.value] ?: false) },
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            Checkbox(checked = ticked[v.value] == true, onCheckedChange = { ticked[v.value] = it })
+                            Text(v.label.ifEmpty { stringResource(R.string.filter_blanks) }, modifier = Modifier.weight(1f), maxLines = 1)
+                            Text("${v.count}", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
+                    }
+                }
+            }
+            Row(Modifier.fillMaxWidth().padding(vertical = 12.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                if (vm.hasFilter) OutlinedButton(onClick = vm::removeFilter) { Text(stringResource(R.string.filter_remove)) }
+                Spacer(Modifier.weight(1f))
+                Button(
+                    onClick = { vm.applyFilter(values.filter { ticked[it.value] == true }.map { it.value }) },
+                    enabled = values.isNotEmpty() && ticked.values.any { it },
+                ) { Text(stringResource(R.string.apply)) }
             }
         }
     }

@@ -501,4 +501,11 @@
     <string name="slide_add_text">Text box</string>
     <string name="slide_add_picture">Picture</string>
     <string name="slide_picture_unreadable">This picture cannot be read.</string>
+    <string name="filter">Filter</string>
+    <string name="filter_title">Filter column %1$s</string>
+    <string name="filter_nothing">This column has no values under its first row.</string>
+    <string name="filter_all">Select all</string>
+    <string name="filter_none">Clear</string>
+    <string name="filter_blanks">(Blanks)</string>
+    <string name="filter_remove">Remove filter</string>
 </resources>
