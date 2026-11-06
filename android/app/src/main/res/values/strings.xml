@@ -462,4 +462,7 @@
     <string name="text_edit">Edit</string>
     <string name="text_drag_hint">Drag the frame to move it</string>
     <string name="save_changes">Save</string>
+    <string name="selected_chars">%1$d characters selected</string>
+    <string name="copied">Copied</string>
+    <string name="select_hint">Hold and drag on the page to select text</string>
 </resources>

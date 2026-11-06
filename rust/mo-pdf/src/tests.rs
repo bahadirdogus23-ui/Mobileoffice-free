@@ -373,3 +373,18 @@ fn typed_text_can_be_moved_restyled_and_removed() {
     assert!(doc.typed_texts(0).unwrap().is_empty());
     assert!(!doc.undo_annotation().unwrap());
 }
+
+#[test]
+fn text_is_selected_between_two_points() {
+    let mut doc = reopened(pdf(1, "Seçilecek metin burada"));
+    // "Seçilecek metin burada 1" is at x 72, y 100 on a 595 × 842 page (y up, so 742 from the top).
+    let hit = doc.find_text("Seçilecek", 1).unwrap();
+    let r = hit[0].rects[0];
+    let mid = ((r[1] + r[3]) / 2.0) as f64;
+    let (text, rects) = doc.text_between(0, [r[0] as f64 + 0.001, mid], [0.9, mid]).unwrap();
+    assert!(text.starts_with("Seçilecek metin burada"), "{text:?}");
+    assert_eq!(rects.len(), 1);
+    // Backwards works the same.
+    let (back, _) = doc.text_between(0, [0.9, mid], [r[0] as f64 + 0.001, mid]).unwrap();
+    assert_eq!(back, text);
+}

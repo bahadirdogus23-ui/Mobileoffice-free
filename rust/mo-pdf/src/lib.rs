@@ -514,6 +514,19 @@ impl PdfDoc {
         self.hits(limit, move |chars| text::find_folded(chars, &query))
     }
 
+    /// The text between two points of `page` (fractions of the displayed page, y down), in
+    /// reading order, as a finger drags across it: the text and its line boxes (fractions).
+    pub fn text_between(&mut self, page: u32, from: [f64; 2], to: [f64; 2]) -> Result<(String, Vec<[f32; 4]>), PdfError> {
+        let (w, h) = self.view_size(page)?;
+        let layer = self.text_layer()?;
+        let text = layer.filtered_text(page as usize, Default::default()).map_err(PdfError::Edit)?;
+        let at = |p: [f64; 2]| text.nearest(p[0] as f32 * w, p[1] as f32 * h);
+        let (Some(a), Some(b)) = (at(from), at(to)) else { return Ok((String::new(), Vec::new())) };
+        let range = a.min(b)..a.max(b) + 1;
+        let rects = text.line_rects(range.clone()).into_iter().map(|r| [r[0] / w, r[1] / h, r[2] / w, r[3] / h]).collect();
+        Ok((text.text_of(range), rects))
+    }
+
     /// The text of `page` in reading order (for reading aloud and copying).
     pub fn page_text(&mut self, page: u32) -> Result<String, PdfError> {
         let layer = self.text_layer()?;

@@ -366,6 +366,21 @@ fun PagedScreen(vm: PagedViewModel, state: PagedUiState, reading: ReadingSetting
                 TextButton(onClick = { vm.nextMatch(1) }, enabled = vm.matchCount > 0) { Text("▼") }
             }
         }
+        pdf?.textSelection?.takeIf { it.second.text.isNotBlank() }?.let { (_, sel) ->
+            Surface(color = MaterialTheme.colorScheme.secondaryContainer, modifier = Modifier.fillMaxWidth()) {
+                Row(Modifier.horizontalScroll(rememberScrollState()).padding(horizontal = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Text(stringResource(R.string.selected_chars, sel.text.length), style = MaterialTheme.typography.labelLarge, modifier = Modifier.padding(horizontal = 8.dp))
+                    TextButton(onClick = {
+                        context.getSystemService(android.content.ClipboardManager::class.java)
+                            ?.setPrimaryClip(android.content.ClipData.newPlainText("text", sel.text))
+                        android.widget.Toast.makeText(context, R.string.copied, android.widget.Toast.LENGTH_SHORT).show()
+                        pdf.clearSelection()
+                    }) { Text(stringResource(R.string.copy)) }
+                    TextButton(onClick = { shareText(context, sel.text) }) { Text(stringResource(R.string.share)) }
+                    TextButton(onClick = pdf::clearSelection) { Text(stringResource(R.string.close)) }
+                }
+            }
+        }
         if (annotating && pdf != null) {
             pdf.pickedText?.let { (_, t) ->
                 // A picked text: size steps, edit, delete; dragging its frame moves it.
@@ -544,6 +559,16 @@ fun PagedScreen(vm: PagedViewModel, state: PagedUiState, reading: ReadingSetting
                                         word.extendTo(i, change.position.x * w / size.width, change.position.y * w / size.width)
                                     }
                                 }
+                        } else if (pdf != null) {
+                            // Reading a PDF: hold and drag to select text, as in any Android app.
+                            Modifier.pointerInput(i) {
+                                detectDragGesturesAfterLongPress(
+                                    onDragStart = { at -> pdf.startSelection(i, at.x / size.width, at.y / size.height) },
+                                ) { change, _ ->
+                                    change.consume()
+                                    pdf.selectTo(i, change.position.x / size.width, change.position.y / size.height)
+                                }
+                            }
                         } else {
                             Modifier
                         }
@@ -559,6 +584,14 @@ fun PagedScreen(vm: PagedViewModel, state: PagedUiState, reading: ReadingSetting
                                 )
                             }
                             if (word?.editing == true) WordCaretOverlay(word, i, w)
+                            pdf?.textSelection?.takeIf { it.first == i }?.let { (_, sel) ->
+                                val tint = MaterialTheme.colorScheme.primary.copy(alpha = 0.3f)
+                                Canvas(Modifier.fillMaxSize()) {
+                                    for (r in sel.rects) {
+                                        drawRect(tint, Offset(r.left * size.width, r.top * size.height), Size((r.right - r.left) * size.width, (r.bottom - r.top) * size.height))
+                                    }
+                                }
+                            }
                             pdf?.pickedText?.takeIf { annotating && it.first == i }?.let { (_, t) ->
                                 PickedTextFrame(t, onMove = { dx, dy -> pdf.changePicked(dx = dx, dy = dy) })
                             }

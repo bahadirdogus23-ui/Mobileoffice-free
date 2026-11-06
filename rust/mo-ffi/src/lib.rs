@@ -730,6 +730,13 @@ pub struct PageRect {
     pub bottom: f32,
 }
 
+/// Text selected on a page: what it says and a box per line (fractions of the page).
+#[derive(uniffi::Record)]
+pub struct TextSelection {
+    pub text: String,
+    pub rects: Vec<PageRect>,
+}
+
 /// One place found on a page: a rectangle per line it spans.
 #[derive(uniffi::Record)]
 pub struct PdfTextHit {
@@ -1015,6 +1022,13 @@ impl PdfDocument {
     /// Every place `query` occurs (ignoring case, Turkish i forms and accents), at most `limit`.
     pub fn find_text(&self, query: String, limit: u32) -> Result<Vec<PdfTextHit>, MoError> {
         Ok(text_hits(self.doc().find_text(&query, limit as usize)?))
+    }
+
+    /// The text a finger drags across on `page`, from (`x0`, `y0`) to (`x1`, `y1`) (fractions
+    /// of the displayed page), with its line boxes.
+    pub fn text_between(&self, page: u32, x0: f64, y0: f64, x1: f64, y1: f64) -> Result<TextSelection, MoError> {
+        let (text, rects) = self.doc().text_between(page, [x0, y0], [x1, y1])?;
+        Ok(TextSelection { text, rects: rects.into_iter().map(|r| PageRect { left: r[0], top: r[1], right: r[2], bottom: r[3] }).collect() })
     }
 
     /// The text of `page` in reading order.

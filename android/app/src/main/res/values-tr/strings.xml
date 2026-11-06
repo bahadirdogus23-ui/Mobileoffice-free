@@ -461,4 +461,7 @@
     <string name="text_edit">Düzenle</string>
     <string name="text_drag_hint">Taşımak için çerçeveyi sürükleyin</string>
     <string name="save_changes">Kaydet</string>
+    <string name="selected_chars">%1$d karakter seçildi</string>
+    <string name="copied">Kopyalandı</string>
+    <string name="select_hint">Metin seçmek için sayfada basılı tutup sürükleyin</string>
 </resources>

@@ -22,6 +22,7 @@ import org.mobileofficefree.engine.MoException
 import org.mobileofficefree.engine.PdfDocument
 import org.mobileofficefree.engine.TextLook
 import org.mobileofficefree.engine.TypedText
+import org.mobileofficefree.engine.TextSelection
 import org.mobileofficefree.engine.PdfFormField
 import org.mobileofficefree.engine.SensitiveKind
 
@@ -127,6 +128,34 @@ class PdfViewModel(app: Application) : PagedViewModel(app, DocumentKind.PDF) {
     fun addText(page: Int, x: Float, y: Float, text: String, look: TextLook) = edit {
         it.addText(page.toUInt(), x.toDouble(), y.toDouble(), text, look)
         added++
+    }
+
+    /** Text selected on a page by holding and dragging: page, from, and the engine's answer. */
+    var textSelection by mutableStateOf<Pair<Int, TextSelection>?>(null)
+        private set
+    private var selectFrom: Pair<Int, Pair<Float, Float>>? = null
+
+    /** A long press at ([x], [y]) on [page] (fractions) starts a selection there. */
+    fun startSelection(page: Int, x: Float, y: Float) {
+        selectFrom = page to (x to y)
+        selectTo(page, x, y)
+    }
+
+    /** The selection stretched to ([x], [y]) on its page. */
+    fun selectTo(page: Int, x: Float, y: Float) {
+        val (p, from) = selectFrom ?: return
+        if (p != page) return
+        viewModelScope.launch {
+            val sel = withContext(engine) {
+                runCatching { editor().textBetween(page.toUInt(), from.first.toDouble(), from.second.toDouble(), x.toDouble(), y.toDouble()) }.getOrNull()
+            }
+            if (sel != null && selectFrom?.first == page) textSelection = page to sel
+        }
+    }
+
+    fun clearSelection() {
+        selectFrom = null
+        textSelection = null
     }
 
     /** A typed text picked for moving and restyling: its page and where and how it is. */
