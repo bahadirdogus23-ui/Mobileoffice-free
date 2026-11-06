@@ -97,8 +97,6 @@
     <string name="pdf_margins_normal">Normal</string>
     <string name="pdf_margins_wide">Wide</string>
     <string name="pdf_margins_narrow">Narrow</string>
-    <string name="pdf_fit">Fit to page</string>
-    <string name="pdf_fit_hint">Each sheet is shrunk onto one page</string>
     <string name="pdf_gridlines">Gridlines</string>
     <string name="pdf_save">Save as PDF…</string>
     <string name="save">Save</string>
@@ -472,4 +470,18 @@
     <string name="table_size_hint">For the column and row the caret is in (or every selected one). Leave a box empty to keep it.</string>
     <string name="table_col_width_cm">Column width (cm)</string>
     <string name="table_row_height_cm">Row height, at least (cm)</string>
+    <string name="page_word">Page</string>
+    <string name="pdf_scaling">Scaling</string>
+    <string name="pdf_fit_none">Actual size</string>
+    <string name="pdf_fit_columns">All columns on one page</string>
+    <string name="pdf_fit_page">Sheet on one page</string>
+    <string name="pdf_repeat_header">Repeat row 1 on every page</string>
+    <string name="pdf_page_numbers">Page numbers at the bottom</string>
+    <string name="pdf_headings">Row numbers and column letters</string>
+    <string name="pdf_center_h">Centre on the page</string>
+    <string name="pdf_preview_drawing">Drawing the preview…</string>
+    <plurals name="pdf_preview_pages">
+        <item quantity="one">%d page</item>
+        <item quantity="other">%d pages</item>
+    </plurals>
 </resources>

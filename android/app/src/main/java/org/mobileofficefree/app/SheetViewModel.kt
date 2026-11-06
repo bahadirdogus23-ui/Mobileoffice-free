@@ -31,9 +31,19 @@ data class PdfSetup(
     val landscape: Boolean = false,
     val paper: String = "A4",
     val margins: String = "normal",
-    val fitToPage: Boolean = false,
+    /** "none" (as the sheet says), "columns" (all columns one page wide) or "page" (each sheet on one page). */
+    val fit: String = "columns",
     val gridlines: Boolean = false,
+    /** Row 1 printed again at the top of every page. */
+    val repeatHeader: Boolean = false,
+    /** Row numbers and column letters printed. */
+    val headings: Boolean = false,
+    val centerH: Boolean = false,
+    val pageNumbers: Boolean = true,
 )
+
+/** The first pages of a spreadsheet PDF, drawn small, and how many pages it has. */
+class PdfPreview(val pages: Int, val images: List<android.graphics.Bitmap>)
 
 data class SheetUiState(
     val fileName: String,
@@ -404,17 +414,7 @@ class SheetViewModel(app: Application) : AndroidViewModel(app) {
             val result = withContext(engine) {
                 runCatching {
                     val d = doc ?: error("no document")
-                    val sheets = if (setup.allSheets) current.sheetNames.indices else listOf(current.sheet)
-                    for (i in sheets) {
-                        d.setActiveSheet(i.toUInt())
-                        d.execute("pageLayout.orientation", JSONObject().put("orientation", if (setup.landscape) "landscape" else "portrait").toString())
-                        d.execute("pageLayout.size", JSONObject().put("paper", setup.paper).toString())
-                        d.execute("pageLayout.margins", JSONObject().put("preset", setup.margins).toString())
-                        d.execute("pageLayout.printGridlines", JSONObject().put("on", setup.gridlines).toString())
-                    }
-                    d.setActiveSheet(current.sheet.toUInt())
-                    val range = setup.range.trim().takeIf { it.isNotEmpty() && !setup.allSheets }
-                    val bytes = d.exportPdf(setup.allSheets, range, setup.fitToPage)
+                    val bytes = pdfWith(d, setup, current)
                     resolver.openOutputStream(uri, "wt")?.use { it.write(bytes) } ?: error("cannot write")
                 }
             }
@@ -422,6 +422,59 @@ class SheetViewModel(app: Application) : AndroidViewModel(app) {
                 onSuccess = { text(R.string.saved) },
                 onFailure = { text(R.string.save_failed, it.message ?: "") },
             )
+        }
+    }
+
+    /** Runs on the engine thread: [setup] put into the sheets' Page Setup, then the PDF. */
+    private fun pdfWith(d: SheetDocument, setup: PdfSetup, current: SheetUiState): ByteArray {
+        val sheets = if (setup.allSheets) current.sheetNames.indices else listOf(current.sheet)
+        val footer = "&C" + getApplication<Application>().getString(R.string.page_word) + " &P / &N"
+        for (i in sheets) {
+            d.setActiveSheet(i.toUInt())
+            val page = JSONObject()
+                .put("orientation", if (setup.landscape) "landscape" else "portrait")
+                .put("paper", setup.paper)
+                .put("gridlines", setup.gridlines)
+                .put("headings", setup.headings)
+                .put("centerH", setup.centerH)
+                .put("titleRows", if (setup.repeatHeader) "1:1" else "")
+            when (setup.fit) {
+                "columns" -> page.put("fitWidth", 1).put("fitHeight", 0)
+                "page" -> page.put("fitToPage", true)
+                else -> page.put("fitToPage", false)
+            }
+            if (setup.pageNumbers) page.put("footer", footer)
+            d.execute("pageLayout.pageSetup", page.toString())
+            d.execute("pageLayout.margins", JSONObject().put("preset", setup.margins).toString())
+        }
+        d.setActiveSheet(current.sheet.toUInt())
+        val range = setup.range.trim().takeIf { it.isNotEmpty() && !setup.allSheets }
+        return d.exportPdf(setup.allSheets, range, setup.fit == "page")
+    }
+
+    /** The PDF [setup] makes, its first pages drawn [widthPx] wide, for the Page Setup sheet. */
+    suspend fun previewPdf(setup: PdfSetup, widthPx: Int): PdfPreview? {
+        val current = (screen as? Screen.Sheet)?.state ?: return null
+        val cache = java.io.File(getApplication<Application>().cacheDir, "sheet-preview.pdf")
+        return withContext(engine) {
+            runCatching {
+                val d = doc ?: error("no document")
+                cache.writeBytes(pdfWith(d, setup, current))
+                android.os.ParcelFileDescriptor.open(cache, android.os.ParcelFileDescriptor.MODE_READ_ONLY).use { fd ->
+                    android.graphics.pdf.PdfRenderer(fd).use { r ->
+                        val images = (0 until minOf(r.pageCount, 4)).map { i ->
+                            r.openPage(i).use { pg ->
+                                val h = (widthPx.toFloat() * pg.height / pg.width).toInt().coerceAtLeast(1)
+                                android.graphics.Bitmap.createBitmap(widthPx, h, android.graphics.Bitmap.Config.ARGB_8888).also { b ->
+                                    b.eraseColor(android.graphics.Color.WHITE)
+                                    pg.render(b, null, null, android.graphics.pdf.PdfRenderer.Page.RENDER_MODE_FOR_DISPLAY)
+                                }
+                            }
+                        }
+                        PdfPreview(r.pageCount, images)
+                    }
+                }
+            }.getOrNull()
         }
     }
 

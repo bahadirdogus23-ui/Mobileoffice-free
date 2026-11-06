@@ -96,8 +96,6 @@
     <string name="pdf_margins_normal">Normal</string>
     <string name="pdf_margins_wide">Geniş</string>
     <string name="pdf_margins_narrow">Dar</string>
-    <string name="pdf_fit">Sayfaya sığdır</string>
-    <string name="pdf_fit_hint">Her sayfa tek kağıda küçültülür</string>
     <string name="pdf_gridlines">Kılavuz çizgileri</string>
     <string name="pdf_save">PDF olarak kaydet…</string>
     <string name="save">Kaydet</string>
@@ -471,4 +469,18 @@
     <string name="table_size_hint">İmlecin bulunduğu (ya da seçili tüm) sütun ve satır için. Değiştirmek istemediğinizi boş bırakın.</string>
     <string name="table_col_width_cm">Sütun genişliği (cm)</string>
     <string name="table_row_height_cm">Satır yüksekliği, en az (cm)</string>
+    <string name="page_word">Sayfa</string>
+    <string name="pdf_scaling">Ölçek</string>
+    <string name="pdf_fit_none">Gerçek boyut</string>
+    <string name="pdf_fit_columns">Tüm sütunlar bir sayfada</string>
+    <string name="pdf_fit_page">Sayfayı tek sayfaya sığdır</string>
+    <string name="pdf_repeat_header">1. satırı her sayfada tekrarla</string>
+    <string name="pdf_page_numbers">Altta sayfa numarası</string>
+    <string name="pdf_headings">Satır numaraları ve sütun harfleri</string>
+    <string name="pdf_center_h">Sayfada ortala</string>
+    <string name="pdf_preview_drawing">Önizleme hazırlanıyor…</string>
+    <plurals name="pdf_preview_pages">
+        <item quantity="one">%d sayfa</item>
+        <item quantity="other">%d sayfa</item>
+    </plurals>
 </resources>

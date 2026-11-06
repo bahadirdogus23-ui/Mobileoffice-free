@@ -1,5 +1,10 @@
 package org.mobileofficefree.app
 
+import androidx.compose.foundation.Image
+import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.res.pluralStringResource
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -302,6 +307,7 @@ internal fun SheetScreen(vm: SheetViewModel, state: SheetUiState) {
 
     if (showPdf) {
         PdfSetupSheet(
+            vm = vm,
             setup = pdfSetup,
             sheetName = state.sheetNames.getOrElse(state.sheet) { "" },
             onChange = { pdfSetup = it },
@@ -511,11 +517,43 @@ private fun saveName(fileName: String): String {
 /** Page Setup for a spreadsheet PDF: which sheets or range, paper, orientation, margins, scaling. */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun PdfSetupSheet(setup: PdfSetup, sheetName: String, onChange: (PdfSetup) -> Unit, onDismiss: () -> Unit, onSave: () -> Unit) {
+private fun PdfSetupSheet(vm: SheetViewModel, setup: PdfSetup, sheetName: String, onChange: (PdfSetup) -> Unit, onDismiss: () -> Unit, onSave: () -> Unit) {
     ModalBottomSheet(onDismissRequest = onDismiss) {
         Column(Modifier.padding(horizontal = 24.dp).verticalScroll(rememberScrollState())) {
             Text(stringResource(R.string.pdf_setup), style = MaterialTheme.typography.titleLarge)
-            Spacer(Modifier.height(12.dp))
+            Spacer(Modifier.height(8.dp))
+            // What the PDF will look like, redrawn a moment after each change.
+            var preview by remember { mutableStateOf<PdfPreview?>(null) }
+            var drawing by remember { mutableStateOf(true) }
+            val thumbPx = with(androidx.compose.ui.platform.LocalDensity.current) { 120.dp.roundToPx() }
+            LaunchedEffect(setup) {
+                drawing = true
+                kotlinx.coroutines.delay(350)
+                preview = vm.previewPdf(setup, thumbPx * 2)
+                drawing = false
+            }
+            Row(Modifier.horizontalScroll(rememberScrollState()).height(170.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                preview?.images?.forEach { img ->
+                    Image(
+                        img.asImageBitmap(),
+                        contentDescription = null,
+                        modifier = Modifier.width(120.dp).fillMaxHeight()
+                            .border(1.dp, MaterialTheme.colorScheme.outlineVariant)
+                            .background(Color.White),
+                        contentScale = ContentScale.Fit,
+                    )
+                }
+            }
+            Text(
+                when {
+                    drawing && preview == null -> stringResource(R.string.pdf_preview_drawing)
+                    preview == null -> ""
+                    else -> pluralStringResource(R.plurals.pdf_preview_pages, preview!!.pages, preview!!.pages)
+                },
+                style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(top = 4.dp, bottom = 4.dp),
+            )
             Choice(stringResource(R.string.pdf_what)) {
                 Chip(stringResource(R.string.pdf_all_sheets), setup.allSheets) { onChange(setup.copy(allSheets = true)) }
                 Chip(stringResource(R.string.pdf_this_sheet, sheetName), !setup.allSheets) { onChange(setup.copy(allSheets = false)) }
@@ -543,20 +581,26 @@ private fun PdfSetupSheet(setup: PdfSetup, sheetName: String, onChange: (PdfSetu
                 Chip(stringResource(R.string.pdf_margins_wide), setup.margins == "wide") { onChange(setup.copy(margins = "wide")) }
                 Chip(stringResource(R.string.pdf_margins_narrow), setup.margins == "narrow") { onChange(setup.copy(margins = "narrow")) }
             }
-            ListItem(
-                headlineContent = { Text(stringResource(R.string.pdf_fit)) },
-                supportingContent = { Text(stringResource(R.string.pdf_fit_hint)) },
-                trailingContent = { Switch(setup.fitToPage, { onChange(setup.copy(fitToPage = it)) }) },
-            )
-            ListItem(
-                headlineContent = { Text(stringResource(R.string.pdf_gridlines)) },
-                trailingContent = { Switch(setup.gridlines, { onChange(setup.copy(gridlines = it)) }) },
-            )
+            Choice(stringResource(R.string.pdf_scaling)) {
+                Chip(stringResource(R.string.pdf_fit_none), setup.fit == "none") { onChange(setup.copy(fit = "none")) }
+                Chip(stringResource(R.string.pdf_fit_columns), setup.fit == "columns") { onChange(setup.copy(fit = "columns")) }
+                Chip(stringResource(R.string.pdf_fit_page), setup.fit == "page") { onChange(setup.copy(fit = "page")) }
+            }
+            SetupSwitch(stringResource(R.string.pdf_repeat_header), setup.repeatHeader) { onChange(setup.copy(repeatHeader = it)) }
+            SetupSwitch(stringResource(R.string.pdf_page_numbers), setup.pageNumbers) { onChange(setup.copy(pageNumbers = it)) }
+            SetupSwitch(stringResource(R.string.pdf_gridlines), setup.gridlines) { onChange(setup.copy(gridlines = it)) }
+            SetupSwitch(stringResource(R.string.pdf_headings), setup.headings) { onChange(setup.copy(headings = it)) }
+            SetupSwitch(stringResource(R.string.pdf_center_h), setup.centerH) { onChange(setup.copy(centerH = it)) }
             Button(onClick = onSave, modifier = Modifier.fillMaxWidth().padding(vertical = 12.dp)) {
                 Text(stringResource(R.string.pdf_save))
             }
         }
     }
+}
+
+@Composable
+private fun SetupSwitch(title: String, on: Boolean, onChange: (Boolean) -> Unit) {
+    ListItem(headlineContent = { Text(title) }, trailingContent = { Switch(on, onChange) })
 }
 
 @Composable
