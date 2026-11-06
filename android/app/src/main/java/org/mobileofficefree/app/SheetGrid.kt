@@ -104,6 +104,14 @@ fun SheetGrid(
     val fr = frozenRows.coerceIn(0, rows - 1)
     val fc = frozenCols.coerceIn(0, cols - 1)
 
+    // The selection and merges as they are now: the gesture handlers below outlive recompositions,
+    // so they must not keep the values from when they started.
+    val selNow by rememberUpdatedState(intArrayOf(selectedRow, selectedCol, endRow, endCol))
+    val mergesNow by rememberUpdatedState(merges)
+    /** The merged range covering (`r`, `c`), if any: [first row, first column, last row, last column]. */
+    fun mergeAt(r: Int, c: Int): IntArray? = mergesNow.firstOrNull { r in it[0]..it[2] && c in it[1]..it[3] }
+    /** The cell a tap on (`r`, `c`) means: a merged range's first cell, where its value lives. */
+    fun anchorOf(r: Int, c: Int): Pair<Int, Int> = mergeAt(r, c)?.let { it[0] to it[1] } ?: (r to c)
     val extend by rememberUpdatedState(onExtend)
     val line by rememberUpdatedState(onLine)
     val edit by rememberUpdatedState(onEditCell)
@@ -165,8 +173,9 @@ fun SheetGrid(
                 detectTapGestures { p ->
                     when {
                         p.x > rowHeader && p.y > colHeader -> {
-                            val (r, c) = cellAt(p)
-                            if (r == selectedRow && c == selectedCol && endRow == selectedRow && endCol == selectedCol) edit() else select(r, c)
+                            val (r, c) = cellAt(p).let { (r, c) -> anchorOf(r, c) }
+                            val now = selNow
+                            if (r == now[0] && c == now[1] && now[2] == now[0] && now[3] == now[1]) edit() else select(r, c)
                         }
                         p.y <= colHeader && p.x > rowHeader -> line(null, cellAt(Offset(p.x, colHeader + 1f)).second)
                         p.x <= rowHeader && p.y > colHeader -> line(cellAt(Offset(rowHeader + 1f, p.y)).first, null)
@@ -176,7 +185,7 @@ fun SheetGrid(
             .pointerInput(sheet, columnAxis, rowAxis, fr, fc) {
                 // Hold a cell, then drag: the selection stretches with the finger.
                 detectDragGesturesAfterLongPress(
-                    onDragStart = { p -> if (p.x > rowHeader && p.y > colHeader) cellAt(p).let { (r, c) -> select(r, c) } },
+                    onDragStart = { p -> if (p.x > rowHeader && p.y > colHeader) cellAt(p).let { (r, c) -> anchorOf(r, c) }.let { (r, c) -> select(r, c) } },
                 ) { change, _ ->
                     change.consume()
                     val p = change.position
@@ -364,10 +373,23 @@ fun SheetGrid(
         if (fc > 0) drawLine(colors.outline, Offset(bodyLeft, colHeader), Offset(bodyLeft, size.height), 2.dp.toPx())
 
         // Selection: the range tinted and framed, its first cell framed.
-        val r0 = min(selectedRow, endRow)
-        val r1 = max(selectedRow, endRow)
-        val c0 = min(selectedCol, endCol)
-        val c1 = max(selectedCol, endCol)
+        var r0 = min(selectedRow, endRow)
+        var r1 = max(selectedRow, endRow)
+        var c0 = min(selectedCol, endCol)
+        var c1 = max(selectedCol, endCol)
+        // A selection takes in every merged range it touches, as Excel's does.
+        var grown = true
+        while (grown) {
+            grown = false
+            for (m in merges) {
+                if (m[0] <= r1 && m[2] >= r0 && m[1] <= c1 && m[3] >= c0) {
+                    if (m[0] < r0 || m[2] > r1 || m[1] < c0 || m[3] > c1) {
+                        r0 = min(r0, m[0]); r1 = max(r1, m[2]); c0 = min(c0, m[1]); c1 = max(c1, m[3])
+                        grown = true
+                    }
+                }
+            }
+        }
         clipRect(rowHeader, colHeader, size.width, size.height) {
             val x0 = xOf(c0)
             val y0 = yOf(r0)
@@ -413,8 +435,12 @@ fun SheetGrid(
         val frozenH = rowAxis.start(fr) * k
         val x = if (selectedCol < fc) rowHeader + columnAxis.start(selectedCol) * k else rowHeader + frozenW + (columnAxis.start(selectedCol) - columnAxis.start(fc)) * k - offsetX
         val y = if (selectedRow < fr) colHeader + rowAxis.start(selectedRow) * k else colHeader + frozenH + (rowAxis.start(selectedRow) - rowAxis.start(fr)) * k - offsetY
-        val w = max(columnAxis.size(selectedCol) * k, with(density) { 120.dp.toPx() })
-        val h = max(rowAxis.size(selectedRow) * k, with(density) { 40.dp.toPx() })
+        // A merged cell is typed in over its whole area.
+        val m = merges.firstOrNull { it[0] == selectedRow && it[1] == selectedCol }
+        val lastCol = m?.get(3) ?: selectedCol
+        val lastRow = m?.get(2) ?: selectedRow
+        val w = max((columnAxis.start(lastCol + 1) - columnAxis.start(selectedCol)) * k, with(density) { 120.dp.toPx() })
+        val h = max((rowAxis.start(lastRow + 1) - rowAxis.start(selectedRow)) * k, with(density) { 40.dp.toPx() })
         cellEditor(
             Modifier
                 .offset { IntOffset(max(x, rowHeader).roundToInt(), max(y, colHeader).roundToInt()) }
