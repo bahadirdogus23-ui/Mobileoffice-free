@@ -491,4 +491,11 @@
     <string name="cad_measure_first">Tap the first point</string>
     <string name="cad_measure_second">Tap the second point</string>
     <string name="cad_measure_result">Length %1$s  (Δx %2$s, Δy %3$s)</string>
+    <string name="snap_end">endpoint</string>
+    <string name="snap_mid">midpoint</string>
+    <string name="snap_center">centre</string>
+    <string name="snap_intersection">intersection</string>
+    <string name="snap_quadrant">quadrant</string>
+    <string name="snap_node">node</string>
+    <string name="snap_insertion">insertion point</string>
 </resources>

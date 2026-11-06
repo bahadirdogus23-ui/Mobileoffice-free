@@ -169,14 +169,26 @@ private fun MeasureOverlay(vm: CadViewModel, dark: Boolean) {
     Canvas(Modifier.fillMaxSize()) {
         val screen = points.mapNotNull { vm.screenOf(it) }.map { Offset(it.first, it.second) }
         if (screen.size == 2) drawLine(accent, screen[0], screen[1], strokeWidth = 3.dp.toPx())
-        for (p in screen) {
-            drawCircle(accent, radius = 6.dp.toPx(), center = p)
-            drawCircle(Color.White, radius = 2.5.dp.toPx(), center = p)
+        screen.forEachIndexed { i, p ->
+            // A snapped point is a square, as CAD programs mark them; a free one a dot.
+            if (vm.measureSnaps.getOrNull(i).isNullOrEmpty()) {
+                drawCircle(accent, radius = 6.dp.toPx(), center = p)
+                drawCircle(Color.White, radius = 2.5.dp.toPx(), center = p)
+            } else {
+                val r = 7.dp.toPx()
+                drawRect(accent, topLeft = Offset(p.x - r, p.y - r), size = androidx.compose.ui.geometry.Size(2 * r, 2 * r), style = androidx.compose.ui.graphics.drawscope.Stroke(2.5.dp.toPx()))
+            }
         }
     }
+    val snapNames = mapOf(
+        "Endpoint" to R.string.snap_end, "Midpoint" to R.string.snap_mid, "Center" to R.string.snap_center,
+        "Intersection" to R.string.snap_intersection, "Quadrant" to R.string.snap_quadrant,
+        "Node" to R.string.snap_node, "Insertion" to R.string.snap_insertion,
+    )
+    val lastSnap = vm.measureSnaps.lastOrNull()?.let { snapNames[it] }?.let { stringResource(it) }
     val text = when (points.size) {
         0 -> stringResource(R.string.cad_measure_first)
-        1 -> stringResource(R.string.cad_measure_second)
+        1 -> stringResource(R.string.cad_measure_second) + (lastSnap?.let { " · $it" } ?: "")
         else -> {
             val dx = points[1].first - points[0].first
             val dy = points[1].second - points[0].second

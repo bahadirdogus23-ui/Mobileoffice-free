@@ -180,15 +180,37 @@ class CadViewModel(app: Application) : AndroidViewModel(app) {
         return ((p.first - v.centerX) * v.scale + w / 2.0).toFloat() to (-(p.second - v.centerY) * v.scale + h / 2.0).toFloat()
     }
 
-    /** A tap while measuring: the first or second point, or a fresh start after two. */
+    /** What each measured point snapped to ("Endpoint", …), or "" where it did not. */
+    var measureSnaps by mutableStateOf<List<String>>(emptyList())
+        private set
+
+    /**
+     * A tap while measuring: the first or second point, or a fresh start after two. The point
+     * snaps to the nearest end, middle, centre or crossing within a fingertip of the tap.
+     */
     fun measureTap(x: Float, y: Float) {
-        val p = worldAt(x, y) ?: return
-        measure = if (measure.size >= 2) listOf(p) else measure + p
+        val raw = worldAt(x, y) ?: return
+        val s = state ?: return
+        val v = view ?: return
+        val fingertip = 24.0 * getApplication<Application>().resources.displayMetrics.density / v.scale
+        viewModelScope.launch {
+            val hit = withContext(engine) { runCatching { doc?.snap(s.space.toUInt(), raw.first, raw.second, fingertip) }.getOrNull() }
+            val p = hit?.let { it.x to it.y } ?: raw
+            val kind = hit?.kind.orEmpty()
+            if (measure.size >= 2) {
+                measure = listOf(p)
+                measureSnaps = listOf(kind)
+            } else {
+                measure = measure + p
+                measureSnaps = measureSnaps + kind
+            }
+        }
     }
 
     fun stopMeasuring() {
         measuring = false
         measure = emptyList()
+        measureSnaps = emptyList()
     }
 
     /**

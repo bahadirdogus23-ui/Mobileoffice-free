@@ -490,4 +490,11 @@
     <string name="cad_measure_first">İlk noktaya dokunun</string>
     <string name="cad_measure_second">İkinci noktaya dokunun</string>
     <string name="cad_measure_result">Uzunluk %1$s  (Δx %2$s, Δy %3$s)</string>
+    <string name="snap_end">uç nokta</string>
+    <string name="snap_mid">orta nokta</string>
+    <string name="snap_center">merkez</string>
+    <string name="snap_intersection">kesişim</string>
+    <string name="snap_quadrant">çeyrek nokta</string>
+    <string name="snap_node">nokta</string>
+    <string name="snap_insertion">yerleştirme noktası</string>
 </resources>

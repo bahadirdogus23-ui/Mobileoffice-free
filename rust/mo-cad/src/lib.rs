@@ -48,6 +48,15 @@ pub struct Extents {
     pub max_y: f64,
 }
 
+/// A point an object snap found.
+#[derive(Clone, Debug, PartialEq)]
+pub struct SnapPoint {
+    pub x: f64,
+    pub y: f64,
+    /// "Endpoint", "Midpoint", "Center", "Intersection", "Quadrant", "Node" or "Insertion".
+    pub kind: String,
+}
+
 pub struct CadDoc {
     drawing: Drawing,
     /// Space 0 is model space, then the paper-space layouts in tab order.
@@ -121,6 +130,20 @@ impl CadDoc {
         let opts = RasterOptions { background, ..RasterOptions::default() };
         let pm = cadcraft_render::raster::render(self.list(space)?, &view, &opts).ok_or(CadError::BadView(width, height))?;
         Ok(Raster { width: pm.width(), height: pm.height(), pixels: pm.data().to_vec() })
+    }
+
+    /// The object snap nearest world point (`x`, `y`) within `aperture` drawing units: an
+    /// endpoint, midpoint, centre, intersection, quadrant, node or insertion point, as CAD
+    /// programs snap to them. Its point and what it is ("Endpoint", "Midpoint", …).
+    pub fn snap(&self, space: u32, x: f64, y: f64, aperture: f64) -> Result<Option<SnapPoint>, CadError> {
+        use cadcraft_engine::snap::mode;
+        let (_, sp) = self.spaces.get(space as usize).ok_or(CadError::NoSpace(space))?;
+        let modes = mode::END | mode::MID | mode::CEN | mode::INT | mode::QUA | mode::NOD | mode::INS;
+        Ok(cadcraft_engine::snap::osnap(&self.drawing, sp, Vec2::new(x, y), aperture, modes, None, false).map(|h| SnapPoint {
+            x: h.point.x,
+            y: h.point.y,
+            kind: h.name.to_string(),
+        }))
     }
 
     fn list(&mut self, space: u32) -> Result<&DisplayList, CadError> {

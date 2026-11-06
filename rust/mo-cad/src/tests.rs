@@ -54,3 +54,18 @@ fn bad_input_is_an_error() {
     assert!(matches!(doc.render(9, 0.0, 0.0, 1.0, 10, 10, true), Err(CadError::NoSpace(9))));
     assert!(matches!(doc.set_layer_visible("yok", false), Err(CadError::NoLayer(_))));
 }
+
+/// A minimal R12 DXF: one line from (0, 0) to (100, 0) and a circle of radius 10 at (50, 40).
+const LINE_AND_CIRCLE: &str = "0\nSECTION\n2\nENTITIES\n0\nLINE\n8\n0\n10\n0\n20\n0\n30\n0\n11\n100\n21\n0\n31\n0\n0\nCIRCLE\n8\n0\n10\n50\n20\n40\n30\n0\n40\n10\n0\nENDSEC\n0\nEOF\n";
+
+#[test]
+fn measuring_snaps_to_ends_middles_and_centres() {
+    let doc = CadDoc::open("snap.dxf", LINE_AND_CIRCLE.as_bytes()).unwrap();
+    let end = doc.snap(0, 98.5, 1.0, 5.0).unwrap().unwrap();
+    assert_eq!((end.x, end.y, end.kind.as_str()), (100.0, 0.0, "Endpoint"));
+    let mid = doc.snap(0, 51.0, 0.5, 3.0).unwrap().unwrap();
+    assert_eq!((mid.x, mid.y, mid.kind.as_str()), (50.0, 0.0, "Midpoint"));
+    let centre = doc.snap(0, 50.5, 40.5, 2.0).unwrap().unwrap();
+    assert_eq!((centre.x, centre.y), (50.0, 40.0), "{centre:?}");
+    assert!(doc.snap(0, 25.0, 20.0, 2.0).unwrap().is_none());
+}

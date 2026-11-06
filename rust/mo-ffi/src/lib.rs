@@ -619,6 +619,15 @@ pub struct CadLayer {
     pub color: u32,
 }
 
+/// A point an object snap found, in drawing units.
+#[derive(uniffi::Record)]
+pub struct CadSnap {
+    pub x: f64,
+    pub y: f64,
+    /// "Endpoint", "Midpoint", "Center", "Intersection", "Quadrant", "Node" or "Insertion".
+    pub kind: String,
+}
+
 /// A rectangle in drawing units.
 #[derive(uniffi::Record)]
 pub struct CadExtents {
@@ -672,6 +681,12 @@ impl CadDocument {
 
     pub fn set_layer_visible(&self, name: String, visible: bool) -> Result<(), MoError> {
         Ok(self.doc().set_layer_visible(&name, visible)?)
+    }
+
+    /// The object snap (endpoint, midpoint, centre, intersection…) nearest world point
+    /// (`x`, `y`) within `aperture` drawing units, if any.
+    pub fn snap(&self, space: u32, x: f64, y: f64, aperture: f64) -> Result<Option<CadSnap>, MoError> {
+        Ok(self.doc().snap(space, x, y, aperture)?.map(|p| CadSnap { x: p.x, y: p.y, kind: p.kind }))
     }
 
     pub fn extents(&self, space: u32) -> Result<CadExtents, MoError> {
