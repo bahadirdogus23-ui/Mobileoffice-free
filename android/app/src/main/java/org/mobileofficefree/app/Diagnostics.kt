@@ -49,7 +49,7 @@ object Diagnostics {
     private const val MAX_SHOTS = 3
 
     /** Where problem reports go: the developer's mailbox, through the person's own mail app. */
-    const val REPORT_EMAIL = "bahadirdogus@gmail.com"
+    const val REPORT_EMAIL = "bahadirdogus23@gmail.com"
 
     private val timings = ArrayDeque<String>()
     /** What happened in this session: problems, and what was opened, with times. */
