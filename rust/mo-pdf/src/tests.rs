@@ -388,3 +388,16 @@ fn text_is_selected_between_two_points() {
     let (back, _) = doc.text_between(0, [0.9, mid], [r[0] as f64 + 0.001, mid]).unwrap();
     assert_eq!(back, text);
 }
+
+#[test]
+fn fields_with_default_names_take_their_printed_labels() {
+    // Made with ReportLab: "Full name:" before text_1, "Address" above Text2, "I agree" after
+    // the check box "undefined", and "Telefon" (a real name) after "Phone:".
+    let mut doc = reopened(include_bytes!("../testdata/generic-names-form.pdf").to_vec());
+    let labels: Vec<(String, String)> = doc.labelled_fields().into_iter().map(|f| (f.name, f.label)).collect();
+    let label = |n: &str| labels.iter().find(|(name, _)| name == n).map(|(_, l)| l.as_str()).unwrap_or_default().to_string();
+    assert_eq!(label("text_1"), "Full name", "{labels:?}");
+    assert_eq!(label("Text2"), "Address", "{labels:?}");
+    assert_eq!(label("undefined"), "I agree", "{labels:?}");
+    assert_eq!(label("Telefon"), "Telefon", "{labels:?}");
+}

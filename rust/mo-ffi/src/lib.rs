@@ -1054,7 +1054,7 @@ impl PdfDocument {
 
     /// The form's fields (none when there is no form).
     pub fn fields(&self) -> Vec<PdfFormField> {
-        self.doc().fields().into_iter().map(PdfFormField::from).collect()
+        self.doc().labelled_fields().into_iter().map(PdfFormField::from).collect()
     }
 
     pub fn set_text(&self, name: String, text: String) -> Result<(), MoError> {

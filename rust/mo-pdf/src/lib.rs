@@ -482,6 +482,48 @@ impl PdfDoc {
         form::fields(&self.doc)
     }
 
+    /// [`Self::fields`], where a field with neither a tooltip nor a telling name ("text_1",
+    /// "Text2", "undefined") is labelled with the words printed beside or above it.
+    pub fn labelled_fields(&mut self) -> Vec<FormField> {
+        let mut fields = self.fields();
+        if !fields.iter().any(|f| f.label == f.name && needs_label(&f.name)) {
+            return fields;
+        }
+        let raw = pdfcraft_forms::fields(&self.doc);
+        let mut words: std::collections::HashMap<usize, Vec<pdfcraft_forms::detect::Word>> = std::collections::HashMap::new();
+        for f in fields.iter_mut().filter(|f| f.label == f.name && needs_label(&f.name)) {
+            let Some(widget) = raw.iter().find(|r| r.name == f.name).and_then(|r| r.widgets.iter().find(|w| w.page.is_some())) else {
+                continue;
+            };
+            let page = widget.page.expect("filtered");
+            if let std::collections::hash_map::Entry::Vacant(e) = words.entry(page) {
+                e.insert(self.user_words(page).unwrap_or_default());
+            }
+            let on_page = &words[&page];
+            if let Some(label) = label_beside(on_page, widget.rect).or_else(|| label_above(on_page, widget.rect)) {
+                f.label = label;
+            }
+        }
+        fields
+    }
+
+    /// The words of `page` with their boxes in user space (points, y up).
+    fn user_words(&mut self, page: usize) -> Result<Vec<pdfcraft_forms::detect::Word>, PdfError> {
+        let boxes = organize::page_boxes(&self.doc).map_err(edit)?;
+        let crop = boxes.get(page).ok_or_else(|| PdfError::Edit("no such page".into()))?[1];
+        let turn = organize::page_rotation(&self.doc, page).map_err(edit)?;
+        let (w, h) = self.view_size(page as u32)?;
+        let text = self.text_layer()?.filtered_text(page, Default::default()).map_err(|e| PdfError::Edit(e.to_string()))?;
+        let to_user = |x: f32, y: f32| user_point(crop, turn, [f64::from(x / w), f64::from(y / h)]);
+        Ok(page_words(&text)
+            .into_iter()
+            .map(|(t, r)| {
+                let (a, b) = (to_user(r[0], r[1]), to_user(r[2], r[3]));
+                pdfcraft_forms::detect::Word { text: t, rect: [a[0].min(b[0]), a[1].min(b[1]), a[0].max(b[0]), a[1].max(b[1])] }
+            })
+            .collect())
+    }
+
     pub fn set_text(&mut self, name: &str, text: &str) -> Result<(), PdfError> {
         self.text = None;
         self.refuse_unfillable()?;
@@ -649,6 +691,75 @@ impl PdfDoc {
 fn is_generic_name(name: &str) -> bool {
     let stem = name.trim_end_matches(|c: char| c.is_ascii_digit());
     stem.len() < name.len() && matches!(stem.trim(), "Text" | "Check Box" | "CheckBox" | "Field")
+}
+
+/// Whether a field's name tells a person nothing: a form tool's default ("text_1", "Text2",
+/// "Text Field 3", "undefined", "Check Box1").
+fn needs_label(name: &str) -> bool {
+    let last = name.rsplit('.').next().unwrap_or(name);
+    let stem: String =
+        last.chars().filter(|c| !c.is_ascii_digit() && !matches!(c, '_' | '-' | ' ' | '#' | '[' | ']')).collect::<String>().to_lowercase();
+    matches!(
+        stem.as_str(),
+        "" | "text"
+            | "textfield"
+            | "textbox"
+            | "field"
+            | "fill"
+            | "untitled"
+            | "undefined"
+            | "checkbox"
+            | "check"
+            | "box"
+            | "input"
+            | "radio"
+            | "radiobutton"
+            | "dropdown"
+            | "combobox"
+            | "list"
+            | "listbox"
+            | "metin"
+            | "alan"
+            | "onaykutusu"
+    )
+}
+
+/// The words printed on the same line as `rect` (user space, y up): the run just to its left
+/// (a label before a blank), else the run just to its right (a check box's caption).
+fn label_beside(words: &[pdfcraft_forms::detect::Word], rect: [f64; 4]) -> Option<String> {
+    let mid = (rect[1] + rect[3]) / 2.0;
+    let mut line: Vec<&pdfcraft_forms::detect::Word> = words.iter().filter(|w| w.rect[1] - 2.0 <= mid && w.rect[3] + 2.0 >= mid).collect();
+    line.sort_by(|a, b| a.rect[0].total_cmp(&b.rect[0]));
+    let tidy = |run: Vec<&pdfcraft_forms::detect::Word>| {
+        let text = run.iter().map(|w| w.text.as_str()).filter(|t| !t.chars().all(|c| c == '_')).collect::<Vec<_>>().join(" ");
+        let text = text.trim().trim_end_matches(':').trim().to_string();
+        (text.chars().any(char::is_alphanumeric) && text.chars().count() <= 60).then_some(text)
+    };
+    // Left: walk back from the field while the gaps stay small.
+    let mut left: Vec<&pdfcraft_forms::detect::Word> = Vec::new();
+    let mut edge = rect[0];
+    for w in line.iter().rev().filter(|w| w.rect[2] <= rect[0] + 2.0) {
+        let gap = edge - w.rect[2];
+        if gap > if left.is_empty() { 120.0 } else { 14.0 } {
+            break;
+        }
+        left.insert(0, w);
+        edge = w.rect[0];
+    }
+    if let Some(t) = tidy(left) {
+        return Some(t);
+    }
+    let mut right: Vec<&pdfcraft_forms::detect::Word> = Vec::new();
+    let mut edge = rect[2];
+    for w in line.iter().filter(|w| w.rect[0] >= rect[2] - 2.0) {
+        let gap = w.rect[0] - edge;
+        if gap > if right.is_empty() { 30.0 } else { 14.0 } {
+            break;
+        }
+        right.push(w);
+        edge = w.rect[2];
+    }
+    tidy(right)
 }
 
 /// The line of words just above `rect` (user space, y up) that overlaps it across: the nearest
