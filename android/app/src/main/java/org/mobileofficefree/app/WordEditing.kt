@@ -1,5 +1,7 @@
 package org.mobileofficefree.app
 
+import androidx.compose.foundation.verticalScroll
+import org.json.JSONObject
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.key
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -122,6 +124,8 @@ fun WordEditBar(vm: WordViewModel, onSave: () -> Unit) {
     var tableDialog by remember { mutableStateOf(false) }
     var replaceDialog by remember { mutableStateOf(false) }
     var sizeDialog by remember { mutableStateOf(false) }
+    var pageSheet by remember { mutableStateOf(false) }
+    if (pageSheet) WordPageSheet(vm, onDismiss = { pageSheet = false })
     val pickPicture = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri -> if (uri != null) vm.insertPicture(uri) }
     if (tableDialog) {
         var rows by remember { mutableStateOf("3") }
@@ -357,6 +361,7 @@ fun WordEditBar(vm: WordViewModel, onSave: () -> Unit) {
                     }
                 }
                 Tool("⇄", R.string.replace) { replaceDialog = true }
+                Tool("📄", R.string.page_layout, glyphSize = 16) { pageSheet = true }
                 ToolDivider()
                 Tool("💾", R.string.save, enabled = vm.dirty, glyphSize = 16, onClick = onSave)
                 Tool("✓", R.string.done) {
@@ -592,3 +597,55 @@ private data class HandleGrab(
     val fy: Float,
     val drag: Offset = Offset.Zero,
 )
+
+/** Word's page setup: orientation, paper, margins, columns, header, footer and page numbers. */
+@OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
+@Composable
+private fun WordPageSheet(vm: WordViewModel, onDismiss: () -> Unit) {
+    var header by remember { mutableStateOf("") }
+    var footer by remember { mutableStateOf("") }
+    androidx.compose.material3.ModalBottomSheet(onDismissRequest = onDismiss) {
+        Column(Modifier.padding(horizontal = 20.dp).verticalScroll(rememberScrollState())) {
+            Text(stringResource(R.string.page_layout), style = MaterialTheme.typography.titleLarge)
+            PageChoice(stringResource(R.string.pdf_orientation)) {
+                PageChip(stringResource(R.string.pdf_portrait)) { vm.command("layout.orientation", """{"value":"portrait"}""") }
+                PageChip(stringResource(R.string.pdf_landscape)) { vm.command("layout.orientation", """{"value":"landscape"}""") }
+            }
+            PageChoice(stringResource(R.string.pdf_paper)) {
+                for (name in listOf("A4", "A5", "A3", "Letter", "Legal")) PageChip(name) { vm.command("layout.size", JSONObject().put("name", name).toString()) }
+            }
+            PageChoice(stringResource(R.string.pdf_margins)) {
+                for ((preset, label) in listOf("normal" to R.string.pdf_margins_normal, "narrow" to R.string.pdf_margins_narrow, "moderate" to R.string.margins_moderate, "wide" to R.string.pdf_margins_wide)) {
+                    PageChip(stringResource(label)) { vm.command("layout.margins", JSONObject().put("preset", preset).toString()) }
+                }
+            }
+            PageChoice(stringResource(R.string.page_columns)) {
+                for (n in 1..3) PageChip("$n") { vm.command("layout.columns", JSONObject().put("count", n).put("apply", "document").toString()) }
+            }
+            PageChoice(stringResource(R.string.page_numbers)) {
+                for ((align, label) in listOf("left" to R.string.align_left, "center" to R.string.align_center, "right" to R.string.align_right)) {
+                    PageChip(stringResource(label)) { vm.command("insert.pageNumber", JSONObject().put("position", "bottom").put("align", align).toString()) }
+                }
+            }
+            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(top = 8.dp)) {
+                OutlinedTextField(header, { header = it }, singleLine = true, label = { Text(stringResource(R.string.page_header)) }, modifier = Modifier.weight(1f))
+                TextButton(onClick = { vm.command("insert.header", JSONObject().put("text", header).toString()) }, enabled = header.isNotBlank()) { Text(stringResource(R.string.apply)) }
+            }
+            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(top = 4.dp, bottom = 24.dp)) {
+                OutlinedTextField(footer, { footer = it }, singleLine = true, label = { Text(stringResource(R.string.page_footer)) }, modifier = Modifier.weight(1f))
+                TextButton(onClick = { vm.command("insert.footer", JSONObject().put("text", footer).toString()) }, enabled = footer.isNotBlank()) { Text(stringResource(R.string.apply)) }
+            }
+        }
+    }
+}
+
+@Composable
+private fun PageChoice(title: String, chips: @Composable () -> Unit) {
+    Text(title, style = MaterialTheme.typography.labelLarge, modifier = Modifier.padding(top = 12.dp, bottom = 4.dp))
+    Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) { chips() }
+}
+
+@Composable
+private fun PageChip(label: String, onClick: () -> Unit) {
+    androidx.compose.material3.AssistChip(onClick = onClick, label = { Text(label) })
+}

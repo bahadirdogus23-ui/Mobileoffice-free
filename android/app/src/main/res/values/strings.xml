@@ -546,4 +546,10 @@
     <string name="slide_notes">Notes</string>
     <string name="slide_notes_title">Speaker notes · slide %1$d</string>
     <string name="slide_notes_hint">What to say on this slide (seen only by you while presenting)</string>
+    <string name="page_layout">Page</string>
+    <string name="margins_moderate">Moderate</string>
+    <string name="page_columns">Columns</string>
+    <string name="page_numbers">Page numbers (bottom)</string>
+    <string name="page_header">Header text</string>
+    <string name="page_footer">Footer text</string>
 </resources>

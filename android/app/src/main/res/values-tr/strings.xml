@@ -545,4 +545,10 @@
     <string name="slide_notes">Notlar</string>
     <string name="slide_notes_title">Konuşmacı notları · slayt %1$d</string>
     <string name="slide_notes_hint">Bu slaytta söyleyecekleriniz (sunarken yalnızca siz görürsünüz)</string>
+    <string name="page_layout">Sayfa</string>
+    <string name="margins_moderate">Orta</string>
+    <string name="page_columns">Sütunlar</string>
+    <string name="page_numbers">Sayfa numarası (altta)</string>
+    <string name="page_header">Üst bilgi metni</string>
+    <string name="page_footer">Alt bilgi metni</string>
 </resources>
