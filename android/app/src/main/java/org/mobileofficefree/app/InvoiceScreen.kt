@@ -11,14 +11,12 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.text.selection.SelectionContainer
-import androidx.compose.material3.BottomAppBar
 import androidx.compose.material3.Card
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -114,21 +112,21 @@ fun InvoiceScreen(vm: InvoiceViewModel, state: InvoiceUiState) {
             },
             modifier = Modifier.weight(1f).fillMaxWidth(),
         )
-        BottomAppBar {
-            TextButton(onClick = { showSummary = !showSummary }) { Text(stringResource(R.string.invoice_summary)) }
-            TextButton(onClick = {
-                val w = web ?: return@TextButton
+        SoftToolbar {
+            ToolItem("☰", stringResource(R.string.invoice_summary), onClick = { showSummary = !showSummary })
+            ToolItem("⎙", stringResource(R.string.print)) {
+                val w = web ?: return@ToolItem
                 val name = "${Invoices.title(s)} ${s.number}".trim()
-                val manager = context.getSystemService(PrintManager::class.java) ?: return@TextButton
+                val manager = context.getSystemService(PrintManager::class.java) ?: return@ToolItem
                 manager.print(name, w.createPrintDocumentAdapter(name), PrintAttributes.Builder().setMediaSize(PrintAttributes.MediaSize.ISO_A4).build())
-            }) { Text(stringResource(R.string.print)) }
-            TextButton(onClick = {
+            }
+            ToolItem("⇪", stringResource(R.string.share)) {
                 val send = Intent(Intent.ACTION_SEND)
                     .setType("application/xml")
                     .putExtra(Intent.EXTRA_STREAM, state.uri)
                     .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
                 context.startActivity(Intent.createChooser(send, state.fileName))
-            }) { Text(stringResource(R.string.share)) }
+            }
         }
     }
 }

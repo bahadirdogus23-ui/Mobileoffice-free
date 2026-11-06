@@ -44,7 +44,6 @@ import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.BottomAppBar
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -689,33 +688,32 @@ fun PagedScreen(vm: PagedViewModel, state: PagedUiState, reading: ReadingSetting
                     }
                 }
             }
-        } else BottomAppBar {
-            // Scrolls sideways when the buttons do not fit (narrow phones, large text).
-            Row(Modifier.horizontalScroll(rememberScrollState())) {
-                if (word != null) TextButton(onClick = word::startEditing) { Text(stringResource(R.string.edit)) }
-                if (slides != null) TextButton(onClick = { presenting = true }) { Text(stringResource(R.string.present)) }
-                if (slides != null) TextButton(onClick = { slides.editing = true }) { Text(stringResource(R.string.edit)) }
-                TextButton(onClick = { showReading = true }) { Text(stringResource(R.string.reading)) }
-                TextButton(onClick = { showPages = true }) { Text(stringResource(R.string.pages)) }
+        } else SoftToolbar {
+            run {
+                if (word != null) ToolItem("✎", stringResource(R.string.edit), onClick = word::startEditing)
+                if (slides != null) ToolItem("▶", stringResource(R.string.present), onClick = { presenting = true })
+                if (slides != null) ToolItem("✎", stringResource(R.string.edit), onClick = { slides.editing = true })
+                ToolItem("Aa", stringResource(R.string.reading), onClick = { showReading = true })
+                ToolItem("▦", stringResource(R.string.pages), onClick = { showPages = true })
                 if (pdf != null) {
-                    TextButton(onClick = { annotating = true }, enabled = !pdf.busy && !pdf.restricted && !annotating) { Text(stringResource(R.string.annotate)) }
-                    TextButton(onClick = { drawSignature = true }, enabled = !pdf.busy && !pdf.restricted) { Text(stringResource(R.string.sign)) }
-                    TextButton(onClick = { showPassword = true }, enabled = !pdf.busy && !pdf.restricted) { Text(stringResource(R.string.password)) }
-                    TextButton(onClick = { showRedact = true }, enabled = !pdf.busy && !pdf.restricted) { Text(stringResource(R.string.redact)) }
-                    TextButton(onClick = { showCompress = true }, enabled = !pdf.busy) { Text(stringResource(R.string.compress)) }
-                    TextButton(onClick = pdf::loadForm, enabled = !pdf.busy) { Text(stringResource(R.string.form_fill)) }
+                    ToolItem("✏", stringResource(R.string.annotate), enabled = !pdf.busy && !pdf.restricted && !annotating, onClick = { annotating = true })
+                    ToolItem("✍", stringResource(R.string.sign), enabled = !pdf.busy && !pdf.restricted, onClick = { drawSignature = true })
+                    ToolItem("🔒", stringResource(R.string.password), enabled = !pdf.busy && !pdf.restricted, onClick = { showPassword = true })
+                    ToolItem("▬", stringResource(R.string.redact), enabled = !pdf.busy && !pdf.restricted, onClick = { showRedact = true })
+                    ToolItem("⇲", stringResource(R.string.compress), enabled = !pdf.busy, onClick = { showCompress = true })
+                    ToolItem("☑", stringResource(R.string.form_fill), enabled = !pdf.busy, onClick = pdf::loadForm)
                 }
                 if (vm.exportFormats.isNotEmpty()) {
-                    TextButton(onClick = { showConvert = true }) { Text(stringResource(R.string.convert)) }
+                    ToolItem("⇄", stringResource(R.string.convert), onClick = { showConvert = true })
                 }
-                TextButton(onClick = { DocumentPrinter.print(context, vm, state) }) { Text(stringResource(R.string.print)) }
-                TextButton(onClick = {
+                ToolItem("⎙", stringResource(R.string.print), onClick = { DocumentPrinter.print(context, vm, state) })
+                ToolItem("⇪", stringResource(R.string.share)) {
                     val send = Intent(Intent.ACTION_SEND)
                         .setType(context.contentResolver.getType(state.uri) ?: "*/*")
                         .putExtra(Intent.EXTRA_STREAM, state.uri)
                         .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
                     context.startActivity(Intent.createChooser(send, state.fileName))
-                }) { Text(stringResource(R.string.share)) }
+                }
             }
         }
     }

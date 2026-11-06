@@ -26,7 +26,6 @@ import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.BottomAppBar
 import androidx.compose.material3.Button
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
@@ -222,23 +221,21 @@ fun TextScreen(vm: TextViewModel, state: TextUiState, reading: ReadingSettings) 
                 }
             }
         }
-        BottomAppBar {
-            Row(Modifier.horizontalScroll(rememberScrollState())) {
+        SoftToolbar {
+            run {
                 if (!vm.editing) {
-                    TextButton(onClick = { searching = !searching; if (!searching) vm.search("") }) { Text(stringResource(R.string.search)) }
-                    TextButton(onClick = { wrap = !wrap }) {
-                        Text(stringResource(if (wrap) R.string.wrap_off else R.string.wrap_on))
-                    }
+                    ToolItem("⌕", stringResource(R.string.search), onClick = { searching = !searching; if (!searching) vm.search("") })
+                    ToolItem("↩", stringResource(if (wrap) R.string.wrap_off else R.string.wrap_on), onClick = { wrap = !wrap })
                 }
-                TextButton(onClick = { reading.updateNight(!night) }) { Text(stringResource(if (night) R.string.day_short else R.string.night_short)) }
-                TextButton(onClick = { showConvert = true }) { Text(stringResource(R.string.convert)) }
-                TextButton(onClick = {
+                ToolItem(if (night) "☀" else "☾", stringResource(if (night) R.string.day_short else R.string.night_short), onClick = { reading.updateNight(!night) })
+                ToolItem("⇄", stringResource(R.string.convert), onClick = { showConvert = true })
+                ToolItem("⇪", stringResource(R.string.share)) {
                     val send = Intent(Intent.ACTION_SEND)
                         .setType(context.contentResolver.getType(state.uri) ?: "text/plain")
                         .putExtra(Intent.EXTRA_STREAM, state.uri)
                         .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
                     context.startActivity(Intent.createChooser(send, state.fileName))
-                }) { Text(stringResource(R.string.share)) }
+                }
             }
         }
     }

@@ -11,13 +11,11 @@ import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.material3.BottomAppBar
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -114,22 +112,20 @@ fun ImageScreen(vm: ImageViewModel, state: ImageUiState) {
                     },
             )
         }
-        BottomAppBar {
-            TextButton(onClick = {
+        SoftToolbar {
+            ToolItem("⟳", stringResource(R.string.rotate)) {
                 quarterTurns = (quarterTurns + 1) % 4
                 scale = 1f
                 shift = Offset.Zero
-            }) { Text(stringResource(R.string.rotate)) }
-            TextButton(onClick = { DocumentPrinter.printImage(context, vm.viewModelScope, state.fileName, state.bitmap) }) {
-                Text(stringResource(R.string.print))
             }
-            TextButton(onClick = {
+            ToolItem("⎙", stringResource(R.string.print)) { DocumentPrinter.printImage(context, vm.viewModelScope, state.fileName, state.bitmap) }
+            ToolItem("⇪", stringResource(R.string.share)) {
                 val send = Intent(Intent.ACTION_SEND)
                     .setType(context.contentResolver.getType(state.uri) ?: "image/*")
                     .putExtra(Intent.EXTRA_STREAM, state.uri)
                     .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
                 context.startActivity(Intent.createChooser(send, state.fileName))
-            }) { Text(stringResource(R.string.share)) }
+            }
         }
     }
 }
