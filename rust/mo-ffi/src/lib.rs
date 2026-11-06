@@ -400,6 +400,11 @@ impl WordDocument {
         self.doc().object_selected()
     }
 
+    /// Where the selected picture or shape is drawn, when one is selected (`index` is 0).
+    pub fn selected_object_box(&self) -> Option<SearchHit> {
+        self.doc().selected_object_box().map(|b| SearchHit { index: 0, page: b.page, x: b.x, y: b.y, width: b.w, height: b.h })
+    }
+
     /// Edits not yet saved.
     pub fn is_dirty(&self) -> bool {
         self.doc().is_dirty()

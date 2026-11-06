@@ -49,6 +49,10 @@ class WordViewModel(app: Application) : PagedViewModel(app, DocumentKind.WORD) {
         private set
     var dirty by mutableStateOf(false)
         private set
+    /** Where the selected picture or shape is drawn (points), for its sizing frame. */
+    var objectBox by mutableStateOf<SearchHit?>(null)
+        private set
+
     /** A picture or shape is selected (tapped): the tool bar offers sizing. */
     var objectSelected by mutableStateOf(false)
         private set
@@ -198,7 +202,7 @@ class WordViewModel(app: Application) : PagedViewModel(app, DocumentKind.WORD) {
                     op(d)
                     val sizes = if (changes) (0u until d.pageCount()).map { d.pageSize(it).let { s -> s.width to s.height } } else null
                     val f = runCatching { JSONObject(d.execute("format.state", "")) }.getOrNull()
-                    Edited(sizes, d.caret(), d.selection(), f?.let { formatOf(it) } ?: WordFormat(), d.isDirty(), d.selectedText().take(200), d.objectSelected())
+                    Edited(sizes, d.caret(), d.selection(), f?.let { formatOf(it) } ?: WordFormat(), d.isDirty(), d.selectedText().take(200), d.objectSelected(), d.selectedObjectBox())
                 }
             }
             result.onSuccess { e ->
@@ -208,6 +212,7 @@ class WordViewModel(app: Application) : PagedViewModel(app, DocumentKind.WORD) {
                 dirty = e.dirty
                 selectedTextHint = e.selected
                 objectSelected = e.objectSelected
+                objectBox = e.objectBox
                 e.sizes?.let(::pagesEdited)
             }
         }
@@ -226,6 +231,7 @@ class WordViewModel(app: Application) : PagedViewModel(app, DocumentKind.WORD) {
         val dirty: Boolean,
         val selected: String,
         val objectSelected: Boolean,
+        val objectBox: SearchHit?,
     )
 
     private fun formatOf(o: JSONObject) = WordFormat(

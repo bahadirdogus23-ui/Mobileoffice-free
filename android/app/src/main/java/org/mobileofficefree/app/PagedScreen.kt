@@ -619,6 +619,24 @@ fun PagedScreen(vm: PagedViewModel, state: PagedUiState, reading: ReadingSetting
                                 )
                             }
                             if (word != null) WordCaretOverlay(word, i, w, showCaret = word.editing)
+                            // A picked picture: its corners size it, keeping its shape.
+                            word?.objectBox?.takeIf { word.editing && it.page.toInt() == i }?.let { box ->
+                                val look = remember(box, bmp) {
+                                    bmp?.let { croppedLook(it, box.x / w, box.y / h, (box.x + box.width) / w, (box.y + box.height) / h) }
+                                }
+                                ObjectFrame(
+                                    key = box,
+                                    l = box.x / w,
+                                    t = box.y / h,
+                                    r = (box.x + box.width) / w,
+                                    b = (box.y + box.height) / h,
+                                    look = look,
+                                    cover = paper,
+                                    canRotate = false,
+                                    canMove = false,
+                                    onDone = { _, _, scale, _ -> word.sizePicture(width = (box.width * scale).toDouble()) },
+                                )
+                            }
                             pdf?.textSelection?.takeIf { it.first == i }?.let { (_, sel) ->
                                 val tint = MaterialTheme.colorScheme.primary.copy(alpha = 0.3f)
                                 Canvas(Modifier.fillMaxSize()) {

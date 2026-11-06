@@ -71,6 +71,8 @@ fun ObjectFrame(
     look: ObjectLook? = null,
     cover: Color? = null,
     canRotate: Boolean = true,
+    /** False for an object that stays where it is (a picture in a line of text): only sized. */
+    canMove: Boolean = true,
     onDone: (dx: Float, dy: Float, scale: Float, turn: Float) -> Unit,
 ) {
     val accent = MaterialTheme.colorScheme.primary
@@ -104,7 +106,7 @@ fun ObjectFrame(
         Modifier
             .fillMaxSize()
             .onSizeChanged { box = it }
-            .pointerInput(key, l, t, r, b, rotation, canRotate) {
+            .pointerInput(key, l, t, r, b, rotation, canRotate, canMove) {
                 awaitEachGesture {
                     val down = awaitFirstDown(requireUnconsumed = false)
                     val h = half()
@@ -118,7 +120,7 @@ fun ObjectFrame(
                             val d = p - (center() + drag)
                             val ux = (d.x * cos(a) - d.y * sin(a)).toFloat()
                             val uy = (d.x * sin(a) + d.y * cos(a)).toFloat()
-                            if (abs(ux) <= h.x * scale + pad && abs(uy) <= h.y * scale + pad) Mode.MOVE else null
+                            if (canMove && abs(ux) <= h.x * scale + pad && abs(uy) <= h.y * scale + pad) Mode.MOVE else null
                         }
                     } ?: return@awaitEachGesture
                     val startDrag = drag

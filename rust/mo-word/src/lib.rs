@@ -156,6 +156,14 @@ impl WordDoc {
         wordcraft_engine::cmd::objects::object_selection(&self.session).is_some()
     }
 
+    /// Where the selected picture or shape is drawn (its unturned frame), when one is selected.
+    pub fn selected_object_box(&self) -> Option<PageBox> {
+        wordcraft_engine::cmd::objects::object_selection(&self.session)?;
+        let (a, _) = self.session.sel.ordered();
+        let hit = self.layout.find_object(self.session.page_hint, |h| h.story == a.story && h.path == a.path && h.off == a.off)?;
+        Some(PageBox { page: hit.page as u32, x: hit.rect.x, y: hit.rect.y, w: hit.rect.w, h: hit.rect.h })
+    }
+
     /// The selected text's rectangles (none when the selection is just a caret).
     pub fn selection(&self) -> Vec<PageBox> {
         let (a, b) = self.session.sel.ordered();

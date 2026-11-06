@@ -325,9 +325,14 @@ fn a_tap_on_a_picture_selects_it_for_sizing() {
     }
     let (x, y) = at.expect("the picture is on the page");
     assert!(!doc.object_selected());
+    assert!(doc.selected_object_box().is_none());
     doc.tap(0, x, y, false).unwrap();
     assert!(doc.object_selected());
+    let b = doc.selected_object_box().expect("the picked picture's frame");
+    // Inserted 100 pixels wide: 75 points.
+    assert!(b.page == 0 && (b.w - 75.0).abs() < 1.0 && b.x <= x && x <= b.x + b.w && b.y <= y && y <= b.y + b.h, "{b:?}");
     doc.execute("picture.size", r#"{"width": 200}"#).unwrap();
+    assert!((doc.selected_object_box().unwrap().w - 200.0).abs() < 1.0);
     let hit = doc.layout.object_at(0, x + 1.0, y + 1.0, 0.0).expect("still there");
     assert!((hit.rect.w - 200.0).abs() < 1.0, "{:?}", hit.rect);
     // Typing with the picture selected (the app first steps past it) keeps the picture.
