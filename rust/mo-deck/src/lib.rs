@@ -83,6 +83,19 @@ impl DeckDoc {
         Ok(Raster { width: img.width, height: img.height, pixels: img.pixels })
     }
 
+    /// The whole slide at `scale` with object `id` left out: what is behind it, shown while the
+    /// object is dragged.
+    pub fn render_slide_without(&self, slide: u32, id: u32, scale: f32) -> Result<Raster, DeckError> {
+        self.check(slide)?;
+        let mut pres = self.pres.clone();
+        let s = std::sync::Arc::make_mut(&mut pres.slides[slide as usize]);
+        if let Some(shape) = s.shapes.iter_mut().find(|sh| sh.id.0 == id) {
+            shape.hidden = true;
+        }
+        let img = deckcraft_render::render_slide(&pres, slide as usize, &RenderOpts { scale: scale as f64, ..Default::default() });
+        Ok(Raster { width: img.width, height: img.height, pixels: img.pixels })
+    }
+
     /// A `width`×`height` tile of the slide at `scale`, whose corner is pixel `(x, y)` of the whole
     /// slide at that scale.
     pub fn render_tile(&self, slide: u32, scale: f32, x: f32, y: f32, width: u32, height: u32) -> Result<Raster, DeckError> {
@@ -109,9 +122,10 @@ impl DeckDoc {
         edit::objects(&self.pres, slide as usize)
     }
 
-    /// Moves object `id` by (`dx`, `dy`) points and scales it by `scale` about its centre.
-    pub fn place_object(&mut self, slide: u32, id: u32, dx: f64, dy: f64, scale: f64) -> Result<(), DeckError> {
-        edit::place_object(&mut self.pres, slide as usize, id, dx, dy, scale)?;
+    /// Moves object `id` by (`dx`, `dy`) points, scales it by `scale` about its centre and turns
+    /// it `rotate` degrees clockwise.
+    pub fn place_object(&mut self, slide: u32, id: u32, dx: f64, dy: f64, scale: f64, rotate: f64) -> Result<(), DeckError> {
+        edit::place_object(&mut self.pres, slide as usize, id, dx, dy, scale, rotate)?;
         self.dirty = true;
         Ok(())
     }

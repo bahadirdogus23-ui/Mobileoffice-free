@@ -68,11 +68,37 @@ class SlidesViewModel(app: Application) : PagedViewModel(app, DocumentKind.SLIDE
             }
             pickedAt = x to y
             picked = hit?.let { slide to it }
+            pickedLook = null
+            if (hit != null) refreshLook(slide, hit.id)
         }
     }
 
+    /** The picked object on its own and the slide behind it, for dragging it (see [ObjectFrame]). */
+    var pickedLook by mutableStateOf<ObjectLook?>(null)
+        private set
+
+    /** Draws the slide with and without object [id] and keeps the difference as [pickedLook]. */
+    private fun refreshLook(slide: Int, id: UInt) {
+        val d = doc ?: return
+        viewModelScope.launch {
+            val look = withContext(engine) {
+                runCatching {
+                    val scale = LOOK_WIDTH_PX / d.slideSize().width
+                    val full = d.renderSlide(slide.toUInt(), scale).toBitmap()
+                    val without = d.renderSlideWithout(slide.toUInt(), id, scale).toBitmap()
+                    objectSnapshot(full, without).also { full.recycle() }
+                }.getOrNull()
+            }
+            if (picked?.second?.id == id) pickedLook = look
+        }
+    }
+
+    private fun org.mobileofficefree.engine.Raster.toBitmap(): Bitmap =
+        createBitmap(width.toInt(), height.toInt()).apply { copyPixelsFromBuffer(ByteBuffer.wrap(pixels)) }
+
     fun dropPick() {
         picked = null
+        pickedLook = null
     }
 
     /** Whether the picked object has text to retype. */
@@ -87,14 +113,20 @@ class SlidesViewModel(app: Application) : PagedViewModel(app, DocumentKind.SLIDE
         tapText(slide, x.coerceIn(o.x, o.x + o.width), y.coerceIn(o.y, o.y + o.height))
     }
 
-    /** Moves the picked object by (`dx`, `dy`) points and scales it by [scale] about its centre. */
-    fun placePicked(dx: Double, dy: Double, scale: Double = 1.0) {
+    /**
+     * Moves the picked object by (`dx`, `dy`) points, scales it by [scale] about its centre and
+     * turns it [turn] degrees clockwise.
+     */
+    fun placePicked(dx: Double, dy: Double, scale: Double = 1.0, turn: Double = 0.0) {
         val (slide, o) = picked ?: return
         pickedAt = (pickedAt.first + dx.toFloat()) to (pickedAt.second + dy.toFloat())
         change {
-            it.placeObject(slide.toUInt(), o.id, dx, dy, scale)
+            it.placeObject(slide.toUInt(), o.id, dx, dy, scale, turn)
             val now = it.objects(slide.toUInt()).firstOrNull { n -> n.id == o.id }
-            viewModelScope.launch { picked = now?.let { n -> slide to n } }
+            viewModelScope.launch {
+                picked = now?.let { n -> slide to n }
+                if (now != null) refreshLook(slide, now.id)
+            }
             null
         }
     }
@@ -148,6 +180,7 @@ class SlidesViewModel(app: Application) : PagedViewModel(app, DocumentKind.SLIDE
         viewModelScope.launch {
             pickedAt = (o.x + o.width / 2) to (o.y + o.height / 2)
             picked = slide to o
+            refreshLook(slide, o.id)
         }
     }
 
@@ -273,9 +306,13 @@ class SlidesViewModel(app: Application) : PagedViewModel(app, DocumentKind.SLIDE
             dirty = false
             editingText = null
             picked = null
+            pickedLook = null
         }
     }
 }
 
 /** Pictures added to slides are made at most this many pixels on their long side. */
 private const val MAX_PICTURE_PX = 2560
+
+/** How wide (pixels) a slide is drawn to cut a picked object out of it. */
+private const val LOOK_WIDTH_PX = 1080f

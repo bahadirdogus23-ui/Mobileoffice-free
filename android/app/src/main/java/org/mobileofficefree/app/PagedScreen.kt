@@ -628,17 +628,32 @@ fun PagedScreen(vm: PagedViewModel, state: PagedUiState, reading: ReadingSetting
                                 }
                             }
                             slides?.picked?.takeIf { slides.editing && it.first == i }?.let { (_, o) ->
-                                SelectionFrame(
-                                    o,
-                                    (o.x / w).toDouble(),
-                                    (o.y / h).toDouble(),
-                                    ((o.x + o.width) / w).toDouble(),
-                                    ((o.y + o.height) / h).toDouble(),
-                                    onMove = { dx, dy -> slides.placePicked(dx * w, dy * h) },
+                                ObjectFrame(
+                                    key = o,
+                                    l = o.x / w,
+                                    t = o.y / h,
+                                    r = (o.x + o.width) / w,
+                                    b = (o.y + o.height) / h,
+                                    rotation = o.rotation,
+                                    look = slides.pickedLook,
+                                    onDone = { dx, dy, scale, turn -> slides.placePicked((dx * w).toDouble(), (dy * h).toDouble(), scale.toDouble(), turn.toDouble()) },
                                 )
                             }
                             pdf?.pickedText?.takeIf { annotating && it.first == i }?.let { (_, t) ->
-                                PickedTextFrame(t, onMove = { dx, dy -> pdf.changePicked(dx = dx, dy = dy) })
+                                val look = remember(t, bmp) {
+                                    bmp?.let { croppedLook(it, t.left.toFloat(), t.top.toFloat(), t.right.toFloat(), t.bottom.toFloat()) }
+                                }
+                                ObjectFrame(
+                                    key = t,
+                                    l = t.left.toFloat(),
+                                    t = t.top.toFloat(),
+                                    r = t.right.toFloat(),
+                                    b = t.bottom.toFloat(),
+                                    look = look,
+                                    cover = paper,
+                                    canRotate = false,
+                                    onDone = { dx, dy, scale, _ -> pdf.placePicked(dx.toDouble(), dy.toDouble(), scale.toDouble()) },
+                                )
                             }
                             if (annotating) {
                                 val shown = pending.filter { it.page == i }.map { it.points to it.pen } +
@@ -677,6 +692,10 @@ fun PagedScreen(vm: PagedViewModel, state: PagedUiState, reading: ReadingSetting
                         if (slides.pickedHasText) TextButton(onClick = slides::editPickedText) { Text(stringResource(R.string.slide_edit_text)) }
                         TextButton(onClick = { slides.placePicked(0.0, 0.0, 0.9) }) { Text(stringResource(R.string.slide_smaller)) }
                         TextButton(onClick = { slides.placePicked(0.0, 0.0, 1.1) }) { Text(stringResource(R.string.slide_bigger)) }
+                        TextButton(onClick = { slides.placePicked(0.0, 0.0, 1.0, 90.0) }) { Text("⟳ 90°") }
+                        TextButton(onClick = { slides.placePicked(0.0, 0.0, 1.0, -(slides.picked?.second?.rotation ?: 0f).toDouble()) }, enabled = (slides.picked?.second?.rotation ?: 0f) != 0f) {
+                            Text(stringResource(R.string.slide_upright))
+                        }
                         TextButton(onClick = slides::deletePicked) { Text(stringResource(R.string.delete)) }
                         TextButton(onClick = slides::dropPick) { Text(stringResource(R.string.done)) }
                     } else Row(Modifier.horizontalScroll(rememberScrollState())) {

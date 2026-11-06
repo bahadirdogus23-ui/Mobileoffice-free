@@ -138,6 +138,8 @@ pub struct SlideObject {
     pub y: f32,
     pub w: f32,
     pub h: f32,
+    /// Clockwise degrees about the box's centre.
+    pub rot: f32,
     pub kind: ObjectKind,
 }
 
@@ -160,14 +162,15 @@ pub fn objects(pres: &Presentation, index: usize) -> Result<Vec<SlideObject>, De
                 ShapeKind::Shape if s.text.is_some() => ObjectKind::Text,
                 _ => ObjectKind::Other,
             };
-            SlideObject { id: s.id.0, x: x.x as f32, y: x.y as f32, w: x.w as f32, h: x.h as f32, kind }
+            SlideObject { id: s.id.0, x: x.x as f32, y: x.y as f32, w: x.w as f32, h: x.h as f32, rot: x.rot as f32, kind }
         })
         .collect())
 }
 
-/// Moves object `id` on slide `index` by (`dx`, `dy`) points and scales it by `scale` about its
-/// centre (1 keeps its size). A placeholder that took its box from the layout gets its own.
-pub fn place_object(pres: &mut Presentation, index: usize, id: u32, dx: f64, dy: f64, scale: f64) -> Result<(), DeckError> {
+/// Moves object `id` on slide `index` by (`dx`, `dy`) points, scales it by `scale` about its
+/// centre (1 keeps its size) and turns it `rotate` degrees clockwise. A placeholder that took its
+/// box from the layout gets its own.
+pub fn place_object(pres: &mut Presentation, index: usize, id: u32, dx: f64, dy: f64, scale: f64, rotate: f64) -> Result<(), DeckError> {
     let current = {
         let slide = pres.slides.get(index).ok_or(DeckError::NoSlide(index as u32))?;
         let shape = slide.shapes.iter().find(|s| s.id.0 == id).ok_or_else(|| edit_err("no such object"))?;
@@ -178,7 +181,14 @@ pub fn place_object(pres: &mut Presentation, index: usize, id: u32, dx: f64, dy:
     };
     let scale = scale.clamp(0.05, 20.0);
     let (w, h) = (current.w * scale, current.h * scale);
-    let moved = deckcraft_model::Xfrm { x: current.x + dx - (w - current.w) / 2.0, y: current.y + dy - (h - current.h) / 2.0, w, h, ..current };
+    let moved = deckcraft_model::Xfrm {
+        x: current.x + dx - (w - current.w) / 2.0,
+        y: current.y + dy - (h - current.h) / 2.0,
+        w,
+        h,
+        rot: (current.rot + rotate).rem_euclid(360.0),
+        ..current
+    };
     let slide = Arc::make_mut(pres.slides.get_mut(index).ok_or(DeckError::NoSlide(index as u32))?);
     let shape = slide.shapes.iter_mut().find(|s| s.id.0 == id).ok_or_else(|| edit_err("no such object"))?;
     // A group's children are laid out in its own space, so its frame is enough; a table's grid

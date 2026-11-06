@@ -137,8 +137,8 @@ fn objects_can_be_moved_scaled_and_deleted() {
     assert_eq!(objs.len(), 4, "{objs:?}");
     let table = objs.iter().find(|o| o.kind == ObjectKind::Table).unwrap().clone();
     assert_eq!((table.x, table.y), (360.0, 432.0));
-    d.place_object(0, table.id, -36.0, 18.0, 1.0).unwrap();
-    d.place_object(0, table.id, 0.0, 0.0, 2.0).unwrap();
+    d.place_object(0, table.id, -36.0, 18.0, 1.0, 0.0).unwrap();
+    d.place_object(0, table.id, 0.0, 0.0, 2.0, 0.0).unwrap();
     let title = objs.iter().find(|o| o.kind == ObjectKind::Text).unwrap().clone();
     d.delete_object(0, title.id).unwrap();
     assert!(d.delete_object(0, title.id).is_err());
@@ -189,4 +189,30 @@ fn text_boxes_and_pictures_can_be_added() {
     let (cx, cy) = (r.width / 2, r.height / 2);
     let px = &r.pixels[((cy * r.width + cx) * 4) as usize..][..4];
     assert!(px[0] > 200 && px[1] < 60, "{px:?}");
+}
+
+#[test]
+fn objects_turn_and_can_be_drawn_left_out() {
+    let mut d = DeckDoc::open(include_bytes!("../testdata/grouped-text.pptx")).unwrap();
+    let mut png = Vec::new();
+    {
+        let mut enc = png::Encoder::new(&mut png, 4, 2);
+        enc.set_color(png::ColorType::Rgba);
+        enc.write_header().unwrap().write_image_data(&[255, 0, 0, 255].repeat(8)).unwrap();
+    }
+    let pic = d.add_picture(0, png, 4, 2).unwrap();
+    d.place_object(0, pic, 0.0, 0.0, 1.0, 30.0).unwrap();
+    d.place_object(0, pic, 0.0, 0.0, 1.0, -45.0).unwrap();
+    let saved = DeckDoc::open(&d.save("x.pptx").unwrap()).unwrap();
+    let o = saved.objects(0).unwrap().into_iter().find(|o| o.kind == ObjectKind::Picture).unwrap();
+    assert!((o.rot - 345.0).abs() < 0.01, "{o:?}");
+    // Left out, the red picture is gone from the middle of the slide.
+    let red = |r: &Raster| {
+        let (cx, cy) = (r.width / 2, r.height / 2);
+        let px = &r.pixels[((cy * r.width + cx) * 4) as usize..][..4];
+        px[0] > 200 && px[1] < 60
+    };
+    assert!(red(&saved.render_slide(0, 0.5).unwrap()));
+    assert!(!red(&saved.render_slide_without(0, o.id, 0.5).unwrap()));
+    assert!(red(&saved.render_slide(0, 0.5).unwrap()), "the deck itself is untouched");
 }

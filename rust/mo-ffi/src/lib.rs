@@ -531,6 +531,8 @@ pub struct SlideObject {
     pub y: f32,
     pub width: f32,
     pub height: f32,
+    /// Clockwise degrees about the box's centre.
+    pub rotation: f32,
     pub kind: SlideObjectKind,
 }
 
@@ -610,6 +612,7 @@ impl SlidesDocument {
                 y: o.y,
                 width: o.w,
                 height: o.h,
+                rotation: o.rot,
                 kind: match o.kind {
                     mo_deck::ObjectKind::Text => SlideObjectKind::Text,
                     mo_deck::ObjectKind::Picture => SlideObjectKind::Picture,
@@ -620,9 +623,15 @@ impl SlidesDocument {
             .collect())
     }
 
-    /// Moves object `id` by (`dx`, `dy`) points and scales it by `scale` about its centre.
-    pub fn place_object(&self, slide: u32, id: u32, dx: f64, dy: f64, scale: f64) -> Result<(), MoError> {
-        Ok(self.doc().place_object(slide, id, dx, dy, scale)?)
+    /// Moves object `id` by (`dx`, `dy`) points, scales it by `scale` about its centre and turns
+    /// it `rotate` degrees clockwise.
+    pub fn place_object(&self, slide: u32, id: u32, dx: f64, dy: f64, scale: f64, rotate: f64) -> Result<(), MoError> {
+        Ok(self.doc().place_object(slide, id, dx, dy, scale, rotate)?)
+    }
+
+    /// The whole slide at `scale` with object `id` left out (what is behind it).
+    pub fn render_slide_without(&self, slide: u32, id: u32, scale: f32) -> Result<Raster, MoError> {
+        Ok(self.doc().render_slide_without(slide, id, scale)?.into())
     }
 
     /// A new text box reading `text` in the middle of `slide`; returns its id.

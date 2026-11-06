@@ -194,6 +194,18 @@ class PdfViewModel(app: Application) : PagedViewModel(app, DocumentKind.PDF) {
         }
     }
 
+    /**
+     * The picked text moved by (`dx`, `dy`) (fractions of the page) and scaled by [scale] about
+     * its centre (its letters grow with it), as its frame was dragged.
+     */
+    fun placePicked(dx: Double, dy: Double, scale: Double) {
+        val t = pickedText?.second ?: return
+        val w = t.right - t.left
+        val h = t.bottom - t.top
+        val look = if (scale != 1.0) TextLook((t.look.size * scale).coerceIn(4.0, 144.0), t.look.font, t.look.color) else null
+        changePicked(dx = dx - (w * scale - w) / 2, dy = dy - (h * scale - h) / 2, look = look)
+    }
+
     /** The picked text made [step] points larger (smaller when negative). */
     fun resizePicked(step: Double) {
         val t = pickedText?.second ?: return

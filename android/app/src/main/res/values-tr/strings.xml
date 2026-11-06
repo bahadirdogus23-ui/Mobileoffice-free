@@ -515,4 +515,5 @@
     <string name="merge_file_name">Birlesik.pdf</string>
     <string name="merge_working">PDF\'ler birleştiriliyor…</string>
     <string name="merge_cannot_read">%1$s okunamadı (bozuk ya da parolalı olabilir).</string>
+    <string name="slide_upright">Düzelt</string>
 </resources>
