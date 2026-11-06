@@ -209,6 +209,7 @@ fun HomeScreen(onOpen: (Uri) -> Unit, onNewSheet: () -> Unit, onDiagnostics: () 
     var newMenu by remember { mutableStateOf(false) }
     var newKind by remember { mutableStateOf("docx") }
     val newScope = rememberCoroutineScope()
+    val resources = androidx.compose.ui.platform.LocalResources.current
     val newFile = rememberLauncherForActivityResult(CreateFile()) { dest ->
         if (dest == null) return@rememberLauncherForActivityResult
         val ext = newKind
@@ -221,7 +222,7 @@ fun HomeScreen(onOpen: (Uri) -> Unit, onNewSheet: () -> Unit, onDiagnostics: () 
             }
             ok.fold(
                 onSuccess = { onOpen(dest) },
-                onFailure = { android.widget.Toast.makeText(context, context.getString(R.string.save_failed, it.message ?: ""), android.widget.Toast.LENGTH_LONG).show() },
+                onFailure = { android.widget.Toast.makeText(context, resources.getString(R.string.save_failed, it.message ?: ""), android.widget.Toast.LENGTH_LONG).show() },
             )
         }
     }
@@ -283,7 +284,7 @@ fun HomeScreen(onOpen: (Uri) -> Unit, onNewSheet: () -> Unit, onDiagnostics: () 
                     DropdownMenuItem(text = { Text("📝  " + stringResource(R.string.new_word)) }, onClick = {
                         newMenu = false
                         newKind = "docx"
-                        newFile.launch(CreateFile.Request(context.getString(R.string.new_word_name), "application/vnd.openxmlformats-officedocument.wordprocessingml.document"))
+                        newFile.launch(CreateFile.Request(resources.getString(R.string.new_word_name), "application/vnd.openxmlformats-officedocument.wordprocessingml.document"))
                     })
                     DropdownMenuItem(text = { Text("📊  " + stringResource(R.string.new_spreadsheet)) }, onClick = {
                         newMenu = false
@@ -292,7 +293,7 @@ fun HomeScreen(onOpen: (Uri) -> Unit, onNewSheet: () -> Unit, onDiagnostics: () 
                     DropdownMenuItem(text = { Text("📽  " + stringResource(R.string.new_slides)) }, onClick = {
                         newMenu = false
                         newKind = "pptx"
-                        newFile.launch(CreateFile.Request(context.getString(R.string.new_slides_name), "application/vnd.openxmlformats-officedocument.presentationml.presentation"))
+                        newFile.launch(CreateFile.Request(resources.getString(R.string.new_slides_name), "application/vnd.openxmlformats-officedocument.presentationml.presentation"))
                     })
                 }
             }
