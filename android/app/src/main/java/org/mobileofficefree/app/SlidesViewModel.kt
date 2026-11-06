@@ -225,6 +225,23 @@ class SlidesViewModel(app: Application) : PagedViewModel(app, DocumentKind.SLIDE
         }
     }
 
+    /**
+     * The picked object given the box centred on (`cx`, `cy`), `w`×`h` points (pulled from a
+     * side): text flows anew in it, a picture or shape stretches.
+     */
+    fun setPickedBox(cx: Double, cy: Double, w: Double, h: Double) {
+        val (slide, o) = picked ?: return
+        change {
+            it.setObjectBox(slide.toUInt(), o.id, cx - w / 2, cy - h / 2, w, h)
+            val now = it.objects(slide.toUInt()).firstOrNull { n -> n.id == o.id }
+            viewModelScope.launch {
+                picked = now?.let { n -> slide to n }
+                if (now != null) refreshLook(slide, now.id)
+            }
+            null
+        }
+    }
+
     fun deletePicked() {
         val (slide, o) = picked ?: return
         picked = null

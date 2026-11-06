@@ -149,6 +149,12 @@ impl DeckDoc {
         Ok(())
     }
 
+    /// Object `id` given the box (`x`, `y`, `w`, `h`) in points, keeping its turn (a text box's
+    /// text flows anew; its letters keep their size).
+    pub fn set_object_box(&mut self, slide: u32, id: u32, x: f64, y: f64, w: f64, h: f64) -> Result<(), DeckError> {
+        self.change(|p| edit::set_object_box(p, slide as usize, id, x, y, w, h))
+    }
+
     /// A new text box reading `text` in the middle of `slide`; returns its id.
     pub fn add_text_box(&mut self, slide: u32, text: &str) -> Result<u32, DeckError> {
         let id = self.change(|p| edit::add_text_box(p, slide as usize, text))?;

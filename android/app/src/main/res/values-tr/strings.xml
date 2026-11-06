@@ -554,4 +554,6 @@
     <string name="mark_highlight">Vurgula</string>
     <string name="mark_underline">Altını çiz</string>
     <string name="mark_strike">Üstünü çiz</string>
+    <string name="tool_smaller">Küçült</string>
+    <string name="tool_bigger">Büyüt</string>
 </resources>

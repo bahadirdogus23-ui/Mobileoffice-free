@@ -662,6 +662,8 @@ fun PagedScreen(vm: PagedViewModel, state: PagedUiState, reading: ReadingSetting
                                     b = (o.y + o.height) / h,
                                     rotation = o.rotation,
                                     look = slides.pickedLook,
+                                    onBox = { cx, cy, bw, bh -> slides.setPickedBox((cx * w).toDouble(), (cy * h).toDouble(), (bw * w).toDouble(), (bh * h).toDouble()) },
+                                    reflows = o.kind == org.mobileofficefree.engine.SlideObjectKind.TEXT,
                                     onDone = { dx, dy, scale, turn -> slides.placePicked((dx * w).toDouble(), (dy * h).toDouble(), scale.toDouble(), turn.toDouble()) },
                                 )
                             }

@@ -180,6 +180,8 @@ pub fn place_object(pres: &mut Presentation, index: usize, id: u32, dx: f64, dy:
         }
     };
     let scale = scale.clamp(0.05, 20.0);
+    // Sized from a corner, a text box's letters grow and shrink with it, as in design apps.
+    let sizes = if scale != 1.0 { run_sizes(pres, index, id)? } else { Vec::new() };
     let (w, h) = (current.w * scale, current.h * scale);
     let moved = deckcraft_model::Xfrm {
         x: current.x + dx - (w - current.w) / 2.0,
@@ -198,6 +200,9 @@ pub fn place_object(pres: &mut Presentation, index: usize, id: u32, dx: f64, dy:
     {
         t.cols.iter_mut().for_each(|c| *c *= scale);
         t.rows.iter_mut().for_each(|r| r.height *= scale);
+    }
+    if scale != 1.0 && matches!(shape.kind, ShapeKind::Shape) {
+        scale_text(shape, &sizes, scale);
     }
     shape.xfrm = Some(moved);
     Ok(())
@@ -344,28 +349,7 @@ pub enum ObjectStyle {
 /// Applies `style` to object `id` on slide `index` (all of its text for the text changes).
 pub fn style_object(pres: &mut Presentation, index: usize, id: u32, style: ObjectStyle) -> Result<(), DeckError> {
     // The size each run shows now (from the run, its placeholder, layout and master), for steps.
-    let sizes: Vec<Vec<f64>> = {
-        let slide = pres.slides.get(index).ok_or(DeckError::NoSlide(index as u32))?;
-        let shape = slide.shapes.iter().find(|s| s.id.0 == id).ok_or_else(|| edit_err("no such object"))?;
-        let ctx = deckcraft_model::resolve::Ctx::for_slide(pres, slide);
-        shape
-            .text
-            .as_ref()
-            .map(|body| {
-                body.paragraphs
-                    .iter()
-                    .map(|p| {
-                        p.runs
-                            .iter()
-                            .map(|r| {
-                                ctx.as_ref().and_then(|c| deckcraft_model::resolve::run(c, shape, p, &r.props).size).or(r.props.size).unwrap_or(18.0)
-                            })
-                            .collect()
-                    })
-                    .collect()
-            })
-            .unwrap_or_default()
-    };
+    let sizes = run_sizes(pres, index, id)?;
     let rgb = |c: u32| deckcraft_model::ColorRef::rgb(deckcraft_model::Rgba { r: (c >> 16) as u8, g: (c >> 8) as u8, b: c as u8, a: 255 });
     let slide = Arc::make_mut(pres.slides.get_mut(index).ok_or(DeckError::NoSlide(index as u32))?);
     let shape = slide.shapes.iter_mut().find(|s| s.id.0 == id).ok_or_else(|| edit_err("no such object"))?;
@@ -420,6 +404,69 @@ pub fn text_is_bold(pres: &Presentation, index: usize, id: u32) -> bool {
 pub fn set_notes(pres: &mut Presentation, index: usize, text: &str) -> Result<(), DeckError> {
     let slide = Arc::make_mut(pres.slides.get_mut(index).ok_or(DeckError::NoSlide(index as u32))?);
     slide.notes = deckcraft_model::text::TextBody::from_text(text);
+    Ok(())
+}
+
+/// The size (points) each run of object `id`'s text shows now, paragraph by paragraph: its own,
+/// or what its placeholder, layout and master give it.
+fn run_sizes(pres: &Presentation, index: usize, id: u32) -> Result<Vec<Vec<f64>>, DeckError> {
+    let slide = pres.slides.get(index).ok_or(DeckError::NoSlide(index as u32))?;
+    let shape = slide.shapes.iter().find(|s| s.id.0 == id).ok_or_else(|| edit_err("no such object"))?;
+    let ctx = deckcraft_model::resolve::Ctx::for_slide(pres, slide);
+    Ok(shape
+        .text
+        .as_ref()
+        .map(|body| {
+            body.paragraphs
+                .iter()
+                .map(|p| {
+                    p.runs
+                        .iter()
+                        .map(|r| {
+                            ctx.as_ref().and_then(|c| deckcraft_model::resolve::run(c, shape, p, &r.props).size).or(r.props.size).unwrap_or(18.0)
+                        })
+                        .collect()
+                })
+                .collect()
+        })
+        .unwrap_or_default())
+}
+
+/// Every run of `shape`'s text set to its size in `sizes` times `factor`.
+fn scale_text(shape: &mut deckcraft_model::Shape, sizes: &[Vec<f64>], factor: f64) {
+    if let Some(body) = shape.text.as_mut() {
+        for (pi, para) in body.paragraphs.iter_mut().enumerate() {
+            for (ri, run) in para.runs.iter_mut().enumerate() {
+                let now = sizes.get(pi).and_then(|r| r.get(ri)).copied().unwrap_or(18.0);
+                run.props.size = Some(((now * factor) * 2.0).round().clamp(2.0, 800.0) / 2.0);
+            }
+        }
+    }
+}
+
+/// Object `id` on slide `index` given the box (`x`, `y`, `w`, `h`) in points, keeping its turn:
+/// a text box's text flows anew in it (its letters keep their size), a picture or shape is
+/// stretched, a table's grid follows.
+pub fn set_object_box(pres: &mut Presentation, index: usize, id: u32, x: f64, y: f64, w: f64, h: f64) -> Result<(), DeckError> {
+    if !(w.is_finite() && h.is_finite() && x.is_finite() && y.is_finite()) || w < 1.0 || h < 1.0 {
+        return Err(edit_err("bad box"));
+    }
+    let current = {
+        let slide = pres.slides.get(index).ok_or(DeckError::NoSlide(index as u32))?;
+        let shape = slide.shapes.iter().find(|s| s.id.0 == id).ok_or_else(|| edit_err("no such object"))?;
+        match deckcraft_model::resolve::Ctx::for_slide(pres, slide) {
+            Some(c) => deckcraft_model::resolve::xfrm(&c, shape),
+            None => shape.xfrm.unwrap_or_default(),
+        }
+    };
+    let slide = Arc::make_mut(pres.slides.get_mut(index).ok_or(DeckError::NoSlide(index as u32))?);
+    let shape = slide.shapes.iter_mut().find(|s| s.id.0 == id).ok_or_else(|| edit_err("no such object"))?;
+    if let ShapeKind::Table(t) = &mut shape.kind {
+        let (kx, ky) = (w / current.w.max(1.0), h / current.h.max(1.0));
+        t.cols.iter_mut().for_each(|c| *c *= kx);
+        t.rows.iter_mut().for_each(|r| r.height *= ky);
+    }
+    shape.xfrm = Some(deckcraft_model::Xfrm { x, y, w, h, ..current });
     Ok(())
 }
 

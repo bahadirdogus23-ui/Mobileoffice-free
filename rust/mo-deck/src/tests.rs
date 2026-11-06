@@ -315,3 +315,24 @@ fn speaker_notes_can_be_written() {
     assert!(d.undo());
     assert_ne!(d.notes(1).unwrap(), "Önce teşekkür et.\nSonra grafiği göster.");
 }
+
+#[test]
+fn text_boxes_resize_like_design_apps() {
+    let mut d = DeckDoc::open(include_bytes!("../testdata/grouped-text.pptx")).unwrap();
+    let id = d.add_text_box(0, "Büyüyen yazı").unwrap();
+    let size = |d: &DeckDoc| d.pres.slides[0].shapes.iter().find(|s| s.id.0 == id).unwrap().text.as_ref().unwrap().paragraphs[0].runs[0].props.size;
+    // From a corner: the letters grow with the box (18 pt by default, doubled).
+    d.place_object(0, id, 0.0, 0.0, 2.0, 0.0).unwrap();
+    assert_eq!(size(&d), Some(36.0));
+    d.place_object(0, id, 0.0, 0.0, 0.5, 0.0).unwrap();
+    assert_eq!(size(&d), Some(18.0));
+    // From a side: only the box changes; the letters keep their size.
+    let o = d.objects(0).unwrap().into_iter().find(|o| o.id == id).unwrap();
+    d.set_object_box(0, id, o.x as f64, o.y as f64, o.w as f64 * 0.5, o.h as f64).unwrap();
+    let after = d.objects(0).unwrap().into_iter().find(|o| o.id == id).unwrap();
+    assert!((after.w - o.w * 0.5).abs() < 0.5 && after.x == o.x, "{after:?}");
+    assert_eq!(size(&d), Some(18.0));
+    assert!(d.set_object_box(0, id, 0.0, 0.0, 0.0, 10.0).is_err());
+    let saved = DeckDoc::open(&d.save("x.pptx").unwrap()).unwrap();
+    assert!(saved.objects(0).unwrap().iter().any(|o| o.id == id && (o.w - after.w).abs() < 0.5));
+}

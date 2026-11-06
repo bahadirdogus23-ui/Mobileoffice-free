@@ -73,6 +73,13 @@ fun ObjectFrame(
     canRotate: Boolean = true,
     /** False for an object that stays where it is (a picture in a line of text): only sized. */
     canMove: Boolean = true,
+    /**
+     * When given, handles on the left and right edges change the box's width only; this gets the
+     * new box (centre x, centre y, width, height as fractions of the page, unturned). [reflows]
+     * says the object's content flows anew in it (text) rather than being stretched.
+     */
+    onBox: ((cx: Float, cy: Float, w: Float, h: Float) -> Unit)? = null,
+    reflows: Boolean = false,
     onDone: (dx: Float, dy: Float, scale: Float, turn: Float) -> Unit,
 ) {
     val accent = MaterialTheme.colorScheme.primary
@@ -86,20 +93,34 @@ fun ObjectFrame(
     var drag by remember(key) { mutableStateOf(Offset.Zero) }
     var scale by remember(key) { mutableFloatStateOf(1f) }
     var turn by remember(key) { mutableFloatStateOf(0f) }
+    // How far the left and right edges were pulled out (pixels along the box's own x axis).
+    var growL by remember(key) { mutableFloatStateOf(0f) }
+    var growR by remember(key) { mutableFloatStateOf(0f) }
     var active by remember(key) { mutableStateOf(false) }
     var box by remember { mutableStateOf(IntSize.Zero) }
     val done by rememberUpdatedState(onDone)
+    val boxDone by rememberUpdatedState(onBox)
 
     fun center() = Offset((l + r) / 2 * box.width, (t + b) / 2 * box.height)
     fun half() = Offset((r - l) / 2 * box.width, (b - t) / 2 * box.height)
 
-    /** Point (`x`, `y`) of the box (relative to its centre, unturned) on the page now. */
-    fun onPage(x: Float, y: Float): Offset {
+    /** A vector of the box's own axes (unturned) as it points on the page now. */
+    fun turned(x: Float, y: Float): Offset {
         val a = Math.toRadians((rotation + turn).toDouble())
-        val c = center() + drag
-        val sx = x * scale
-        val sy = y * scale
-        return Offset(c.x + (sx * cos(a) - sy * sin(a)).toFloat(), c.y + (sx * sin(a) + sy * cos(a)).toFloat())
+        return Offset((x * cos(a) - y * sin(a)).toFloat(), (x * sin(a) + y * cos(a)).toFloat())
+    }
+
+    /** The box's left, right (along its own x axis, from the old centre) and half height now. */
+    fun edges(): Triple<Float, Float, Float> {
+        val h = half()
+        return Triple(-h.x * scale - growL, h.x * scale + growR, h.y * scale)
+    }
+
+    /** A point of the box now: `side` -1 left edge, 1 right edge, 0 the middle; `y` from the centre. */
+    fun edgePoint(side: Int, y: Float): Offset {
+        val (le, re, _) = edges()
+        val x = when (side) { -1 -> le; 1 -> re; else -> (le + re) / 2 }
+        return center() + drag + turned(x, y)
     }
 
     Canvas(
@@ -111,21 +132,27 @@ fun ObjectFrame(
                     val down = awaitFirstDown(requireUnconsumed = false)
                     val h = half()
                     val p = down.position
+                    val hy = edges().third
                     val mode = when {
-                        canRotate && (p - onPage(0f, -h.y - rotateGap / scale)).getDistance() < reach -> Mode.TURN
-                        listOf(-1f to -1f, 1f to -1f, -1f to 1f, 1f to 1f).any { (sx, sy) -> (p - onPage(sx * h.x, sy * h.y)).getDistance() < reach } -> Mode.SIZE
+                        canRotate && (p - edgePoint(0, -hy - rotateGap)).getDistance() < reach -> Mode.TURN
+                        listOf(-1 to -1f, 1 to -1f, -1 to 1f, 1 to 1f).any { (sx, sy) -> (p - edgePoint(sx, sy * hy)).getDistance() < reach } -> Mode.SIZE
+                        onBox != null && (p - edgePoint(-1, 0f)).getDistance() < reach -> Mode.LEFT
+                        onBox != null && (p - edgePoint(1, 0f)).getDistance() < reach -> Mode.RIGHT
                         else -> {
                             // Inside the (turned, scaled) box?
                             val a = Math.toRadians(-(rotation + turn).toDouble())
                             val d = p - (center() + drag)
                             val ux = (d.x * cos(a) - d.y * sin(a)).toFloat()
                             val uy = (d.x * sin(a) + d.y * cos(a)).toFloat()
-                            if (canMove && abs(ux) <= h.x * scale + pad && abs(uy) <= h.y * scale + pad) Mode.MOVE else null
+                            val (le, re, _) = edges()
+                            if (canMove && ux >= le - pad && ux <= re + pad && abs(uy) <= hy + pad) Mode.MOVE else null
                         }
                     } ?: return@awaitEachGesture
                     val startDrag = drag
                     val startScale = scale
                     val startTurn = turn
+                    val startL = growL
+                    val startR = growR
                     val c0 = center() + drag
                     val startDist = (p - c0).getDistance().coerceAtLeast(1f)
                     val startAngle = angleOf(p - c0)
@@ -135,6 +162,16 @@ fun ObjectFrame(
                         when (mode) {
                             Mode.MOVE -> drag = startDrag + (at - p)
                             Mode.SIZE -> scale = (startScale * (at - c0).getDistance() / startDist).coerceIn(0.1f, 10f)
+                            Mode.LEFT, Mode.RIGHT -> {
+                                // How far the finger went along the box's own x axis.
+                                val a = Math.toRadians(-(rotation + turn).toDouble())
+                                val d = at - p
+                                val along = (d.x * cos(a) - d.y * sin(a)).toFloat()
+                                val minW = 24.dp.toPx()
+                                val w0 = 2 * h.x * scale
+                                if (mode == Mode.RIGHT) growR = (startR + along).coerceAtLeast(minW - w0 - growL)
+                                else growL = (startL - along).coerceAtLeast(minW - w0 - growR)
+                            }
                             Mode.TURN -> {
                                 var a = startTurn + angleOf(at - c0) - startAngle
                                 // Settles on upright and quarter turns, as design apps do.
@@ -150,20 +187,28 @@ fun ObjectFrame(
                         follow(change.position)
                         change.consume()
                     }
-                    if (finished && (drag != startDrag || scale != startScale || turn != startTurn)) {
+                    val sided = growL != startL || growR != startR
+                    if (finished && sided) {
+                        // The new box, unturned, as fractions of the page.
+                        val (le, re, hh) = edges()
+                        val c = center() + drag + turned((le + re) / 2, 0f)
+                        boxDone?.invoke(c.x / box.width, c.y / box.height, (re - le) / box.width, 2 * hh / box.height)
+                    } else if (finished && (drag != startDrag || scale != startScale || turn != startTurn)) {
                         done(drag.x / box.width, drag.y / box.height, scale, turn)
                     } else if (!finished) {
                         drag = startDrag
                         scale = startScale
                         turn = startTurn
-                        active = drag != Offset.Zero || scale != 1f || turn != 0f
+                        growL = startL
+                        growR = startR
+                        active = drag != Offset.Zero || scale != 1f || turn != 0f || growL != 0f || growR != 0f
                     }
                 }
             },
     ) {
         val c = center()
         val h = half()
-        val changed = active && (drag != Offset.Zero || scale != 1f || turn != 0f)
+        val changed = active && (drag != Offset.Zero || scale != 1f || turn != 0f || growL != 0f || growR != 0f)
         if (changed) {
             // The object follows the fingers over what is behind it.
             val backdrop = look?.backdrop
@@ -173,9 +218,13 @@ fun ObjectFrame(
                 rotate(rotation, pivot = c) { drawRect(cover, topLeft = c - h, size = Size(h.x * 2, h.y * 2)) }
             }
             look?.let { lk ->
-                translate(drag.x, drag.y) {
+                // Pulled from a side, a picture stretches with its box; text keeps its letters.
+                val (le, re, _) = edges()
+                val shift = turned((le + re) / 2, 0f)
+                val kx = if (reflows || h.x <= 0f) scale else (re - le) / (2 * h.x)
+                translate(drag.x + shift.x, drag.y + shift.y) {
                     rotate(turn, pivot = c) {
-                        scale(scale, pivot = c) {
+                        scale(kx, scale, pivot = c) {
                             drawImage(
                                 lk.snapshot.asImageBitmap(),
                                 dstOffset = IntOffset((lk.left * size.width).roundToInt(), (lk.top * size.height).roundToInt()),
@@ -186,16 +235,26 @@ fun ObjectFrame(
                 }
             }
         }
-        // The frame, its corner handles and the turning handle.
-        val corners = listOf(onPage(-h.x, -h.y), onPage(h.x, -h.y), onPage(h.x, h.y), onPage(-h.x, h.y))
+        // The frame, its corner handles, its side handles and the turning handle.
+        val hy = edges().third
+        val corners = listOf(edgePoint(-1, -hy), edgePoint(1, -hy), edgePoint(1, hy), edgePoint(-1, hy))
         for (i in corners.indices) drawLine(accent, corners[i], corners[(i + 1) % 4], strokeWidth = 2.dp.toPx())
         for (p in corners) {
             drawCircle(Color.White, handleR + 1.5.dp.toPx(), p)
             drawCircle(accent, handleR, p)
         }
+        if (onBox != null) {
+            for (side in listOf(-1, 1)) {
+                val mid = edgePoint(side, 0f)
+                val along = turned(0f, 1f)
+                val half = 9.dp.toPx()
+                drawLine(Color.White, mid - along * (half + 1.5f), mid + along * (half + 1.5f), strokeWidth = 8.dp.toPx(), cap = androidx.compose.ui.graphics.StrokeCap.Round)
+                drawLine(accent, mid - along * half, mid + along * half, strokeWidth = 5.dp.toPx(), cap = androidx.compose.ui.graphics.StrokeCap.Round)
+            }
+        }
         if (canRotate) {
-            val top = onPage(0f, -h.y)
-            val knob = onPage(0f, -h.y - rotateGap / scale)
+            val top = edgePoint(0, -hy)
+            val knob = edgePoint(0, -hy - rotateGap)
             drawLine(accent, top, knob, strokeWidth = 2.dp.toPx())
             drawCircle(Color.White, handleR + 3.dp.toPx(), knob)
             drawCircle(accent, handleR + 3.dp.toPx(), knob, style = Stroke(2.dp.toPx()))
@@ -204,7 +263,7 @@ fun ObjectFrame(
     }
 }
 
-private enum class Mode { MOVE, SIZE, TURN }
+private enum class Mode { MOVE, SIZE, TURN, LEFT, RIGHT }
 
 /** Clockwise degrees of [v] from the x axis (screen y points down). */
 private fun angleOf(v: Offset): Float = Math.toDegrees(atan2(v.y.toDouble(), v.x.toDouble())).toFloat()

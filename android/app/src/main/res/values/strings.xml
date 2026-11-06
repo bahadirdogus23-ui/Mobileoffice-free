@@ -555,4 +555,6 @@
     <string name="mark_highlight">Highlight</string>
     <string name="mark_underline">Underline</string>
     <string name="mark_strike">Strike out</string>
+    <string name="tool_smaller">Smaller</string>
+    <string name="tool_bigger">Bigger</string>
 </resources>

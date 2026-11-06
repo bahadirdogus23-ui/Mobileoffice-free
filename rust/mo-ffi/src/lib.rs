@@ -683,6 +683,12 @@ impl SlidesDocument {
         Ok(self.doc().place_object(slide, id, dx, dy, scale, rotate)?)
     }
 
+    /// Object `id` given the box (`x`, `y`, `width`, `height`) in points, keeping its turn: a text
+    /// box's text flows anew (its letters keep their size), a picture or shape is stretched.
+    pub fn set_object_box(&self, slide: u32, id: u32, x: f64, y: f64, width: f64, height: f64) -> Result<(), MoError> {
+        Ok(self.doc().set_object_box(slide, id, x, y, width, height)?)
+    }
+
     /// The whole slide at `scale` with object `id` left out (what is behind it).
     pub fn render_slide_without(&self, slide: u32, id: u32, scale: f32) -> Result<Raster, MoError> {
         Ok(self.doc().render_slide_without(slide, id, scale)?.into())

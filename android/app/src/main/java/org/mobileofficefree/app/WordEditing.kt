@@ -274,6 +274,8 @@ fun WordEditBar(vm: WordViewModel, onSave: () -> Unit) {
                         }
                     }
                 }
+                Tool("A−", R.string.tool_smaller, glyphSize = 16) { vm.command("format.shrinkFont") }
+                Tool("A+", R.string.tool_bigger, glyphSize = 16) { vm.command("format.growFont") }
                 Tool("K", R.string.tool_bold, on = f.bold, weight = FontWeight.Bold) { vm.command("format.bold") }
                 Tool("İ", R.string.tool_italic, on = f.italic, style = FontStyle.Italic) { vm.command("format.italic") }
                 Tool("A", R.string.tool_underline, on = f.underline, decoration = TextDecoration.Underline) { vm.command("format.underline") }
@@ -494,7 +496,7 @@ private val STYLES = listOf(
 
 /** Fonts offered: the bundled ones, and the common Office names (drawn with a matching bundled one). */
 private val FONTS = listOf("Calibri", "Arial", "Times New Roman", "Source Sans 3", "Source Serif 4", "Inter", "JetBrains Mono")
-private val SIZES = listOf(8, 9, 10, 11, 12, 14, 16, 18, 20, 24, 28, 36, 48)
+private val SIZES = listOf(8, 9, 10, 11, 12, 14, 16, 18, 20, 22, 24, 26, 28, 32, 36, 40, 48, 54, 60, 72)
 
 /** The caret and the selection drawn over page [page], which is [pageWidth] points wide. */
 @Composable
