@@ -1,5 +1,8 @@
 package org.mobileofficefree.app
 
+import androidx.compose.material3.ExtendedFloatingActionButton
+import androidx.compose.runtime.rememberCoroutineScope
+import kotlinx.coroutines.launch
 import android.Manifest
 import android.content.ActivityNotFoundException
 import android.content.Intent
@@ -202,6 +205,26 @@ fun HomeScreen(onOpen: (Uri) -> Unit, onNewSheet: () -> Unit, onDiagnostics: () 
         )
     }
     val scan = rememberScanner(onOpen)
+    // "New": a blank Word document or presentation written where the person chooses, then opened.
+    var newMenu by remember { mutableStateOf(false) }
+    var newKind by remember { mutableStateOf("docx") }
+    val newScope = rememberCoroutineScope()
+    val newFile = rememberLauncherForActivityResult(CreateFile()) { dest ->
+        if (dest == null) return@rememberLauncherForActivityResult
+        val ext = newKind
+        newScope.launch {
+            val ok = withContext(kotlinx.coroutines.Dispatchers.IO) {
+                runCatching {
+                    val bytes = org.mobileofficefree.engine.blankDocument(ext)
+                    context.contentResolver.openOutputStream(dest, "wt")?.use { it.write(bytes) } ?: error("cannot write")
+                }
+            }
+            ok.fold(
+                onSuccess = { onOpen(dest) },
+                onFailure = { android.widget.Toast.makeText(context, context.getString(R.string.save_failed, it.message ?: ""), android.widget.Toast.LENGTH_LONG).show() },
+            )
+        }
+    }
     val askLegacy = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
         access = granted
     }
@@ -253,6 +276,27 @@ fun HomeScreen(onOpen: (Uri) -> Unit, onNewSheet: () -> Unit, onDiagnostics: () 
     }.sortedBy(sort)
 
     Scaffold(
+        floatingActionButton = {
+            Box {
+                ExtendedFloatingActionButton(onClick = { newMenu = true }, text = { Text(stringResource(R.string.new_document)) }, icon = { Text("＋", fontSize = 20.sp) })
+                DropdownMenu(expanded = newMenu, onDismissRequest = { newMenu = false }) {
+                    DropdownMenuItem(text = { Text("📝  " + stringResource(R.string.new_word)) }, onClick = {
+                        newMenu = false
+                        newKind = "docx"
+                        newFile.launch(CreateFile.Request(context.getString(R.string.new_word_name), "application/vnd.openxmlformats-officedocument.wordprocessingml.document"))
+                    })
+                    DropdownMenuItem(text = { Text("📊  " + stringResource(R.string.new_spreadsheet)) }, onClick = {
+                        newMenu = false
+                        onNewSheet()
+                    })
+                    DropdownMenuItem(text = { Text("📽  " + stringResource(R.string.new_slides)) }, onClick = {
+                        newMenu = false
+                        newKind = "pptx"
+                        newFile.launch(CreateFile.Request(context.getString(R.string.new_slides_name), "application/vnd.openxmlformats-officedocument.presentationml.presentation"))
+                    })
+                }
+            }
+        },
         bottomBar = {
             NavigationBar {
                 HomeTab.entries.forEachIndexed { i, t ->

@@ -538,4 +538,9 @@
     <string name="shape_star">Star</string>
     <string name="shape_heart">Heart</string>
     <string name="shape_callout">Speech bubble</string>
+    <string name="new_document">New</string>
+    <string name="new_word">Word document</string>
+    <string name="new_slides">Presentation</string>
+    <string name="new_word_name">New document.docx</string>
+    <string name="new_slides_name">New presentation.pptx</string>
 </resources>

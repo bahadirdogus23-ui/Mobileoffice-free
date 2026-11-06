@@ -537,4 +537,9 @@
     <string name="shape_star">Yıldız</string>
     <string name="shape_heart">Kalp</string>
     <string name="shape_callout">Konuşma balonu</string>
+    <string name="new_document">Yeni</string>
+    <string name="new_word">Word belgesi</string>
+    <string name="new_slides">Sunum</string>
+    <string name="new_word_name">Yeni belge.docx</string>
+    <string name="new_slides_name">Yeni sunum.pptx</string>
 </resources>

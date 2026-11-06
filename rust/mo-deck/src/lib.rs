@@ -57,7 +57,17 @@ impl DeckDoc {
         Ok(DeckDoc { pres, warnings, dirty: false, undo: Vec::new(), redo: Vec::new() })
     }
 
-    #[cfg(test)]
+    /// A new presentation: one title slide on the default 16:9 theme.
+    pub fn blank() -> Result<DeckDoc, DeckError> {
+        let mut pres = Presentation::default();
+        let layout = pres.masters.first().and_then(|m| m.layouts.first()).map(|l| l.id).ok_or_else(|| DeckError::Open("no slide layout".into()))?;
+        if pres.slides.is_empty() {
+            let slide = deckcraft_model::defaults::new_slide(&mut pres, layout).ok_or_else(|| DeckError::Open("no room for a slide".into()))?;
+            pres.slides.push(std::sync::Arc::new(slide));
+        }
+        Ok(DeckDoc::from_presentation(pres))
+    }
+
     fn from_presentation(pres: Presentation) -> DeckDoc {
         DeckDoc { pres, warnings: Vec::new(), dirty: false, undo: Vec::new(), redo: Vec::new() }
     }

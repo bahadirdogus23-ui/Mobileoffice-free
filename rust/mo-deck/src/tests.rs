@@ -293,3 +293,15 @@ fn changes_can_be_taken_back_and_made_again() {
     assert!(d.undo());
     assert!(d.objects(0).unwrap().iter().any(|o| o.id == id));
 }
+
+#[test]
+fn a_new_presentation_has_a_title_slide() {
+    let mut d = DeckDoc::blank().unwrap();
+    assert_eq!(d.slide_count(), 1);
+    let texts = d.text_shapes(0).unwrap();
+    assert!(!texts.is_empty(), "title placeholders to type into");
+    d.set_text(0, texts[0].id, "Yeni sunum").unwrap();
+    let again = DeckDoc::open(&d.save("Yeni.pptx").unwrap()).unwrap();
+    assert_eq!(again.slide_count(), 1);
+    assert!(again.text_shapes(0).unwrap().iter().any(|t| t.text == "Yeni sunum"));
+}

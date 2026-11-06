@@ -115,6 +115,23 @@ pub fn images_to_pdf(images: Vec<NamedFile>, fit_a4: bool) -> Result<Vec<u8>, Mo
     Ok(mo_pdf::images_to_pdf(&images, fit_a4)?)
 }
 
+/// A new, empty document as the bytes of a file of kind `ext`: "docx" (an A4 page), "xlsx" or
+/// "pptx" (one title slide).
+#[uniffi::export]
+pub fn blank_document(ext: String) -> Result<Vec<u8>, MoError> {
+    let name = format!("Yeni.{ext}");
+    Ok(match ext.as_str() {
+        "docx" => {
+            let page =
+                mo_word::TextPage { width_pt: 595.0, height_pt: 842.0, landscape: false, margin_pt: 72.0, font: "Calibri".into(), size_pt: 11.0 };
+            mo_word::WordDoc::from_text(b"", &page).export(&name)?
+        }
+        "xlsx" => GridDoc::blank().save(&name)?,
+        "pptx" => DeckDoc::blank()?.save(&name)?,
+        _ => return Err(MoError::Save(format!("cannot make a new .{ext}"))),
+    })
+}
+
 /// A spreadsheet open in the GridCraft engine.
 #[derive(uniffi::Object)]
 pub struct SheetDocument {
