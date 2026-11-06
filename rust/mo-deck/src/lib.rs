@@ -144,6 +144,14 @@ impl DeckDoc {
         Ok(id)
     }
 
+    /// A new shape (PowerPoint's name for it, e.g. "ellipse") filled with 0xRRGGBB in the
+    /// middle of `slide`; returns its id.
+    pub fn add_shape(&mut self, slide: u32, preset: &str, fill: u32) -> Result<u32, DeckError> {
+        let id = edit::add_shape(&mut self.pres, slide as usize, preset, fill)?;
+        self.dirty = true;
+        Ok(id)
+    }
+
     /// A copy of object `id` a little below and right of it; returns its id.
     pub fn duplicate_object(&mut self, slide: u32, id: u32) -> Result<u32, DeckError> {
         let new = edit::duplicate_object(&mut self.pres, slide as usize, id)?;

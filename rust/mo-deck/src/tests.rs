@@ -245,3 +245,20 @@ fn objects_are_copied_arranged_and_restyled() {
     // The copy is untouched.
     assert!(!saved.text_is_bold(0, copy));
 }
+
+#[test]
+fn shapes_can_be_added_and_typed_into() {
+    let mut d = DeckDoc::open(include_bytes!("../testdata/grouped-text.pptx")).unwrap();
+    let id = d.add_shape(0, "ellipse", 0x0070C0).unwrap();
+    assert!(d.add_shape(0, "spaceship", 0).is_err());
+    d.set_text(0, id, "İçinde yazı").unwrap();
+    let saved = DeckDoc::open(&d.save("x.pptx").unwrap()).unwrap();
+    let o = saved.objects(0).unwrap().into_iter().find(|o| o.id == id).unwrap();
+    assert_eq!(o.kind, ObjectKind::Text);
+    assert!(saved.text_shapes(0).unwrap().iter().any(|t| t.id == id && t.text == "İçinde yazı"));
+    // Blue in the middle of the slide (a little above its text).
+    let r = saved.render_slide(0, 0.5).unwrap();
+    let y = r.height / 2 - r.height / 10;
+    let px = &r.pixels[((y * r.width + r.width / 2) * 4) as usize..][..4];
+    assert!(px[2] > 150 && px[0] < 60, "{px:?}");
+}

@@ -1,5 +1,7 @@
 package org.mobileofficefree.app
 
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import android.content.Intent
 import android.widget.Toast
 import androidx.activity.compose.BackHandler
@@ -715,6 +717,18 @@ fun PagedScreen(vm: PagedViewModel, state: PagedUiState, reading: ReadingSetting
                             pictureFor = at
                             pickSlidePicture.launch(arrayOf("image/*"))
                         }) { Text(stringResource(R.string.slide_add_picture)) }
+                        Box {
+                            var shapeMenu by remember { mutableStateOf(false) }
+                            TextButton(onClick = { shapeMenu = true }) { Text(stringResource(R.string.slide_add_shape)) }
+                            DropdownMenu(expanded = shapeMenu, onDismissRequest = { shapeMenu = false }) {
+                                for ((glyph, preset, label) in SLIDE_SHAPES) {
+                                    DropdownMenuItem(text = { Text("$glyph  " + stringResource(label)) }, onClick = {
+                                        shapeMenu = false
+                                        slides.addShape(at, preset)
+                                    })
+                                }
+                            }
+                        }
                         TextButton(onClick = { slides.newSlide(at) }) { Text(stringResource(R.string.slide_new)) }
                         TextButton(onClick = { slides.duplicateSlide(at) }) { Text(stringResource(R.string.slide_duplicate)) }
                         TextButton(onClick = { slides.moveSlide(at, at - 1) }, enabled = at > 0) { Text("▲") }
@@ -1107,3 +1121,15 @@ private fun SettingRow(title: String, hint: String?, checked: Boolean, onChange:
         modifier = Modifier.clickable { onChange(!checked) },
     )
 }
+
+/** Shapes the slide editor adds: a symbol, PowerPoint's name for it and what to call it. */
+private val SLIDE_SHAPES = listOf(
+    Triple("▭", "rect", R.string.shape_rect),
+    Triple("▢", "roundRect", R.string.shape_round_rect),
+    Triple("●", "ellipse", R.string.shape_ellipse),
+    Triple("▲", "triangle", R.string.shape_triangle),
+    Triple("➜", "rightArrow", R.string.shape_arrow),
+    Triple("★", "star5", R.string.shape_star),
+    Triple("♥", "heart", R.string.shape_heart),
+    Triple("💬", "wedgeRoundRectCallout", R.string.shape_callout),
+)

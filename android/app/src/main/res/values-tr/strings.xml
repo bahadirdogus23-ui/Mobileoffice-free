@@ -528,4 +528,13 @@
     <string name="slide_arrange">Sırala</string>
     <string name="slide_to_front">Öne getir</string>
     <string name="slide_to_back">Arkaya gönder</string>
+    <string name="slide_add_shape">Şekil</string>
+    <string name="shape_rect">Dikdörtgen</string>
+    <string name="shape_round_rect">Yuvarlak köşeli kutu</string>
+    <string name="shape_ellipse">Daire</string>
+    <string name="shape_triangle">Üçgen</string>
+    <string name="shape_arrow">Ok</string>
+    <string name="shape_star">Yıldız</string>
+    <string name="shape_heart">Kalp</string>
+    <string name="shape_callout">Konuşma balonu</string>
 </resources>

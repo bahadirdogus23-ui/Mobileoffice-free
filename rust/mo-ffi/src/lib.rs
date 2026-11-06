@@ -676,6 +676,12 @@ impl SlidesDocument {
         Ok(self.doc().add_picture(slide, data, width, height)?)
     }
 
+    /// A new shape ("rect", "roundRect", "ellipse", "triangle", "rightArrow", "star5", "heart"
+    /// or "wedgeRoundRectCallout") filled with 0xRRGGBB in the middle of `slide`; returns its id.
+    pub fn add_shape(&self, slide: u32, preset: String, fill: u32) -> Result<u32, MoError> {
+        Ok(self.doc().add_shape(slide, &preset, fill)?)
+    }
+
     /// A copy of object `id` a little below and right of it; returns its id.
     pub fn duplicate_object(&self, slide: u32, id: u32) -> Result<u32, MoError> {
         Ok(self.doc().duplicate_object(slide, id)?)

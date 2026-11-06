@@ -245,6 +245,30 @@ pub fn add_picture(pres: &mut Presentation, index: usize, data: Vec<u8>, width: 
     push_shape(pres, index, shape)
 }
 
+/// Slide `index` with a new shape (`preset` is a PowerPoint shape name such as "rect",
+/// "ellipse", "rightArrow") filled with 0xRRGGBB, in the middle of the slide; returns its id.
+/// It holds an empty text body, so text can be typed into it.
+pub fn add_shape(pres: &mut Presentation, index: usize, preset: &str, fill: u32) -> Result<u32, DeckError> {
+    const SHAPES: [&str; 8] = ["rect", "roundRect", "ellipse", "triangle", "rightArrow", "star5", "heart", "wedgeRoundRectCallout"];
+    if !SHAPES.contains(&preset) {
+        return Err(edit_err("unknown shape"));
+    }
+    let (sw, sh) = slide_size_pt(pres);
+    let side = sh * 0.3;
+    let (w, h) = if matches!(preset, "rightArrow" | "rect" | "roundRect" | "wedgeRoundRectCallout") { (side * 1.6, side) } else { (side, side) };
+    let color = deckcraft_model::ColorRef::rgb(deckcraft_model::Rgba { r: (fill >> 16) as u8, g: (fill >> 8) as u8, b: fill as u8, a: 255 });
+    let shape = deckcraft_model::Shape {
+        name: "Shape".into(),
+        xfrm: Some(deckcraft_model::Xfrm { x: (sw - w) / 2.0, y: (sh - h) / 2.0, w, h, ..Default::default() }),
+        geom: deckcraft_model::Geom::Preset { name: preset.into(), adj: vec![] },
+        fill: Some(deckcraft_model::Fill::Solid { color }),
+        line: Some(deckcraft_model::Line { fill: Some(deckcraft_model::Fill::None), ..Default::default() }),
+        text: Some(deckcraft_model::text::TextBody::from_text("")),
+        ..Default::default()
+    };
+    push_shape(pres, index, shape)
+}
+
 fn slide_size_pt(pres: &Presentation) -> (f64, f64) {
     (pres.slide_size.width, pres.slide_size.height)
 }

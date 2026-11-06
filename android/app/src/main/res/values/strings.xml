@@ -529,4 +529,13 @@
     <string name="slide_arrange">Arrange</string>
     <string name="slide_to_front">Bring to front</string>
     <string name="slide_to_back">Send to back</string>
+    <string name="slide_add_shape">Shape</string>
+    <string name="shape_rect">Rectangle</string>
+    <string name="shape_round_rect">Rounded box</string>
+    <string name="shape_ellipse">Circle</string>
+    <string name="shape_triangle">Triangle</string>
+    <string name="shape_arrow">Arrow</string>
+    <string name="shape_star">Star</string>
+    <string name="shape_heart">Heart</string>
+    <string name="shape_callout">Speech bubble</string>
 </resources>

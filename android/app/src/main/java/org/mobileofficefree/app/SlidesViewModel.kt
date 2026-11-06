@@ -189,6 +189,15 @@ class SlidesViewModel(app: Application) : PagedViewModel(app, DocumentKind.SLIDE
     var pickedBold by mutableStateOf(false)
         private set
 
+    /** A new shape (PowerPoint's name, e.g. "ellipse") in the middle of [slide], picked. */
+    fun addShape(slide: Int, preset: String) {
+        change {
+            val id = it.addShape(slide.toUInt(), preset, SHAPE_BLUE)
+            pickLater(it, slide, id)
+            slide
+        }
+    }
+
     /** A copy of the picked object, picked in its place. */
     fun duplicatePicked() {
         val (slide, o) = picked ?: return
@@ -345,6 +354,9 @@ class SlidesViewModel(app: Application) : PagedViewModel(app, DocumentKind.SLIDE
 
 /** Pictures added to slides are made at most this many pixels on their long side. */
 private const val MAX_PICTURE_PX = 2560
+
+/** New shapes' colour (Office blue), changed with Fill afterwards. */
+private const val SHAPE_BLUE = 0x4472C4u
 
 /** How wide (pixels) a slide is drawn to cut a picked object out of it. */
 private const val LOOK_WIDTH_PX = 1080f
