@@ -90,6 +90,12 @@ class WordViewModel(app: Application) : PagedViewModel(app, DocumentKind.WORD) {
         it.execute("select.word", "")
     }
 
+    /** Selects from (`ax`, `ay`) on [anchorPage] to (`x`, `y`) on [page] (dragging a selection handle). */
+    fun selectBetween(anchorPage: Int, ax: Float, ay: Float, page: Int, x: Float, y: Float) = perform(changes = false) {
+        it.tap(anchorPage.toUInt(), ax, ay, false)
+        it.tap(page.toUInt(), x, y, true)
+    }
+
     /** The selection extended to (`x`, `y`) on [page] (dragging after a long press). */
     fun extendTo(page: Int, x: Float, y: Float) = tap(page, x, y, extend = true)
 

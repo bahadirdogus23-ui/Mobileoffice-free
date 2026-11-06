@@ -1,5 +1,14 @@
 package org.mobileofficefree.app
 
+import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.runtime.key
+import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.foundation.layout.offset
+import androidx.compose.foundation.gestures.detectDragGestures
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.unit.IntOffset
+import kotlin.math.roundToInt
 import android.content.ClipData
 import android.content.ClipboardManager
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -498,4 +507,88 @@ fun WordCaretOverlay(vm: WordViewModel, page: Int, pageWidth: Float, showCaret: 
             drawRect(color, topLeft = Offset(caret.x * k - 1f, caret.top * k), size = Size(2.dp.toPx(), caret.height * k))
         }
     }
+    SelectionHandles(vm, page, pageWidth)
 }
+
+/**
+ * Android's selection handles at both ends of the selection: dragging one moves that end while
+ * the other stays where it is.
+ */
+@Composable
+private fun SelectionHandles(vm: WordViewModel, page: Int, pageWidth: Float) {
+    val all = vm.selection
+    if (all.isEmpty()) return
+    val first = all.first()
+    val last = all.last()
+    val color = MaterialTheme.colorScheme.primary
+    val density = LocalDensity.current
+    val handle = 22.dp
+    val handlePx = with(density) { handle.toPx() }
+    BoxWithConstraints(Modifier.fillMaxSize()) {
+        val k = constraints.maxWidth / pageWidth
+        // (is the start handle, the end it moves, the end that stays)
+        val ends = listOfNotNull(
+            if (first.page.toInt() == page) Triple(true, first, last) else null,
+            if (last.page.toInt() == page) Triple(false, last, first) else null,
+        )
+        for ((start, moving, fixed) in ends) {
+            key(start) {
+                // While a handle is dragged it follows the finger from where it was picked up,
+                // and the other end stays as it was then.
+                var grab by remember { mutableStateOf<HandleGrab?>(null) }
+                val movingNow by rememberUpdatedState(moving)
+                val fixedNow by rememberUpdatedState(fixed)
+                val atX = if (start) moving.x else moving.x + moving.width
+                val atY = moving.y + moving.height
+                val g = grab
+                val left = if (g != null) g.x * k + g.drag.x - (if (start) handlePx else 0f) else atX * k - (if (start) handlePx else 0f)
+                val top = if (g != null) g.y * k + g.drag.y else atY * k
+                Box(
+                    Modifier
+                        .offset { IntOffset(left.roundToInt(), top.roundToInt()) }
+                        .size(handle)
+                        .background(
+                            color,
+                            if (start) RoundedCornerShape(50, 0, 50, 50) else RoundedCornerShape(0, 50, 50, 50),
+                        )
+                        .pointerInput(start) {
+                            detectDragGestures(
+                                onDragStart = {
+                                    val m = movingNow
+                                    val f = fixedNow
+                                    grab = HandleGrab(
+                                        x = if (start) m.x else m.x + m.width, y = m.y + m.height, lineHeight = m.height,
+                                        fixedPage = f.page.toInt(),
+                                        fx = if (start) f.x + f.width else f.x,
+                                        fy = f.y + f.height / 2,
+                                    )
+                                },
+                                onDragEnd = { grab = null },
+                                onDragCancel = { grab = null },
+                            ) { change, amount ->
+                                change.consume()
+                                val now = grab ?: return@detectDragGestures
+                                val moved = now.copy(drag = now.drag + amount)
+                                grab = moved
+                                // The finger is under the text: aim at the line just above the handle.
+                                val px = moved.x + moved.drag.x / k
+                                val py = moved.y - moved.lineHeight / 2 + moved.drag.y / k
+                                vm.selectBetween(moved.fixedPage, moved.fx, moved.fy, page, px, py)
+                            }
+                        },
+                )
+            }
+        }
+    }
+}
+
+/** A selection handle being dragged: where it was picked up (points), how far it went (pixels) and the end that stays. */
+private data class HandleGrab(
+    val x: Float,
+    val y: Float,
+    val lineHeight: Float,
+    val fixedPage: Int,
+    val fx: Float,
+    val fy: Float,
+    val drag: Offset = Offset.Zero,
+)
