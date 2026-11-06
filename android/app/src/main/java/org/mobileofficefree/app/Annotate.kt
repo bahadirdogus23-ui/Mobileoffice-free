@@ -31,6 +31,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.foundation.gestures.detectDragGestures
 import org.mobileofficefree.engine.Pen
 import org.mobileofficefree.engine.TypedText
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -252,7 +253,7 @@ fun PickedTextFrame(t: TypedText, onMove: (Double, Double) -> Unit) {
                 .border(2.dp, color, RoundedCornerShape(4.dp))
                 .background(color.copy(alpha = 0.08f))
                 .pointerInput(t) {
-                    androidx.compose.foundation.gestures.detectDragGestures(
+                    detectDragGestures(
                         onDragEnd = {
                             val d = drag
                             if (d != Offset.Zero) onMove(d.x / w.toDouble(), d.y / h.toDouble())
