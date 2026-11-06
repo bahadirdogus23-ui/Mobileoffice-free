@@ -507,4 +507,12 @@
     <string name="filter_none">Hiçbiri</string>
     <string name="filter_blanks">(Boş)</string>
     <string name="filter_remove">Filtreyi kaldır</string>
+    <string name="merge_short">Birleştir</string>
+    <string name="merge_pdfs">PDF\'leri birleştir</string>
+    <string name="merge_hint">Dosyalar bu sırayla arka arkaya eklenir. Seçtiğiniz dosyalar değişmez.</string>
+    <string name="merge_need_two">En az iki PDF seçin.</string>
+    <string name="merge_do">Birleştir</string>
+    <string name="merge_file_name">Birlesik.pdf</string>
+    <string name="merge_working">PDF\'ler birleştiriliyor…</string>
+    <string name="merge_cannot_read">%1$s okunamadı (bozuk ya da parolalı olabilir).</string>
 </resources>

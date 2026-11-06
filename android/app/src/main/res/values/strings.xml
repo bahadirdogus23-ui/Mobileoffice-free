@@ -508,4 +508,12 @@
     <string name="filter_none">Clear</string>
     <string name="filter_blanks">(Blanks)</string>
     <string name="filter_remove">Remove filter</string>
+    <string name="merge_short">Combine</string>
+    <string name="merge_pdfs">Combine PDFs</string>
+    <string name="merge_hint">The files go one after another in this order. The picked files are not changed.</string>
+    <string name="merge_need_two">Pick at least two PDFs.</string>
+    <string name="merge_do">Combine</string>
+    <string name="merge_file_name">Combined.pdf</string>
+    <string name="merge_working">Combining the PDFs…</string>
+    <string name="merge_cannot_read">%1$s could not be read (it may be damaged or password protected).</string>
 </resources>

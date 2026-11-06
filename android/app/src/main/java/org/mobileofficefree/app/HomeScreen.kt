@@ -190,6 +190,7 @@ fun HomeScreen(onOpen: (Uri) -> Unit, onNewSheet: () -> Unit, onDiagnostics: () 
         if (uri != null) onOpen(uri)
     }
     val imagesToPdf = rememberImagesToPdf(onOpen)
+    val mergePdfs = rememberPdfMerge(onOpen)
     var showSettings by remember { mutableStateOf(false) }
     if (showSettings) {
         SettingsSheet(
@@ -288,6 +289,7 @@ fun HomeScreen(onOpen: (Uri) -> Unit, onNewSheet: () -> Unit, onDiagnostics: () 
             Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                 QuickTile("📷", stringResource(R.string.scan), Color(0xFF0A84FF), Modifier.weight(1f), scan)
                 QuickTile("🖼", stringResource(R.string.images_to_pdf), Color(0xFFFF9F0A), Modifier.weight(1f), imagesToPdf)
+                QuickTile("📑", stringResource(R.string.merge_short), Color(0xFFFF375F), Modifier.weight(1f), mergePdfs)
                 QuickTile("📂", stringResource(R.string.open_short), Color(0xFF34C759), Modifier.weight(1f)) { pick.launch(DocumentKind.openableTypes) }
             }
             Spacer(Modifier.height(10.dp))
