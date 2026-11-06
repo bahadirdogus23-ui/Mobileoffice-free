@@ -276,7 +276,7 @@
         <item quantity="one">%d place replaced.</item>
         <item quantity="other">%d places replaced.</item>
     </plurals>
-    <string name="slide_edit_hint">Tap a text on the slide to change it.</string>
+    <string name="slide_edit_hint">Tap an object to move, resize or delete it; double-tap a text to change it.</string>
     <string name="slide_new">New slide</string>
     <string name="slide_duplicate">Duplicate</string>
     <string name="slide_text">Slide text</string>
@@ -465,4 +465,7 @@
     <string name="selected_chars">%1$d characters selected</string>
     <string name="copied">Copied</string>
     <string name="select_hint">Hold and drag on the page to select text</string>
+    <string name="slide_edit_text">Edit text</string>
+    <string name="slide_smaller">Smaller</string>
+    <string name="slide_bigger">Bigger</string>
 </resources>

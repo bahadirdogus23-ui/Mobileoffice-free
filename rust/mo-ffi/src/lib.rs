@@ -463,6 +463,25 @@ pub struct SlideText {
     pub col: i32,
 }
 
+#[derive(uniffi::Enum)]
+pub enum SlideObjectKind {
+    Text,
+    Picture,
+    Table,
+    Other,
+}
+
+/// An object on a slide that can be moved: its id, its box in points and what it is.
+#[derive(uniffi::Record)]
+pub struct SlideObject {
+    pub id: u32,
+    pub x: f32,
+    pub y: f32,
+    pub width: f32,
+    pub height: f32,
+    pub kind: SlideObjectKind,
+}
+
 #[uniffi::export]
 impl SlidesDocument {
     #[uniffi::constructor]
@@ -522,12 +541,44 @@ impl SlidesDocument {
             .collect())
     }
 
-    /// Makes shape `id`'s text read `text` (`\n` between paragraphs), keeping what stays formatted.
     /// Makes cell (`row`, `col`) of table `id` on `slide` read `text`.
     pub fn set_cell_text(&self, slide: u32, id: u32, row: u32, col: u32, text: String) -> Result<(), MoError> {
         Ok(self.doc().set_cell_text(slide, id, row, col, &text)?)
     }
 
+    /// The objects on `slide` that can be moved, front-most last.
+    pub fn objects(&self, slide: u32) -> Result<Vec<SlideObject>, MoError> {
+        Ok(self
+            .doc()
+            .objects(slide)?
+            .into_iter()
+            .map(|o| SlideObject {
+                id: o.id,
+                x: o.x,
+                y: o.y,
+                width: o.w,
+                height: o.h,
+                kind: match o.kind {
+                    mo_deck::ObjectKind::Text => SlideObjectKind::Text,
+                    mo_deck::ObjectKind::Picture => SlideObjectKind::Picture,
+                    mo_deck::ObjectKind::Table => SlideObjectKind::Table,
+                    mo_deck::ObjectKind::Other => SlideObjectKind::Other,
+                },
+            })
+            .collect())
+    }
+
+    /// Moves object `id` by (`dx`, `dy`) points and scales it by `scale` about its centre.
+    pub fn place_object(&self, slide: u32, id: u32, dx: f64, dy: f64, scale: f64) -> Result<(), MoError> {
+        Ok(self.doc().place_object(slide, id, dx, dy, scale)?)
+    }
+
+    /// Removes object `id` (and its animations) from `slide`.
+    pub fn delete_object(&self, slide: u32, id: u32) -> Result<(), MoError> {
+        Ok(self.doc().delete_object(slide, id)?)
+    }
+
+    /// Makes shape `id`'s text read `text` (`\n` between paragraphs), keeping what stays formatted.
     pub fn set_text(&self, slide: u32, id: u32, text: String) -> Result<(), MoError> {
         Ok(self.doc().set_text(slide, id, &text)?)
     }

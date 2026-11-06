@@ -234,17 +234,25 @@ fun TextStampDialog(onDismiss: () -> Unit, initialText: String = "", initialLook
  * it moves the text; the move is applied when the finger lifts ([onMove], fractions of the page).
  */
 @Composable
-fun PickedTextFrame(t: TypedText, onMove: (Double, Double) -> Unit) {
+fun PickedTextFrame(t: TypedText, onMove: (Double, Double) -> Unit) =
+    SelectionFrame(t, t.left, t.top, t.right, t.bottom, onMove)
+
+/**
+ * A frame around the box (`l`, `t`)–(`r`, `b`), given as fractions of the page, that can be
+ * dragged; [onMove] gets how far, as fractions of the page. [key] names what is framed.
+ */
+@Composable
+fun SelectionFrame(key: Any, l: Double, t: Double, r: Double, b: Double, onMove: (Double, Double) -> Unit) {
     val color = MaterialTheme.colorScheme.primary
     BoxWithConstraints(Modifier.fillMaxSize()) {
         val w = constraints.maxWidth.toFloat()
         val h = constraints.maxHeight.toFloat()
-        var drag by remember(t) { mutableStateOf(Offset.Zero) }
+        var drag by remember(key) { mutableStateOf(Offset.Zero) }
         val pad = 6f
-        val left = (t.left * w).toFloat() - pad + drag.x
-        val top = (t.top * h).toFloat() - pad + drag.y
-        val bw = ((t.right - t.left) * w).toFloat() + 2 * pad
-        val bh = ((t.bottom - t.top) * h).toFloat() + 2 * pad
+        val left = (l * w).toFloat() - pad + drag.x
+        val top = (t * h).toFloat() - pad + drag.y
+        val bw = ((r - l) * w).toFloat() + 2 * pad
+        val bh = ((b - t) * h).toFloat() + 2 * pad
         val density = androidx.compose.ui.platform.LocalDensity.current
         Box(
             Modifier
@@ -252,7 +260,7 @@ fun PickedTextFrame(t: TypedText, onMove: (Double, Double) -> Unit) {
                 .size(with(density) { bw.toDp() }, with(density) { bh.toDp() })
                 .border(2.dp, color, RoundedCornerShape(4.dp))
                 .background(color.copy(alpha = 0.08f))
-                .pointerInput(t) {
+                .pointerInput(key) {
                     detectDragGestures(
                         onDragEnd = {
                             val d = drag

@@ -12,6 +12,8 @@ import androidx.lifecycle.viewModelScope
 import java.util.Locale
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import org.mobileofficefree.engine.SlideObject
+import org.mobileofficefree.engine.SlideObjectKind
 import org.mobileofficefree.engine.SlideText
 import org.mobileofficefree.engine.SlidesDocument
 
@@ -47,6 +49,62 @@ class SlidesViewModel(app: Application) : PagedViewModel(app, DocumentKind.SLIDE
             }
             editingText = hit?.let { slide to it }
             if (hit == null) tell(getApplication<Application>().getString(R.string.slide_no_text_here))
+        }
+    }
+
+    /** The object picked on a slide (to move, resize, delete or retype), and where it was tapped. */
+    var picked by mutableStateOf<Pair<Int, SlideObject>?>(null)
+        private set
+    private var pickedAt = 0f to 0f
+
+    /** Picks the object at (`x`, `y`) points on [slide]: the smallest box under the finger. */
+    fun pickAt(slide: Int, x: Float, y: Float) {
+        val d = doc ?: return
+        viewModelScope.launch {
+            val hit = withContext(engine) {
+                runCatching { d.objects(slide.toUInt()) }.getOrDefault(emptyList())
+                    .filter { x >= it.x && x <= it.x + it.width && y >= it.y && y <= it.y + it.height }
+                    .minByOrNull { it.width * it.height }
+            }
+            pickedAt = x to y
+            picked = hit?.let { slide to it }
+        }
+    }
+
+    fun dropPick() {
+        picked = null
+    }
+
+    /** Whether the picked object has text to retype. */
+    val pickedHasText: Boolean
+        get() = picked?.second?.kind.let { it == SlideObjectKind.TEXT || it == SlideObjectKind.TABLE }
+
+    /** Opens the text of the picked object (for a table, the cell that was tapped). */
+    fun editPickedText() {
+        val (slide, o) = picked ?: return
+        val (x, y) = pickedAt
+        // Tapped before a move: aim at the same spot of the object where it is now.
+        tapText(slide, x.coerceIn(o.x, o.x + o.width), y.coerceIn(o.y, o.y + o.height))
+    }
+
+    /** Moves the picked object by (`dx`, `dy`) points and scales it by [scale] about its centre. */
+    fun placePicked(dx: Double, dy: Double, scale: Double = 1.0) {
+        val (slide, o) = picked ?: return
+        pickedAt = (pickedAt.first + dx.toFloat()) to (pickedAt.second + dy.toFloat())
+        change {
+            it.placeObject(slide.toUInt(), o.id, dx, dy, scale)
+            val now = it.objects(slide.toUInt()).firstOrNull { n -> n.id == o.id }
+            viewModelScope.launch { picked = now?.let { n -> slide to n } }
+            null
+        }
+    }
+
+    fun deletePicked() {
+        val (slide, o) = picked ?: return
+        picked = null
+        change {
+            it.deleteObject(slide.toUInt(), o.id)
+            null
         }
     }
 
@@ -162,6 +220,7 @@ class SlidesViewModel(app: Application) : PagedViewModel(app, DocumentKind.SLIDE
             editing = false
             dirty = false
             editingText = null
+            picked = null
         }
     }
 }

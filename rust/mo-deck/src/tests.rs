@@ -128,3 +128,30 @@ fn table_cells_on_slides_can_be_edited() {
     let again: Vec<String> = saved.text_shapes(0).unwrap().into_iter().filter(|s| s.cell == Some((1, 1))).map(|s| s.text).collect();
     assert_eq!(again, ["ARGUVAN"]);
 }
+
+#[test]
+fn objects_can_be_moved_scaled_and_deleted() {
+    let mut d = DeckDoc::open(include_bytes!("../testdata/grouped-text.pptx")).unwrap();
+    let objs = d.objects(0).unwrap();
+    // Title, body, the group and the table.
+    assert_eq!(objs.len(), 4, "{objs:?}");
+    let table = objs.iter().find(|o| o.kind == ObjectKind::Table).unwrap().clone();
+    assert_eq!((table.x, table.y), (360.0, 432.0));
+    d.place_object(0, table.id, -36.0, 18.0, 1.0).unwrap();
+    d.place_object(0, table.id, 0.0, 0.0, 2.0).unwrap();
+    let title = objs.iter().find(|o| o.kind == ObjectKind::Text).unwrap().clone();
+    d.delete_object(0, title.id).unwrap();
+    assert!(d.delete_object(0, title.id).is_err());
+    let saved = DeckDoc::open(&d.save("x.pptx").unwrap()).unwrap();
+    let after = saved.objects(0).unwrap();
+    assert_eq!(after.len(), 3);
+    let t = after.iter().find(|o| o.id == table.id).unwrap();
+    // Moved by (−36, 18), then doubled about its centre.
+    let (cx, cy) = (table.x - 36.0 + table.w / 2.0, table.y + 18.0 + table.h / 2.0);
+    assert!((t.w - table.w * 2.0).abs() < 1.0 && (t.h - table.h * 2.0).abs() < 1.0, "{t:?}");
+    assert!((t.x + t.w / 2.0 - cx).abs() < 1.0 && (t.y + t.h / 2.0 - cy).abs() < 1.0, "{t:?}");
+    assert!(!saved.text_shapes(0).unwrap().iter().any(|s| s.text == "Başlık"));
+    // The cells grew with the table.
+    let a1 = saved.text_shapes(0).unwrap().into_iter().find(|s| s.cell == Some((0, 0))).unwrap();
+    assert!((a1.w - 216.0).abs() < 1.0 && (a1.h - 72.0).abs() < 1.0, "{a1:?}");
+}

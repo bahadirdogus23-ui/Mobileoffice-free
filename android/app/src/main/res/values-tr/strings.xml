@@ -275,7 +275,7 @@
         <item quantity="one">%d yer değiştirildi.</item>
         <item quantity="other">%d yer değiştirildi.</item>
     </plurals>
-    <string name="slide_edit_hint">Değiştirmek için slayttaki bir yazıya dokunun.</string>
+    <string name="slide_edit_hint">Taşımak, boyutlandırmak veya silmek için bir nesneye dokunun; yazıyı değiştirmek için iki kez dokunun.</string>
     <string name="slide_new">Yeni slayt</string>
     <string name="slide_duplicate">Çoğalt</string>
     <string name="slide_text">Slayt metni</string>
@@ -464,4 +464,7 @@
     <string name="selected_chars">%1$d karakter seçildi</string>
     <string name="copied">Kopyalandı</string>
     <string name="select_hint">Metin seçmek için sayfada basılı tutup sürükleyin</string>
+    <string name="slide_edit_text">Metni düzenle</string>
+    <string name="slide_smaller">Küçült</string>
+    <string name="slide_bigger">Büyüt</string>
 </resources>

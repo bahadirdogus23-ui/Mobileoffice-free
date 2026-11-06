@@ -3,7 +3,7 @@
 //! (see `edit.rs`), so the app carries neither the editing engine nor its media decoders.
 
 mod edit;
-pub use edit::TextShape;
+pub use edit::{ObjectKind, SlideObject, TextShape};
 
 use deckcraft_model::Presentation;
 use deckcraft_render::RenderOpts;
@@ -100,6 +100,25 @@ impl DeckDoc {
     /// Makes shape `id`'s text on `slide` read `text`, keeping the formatting of what stays.
     pub fn set_text(&mut self, slide: u32, id: u32, text: &str) -> Result<(), DeckError> {
         edit::set_text(&mut self.pres, slide as usize, id, text)?;
+        self.dirty = true;
+        Ok(())
+    }
+
+    /// The objects on `slide` that can be moved, front-most last.
+    pub fn objects(&self, slide: u32) -> Result<Vec<edit::SlideObject>, DeckError> {
+        edit::objects(&self.pres, slide as usize)
+    }
+
+    /// Moves object `id` by (`dx`, `dy`) points and scales it by `scale` about its centre.
+    pub fn place_object(&mut self, slide: u32, id: u32, dx: f64, dy: f64, scale: f64) -> Result<(), DeckError> {
+        edit::place_object(&mut self.pres, slide as usize, id, dx, dy, scale)?;
+        self.dirty = true;
+        Ok(())
+    }
+
+    /// Removes object `id` from `slide`.
+    pub fn delete_object(&mut self, slide: u32, id: u32) -> Result<(), DeckError> {
+        edit::delete_object(&mut self.pres, slide as usize, id)?;
         self.dirty = true;
         Ok(())
     }

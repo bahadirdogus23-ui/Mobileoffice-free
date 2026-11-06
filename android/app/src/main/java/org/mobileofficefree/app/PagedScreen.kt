@@ -540,9 +540,13 @@ fun PagedScreen(vm: PagedViewModel, state: PagedUiState, reading: ReadingSetting
                                 }
                             }
                         } else if (slides?.editing == true) {
-                            // Editing slides: a tap opens the text under the finger.
+                            // Editing slides: a tap picks the object under the finger (to move,
+                            // resize, delete or retype); a double tap opens its text at once.
                             Modifier.pointerInput(i) {
-                                detectTapGestures(onTap = { at -> slides.tapText(i, at.x * w / size.width, at.y * w / size.width) })
+                                detectTapGestures(
+                                    onTap = { at -> slides.pickAt(i, at.x * w / size.width, at.y * w / size.width) },
+                                    onDoubleTap = { at -> slides.tapText(i, at.x * w / size.width, at.y * w / size.width) },
+                                )
                             }
                         } else if (word?.editing == true) {
                             // Editing: a tap puts the caret there; a long press selects the word and
@@ -592,6 +596,16 @@ fun PagedScreen(vm: PagedViewModel, state: PagedUiState, reading: ReadingSetting
                                     }
                                 }
                             }
+                            slides?.picked?.takeIf { slides.editing && it.first == i }?.let { (_, o) ->
+                                SelectionFrame(
+                                    o,
+                                    (o.x / w).toDouble(),
+                                    (o.y / h).toDouble(),
+                                    ((o.x + o.width) / w).toDouble(),
+                                    ((o.y + o.height) / h).toDouble(),
+                                    onMove = { dx, dy -> slides.placePicked(dx * w, dy * h) },
+                                )
+                            }
                             pdf?.pickedText?.takeIf { annotating && it.first == i }?.let { (_, t) ->
                                 PickedTextFrame(t, onMove = { dx, dy -> pdf.changePicked(dx = dx, dy = dy) })
                             }
@@ -628,7 +642,13 @@ fun PagedScreen(vm: PagedViewModel, state: PagedUiState, reading: ReadingSetting
                         style = MaterialTheme.typography.bodySmall,
                         modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
                     )
-                    Row(Modifier.horizontalScroll(rememberScrollState())) {
+                    if (slides.picked != null) Row(Modifier.horizontalScroll(rememberScrollState())) {
+                        if (slides.pickedHasText) TextButton(onClick = slides::editPickedText) { Text(stringResource(R.string.slide_edit_text)) }
+                        TextButton(onClick = { slides.placePicked(0.0, 0.0, 0.9) }) { Text(stringResource(R.string.slide_smaller)) }
+                        TextButton(onClick = { slides.placePicked(0.0, 0.0, 1.1) }) { Text(stringResource(R.string.slide_bigger)) }
+                        TextButton(onClick = slides::deletePicked) { Text(stringResource(R.string.delete)) }
+                        TextButton(onClick = slides::dropPick) { Text(stringResource(R.string.done)) }
+                    } else Row(Modifier.horizontalScroll(rememberScrollState())) {
                         val at = current - 1
                         TextButton(onClick = { slides.newSlide(at) }) { Text(stringResource(R.string.slide_new)) }
                         TextButton(onClick = { slides.duplicateSlide(at) }) { Text(stringResource(R.string.slide_duplicate)) }
@@ -636,7 +656,10 @@ fun PagedScreen(vm: PagedViewModel, state: PagedUiState, reading: ReadingSetting
                         TextButton(onClick = { slides.moveSlide(at, at + 1) }, enabled = at < state.pages.lastIndex) { Text("▼") }
                         TextButton(onClick = { slides.deleteSlide(at) }, enabled = state.pages.size > 1) { Text(stringResource(R.string.delete)) }
                         TextButton(onClick = { startSlidesSave(false) }, enabled = slides.dirty) { Text(stringResource(R.string.save)) }
-                        TextButton(onClick = { slides.editing = false }) { Text(stringResource(R.string.done)) }
+                        TextButton(onClick = {
+                            slides.dropPick()
+                            slides.editing = false
+                        }) { Text(stringResource(R.string.done)) }
                     }
                 }
             }
