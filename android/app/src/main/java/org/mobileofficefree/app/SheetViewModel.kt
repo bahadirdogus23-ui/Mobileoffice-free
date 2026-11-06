@@ -298,6 +298,77 @@ class SheetViewModel(app: Application) : AndroidViewModel(app) {
         edit { d -> d.sortColumn(current.selectedCol.toUInt(), ascending) }
     }
 
+    /** Find: the cells found, which one is shown, and a counter the grid scrolls on. */
+    var findHits by mutableStateOf<List<org.mobileofficefree.engine.SheetCellHit>>(emptyList())
+        private set
+    var findIndex by mutableStateOf(-1)
+        private set
+    var reveal by mutableStateOf(0)
+        private set
+
+    fun find(query: String) {
+        val d = doc ?: return
+        viewModelScope.launch {
+            val hits = withContext(engine) { runCatching { d.findCells(query) }.getOrDefault(emptyList()) }
+            findHits = hits
+            findIndex = -1
+            if (hits.isNotEmpty()) showHit(0)
+        }
+    }
+
+    /** Shows the next ([step] 1) or previous (-1) cell found. */
+    fun nextHit(step: Int) {
+        if (findHits.isEmpty()) return
+        showHit(((findIndex + step) % findHits.size + findHits.size) % findHits.size)
+    }
+
+    private fun showHit(i: Int) {
+        val hit = findHits[i]
+        findIndex = i
+        goToCell(hit.sheet.toInt(), hit.row.toInt(), hit.col.toInt())
+    }
+
+    /** Selects cell (`row`, `col`) of [sheet] and scrolls it into view. */
+    fun goToCell(sheet: Int, row: Int, col: Int) {
+        val current = (screen as? Screen.Sheet)?.state ?: return
+        if (current.sheet == sheet) {
+            selectCell(row, col)
+            reveal++
+            return
+        }
+        viewModelScope.launch {
+            val state = withContext(engine) {
+                val d = doc ?: return@withContext null
+                d.setActiveSheet(sheet.toUInt())
+                stateFor(d, current.fileName, sheet, row, col)
+            } ?: return@launch
+            blocks.clear()
+            looks.clear()
+            blockAt.clear()
+            pending.clear()
+            screen = Screen.Sheet(state)
+            reveal++
+        }
+    }
+
+    fun endFind() {
+        findHits = emptyList()
+        findIndex = -1
+    }
+
+    /** Replaces [find] with [with] in every typed cell and tells how many changed. */
+    fun replaceAll(find: String, with: String) {
+        edit { d ->
+            val n = d.replaceAll(find, with).toInt()
+            val text = getApplication<Application>().resources.getQuantityString(R.plurals.replaced, n, n)
+            viewModelScope.launch {
+                message = text
+                findHits = emptyList()
+                findIndex = -1
+            }
+        }
+    }
+
     /** The selected column's values for the filter sheet, or null while closed. */
     var filterValues by mutableStateOf<List<org.mobileofficefree.engine.SheetFilterValue>?>(null)
         private set

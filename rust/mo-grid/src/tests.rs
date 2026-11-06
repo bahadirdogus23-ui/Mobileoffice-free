@@ -263,3 +263,27 @@ fn a_column_filter_lists_values_and_hides_rows() {
     assert!(!doc.has_filter());
     assert!(doc.sizes(0, 3, 5).unwrap().row_heights.iter().all(|h| *h > 0.0));
 }
+
+#[test]
+fn finds_and_replaces_the_turkish_way() {
+    let mut doc = GridDoc::blank();
+    doc.set_turkish(true);
+    doc.set_input(0, 0, "İSTANBUL şubesi").unwrap();
+    doc.set_input(1, 1, "istanbul").unwrap();
+    doc.set_input(2, 0, "Isparta").unwrap();
+    doc.set_input(3, 0, "=B2&\" merkez\"").unwrap();
+    doc.execute("home.insertSheet", "{}").unwrap();
+    doc.set_active_sheet(1).unwrap();
+    doc.set_input(4, 2, "Yeni İstanbul").unwrap();
+    doc.set_active_sheet(0).unwrap();
+    let hits: Vec<(u32, u32, u32)> = doc.find_cells("istanbul").unwrap().iter().map(|h| (h.sheet, h.row, h.col)).collect();
+    // "Isparta" holds ı (dotless), not i; the formula's result is found too.
+    assert_eq!(hits, [(0, 0, 0), (0, 1, 1), (0, 3, 0), (1, 4, 2)]);
+    assert_eq!(doc.find_cells("ısparta").unwrap().len(), 1);
+    let n = doc.replace_all("istanbul", "Ankara").unwrap();
+    assert_eq!(n, 3, "the formula is left alone");
+    assert_eq!(doc.edit_text(0, 0, 0).unwrap(), "Ankara şubesi");
+    assert_eq!(doc.edit_text(1, 4, 2).unwrap(), "Yeni Ankara");
+    assert!(doc.edit_text(0, 3, 0).unwrap().starts_with('='));
+    assert_eq!(doc.active_sheet(), 0);
+}

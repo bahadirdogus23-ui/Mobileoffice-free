@@ -111,6 +111,7 @@ internal fun SheetScreen(vm: SheetViewModel, state: SheetUiState) {
         ActivityResultContracts.CreateDocument(SPREADSHEET_TYPES[0]),
     ) { uri -> if (uri != null) vm.saveTo(uri) else vm.saveCancelled() }
     var pdfSetup by remember { mutableStateOf(PdfSetup()) }
+    var finding by remember { mutableStateOf(false) }
     var showPdf by remember { mutableStateOf(false) }
     var sheetMenu by remember { mutableStateOf(false) }
     var renaming by remember { mutableStateOf<String?>(null) }
@@ -145,6 +146,7 @@ internal fun SheetScreen(vm: SheetViewModel, state: SheetUiState) {
                 if (vm.canSaveInPlace && vm.hasUnsaved) {
                     TextButton(onClick = vm::saveInPlace) { Text(stringResource(R.string.save)) }
                 }
+                TextButton(onClick = { finding = !finding }) { Text("🔍") }
                 TextButton(onClick = { showPdf = true }) { Text("PDF") }
                 TextButton(onClick = { saveAs.launch(saveName(state.fileName)) }) {
                     Text(stringResource(R.string.save_as))
@@ -162,7 +164,14 @@ internal fun SheetScreen(vm: SheetViewModel, state: SheetUiState) {
             onAllFormulas = { showFormulas = true },
             onCommit = vm::commitCell,
         )
-        SheetToolBar(vm, vm.cellLook(state.sheet, state.selectedRow, state.selectedCol))
+        if (finding) {
+            FindBar(vm, onClose = {
+                finding = false
+                vm.endFind()
+            })
+        } else {
+            SheetToolBar(vm, vm.cellLook(state.sheet, state.selectedRow, state.selectedCol))
+        }
         HorizontalDivider()
         SheetGrid(
             sheet = state.sheet,
@@ -179,6 +188,7 @@ internal fun SheetScreen(vm: SheetViewModel, state: SheetUiState) {
             frozenRows = state.frozenRows,
             frozenCols = state.frozenCols,
             merges = state.merges,
+            reveal = vm.reveal,
             onSelect = { row, col ->
                 if ((formulaFocused || cellEditing) && pointing(formula)) {
                     val (v, r) = insertReference(formula, cellName(row, col), lastReference)
@@ -771,5 +781,55 @@ private fun FilterSheet(vm: SheetViewModel, values: List<org.mobileofficefree.en
                 ) { Text(stringResource(R.string.apply)) }
             }
         }
+    }
+}
+
+/** Find and replace across the workbook's sheets, ignoring case the Turkish way. */
+@Composable
+private fun FindBar(vm: SheetViewModel, onClose: () -> Unit) {
+    var query by remember { mutableStateOf("") }
+    var with by remember { mutableStateOf("") }
+    var replacing by remember { mutableStateOf(false) }
+    Column(Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 4.dp)) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            OutlinedTextField(
+                value = query,
+                onValueChange = { query = it },
+                singleLine = true,
+                placeholder = { Text(stringResource(R.string.search)) },
+                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
+                keyboardActions = KeyboardActions(onSearch = { vm.find(query) }),
+                modifier = Modifier.weight(1f),
+            )
+            Text(
+                when {
+                    vm.findHits.isNotEmpty() -> "${vm.findIndex + 1}/${vm.findHits.size}"
+                    else -> ""
+                },
+                style = MaterialTheme.typography.labelMedium,
+                modifier = Modifier.padding(horizontal = 6.dp),
+            )
+            TextButton(onClick = { if (vm.findHits.isEmpty()) vm.find(query) else vm.nextHit(-1) }, enabled = query.isNotBlank()) { Text("▲") }
+            TextButton(onClick = { if (vm.findHits.isEmpty()) vm.find(query) else vm.nextHit(1) }, enabled = query.isNotBlank()) { Text("▼") }
+            TextButton(onClick = onClose) { Text("✕") }
+        }
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            if (replacing) {
+                OutlinedTextField(
+                    value = with,
+                    onValueChange = { with = it },
+                    singleLine = true,
+                    placeholder = { Text(stringResource(R.string.replace_with)) },
+                    modifier = Modifier.weight(1f),
+                )
+                TextButton(onClick = { vm.replaceAll(query, with) }, enabled = query.isNotBlank()) { Text(stringResource(R.string.replace_all)) }
+            } else {
+                TextButton(onClick = { replacing = true }) { Text(stringResource(R.string.replace)) }
+            }
+        }
+    }
+    LaunchedEffect(query) {
+        // A new word is looked for afresh.
+        vm.endFind()
     }
 }

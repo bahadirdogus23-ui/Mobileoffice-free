@@ -28,6 +28,51 @@ pub enum GridError {
 }
 
 /// One open workbook in its own engine session.
+/// A cell found by [`GridDoc::find_cells`].
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct CellHit {
+    pub sheet: u32,
+    pub row: u32,
+    pub col: u32,
+}
+
+/// Text lowered the Turkish way one character at a time (I → ı, İ → i), so positions in the
+/// result are positions in the original.
+fn fold_chars(text: &str) -> Vec<char> {
+    text.chars()
+        .map(|c| match c {
+            'I' => 'ı',
+            'İ' => 'i',
+            _ => c.to_lowercase().next().unwrap_or(c),
+        })
+        .collect()
+}
+
+fn find_folded(hay: &[char], needle: &[char]) -> Option<usize> {
+    if needle.len() > hay.len() {
+        return None;
+    }
+    (0..=hay.len() - needle.len()).find(|&i| hay[i..i + needle.len()] == *needle)
+}
+
+/// `text` with every match of `needle` (already folded) replaced by `with`.
+fn replace_folded(text: &str, needle: &[char], with: &str) -> String {
+    let chars: Vec<char> = text.chars().collect();
+    let folded = fold_chars(text);
+    let mut out = String::new();
+    let mut i = 0;
+    while i < chars.len() {
+        if folded.len() - i >= needle.len() && folded[i..i + needle.len()] == *needle {
+            out.push_str(with);
+            i += needle.len();
+        } else {
+            out.push(chars[i]);
+            i += 1;
+        }
+    }
+    out
+}
+
 /// One value a column filter can show.
 #[derive(Clone, Debug, PartialEq)]
 pub struct FilterValue {
@@ -388,6 +433,63 @@ impl GridDoc {
     /// Whether the active sheet has a filter on.
     pub fn has_filter(&self) -> bool {
         self.wb().sheets.get(self.active_sheet() as usize).is_some_and(|sh| sh.autofilter.is_some())
+    }
+
+    /// The cells of every sheet whose shown text contains `query`, ignoring case the Turkish way
+    /// (I/ı, İ/i), sheet by sheet and row by row.
+    pub fn find_cells(&self, query: &str) -> Result<Vec<CellHit>, GridError> {
+        let needle = fold_chars(query.trim());
+        if needle.is_empty() {
+            return Ok(Vec::new());
+        }
+        let wb = self.wb();
+        let mut hits = Vec::new();
+        for (si, sh) in wb.sheets.iter().enumerate() {
+            let used = self.used_size(si as u32)?;
+            for r in 0..used.rows {
+                for c in 0..used.cols {
+                    let cell = gridcraft_engine::cell(r, c);
+                    let text = display::cell_text(wb, sh, cell);
+                    let shown = if self.turkish && shows_number(wb, sh, cell) { number_display(&text) } else { text };
+                    if !shown.is_empty() && find_folded(&fold_chars(&shown), &needle).is_some() {
+                        hits.push(CellHit { sheet: si as u32, row: r, col: c });
+                    }
+                }
+            }
+        }
+        Ok(hits)
+    }
+
+    /// Replaces `find` with `with` (ignoring case the Turkish way) in every cell of every sheet
+    /// that holds typed text or a number; formulas are left alone. Returns how many cells changed.
+    pub fn replace_all(&mut self, find: &str, with: &str) -> Result<u32, GridError> {
+        let needle = fold_chars(find);
+        if needle.is_empty() {
+            return Ok(0);
+        }
+        let active = self.active_sheet();
+        let mut changes: Vec<(u32, u32, u32, String)> = Vec::new();
+        for si in 0..self.wb().sheets.len() as u32 {
+            let used = self.used_size(si)?;
+            for r in 0..used.rows {
+                for c in 0..used.cols {
+                    let typed = self.edit_text(si, r, c)?;
+                    if typed.is_empty() || typed.starts_with('=') {
+                        continue;
+                    }
+                    let replaced = replace_folded(&typed, &needle, with);
+                    if replaced != typed {
+                        changes.push((si, r, c, replaced));
+                    }
+                }
+            }
+        }
+        for (si, r, c, text) in &changes {
+            self.set_active_sheet(*si)?;
+            self.set_input(*r, *c, text)?;
+        }
+        self.set_active_sheet(active)?;
+        Ok(changes.len() as u32)
     }
 
     /// What the formula bar shows for a cell: the formula, or the value as typed.

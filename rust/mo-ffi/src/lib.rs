@@ -252,6 +252,16 @@ impl SheetDocument {
         self.doc().is_dirty()
     }
 
+    /// Cells of every sheet whose shown text contains `query` (Turkish case folding).
+    pub fn find_cells(&self, query: String) -> Result<Vec<SheetCellHit>, MoError> {
+        Ok(self.doc().find_cells(&query)?.into_iter().map(|h| SheetCellHit { sheet: h.sheet, row: h.row, col: h.col }).collect())
+    }
+
+    /// Replaces `find` with `with` in every typed (not formula) cell; returns how many changed.
+    pub fn replace_all(&self, find: String, with: String) -> Result<u32, MoError> {
+        Ok(self.doc().replace_all(&find, &with)?)
+    }
+
     /// The different values of column `col` (active sheet) a filter can show, sorted.
     pub fn filter_values(&self, col: u32) -> Result<Vec<SheetFilterValue>, MoError> {
         Ok(self
@@ -471,6 +481,14 @@ impl SlidesDocument {
     fn doc(&self) -> MutexGuard<'_, DeckDoc> {
         self.doc.lock().unwrap_or_else(std::sync::PoisonError::into_inner)
     }
+}
+
+/// A cell [`SheetDocument::find_cells`] found.
+#[derive(uniffi::Record)]
+pub struct SheetCellHit {
+    pub sheet: u32,
+    pub row: u32,
+    pub col: u32,
 }
 
 /// One value a column filter can show: as matched (`value`, "" for blank cells), as shown,

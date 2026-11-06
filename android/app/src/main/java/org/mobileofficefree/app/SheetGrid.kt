@@ -1,5 +1,8 @@
 package org.mobileofficefree.app
 
+import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.gestures.detectTransformGestures
@@ -78,6 +81,8 @@ fun SheetGrid(
     onEditCell: () -> Unit = {},
     /** Shown over the selected cell while it is typed in. */
     cellEditor: (@Composable (Modifier) -> Unit)? = null,
+    /** Grows when the selected cell must be scrolled into view (a search result). */
+    reveal: Int = 0,
 ) {
     val density = LocalDensity.current
     // Pixels per point at zoom 1: the file's sizes, a little larger than on paper for fingers.
@@ -114,7 +119,28 @@ fun SheetGrid(
         return r.coerceIn(0, MAX_ROWS - 1) to c.coerceIn(0, MAX_COLS - 1)
     }
 
-    Box(modifier.fillMaxSize()) {
+    var viewSize by remember { mutableStateOf(androidx.compose.ui.unit.IntSize.Zero) }
+    // Brings the selected cell into view, keeping a little margin around it.
+    LaunchedEffect(reveal) {
+        if (reveal == 0 || viewSize.width == 0) return@LaunchedEffect
+        val k = unit * scale
+        val frozenW = columnAxis.start(fc) * k
+        val frozenH = rowAxis.start(fr) * k
+        val roomW = viewSize.width - rowHeader - frozenW
+        val roomH = viewSize.height - colHeader - frozenH
+        if (selectedCol >= fc) {
+            val x0 = (columnAxis.start(selectedCol) - columnAxis.start(fc)) * k
+            val x1 = (columnAxis.start(selectedCol + 1) - columnAxis.start(fc)) * k
+            if (x0 < offsetX || x1 > offsetX + roomW) offsetX = max(0f, x0 - roomW / 3)
+        }
+        if (selectedRow >= fr) {
+            val y0 = (rowAxis.start(selectedRow) - rowAxis.start(fr)) * k
+            val y1 = (rowAxis.start(selectedRow + 1) - rowAxis.start(fr)) * k
+            if (y0 < offsetY || y1 > offsetY + roomH) offsetY = max(0f, y0 - roomH / 3)
+        }
+    }
+
+    Box(modifier.fillMaxSize().onSizeChanged { viewSize = it }) {
     Canvas(
         Modifier
             .fillMaxSize()
