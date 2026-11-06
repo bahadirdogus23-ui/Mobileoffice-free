@@ -173,6 +173,28 @@ impl PdfDoc {
         self.annotate(page, annot::Shape::Ink { strokes }, style, String::new())
     }
 
+    /// Marks text on `page` over `rects` (fractions of the displayed page: left, top, right,
+    /// bottom, y down, as [`PdfDoc::text_between`] gives them): `kind` 0 highlights it, 1
+    /// underlines it, 2 strikes it through; `color` is 0–1 RGB.
+    pub fn mark_text(&mut self, page: u32, rects: &[[f64; 4]], kind: u8, color: [f64; 3]) -> Result<(), PdfError> {
+        if rects.is_empty() {
+            return Ok(());
+        }
+        self.text = None;
+        // Each rectangle's corners in PDF's quad order: upper left, upper right, lower left, lower right.
+        let corners: Vec<Vec<[f64; 2]>> = rects.iter().map(|r| vec![[r[0], r[1]], [r[2], r[1]], [r[0], r[3]], [r[2], r[3]]]).collect();
+        let user = self.user_strokes(page, &corners)?;
+        let quads: Vec<[f64; 8]> = user.iter().map(|c| [c[0][0], c[0][1], c[1][0], c[1][1], c[2][0], c[2][1], c[3][0], c[3][1]]).collect();
+        let markup = match kind {
+            1 => annot::Markup::Underline,
+            2 => annot::Markup::StrikeOut,
+            _ => annot::Markup::Highlight,
+        };
+        let shape = annot::Shape::TextMarkup { kind: markup, quads };
+        let style = annot::Style { color, ..annot::Style::default_for(&shape) };
+        self.annotate(page, shape, style, String::new())
+    }
+
     /// A sticky note holding `text`, its corner at `at` (a fraction of the displayed page).
     pub fn note(&mut self, page: u32, at: [f64; 2], text: &str) -> Result<(), PdfError> {
         self.text = None;

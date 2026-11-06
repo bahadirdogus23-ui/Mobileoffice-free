@@ -551,4 +551,7 @@
     <string name="page_numbers">Sayfa numarası (altta)</string>
     <string name="page_header">Üst bilgi metni</string>
     <string name="page_footer">Alt bilgi metni</string>
+    <string name="mark_highlight">Vurgula</string>
+    <string name="mark_underline">Altını çiz</string>
+    <string name="mark_strike">Üstünü çiz</string>
 </resources>

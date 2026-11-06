@@ -401,3 +401,22 @@ fn fields_with_default_names_take_their_printed_labels() {
     assert_eq!(label("undefined"), "I agree", "{labels:?}");
     assert_eq!(label("Telefon"), "Telefon", "{labels:?}");
 }
+
+#[test]
+fn selected_text_can_be_highlighted_underlined_and_struck() {
+    let mut doc = reopened(pdf(1, "İşaretlenecek satır"));
+    let hit = doc.find_text("İşaretlenecek", 1).unwrap();
+    let r = hit[0].rects[0];
+    let mid = ((r[1] + r[3]) / 2.0) as f64;
+    let (_, rects) = doc.text_between(0, [r[0] as f64 + 0.001, mid], [0.9, mid]).unwrap();
+    let rects: Vec<[f64; 4]> = rects.iter().map(|q| q.map(f64::from)).collect();
+    assert!(!doc.has_drawn_annotations());
+    doc.mark_text(0, &rects, 0, [1.0, 0.9, 0.0]).unwrap();
+    doc.mark_text(0, &rects, 1, [0.0, 0.0, 1.0]).unwrap();
+    doc.mark_text(0, &rects, 2, [1.0, 0.0, 0.0]).unwrap();
+    let saved = doc.save().unwrap();
+    let mut again = reopened(saved);
+    assert!(again.has_drawn_annotations());
+    // The text is still there to read and find.
+    assert!(again.page_text(0).unwrap().contains("İşaretlenecek"));
+}

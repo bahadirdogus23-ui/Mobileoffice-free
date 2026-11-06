@@ -124,6 +124,24 @@ class PdfViewModel(app: Application) : PagedViewModel(app, DocumentKind.PDF) {
         }
     }
 
+    /**
+     * The selected text highlighted (kind 0, yellow), underlined (1, blue) or struck through
+     * (2, red), as PDF markup others' readers show and can remove; the selection then ends.
+     */
+    fun markSelection(kind: Int) {
+        val (page, sel) = textSelection ?: return
+        val (r, g, b) = when (kind) {
+            1 -> Triple(0.1, 0.4, 0.9)
+            2 -> Triple(0.9, 0.1, 0.1)
+            else -> Triple(1.0, 0.92, 0.23)
+        }
+        clearSelection()
+        edit {
+            it.markText(page.toUInt(), sel.rects, kind.toUByte(), r, g, b)
+            added++
+        }
+    }
+
     /** [text] typed on page [page], its top-left corner at ([x], [y]) (fractions of the page). */
     fun addText(page: Int, x: Float, y: Float, text: String, look: TextLook) = edit {
         it.addText(page.toUInt(), x.toDouble(), y.toDouble(), text, look)

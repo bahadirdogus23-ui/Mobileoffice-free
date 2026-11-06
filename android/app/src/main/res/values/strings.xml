@@ -552,4 +552,7 @@
     <string name="page_numbers">Page numbers (bottom)</string>
     <string name="page_header">Header text</string>
     <string name="page_footer">Footer text</string>
+    <string name="mark_highlight">Highlight</string>
+    <string name="mark_underline">Underline</string>
+    <string name="mark_strike">Strike out</string>
 </resources>

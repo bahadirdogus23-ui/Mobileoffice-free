@@ -1150,6 +1150,13 @@ impl PdfDocument {
         Ok(self.doc().draw(page, &points(&strokes), [pen.red, pen.green, pen.blue], pen.width, pen.opacity)?)
     }
 
+    /// Highlights (`kind` 0), underlines (1) or strikes through (2) text over `rects` (as
+    /// [`PdfDocument::text_between`] gives them), in 0–1 RGB `red`, `green`, `blue`.
+    pub fn mark_text(&self, page: u32, rects: Vec<PageRect>, kind: u8, red: f64, green: f64, blue: f64) -> Result<(), MoError> {
+        let rects: Vec<[f64; 4]> = rects.iter().map(|r| [f64::from(r.left), f64::from(r.top), f64::from(r.right), f64::from(r.bottom)]).collect();
+        Ok(self.doc().mark_text(page, &rects, kind, [red, green, blue])?)
+    }
+
     /// A sticky note holding `text` at (`x`, `y`), fractions of the displayed page.
     pub fn note(&self, page: u32, x: f64, y: f64, text: String) -> Result<(), MoError> {
         Ok(self.doc().note(page, [x, y], &text)?)

@@ -385,6 +385,11 @@ fun PagedScreen(vm: PagedViewModel, state: PagedUiState, reading: ReadingSetting
                         pdf.clearSelection()
                     }) { Text(stringResource(R.string.copy)) }
                     TextButton(onClick = { shareText(context, sel.text) }) { Text(stringResource(R.string.share)) }
+                    if (!pdf.restricted) {
+                        TextButton(onClick = { pdf.markSelection(0) }, enabled = !pdf.busy) { Text("🖍 " + stringResource(R.string.mark_highlight)) }
+                        TextButton(onClick = { pdf.markSelection(1) }, enabled = !pdf.busy) { Text(stringResource(R.string.mark_underline), textDecoration = androidx.compose.ui.text.style.TextDecoration.Underline) }
+                        TextButton(onClick = { pdf.markSelection(2) }, enabled = !pdf.busy) { Text(stringResource(R.string.mark_strike), textDecoration = androidx.compose.ui.text.style.TextDecoration.LineThrough) }
+                    }
                     TextButton(onClick = pdf::clearSelection) { Text(stringResource(R.string.close)) }
                 }
             }
