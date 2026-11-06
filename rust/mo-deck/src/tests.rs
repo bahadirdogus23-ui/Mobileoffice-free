@@ -155,3 +155,38 @@ fn objects_can_be_moved_scaled_and_deleted() {
     let a1 = saved.text_shapes(0).unwrap().into_iter().find(|s| s.cell == Some((0, 0))).unwrap();
     assert!((a1.w - 216.0).abs() < 1.0 && (a1.h - 72.0).abs() < 1.0, "{a1:?}");
 }
+
+#[test]
+fn text_boxes_and_pictures_can_be_added() {
+    let mut d = DeckDoc::open(include_bytes!("../testdata/grouped-text.pptx")).unwrap();
+    let before = d.objects(0).unwrap().len();
+    let text = d.add_text_box(0, "Yeni kutu: ğüşıöç").unwrap();
+    // A 4×2 red PNG.
+    let mut png = Vec::new();
+    {
+        let mut enc = png::Encoder::new(&mut png, 4, 2);
+        enc.set_color(png::ColorType::Rgba);
+        enc.write_header().unwrap().write_image_data(&[255, 0, 0, 255].repeat(8)).unwrap();
+    }
+    let pic = d.add_picture(0, png.clone(), 4, 2).unwrap();
+    assert!(d.add_picture(0, b"not a picture".to_vec(), 4, 2).is_err());
+    let saved = DeckDoc::open(&d.save("x.pptx").unwrap()).unwrap();
+    let objs = saved.objects(0).unwrap();
+    assert_eq!(objs.len(), before + 2, "{objs:?}");
+    let t = objs
+        .iter()
+        .find(|o| o.kind == ObjectKind::Text && saved.text_shapes(0).unwrap().iter().any(|s| s.id == o.id && s.text.starts_with("Yeni kutu")))
+        .unwrap();
+    let p = objs.iter().find(|o| o.kind == ObjectKind::Picture).unwrap();
+    let (sw, sh) = saved.slide_size();
+    // The picture keeps its 2:1 shape and sits in the middle.
+    assert!((p.w / p.h - 2.0).abs() < 0.01, "{p:?}");
+    assert!((p.x + p.w / 2.0 - sw / 2.0).abs() < 1.0 && (p.y + p.h / 2.0 - sh / 2.0).abs() < 1.0, "{p:?}");
+    assert!(t.w > 0.0);
+    let _ = (text, pic);
+    // And it is drawn: red in the middle of the slide.
+    let r = saved.render_slide(0, 0.5).unwrap();
+    let (cx, cy) = (r.width / 2, r.height / 2);
+    let px = &r.pixels[((cy * r.width + cx) * 4) as usize..][..4];
+    assert!(px[0] > 200 && px[1] < 60, "{px:?}");
+}

@@ -1947,6 +1947,7 @@ dependencies = [
  "deckcraft-pdf",
  "deckcraft-pptx",
  "deckcraft-render",
+ "png",
  "thiserror",
 ]
 

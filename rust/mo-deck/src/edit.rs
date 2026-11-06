@@ -193,6 +193,61 @@ pub fn place_object(pres: &mut Presentation, index: usize, id: u32, dx: f64, dy:
     Ok(())
 }
 
+/// Slide `index` with a new text box reading `text`, in the middle of the slide; returns its id.
+pub fn add_text_box(pres: &mut Presentation, index: usize, text: &str) -> Result<u32, DeckError> {
+    let (sw, sh) = slide_size_pt(pres);
+    let (w, h) = (sw * 0.5, sh * 0.15);
+    let shape = deckcraft_model::Shape {
+        name: "TextBox".into(),
+        xfrm: Some(deckcraft_model::Xfrm { x: (sw - w) / 2.0, y: (sh - h) / 2.0, w, h, ..Default::default() }),
+        text_box: true,
+        text: Some(deckcraft_model::text::TextBody::from_text(text)),
+        ..Default::default()
+    };
+    push_shape(pres, index, shape)
+}
+
+/// Slide `index` with picture `data` (PNG or JPEG, `width`×`height` pixels) in its middle,
+/// as large as fits in two thirds of the slide; returns its id.
+pub fn add_picture(pres: &mut Presentation, index: usize, data: Vec<u8>, width: u32, height: u32) -> Result<u32, DeckError> {
+    let content_type = if data.starts_with(&[0x89, b'P', b'N', b'G']) {
+        "image/png"
+    } else if data.starts_with(&[0xFF, 0xD8]) {
+        "image/jpeg"
+    } else {
+        return Err(edit_err("only PNG and JPEG pictures can be added"));
+    };
+    if pres.slides.get(index).is_none() {
+        return Err(DeckError::NoSlide(index as u32));
+    }
+    let name = if content_type == "image/png" { "picture.png" } else { "picture.jpeg" };
+    let media = pres.add_media(name, content_type, data).ok_or_else(|| edit_err("the presentation cannot grow further"))?;
+    let (sw, sh) = slide_size_pt(pres);
+    let (iw, ih) = (f64::from(width.max(1)), f64::from(height.max(1)));
+    let k = (sw * 2.0 / 3.0 / iw).min(sh * 2.0 / 3.0 / ih);
+    let (w, h) = (iw * k, ih * k);
+    let shape = deckcraft_model::Shape {
+        name: "Picture".into(),
+        xfrm: Some(deckcraft_model::Xfrm { x: (sw - w) / 2.0, y: (sh - h) / 2.0, w, h, ..Default::default() }),
+        kind: ShapeKind::Picture { fill: deckcraft_model::style::PictureFill { media, ..Default::default() } },
+        ..Default::default()
+    };
+    push_shape(pres, index, shape)
+}
+
+fn slide_size_pt(pres: &Presentation) -> (f64, f64) {
+    (pres.slide_size.width, pres.slide_size.height)
+}
+
+fn push_shape(pres: &mut Presentation, index: usize, mut shape: deckcraft_model::Shape) -> Result<u32, DeckError> {
+    let id = pres.alloc_id().ok_or_else(|| edit_err("the presentation cannot grow further"))?;
+    shape.id = deckcraft_model::ShapeId(id);
+    shape.name = format!("{} {id}", shape.name);
+    let slide = Arc::make_mut(pres.slides.get_mut(index).ok_or(DeckError::NoSlide(index as u32))?);
+    slide.shapes.push(shape);
+    Ok(id)
+}
+
 /// Removes object `id` from slide `index`, with its animations.
 pub fn delete_object(pres: &mut Presentation, index: usize, id: u32) -> Result<(), DeckError> {
     let slide = Arc::make_mut(pres.slides.get_mut(index).ok_or(DeckError::NoSlide(index as u32))?);

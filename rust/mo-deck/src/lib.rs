@@ -116,6 +116,20 @@ impl DeckDoc {
         Ok(())
     }
 
+    /// A new text box reading `text` in the middle of `slide`; returns its id.
+    pub fn add_text_box(&mut self, slide: u32, text: &str) -> Result<u32, DeckError> {
+        let id = edit::add_text_box(&mut self.pres, slide as usize, text)?;
+        self.dirty = true;
+        Ok(id)
+    }
+
+    /// Picture `data` (PNG or JPEG, `width`×`height` pixels) in the middle of `slide`; returns its id.
+    pub fn add_picture(&mut self, slide: u32, data: Vec<u8>, width: u32, height: u32) -> Result<u32, DeckError> {
+        let id = edit::add_picture(&mut self.pres, slide as usize, data, width, height)?;
+        self.dirty = true;
+        Ok(id)
+    }
+
     /// Removes object `id` from `slide`.
     pub fn delete_object(&mut self, slide: u32, id: u32) -> Result<(), DeckError> {
         edit::delete_object(&mut self.pres, slide as usize, id)?;

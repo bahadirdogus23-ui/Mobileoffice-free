@@ -497,4 +497,7 @@
     <string name="snap_quadrant">çeyrek nokta</string>
     <string name="snap_node">nokta</string>
     <string name="snap_insertion">yerleştirme noktası</string>
+    <string name="slide_add_text">Metin kutusu</string>
+    <string name="slide_add_picture">Resim</string>
+    <string name="slide_picture_unreadable">Bu resim okunamadı.</string>
 </resources>

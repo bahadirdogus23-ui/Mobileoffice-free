@@ -573,6 +573,16 @@ impl SlidesDocument {
         Ok(self.doc().place_object(slide, id, dx, dy, scale)?)
     }
 
+    /// A new text box reading `text` in the middle of `slide`; returns its id.
+    pub fn add_text_box(&self, slide: u32, text: String) -> Result<u32, MoError> {
+        Ok(self.doc().add_text_box(slide, &text)?)
+    }
+
+    /// Picture `data` (PNG or JPEG, `width`×`height` pixels) in the middle of `slide`; returns its id.
+    pub fn add_picture(&self, slide: u32, data: Vec<u8>, width: u32, height: u32) -> Result<u32, MoError> {
+        Ok(self.doc().add_picture(slide, data, width, height)?)
+    }
+
     /// Removes object `id` (and its animations) from `slide`.
     pub fn delete_object(&self, slide: u32, id: u32) -> Result<(), MoError> {
         Ok(self.doc().delete_object(slide, id)?)

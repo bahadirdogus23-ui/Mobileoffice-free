@@ -99,6 +99,58 @@ class SlidesViewModel(app: Application) : PagedViewModel(app, DocumentKind.SLIDE
         }
     }
 
+    /** A new text box reading [text] in the middle of [slide], picked so it can be moved at once. */
+    fun addTextBox(slide: Int, text: String) {
+        change {
+            val id = it.addTextBox(slide.toUInt(), text)
+            pickLater(it, slide, id)
+            slide
+        }
+    }
+
+    /**
+     * The picture at [uri] in the middle of [slide], picked. Photos over 2560 pixels are made
+     * smaller, and pictures other than PNG and JPEG (HEIC, WebP…) are stored as JPEG.
+     */
+    fun addPicture(slide: Int, uri: Uri) {
+        val app = getApplication<Application>()
+        change {
+            val bytes = app.contentResolver.openInputStream(uri)?.use { s -> s.readBytes() } ?: error("no data")
+            val bounds = android.graphics.BitmapFactory.Options().apply { inJustDecodeBounds = true }
+            android.graphics.BitmapFactory.decodeByteArray(bytes, 0, bytes.size, bounds)
+            if (bounds.outWidth <= 0 || bounds.outHeight <= 0) error(app.getString(R.string.slide_picture_unreadable))
+            val png = bytes.size > 4 && bytes[0] == 0x89.toByte() && bytes[1] == 'P'.code.toByte()
+            val jpeg = bytes.size > 2 && bytes[0] == 0xFF.toByte() && bytes[1] == 0xD8.toByte()
+            val big = maxOf(bounds.outWidth, bounds.outHeight) > MAX_PICTURE_PX
+            val (data, w, h) = if ((png || jpeg) && !big) {
+                Triple(bytes, bounds.outWidth, bounds.outHeight)
+            } else {
+                var sample = 1
+                while (maxOf(bounds.outWidth, bounds.outHeight) / (sample * 2) >= MAX_PICTURE_PX) sample *= 2
+                val decoded = android.graphics.BitmapFactory.decodeByteArray(bytes, 0, bytes.size, android.graphics.BitmapFactory.Options().apply { inSampleSize = sample })
+                    ?: error(app.getString(R.string.slide_picture_unreadable))
+                val k = minOf(1f, MAX_PICTURE_PX.toFloat() / maxOf(decoded.width, decoded.height))
+                val scaled = if (k < 1f) android.graphics.Bitmap.createScaledBitmap(decoded, (decoded.width * k).toInt().coerceAtLeast(1), (decoded.height * k).toInt().coerceAtLeast(1), true) else decoded
+                val out = java.io.ByteArrayOutputStream()
+                // A PNG keeps its transparency; anything else becomes a JPEG.
+                scaled.compress(if (png) android.graphics.Bitmap.CompressFormat.PNG else android.graphics.Bitmap.CompressFormat.JPEG, 90, out)
+                Triple(out.toByteArray(), scaled.width, scaled.height)
+            }
+            val id = it.addPicture(slide.toUInt(), data, w.toUInt(), h.toUInt())
+            pickLater(it, slide, id)
+            slide
+        }
+    }
+
+    /** Runs on the engine thread: picks object [id] of [slide] once the change shows. */
+    private fun pickLater(d: SlidesDocument, slide: Int, id: UInt) {
+        val o = d.objects(slide.toUInt()).firstOrNull { it.id == id } ?: return
+        viewModelScope.launch {
+            pickedAt = (o.x + o.width / 2) to (o.y + o.height / 2)
+            picked = slide to o
+        }
+    }
+
     fun deletePicked() {
         val (slide, o) = picked ?: return
         picked = null
@@ -224,3 +276,6 @@ class SlidesViewModel(app: Application) : PagedViewModel(app, DocumentKind.SLIDE
         }
     }
 }
+
+/** Pictures added to slides are made at most this many pixels on their long side. */
+private const val MAX_PICTURE_PX = 2560

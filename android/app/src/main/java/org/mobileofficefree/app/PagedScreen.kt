@@ -176,6 +176,12 @@ fun PagedScreen(vm: PagedViewModel, state: PagedUiState, reading: ReadingSetting
     }
     // A drawn signature waiting for a tap on the page it goes on.
     var placing by remember(state.uri) { mutableStateOf<Signature?>(null) }
+    // Slides: a new text box (the slide it goes on) and the slide a picked picture goes on.
+    var newTextBoxOn by remember { mutableStateOf<Int?>(null) }
+    var pictureFor by remember { mutableStateOf(0) }
+    val pickSlidePicture = rememberLauncherForActivityResult(androidx.activity.result.contract.ActivityResultContracts.OpenDocument()) { uri ->
+        if (uri != null) slides?.addPicture(pictureFor, uri)
+    }
     val extractFile = rememberLauncherForActivityResult(CreateFile()) { uri -> if (uri != null) pdf?.extractTo(uri, extractPages) }
     val saveEdited = rememberLauncherForActivityResult(CreateFile()) { uri ->
         if (uri != null) pdf?.saveTo(uri)
@@ -675,6 +681,11 @@ fun PagedScreen(vm: PagedViewModel, state: PagedUiState, reading: ReadingSetting
                         TextButton(onClick = slides::dropPick) { Text(stringResource(R.string.done)) }
                     } else Row(Modifier.horizontalScroll(rememberScrollState())) {
                         val at = current - 1
+                        TextButton(onClick = { newTextBoxOn = at }) { Text(stringResource(R.string.slide_add_text)) }
+                        TextButton(onClick = {
+                            pictureFor = at
+                            pickSlidePicture.launch(arrayOf("image/*"))
+                        }) { Text(stringResource(R.string.slide_add_picture)) }
                         TextButton(onClick = { slides.newSlide(at) }) { Text(stringResource(R.string.slide_new)) }
                         TextButton(onClick = { slides.duplicateSlide(at) }) { Text(stringResource(R.string.slide_duplicate)) }
                         TextButton(onClick = { slides.moveSlide(at, at - 1) }, enabled = at > 0) { Text("▲") }
@@ -829,6 +840,21 @@ fun PagedScreen(vm: PagedViewModel, state: PagedUiState, reading: ReadingSetting
         val target = slides?.goTo ?: return@LaunchedEffect
         slides.goTo = null
         list.animateScrollToItem(target.coerceIn(0, state.pages.lastIndex.coerceAtLeast(0)))
+    }
+    newTextBoxOn?.let { at ->
+        var text by remember { mutableStateOf("") }
+        AlertDialog(
+            onDismissRequest = { newTextBoxOn = null },
+            title = { Text(stringResource(R.string.slide_add_text)) },
+            text = { OutlinedTextField(value = text, onValueChange = { text = it }, minLines = 2, modifier = Modifier.fillMaxWidth()) },
+            confirmButton = {
+                TextButton(onClick = {
+                    newTextBoxOn = null
+                    slides?.addTextBox(at, text)
+                }, enabled = text.isNotBlank()) { Text(stringResource(R.string.apply)) }
+            },
+            dismissButton = { TextButton(onClick = { newTextBoxOn = null }) { Text(stringResource(R.string.cancel)) } },
+        )
     }
     slides?.editingText?.let { (_, shape) ->
         var text by remember(shape) { mutableStateOf(shape.text) }
