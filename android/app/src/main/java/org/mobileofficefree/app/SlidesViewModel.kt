@@ -351,6 +351,12 @@ class SlidesViewModel(app: Application) : PagedViewModel(app, DocumentKind.SLIDE
         }
     }
 
+    /** Makes [slide]'s speaker notes read [text]. */
+    fun setNotes(slide: Int, text: String) = change {
+        it.setNotes(slide.toUInt(), text)
+        null
+    }
+
     /** The speaker notes of [slide] (empty when it has none). Runs on the engine thread. */
     suspend fun notes(slide: Int): String =
         withContext(engine) { runCatching { doc?.notes(slide.toUInt()) }.getOrNull().orEmpty() }

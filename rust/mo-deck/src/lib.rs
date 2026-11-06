@@ -92,6 +92,11 @@ impl DeckDoc {
         Ok(s.notes.text())
     }
 
+    /// Makes `slide`'s speaker notes read `text` (`\n` between paragraphs).
+    pub fn set_notes(&mut self, slide: u32, text: &str) -> Result<(), DeckError> {
+        self.change(|p| edit::set_notes(p, slide as usize, text))
+    }
+
     /// The whole slide at `scale` pixels per point.
     pub fn render_slide(&self, slide: u32, scale: f32) -> Result<Raster, DeckError> {
         self.check(slide)?;

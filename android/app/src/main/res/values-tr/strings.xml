@@ -542,4 +542,7 @@
     <string name="new_slides">Sunum</string>
     <string name="new_word_name">Yeni belge.docx</string>
     <string name="new_slides_name">Yeni sunum.pptx</string>
+    <string name="slide_notes">Notlar</string>
+    <string name="slide_notes_title">Konuşmacı notları · slayt %1$d</string>
+    <string name="slide_notes_hint">Bu slaytta söyleyecekleriniz (sunarken yalnızca siz görürsünüz)</string>
 </resources>

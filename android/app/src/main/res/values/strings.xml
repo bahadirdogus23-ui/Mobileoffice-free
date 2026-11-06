@@ -543,4 +543,7 @@
     <string name="new_slides">Presentation</string>
     <string name="new_word_name">New document.docx</string>
     <string name="new_slides_name">New presentation.pptx</string>
+    <string name="slide_notes">Notes</string>
+    <string name="slide_notes_title">Speaker notes · slide %1$d</string>
+    <string name="slide_notes_hint">What to say on this slide (seen only by you while presenting)</string>
 </resources>

@@ -610,6 +610,11 @@ impl SlidesDocument {
         Ok(self.doc().notes(slide)?)
     }
 
+    /// Makes `slide`'s speaker notes read `text` (`\n` between paragraphs).
+    pub fn set_notes(&self, slide: u32, text: String) -> Result<(), MoError> {
+        Ok(self.doc().set_notes(slide, &text)?)
+    }
+
     /// The whole slide at `scale` pixels per point.
     /// The presentation as a PDF, one slide per page.
     pub fn export_pdf(&self) -> Result<Vec<u8>, MoError> {

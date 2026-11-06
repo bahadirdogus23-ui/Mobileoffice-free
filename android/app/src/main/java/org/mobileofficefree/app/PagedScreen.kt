@@ -180,6 +180,7 @@ fun PagedScreen(vm: PagedViewModel, state: PagedUiState, reading: ReadingSetting
     var placing by remember(state.uri) { mutableStateOf<Signature?>(null) }
     // Slides: a new text box (the slide it goes on) and the slide a picked picture goes on.
     var newTextBoxOn by remember { mutableStateOf<Int?>(null) }
+    var notesFor by remember { mutableStateOf<Int?>(null) }
     var pictureFor by remember { mutableStateOf(0) }
     val pickSlidePicture = rememberLauncherForActivityResult(androidx.activity.result.contract.ActivityResultContracts.OpenDocument()) { uri ->
         if (uri != null) slides?.addPicture(pictureFor, uri)
@@ -714,6 +715,7 @@ fun PagedScreen(vm: PagedViewModel, state: PagedUiState, reading: ReadingSetting
                         val at = current - 1
                         TextButton(onClick = slides::undo, enabled = slides.canUndo) { Text("↶") }
                         TextButton(onClick = slides::redo, enabled = slides.canRedo) { Text("↷") }
+                        TextButton(onClick = { notesFor = at }) { Text(stringResource(R.string.slide_notes)) }
                         TextButton(onClick = { newTextBoxOn = at }) { Text(stringResource(R.string.slide_add_text)) }
                         TextButton(onClick = {
                             pictureFor = at
@@ -885,6 +887,31 @@ fun PagedScreen(vm: PagedViewModel, state: PagedUiState, reading: ReadingSetting
         val target = slides?.goTo ?: return@LaunchedEffect
         slides.goTo = null
         list.animateScrollToItem(target.coerceIn(0, state.pages.lastIndex.coerceAtLeast(0)))
+    }
+    notesFor?.let { at ->
+        var text by remember(at) { mutableStateOf<String?>(null) }
+        LaunchedEffect(at) { text = slides?.notes(at).orEmpty() }
+        AlertDialog(
+            onDismissRequest = { notesFor = null },
+            title = { Text(stringResource(R.string.slide_notes_title, at + 1)) },
+            text = {
+                OutlinedTextField(
+                    value = text.orEmpty(),
+                    onValueChange = { text = it },
+                    enabled = text != null,
+                    minLines = 5,
+                    placeholder = { Text(stringResource(R.string.slide_notes_hint)) },
+                    modifier = Modifier.fillMaxWidth(),
+                )
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    notesFor = null
+                    text?.let { slides?.setNotes(at, it) }
+                }, enabled = text != null) { Text(stringResource(R.string.apply)) }
+            },
+            dismissButton = { TextButton(onClick = { notesFor = null }) { Text(stringResource(R.string.cancel)) } },
+        )
     }
     newTextBoxOn?.let { at ->
         var text by remember { mutableStateOf("") }

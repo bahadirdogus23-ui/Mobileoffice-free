@@ -416,6 +416,13 @@ pub fn text_is_bold(pres: &Presentation, index: usize, id: u32) -> bool {
         .unwrap_or(false)
 }
 
+/// Slide `index`'s speaker notes made to read `text` (`\n` between paragraphs).
+pub fn set_notes(pres: &mut Presentation, index: usize, text: &str) -> Result<(), DeckError> {
+    let slide = Arc::make_mut(pres.slides.get_mut(index).ok_or(DeckError::NoSlide(index as u32))?);
+    slide.notes = deckcraft_model::text::TextBody::from_text(text);
+    Ok(())
+}
+
 /// Removes object `id` from slide `index`, with its animations.
 pub fn delete_object(pres: &mut Presentation, index: usize, id: u32) -> Result<(), DeckError> {
     let slide = Arc::make_mut(pres.slides.get_mut(index).ok_or(DeckError::NoSlide(index as u32))?);

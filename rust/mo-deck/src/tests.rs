@@ -305,3 +305,13 @@ fn a_new_presentation_has_a_title_slide() {
     assert_eq!(again.slide_count(), 1);
     assert!(again.text_shapes(0).unwrap().iter().any(|t| t.text == "Yeni sunum"));
 }
+
+#[test]
+fn speaker_notes_can_be_written() {
+    let mut d = DeckDoc::open(&sample_pptx()).unwrap();
+    d.set_notes(1, "Önce teşekkür et.\nSonra grafiği göster.").unwrap();
+    let again = DeckDoc::open(&d.save("x.pptx").unwrap()).unwrap();
+    assert_eq!(again.notes(1).unwrap(), "Önce teşekkür et.\nSonra grafiği göster.");
+    assert!(d.undo());
+    assert_ne!(d.notes(1).unwrap(), "Önce teşekkür et.\nSonra grafiği göster.");
+}
