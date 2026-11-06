@@ -280,7 +280,7 @@ class SheetViewModel(app: Application) : AndroidViewModel(app) {
      */
     fun format(id: String, params: JSONObject = JSONObject()) {
         val current = (screen as? Screen.Sheet)?.state ?: return
-        if (!params.has("rows") && !params.has("cols")) params.put("range", rangeName(current))
+        if (!params.has("rows") && !params.has("cols")) params.put("range", formatRange(current))
         edit { d -> d.execute(id, params.toString()) }
     }
 
@@ -710,6 +710,35 @@ fun columnName(col: Int): String {
 fun cellName(row: Int, col: Int): String = columnName(col) + (row + 1)
 
 /** The selection as A1 text: one cell ("B3") or a range ("B3:D9"). */
+/**
+ * The selection as [first row, first column, last row, last column], grown to take in every
+ * merged range it touches, as Excel's is: what formatting applies to.
+ */
+fun selectionBounds(s: SheetUiState): IntArray {
+    var r0 = minOf(s.selectedRow, s.endRow)
+    var r1 = maxOf(s.selectedRow, s.endRow)
+    var c0 = minOf(s.selectedCol, s.endCol)
+    var c1 = maxOf(s.selectedCol, s.endCol)
+    var grown = true
+    while (grown) {
+        grown = false
+        for (m in s.merges) {
+            val touches = m[0] <= r1 && m[2] >= r0 && m[1] <= c1 && m[3] >= c0
+            if (touches && (m[0] < r0 || m[2] > r1 || m[1] < c0 || m[3] > c1)) {
+                r0 = minOf(r0, m[0]); r1 = maxOf(r1, m[2]); c0 = minOf(c0, m[1]); c1 = maxOf(c1, m[3])
+                grown = true
+            }
+        }
+    }
+    return intArrayOf(r0, c0, r1, c1)
+}
+
+/** The range formatting applies to ("B2", "A1:D4"): the selection with the merged ranges it touches. */
+fun formatRange(s: SheetUiState): String {
+    val (r0, c0, r1, c1) = selectionBounds(s)
+    return if (r0 == r1 && c0 == c1) cellName(r0, c0) else cellName(r0, c0) + ":" + cellName(r1, c1)
+}
+
 fun rangeName(s: SheetUiState): String {
     val r0 = minOf(s.selectedRow, s.endRow)
     val r1 = maxOf(s.selectedRow, s.endRow)

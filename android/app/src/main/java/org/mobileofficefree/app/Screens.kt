@@ -216,7 +216,11 @@ internal fun SheetScreen(vm: SheetViewModel, state: SheetUiState) {
                             vm.commitCell(formula.text)
                             cellEditing = false
                             // Enter moves down, as in Excel.
-                            vm.selectCell(state.selectedRow + 1, state.selectedCol)
+                            // Below a merged cell is the row after the whole merged range.
+                            val merged = state.merges.firstOrNull { it[0] == state.selectedRow && it[1] == state.selectedCol }
+                            val below = (merged?.get(2) ?: state.selectedRow) + 1
+                            val next = state.merges.firstOrNull { below in it[0]..it[2] && state.selectedCol in it[1]..it[3] }
+                            vm.selectCell(next?.get(0) ?: below, next?.get(1) ?: state.selectedCol)
                         },
                         modifier = m,
                     )
