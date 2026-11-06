@@ -381,6 +381,22 @@ fun PagedScreen(vm: PagedViewModel, state: PagedUiState, reading: ReadingSetting
                 }
             }
         }
+        if (word != null && !word.editing && word.selection.isNotEmpty()) {
+            Surface(color = MaterialTheme.colorScheme.secondaryContainer, modifier = Modifier.fillMaxWidth()) {
+                Row(Modifier.horizontalScroll(rememberScrollState()).padding(horizontal = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+                    TextButton(onClick = {
+                        word.copy { text ->
+                            context.getSystemService(android.content.ClipboardManager::class.java)
+                                ?.setPrimaryClip(android.content.ClipData.newPlainText("text", text))
+                            android.widget.Toast.makeText(context, R.string.copied, android.widget.Toast.LENGTH_SHORT).show()
+                            word.clearSelection()
+                        }
+                    }) { Text(stringResource(R.string.copy)) }
+                    TextButton(onClick = { word.copy { shareText(context, it) } }) { Text(stringResource(R.string.share)) }
+                    TextButton(onClick = word::clearSelection) { Text(stringResource(R.string.close)) }
+                }
+            }
+        }
         if (annotating && pdf != null) {
             pdf.pickedText?.let { (_, t) ->
                 // A picked text: size steps, edit, delete; dragging its frame moves it.
@@ -563,6 +579,16 @@ fun PagedScreen(vm: PagedViewModel, state: PagedUiState, reading: ReadingSetting
                                         word.extendTo(i, change.position.x * w / size.width, change.position.y * w / size.width)
                                     }
                                 }
+                        } else if (word != null) {
+                            // Reading a document: hold and drag to select text, to copy or share it.
+                            Modifier.pointerInput(i) {
+                                detectDragGesturesAfterLongPress(
+                                    onDragStart = { at -> word.selectWord(i, at.x * w / size.width, at.y * w / size.width) },
+                                ) { change, _ ->
+                                    change.consume()
+                                    word.extendTo(i, change.position.x * w / size.width, change.position.y * w / size.width)
+                                }
+                            }
                         } else if (pdf != null) {
                             // Reading a PDF: hold and drag to select text, as in any Android app.
                             Modifier.pointerInput(i) {
@@ -587,7 +613,7 @@ fun PagedScreen(vm: PagedViewModel, state: PagedUiState, reading: ReadingSetting
                                     modifier = Modifier.fillMaxSize(),
                                 )
                             }
-                            if (word?.editing == true) WordCaretOverlay(word, i, w)
+                            if (word != null) WordCaretOverlay(word, i, w, showCaret = word.editing)
                             pdf?.textSelection?.takeIf { it.first == i }?.let { (_, sel) ->
                                 val tint = MaterialTheme.colorScheme.primary.copy(alpha = 0.3f)
                                 Canvas(Modifier.fillMaxSize()) {

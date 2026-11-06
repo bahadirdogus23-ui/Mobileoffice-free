@@ -93,6 +93,11 @@ class WordViewModel(app: Application) : PagedViewModel(app, DocumentKind.WORD) {
     /** The selection extended to (`x`, `y`) on [page] (dragging after a long press). */
     fun extendTo(page: Int, x: Float, y: Float) = tap(page, x, y, extend = true)
 
+    /** Ends a selection made while reading: the caret goes back to where it started. */
+    fun clearSelection() = perform(changes = false) { d ->
+        d.caret()?.let { c -> d.tap(c.page, c.x, c.top + c.height / 2, false) }
+    }
+
     /** The selected text, handed to [onText] on the main thread (for the clipboard). */
     fun copy(onText: (String) -> Unit) {
         val d = doc ?: return

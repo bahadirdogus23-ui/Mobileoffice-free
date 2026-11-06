@@ -440,8 +440,8 @@ private val SIZES = listOf(8, 9, 10, 11, 12, 14, 16, 18, 20, 24, 28, 36, 48)
 
 /** The caret and the selection drawn over page [page], which is [pageWidth] points wide. */
 @Composable
-fun WordCaretOverlay(vm: WordViewModel, page: Int, pageWidth: Float) {
-    val caret = vm.caret?.takeIf { it.page.toInt() == page }
+fun WordCaretOverlay(vm: WordViewModel, page: Int, pageWidth: Float, showCaret: Boolean = true) {
+    val caret = vm.caret?.takeIf { showCaret && it.page.toInt() == page }
     val rects = vm.selection.filter { it.page.toInt() == page }
     if (caret == null && rects.isEmpty()) return
     val color = MaterialTheme.colorScheme.primary
