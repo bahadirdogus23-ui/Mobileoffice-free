@@ -32,6 +32,10 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import org.mobileofficefree.engine.Pen
+import org.mobileofficefree.engine.TypedText
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.layout.offset
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -168,9 +172,24 @@ private val TEXT_FONTS = listOf(
 /** Asks for text to type on a page, with its size, typeface and colour. */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-fun TextStampDialog(onDismiss: () -> Unit, onAdd: (String, TextLook) -> Unit) {
-    var text by remember { mutableStateOf("") }
+fun TextStampDialog(onDismiss: () -> Unit, initialText: String = "", initialLook: TextLook? = null, onAdd: (String, TextLook) -> Unit) {
+    var text by remember { mutableStateOf(initialText) }
     val memory = TextStyleMemory
+    // Editing a typed text: start from its own look (the nearest offered colour).
+    androidx.compose.runtime.LaunchedEffect(initialLook) {
+        initialLook?.let { l ->
+            memory.size = l.size.toFloat()
+            memory.font = l.font
+            val c = l.color
+            memory.color = TEXT_STAMP_COLORS.indices.minByOrNull { i ->
+                val k = TEXT_STAMP_COLORS[i]
+                val dr = k.red - c.getOrElse(0) { 0.0 }.toFloat()
+                val dg = k.green - c.getOrElse(1) { 0.0 }.toFloat()
+                val db = k.blue - c.getOrElse(2) { 0.0 }.toFloat()
+                dr * dr + dg * dg + db * db
+            } ?: 0
+        }
+    }
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text(stringResource(R.string.pdf_text_title)) },
@@ -207,4 +226,48 @@ fun TextStampDialog(onDismiss: () -> Unit, onAdd: (String, TextLook) -> Unit) {
         },
         dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.cancel)) } },
     )
+}
+
+/**
+ * The frame around a picked typed text, laid over its page (the page fills this box): dragging
+ * it moves the text; the move is applied when the finger lifts ([onMove], fractions of the page).
+ */
+@Composable
+fun PickedTextFrame(t: TypedText, onMove: (Double, Double) -> Unit) {
+    val color = MaterialTheme.colorScheme.primary
+    BoxWithConstraints(Modifier.fillMaxSize()) {
+        val w = constraints.maxWidth.toFloat()
+        val h = constraints.maxHeight.toFloat()
+        var drag by remember(t) { mutableStateOf(Offset.Zero) }
+        val pad = 6f
+        val left = (t.left * w).toFloat() - pad + drag.x
+        val top = (t.top * h).toFloat() - pad + drag.y
+        val bw = ((t.right - t.left) * w).toFloat() + 2 * pad
+        val bh = ((t.bottom - t.top) * h).toFloat() + 2 * pad
+        val density = androidx.compose.ui.platform.LocalDensity.current
+        Box(
+            Modifier
+                .offset { androidx.compose.ui.unit.IntOffset(left.roundToInt(), top.roundToInt()) }
+                .size(with(density) { bw.toDp() }, with(density) { bh.toDp() })
+                .border(2.dp, color, RoundedCornerShape(4.dp))
+                .background(color.copy(alpha = 0.08f))
+                .pointerInput(t) {
+                    androidx.compose.foundation.gestures.detectDragGestures(
+                        onDragEnd = {
+                            val d = drag
+                            if (d != Offset.Zero) onMove(d.x / w.toDouble(), d.y / h.toDouble())
+                        },
+                        onDragCancel = { drag = Offset.Zero },
+                    ) { change, amount ->
+                        change.consume()
+                        drag += amount
+                    }
+                },
+        ) {
+            // Corner handles, as design apps show them.
+            for (a in listOf(Alignment.TopStart, Alignment.TopEnd, Alignment.BottomStart, Alignment.BottomEnd)) {
+                Box(Modifier.align(a).size(10.dp).background(color, CircleShape))
+            }
+        }
+    }
 }

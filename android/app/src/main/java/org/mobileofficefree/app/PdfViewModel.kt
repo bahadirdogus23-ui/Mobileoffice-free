@@ -21,6 +21,7 @@ import org.mobileofficefree.engine.FormFieldKind
 import org.mobileofficefree.engine.MoException
 import org.mobileofficefree.engine.PdfDocument
 import org.mobileofficefree.engine.TextLook
+import org.mobileofficefree.engine.TypedText
 import org.mobileofficefree.engine.PdfFormField
 import org.mobileofficefree.engine.SensitiveKind
 
@@ -126,6 +127,53 @@ class PdfViewModel(app: Application) : PagedViewModel(app, DocumentKind.PDF) {
     fun addText(page: Int, x: Float, y: Float, text: String, look: TextLook) = edit {
         it.addText(page.toUInt(), x.toDouble(), y.toDouble(), text, look)
         added++
+    }
+
+    /** A typed text picked for moving and restyling: its page and where and how it is. */
+    var pickedText by mutableStateOf<Pair<Int, TypedText>?>(null)
+        private set
+
+    /** Picks the typed text under ([x], [y]) on [page] (fractions); [onNone] when there is none. */
+    fun pickTextAt(page: Int, x: Float, y: Float, onNone: () -> Unit) {
+        viewModelScope.launch {
+            val hit = withContext(engine) {
+                runCatching { editor().typedTexts(page.toUInt()) }.getOrDefault(emptyList())
+                    .filter { x >= it.left && x <= it.right && y >= it.top && y <= it.bottom }
+                    .minByOrNull { (it.right - it.left) * (it.bottom - it.top) }
+            }
+            pickedText = hit?.let { page to it }
+            if (hit == null) onNone()
+        }
+    }
+
+    fun dropPick() {
+        pickedText = null
+    }
+
+    /**
+     * The picked text moved by ([dx], [dy]) (fractions of the page) and/or given new [text] and
+     * [look]; it stays picked (as the newest typed text on its page).
+     */
+    fun changePicked(dx: Double = 0.0, dy: Double = 0.0, text: String? = null, look: TextLook? = null) {
+        val (page, t) = pickedText ?: return
+        var moved: TypedText? = null
+        edit(after = { pickedText = moved?.let { page to it } }) { doc ->
+            val x = (t.left + dx).coerceIn(0.0, 0.98)
+            val y = (t.top + dy).coerceIn(0.0, 0.98)
+            doc.updateText(page.toUInt(), t.index, x, y, text ?: t.text, look ?: t.look)
+            moved = doc.typedTexts(page.toUInt()).maxByOrNull { it.index }
+        }
+    }
+
+    /** The picked text made [step] points larger (smaller when negative). */
+    fun resizePicked(step: Double) {
+        val t = pickedText?.second ?: return
+        changePicked(look = TextLook((t.look.size + step).coerceIn(4.0, 144.0), t.look.font, t.look.color))
+    }
+
+    fun deletePicked() {
+        val (page, t) = pickedText ?: return
+        edit(after = { pickedText = null }) { it.deleteText(page.toUInt(), t.index) }
     }
 
     /** Takes back the last signature, drawing or note added. */

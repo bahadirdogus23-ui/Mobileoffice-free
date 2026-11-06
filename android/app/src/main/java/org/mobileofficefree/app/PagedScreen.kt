@@ -170,6 +170,7 @@ fun PagedScreen(vm: PagedViewModel, state: PagedUiState, reading: ReadingSetting
     val pending = remember(state.uri) { mutableStateListOf<PenStroke>() }
     var liveStroke by remember { mutableStateOf<Pair<Int, List<Offset>>?>(null) }
     var notePlace by remember { mutableStateOf<Triple<Int, Float, Float>?>(null) }
+    var editingPicked by remember { mutableStateOf(false) }
     val commitStrokes = {
         if (pending.isNotEmpty()) pdf?.draw(pending.toList())
         pending.clear()
@@ -366,6 +367,22 @@ fun PagedScreen(vm: PagedViewModel, state: PagedUiState, reading: ReadingSetting
             }
         }
         if (annotating && pdf != null) {
+            pdf.pickedText?.let { (_, t) ->
+                // A picked text: size steps, edit, delete; dragging its frame moves it.
+                Surface(color = MaterialTheme.colorScheme.secondaryContainer, modifier = Modifier.fillMaxWidth()) {
+                    Column(Modifier.padding(horizontal = 8.dp, vertical = 4.dp)) {
+                        Text(stringResource(R.string.text_drag_hint), style = MaterialTheme.typography.bodySmall, modifier = Modifier.padding(start = 8.dp))
+                        Row(Modifier.horizontalScroll(rememberScrollState()), verticalAlignment = Alignment.CenterVertically) {
+                            Text(stringResource(R.string.text_picked) + " " + t.text.take(18), style = MaterialTheme.typography.labelLarge, modifier = Modifier.padding(horizontal = 8.dp))
+                            TextButton(onClick = { pdf.resizePicked(-2.0) }, enabled = !pdf.busy) { Text("A−") }
+                            TextButton(onClick = { pdf.resizePicked(2.0) }, enabled = !pdf.busy) { Text("A+") }
+                            TextButton(onClick = { editingPicked = true }, enabled = !pdf.busy) { Text(stringResource(R.string.text_edit)) }
+                            TextButton(onClick = pdf::deletePicked, enabled = !pdf.busy) { Text(stringResource(R.string.delete)) }
+                            TextButton(onClick = pdf::dropPick) { Text(stringResource(R.string.done)) }
+                        }
+                    }
+                }
+            }
             AnnotationBar(
                 tool = tool,
                 onTool = { tool = it },
@@ -499,7 +516,12 @@ fun PagedScreen(vm: PagedViewModel, state: PagedUiState, reading: ReadingSetting
                                 Modifier.drawStrokes(tool to i, live = { liveStroke = i to it }, onStroke = { pending += PenStroke(i, it, pen) })
                             } else {
                                 Modifier.pointerInput(i) {
-                                    detectTapGestures(onTap = { at -> notePlace = Triple(i, at.x / size.width, at.y / size.height) })
+                                    // A tap on a typed text picks it (to move or restyle); elsewhere, new text.
+                                    detectTapGestures(onTap = { at ->
+                                        val fx = at.x / size.width
+                                        val fy = at.y / size.height
+                                        pdf.pickTextAt(i, fx, fy) { notePlace = Triple(i, fx, fy) }
+                                    })
                                 }
                             }
                         } else if (slides?.editing == true) {
@@ -537,6 +559,9 @@ fun PagedScreen(vm: PagedViewModel, state: PagedUiState, reading: ReadingSetting
                                 )
                             }
                             if (word?.editing == true) WordCaretOverlay(word, i, w)
+                            pdf?.pickedText?.takeIf { annotating && it.first == i }?.let { (_, t) ->
+                                PickedTextFrame(t, onMove = { dx, dy -> pdf.changePicked(dx = dx, dy = dy) })
+                            }
                             if (annotating) {
                                 val shown = pending.filter { it.page == i }.map { it.points to it.pen } +
                                     listOfNotNull(liveStroke?.takeIf { it.first == i }?.let { live -> tool.pen?.let { live.second to it } })
@@ -617,6 +642,19 @@ fun PagedScreen(vm: PagedViewModel, state: PagedUiState, reading: ReadingSetting
         FormSheet(fields, onDismiss = pdf::closeForm, onApply = { changes ->
             if (changes.isEmpty()) pdf.closeForm() else pdf.fillForm(changes)
         })
+    }
+
+    if (editingPicked) {
+        pdf?.pickedText?.let { (_, t) ->
+            TextStampDialog(
+                initialText = t.text,
+                initialLook = t.look,
+                onDismiss = { editingPicked = false },
+            ) { text, look ->
+                editingPicked = false
+                pdf.changePicked(text = text, look = look)
+            }
+        } ?: run { editingPicked = false }
     }
 
     notePlace?.let { (page, x, y) ->

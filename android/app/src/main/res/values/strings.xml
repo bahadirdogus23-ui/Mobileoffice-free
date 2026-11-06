@@ -458,4 +458,8 @@
     <string name="report_problem_hint">Your mail app opens with the report and a picture of the screen; you send it.</string>
     <string name="report_screenshots">Picture the screen when something goes wrong</string>
     <string name="report_screenshots_hint">Kept on the phone and attached only to reports you send. Off while screenshots are blocked.</string>
+    <string name="text_picked">Text:</string>
+    <string name="text_edit">Edit</string>
+    <string name="text_drag_hint">Drag the frame to move it</string>
+    <string name="save_changes">Save</string>
 </resources>
