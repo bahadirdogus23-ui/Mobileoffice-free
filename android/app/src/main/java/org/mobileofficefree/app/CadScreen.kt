@@ -1,5 +1,8 @@
 package org.mobileofficefree.app
 
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
@@ -27,7 +30,6 @@ import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.PrimaryScrollableTabRow
 import androidx.compose.material3.Tab
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -69,12 +71,6 @@ fun CadScreen(vm: CadViewModel, state: CadUiState) {
                     Icon(painterResource(R.drawable.ic_arrow_back), contentDescription = stringResource(R.string.back))
                 }
             },
-            actions = {
-                TextButton(onClick = vm::toggleBackground) {
-                    Text(stringResource(if (state.dark) R.string.cad_white_sheet else R.string.cad_dark_sheet))
-                }
-                TextButton(onClick = { showLayers = true }) { Text(stringResource(R.string.cad_layers)) }
-            },
         )
         Box(
             Modifier
@@ -85,7 +81,13 @@ fun CadScreen(vm: CadViewModel, state: CadUiState) {
                 .pointerInput(state.uri) {
                     detectTransformGestures { centroid, pan, zoom, _ -> vm.transform(centroid.x, centroid.y, pan.x, pan.y, zoom) }
                 }
-                .pointerInput(state.uri) { detectTapGestures(onDoubleTap = { vm.fit() }) },
+                .pointerInput(state.uri, vm.measuring) {
+                    if (vm.measuring) {
+                        detectTapGestures(onTap = { vm.measureTap(it.x, it.y) })
+                    } else {
+                        detectTapGestures(onDoubleTap = { vm.fit() })
+                    }
+                },
         ) {
             val frame = vm.frame
             val view = vm.view
@@ -104,12 +106,35 @@ fun CadScreen(vm: CadViewModel, state: CadUiState) {
                     drawImage(frame.bitmap.asImageBitmap())
                 }
             }
+            if (vm.measuring) MeasureOverlay(vm, state.dark)
         }
         if (state.spaces.size > 1) {
             PrimaryScrollableTabRow(selectedTabIndex = state.space) {
                 state.spaces.forEachIndexed { i, name ->
                     Tab(selected = i == state.space, onClick = { vm.selectSpace(i) }, text = { Text(name) })
                 }
+            }
+        }
+        val savePdf = rememberLauncherForActivityResult(CreateFile()) { uri -> if (uri != null) vm.exportPdf(uri) }
+        val context = LocalContext.current
+        SoftToolbar {
+            ToolItem("⤢", stringResource(R.string.cad_fit), onClick = vm::fit)
+            ToolItem(
+                "📏",
+                stringResource(if (vm.measuring) R.string.cad_measure_stop else R.string.cad_measure),
+                onClick = { if (vm.measuring) vm.stopMeasuring() else vm.measuring = true },
+            )
+            ToolItem("☰", stringResource(R.string.cad_layers), onClick = { showLayers = true })
+            ToolItem(if (state.dark) "☀" else "☾", stringResource(if (state.dark) R.string.cad_white_sheet else R.string.cad_dark_sheet), onClick = vm::toggleBackground)
+            ToolItem("⇩", stringResource(R.string.cad_save_pdf)) {
+                savePdf.launch(CreateFile.Request(state.fileName.substringBeforeLast('.') + ".pdf", "application/pdf"))
+            }
+            ToolItem("⇪", stringResource(R.string.share)) {
+                val send = android.content.Intent(android.content.Intent.ACTION_SEND)
+                    .setType("application/octet-stream")
+                    .putExtra(android.content.Intent.EXTRA_STREAM, state.uri)
+                    .addFlags(android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                context.startActivity(android.content.Intent.createChooser(send, state.fileName))
             }
         }
     }
@@ -134,4 +159,46 @@ fun CadScreen(vm: CadViewModel, state: CadUiState) {
             Spacer(Modifier.size(24.dp))
         }
     }
+}
+
+/** The measured points, the line between them and its length (in drawing units). */
+@Composable
+private fun MeasureOverlay(vm: CadViewModel, dark: Boolean) {
+    val points = vm.measure
+    val accent = if (dark) Color(0xFFFFC107) else Color(0xFFD32F2F)
+    Canvas(Modifier.fillMaxSize()) {
+        val screen = points.mapNotNull { vm.screenOf(it) }.map { Offset(it.first, it.second) }
+        if (screen.size == 2) drawLine(accent, screen[0], screen[1], strokeWidth = 3.dp.toPx())
+        for (p in screen) {
+            drawCircle(accent, radius = 6.dp.toPx(), center = p)
+            drawCircle(Color.White, radius = 2.5.dp.toPx(), center = p)
+        }
+    }
+    val text = when (points.size) {
+        0 -> stringResource(R.string.cad_measure_first)
+        1 -> stringResource(R.string.cad_measure_second)
+        else -> {
+            val dx = points[1].first - points[0].first
+            val dy = points[1].second - points[0].second
+            stringResource(R.string.cad_measure_result, measureNumber(kotlin.math.hypot(dx, dy)), measureNumber(kotlin.math.abs(dx)), measureNumber(kotlin.math.abs(dy)))
+        }
+    }
+    Box(Modifier.fillMaxSize().padding(12.dp), contentAlignment = Alignment.TopCenter) {
+        Text(
+            text,
+            style = MaterialTheme.typography.titleSmall,
+            color = Color.White,
+            modifier = Modifier.background(Color(0xCC000000), RoundedCornerShape(12.dp)).padding(horizontal = 14.dp, vertical = 8.dp),
+        )
+    }
+}
+
+/** A length with as many decimals as it needs (Turkish decimal comma where the phone uses it). */
+internal fun measureNumber(v: Double): String {
+    val digits = when {
+        v >= 1000 -> 1
+        v >= 10 -> 2
+        else -> 3
+    }
+    return String.format(java.util.Locale.getDefault(), "%,.${digits}f", v)
 }

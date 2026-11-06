@@ -483,4 +483,11 @@
         <item quantity="one">%d sayfa</item>
         <item quantity="other">%d sayfa</item>
     </plurals>
+    <string name="cad_fit">Sığdır</string>
+    <string name="cad_measure">Ölç</string>
+    <string name="cad_measure_stop">Ölçmeyi bitir</string>
+    <string name="cad_save_pdf">PDF olarak kaydet</string>
+    <string name="cad_measure_first">İlk noktaya dokunun</string>
+    <string name="cad_measure_second">İkinci noktaya dokunun</string>
+    <string name="cad_measure_result">Uzunluk %1$s  (Δx %2$s, Δy %3$s)</string>
 </resources>

@@ -204,3 +204,31 @@ fn format_as_table_shows_its_header_and_bands() {
     assert!(after[0].fill != 0 && after[0].bold, "{:?}", after[0]);
     assert_ne!(after[2].fill, after[4].fill, "{after:?}");
 }
+
+#[test]
+fn page_setup_from_the_pdf_sheet_fits_columns_and_repeats_the_header() {
+    // A wide table: 30 columns × 120 rows; the app's PDF sheet sends these Page Setup choices.
+    let mut doc = GridDoc::blank();
+    for r in 0..120u32 {
+        for c in 0..30u32 {
+            doc.set_input(r, c, &format!("Hücre {r}-{c}")).unwrap();
+        }
+    }
+    let pages = |doc: &mut GridDoc| {
+        let v: serde_json::Value = serde_json::from_str(&doc.execute("file.printPreview", "{}").unwrap()).unwrap();
+        (v["pages"].as_u64().unwrap(), v["pageList"][0]["scale"].clone(), v["pageList"][0]["columns"].clone())
+    };
+    let plain = pages(&mut doc);
+    let setup = serde_json::json!({
+        "orientation": "portrait", "paper": "A4", "gridlines": false, "headings": true, "centerH": true,
+        "titleRows": "1:1", "fitWidth": 1, "fitHeight": 0, "footer": "&CSayfa &P / &N",
+    });
+    doc.execute("pageLayout.pageSetup", &setup.to_string()).unwrap();
+    doc.execute("pageLayout.margins", r#"{"preset": "normal"}"#).unwrap();
+    let fitted = pages(&mut doc);
+    assert!(fitted.0 < plain.0, "{fitted:?} vs {plain:?}");
+    assert!(doc.export_pdf(false, None, false).unwrap().starts_with(b"%PDF"));
+    // Turning the header off again clears it.
+    doc.execute("pageLayout.pageSetup", r#"{"titleRows": "", "fitToPage": false}"#).unwrap();
+    assert!(doc.export_pdf(false, None, false).is_ok());
+}

@@ -161,6 +161,83 @@ class CadViewModel(app: Application) : AndroidViewModel(app) {
         fit()
     }
 
+    /** Measuring: the points tapped so far (world units), at most two. */
+    var measuring by mutableStateOf(false)
+    var measure by mutableStateOf<List<Pair<Double, Double>>>(emptyList())
+        private set
+
+    /** The world point under screen point ([x], [y]) of the current view. */
+    fun worldAt(x: Float, y: Float): Pair<Double, Double>? {
+        val v = view ?: return null
+        val (w, h) = viewport
+        return (v.centerX + (x - w / 2.0) / v.scale) to (v.centerY - (y - h / 2.0) / v.scale)
+    }
+
+    /** Screen point of world point [p] in the current view. */
+    fun screenOf(p: Pair<Double, Double>): Pair<Float, Float>? {
+        val v = view ?: return null
+        val (w, h) = viewport
+        return ((p.first - v.centerX) * v.scale + w / 2.0).toFloat() to (-(p.second - v.centerY) * v.scale + h / 2.0).toFloat()
+    }
+
+    /** A tap while measuring: the first or second point, or a fresh start after two. */
+    fun measureTap(x: Float, y: Float) {
+        val p = worldAt(x, y) ?: return
+        measure = if (measure.size >= 2) listOf(p) else measure + p
+    }
+
+    fun stopMeasuring() {
+        measuring = false
+        measure = emptyList()
+    }
+
+    /**
+     * Writes the current space, whole, as a one-page PDF into [dest]: landscape A4 or portrait,
+     * whichever the drawing fits better, drawn at 200 dpi on white.
+     */
+    fun exportPdf(dest: Uri) {
+        val s = state ?: return
+        val app = getApplication<Application>()
+        viewModelScope.launch {
+            val result = withContext(engine) {
+                runCatching {
+                    val d = doc ?: error("no document")
+                    val e = d.extents(s.space.toUInt())
+                    val ew = (e.maxX - e.minX).coerceAtLeast(1e-9)
+                    val eh = (e.maxY - e.minY).coerceAtLeast(1e-9)
+                    val (pw, ph) = if (ew >= eh) 842 to 595 else 595 to 842
+                    val margin = 24
+                    val dpi = 200.0 / 72.0
+                    val w = ((pw - 2 * margin) * dpi).toInt()
+                    val h = ((ph - 2 * margin) * dpi).toInt()
+                    val scale = minOf(w / ew, h / eh)
+                    val r = d.render(s.space.toUInt(), (e.minX + e.maxX) / 2, (e.minY + e.maxY) / 2, scale, w.toUInt(), h.toUInt(), false)
+                    val bmp = createBitmap(r.width.toInt(), r.height.toInt()).apply { copyPixelsFromBuffer(ByteBuffer.wrap(r.pixels)) }
+                    val pdf = android.graphics.pdf.PdfDocument()
+                    try {
+                        val page = pdf.startPage(android.graphics.pdf.PdfDocument.PageInfo.Builder(pw, ph, 1).create())
+                        page.canvas.drawColor(android.graphics.Color.WHITE)
+                        page.canvas.drawBitmap(
+                            bmp,
+                            null,
+                            android.graphics.RectF(margin.toFloat(), margin.toFloat(), (pw - margin).toFloat(), (ph - margin).toFloat()),
+                            android.graphics.Paint(android.graphics.Paint.FILTER_BITMAP_FLAG),
+                        )
+                        pdf.finishPage(page)
+                        app.contentResolver.openOutputStream(dest, "wt")?.use { pdf.writeTo(it) } ?: error("cannot write")
+                    } finally {
+                        pdf.close()
+                        bmp.recycle()
+                    }
+                }
+            }
+            error = result.exceptionOrNull()?.let { app.getString(R.string.save_failed, it.message ?: "") }
+            if (result.isSuccess) {
+                android.widget.Toast.makeText(app, R.string.saved, android.widget.Toast.LENGTH_SHORT).show()
+            }
+        }
+    }
+
     fun toggleBackground() {
         val s = state ?: return
         state = s.copy(dark = !s.dark)

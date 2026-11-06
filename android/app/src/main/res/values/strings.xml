@@ -484,4 +484,11 @@
         <item quantity="one">%d page</item>
         <item quantity="other">%d pages</item>
     </plurals>
+    <string name="cad_fit">Fit</string>
+    <string name="cad_measure">Measure</string>
+    <string name="cad_measure_stop">Stop measuring</string>
+    <string name="cad_save_pdf">Save as PDF</string>
+    <string name="cad_measure_first">Tap the first point</string>
+    <string name="cad_measure_second">Tap the second point</string>
+    <string name="cad_measure_result">Length %1$s  (Δx %2$s, Δy %3$s)</string>
 </resources>
