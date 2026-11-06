@@ -112,6 +112,7 @@ fun WordEditBar(vm: WordViewModel, onSave: () -> Unit) {
     var insertMenu by remember { mutableStateOf(false) }
     var tableDialog by remember { mutableStateOf(false) }
     var replaceDialog by remember { mutableStateOf(false) }
+    var sizeDialog by remember { mutableStateOf(false) }
     val pickPicture = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri -> if (uri != null) vm.insertPicture(uri) }
     if (tableDialog) {
         var rows by remember { mutableStateOf("3") }
@@ -136,6 +137,43 @@ fun WordEditBar(vm: WordViewModel, onSave: () -> Unit) {
             dismissButton = { TextButton(onClick = { tableDialog = false }) { Text(stringResource(R.string.cancel)) } },
         )
     }
+    if (sizeDialog) {
+        // Sizes in centimetres, as people measure paper; the engine takes points.
+        var width by remember { mutableStateOf("") }
+        var height by remember { mutableStateOf("") }
+        fun cm(t: String) = t.replace(',', '.').toDoubleOrNull()?.takeIf { it > 0 && it < 60 }
+        AlertDialog(
+            onDismissRequest = { sizeDialog = false },
+            title = { Text(stringResource(R.string.table_size)) },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text(stringResource(R.string.table_size_hint), style = MaterialTheme.typography.bodySmall)
+                    OutlinedTextField(
+                        value = width, onValueChange = { width = it }, singleLine = true,
+                        label = { Text(stringResource(R.string.table_col_width_cm)) },
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                    )
+                    OutlinedTextField(
+                        value = height, onValueChange = { height = it }, singleLine = true,
+                        label = { Text(stringResource(R.string.table_row_height_cm)) },
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                    )
+                }
+            },
+            confirmButton = {
+                TextButton(
+                    enabled = cm(width) != null || cm(height) != null,
+                    onClick = {
+                        sizeDialog = false
+                        cm(width)?.let { vm.command("table.columnWidth", "{\"width\": ${it * POINTS_PER_CM}}") }
+                        cm(height)?.let { vm.command("table.rowHeight", "{\"height\": ${it * POINTS_PER_CM}, \"rule\": \"atLeast\"}") }
+                    },
+                ) { Text(stringResource(R.string.apply)) }
+            },
+            dismissButton = { TextButton(onClick = { sizeDialog = false }) { Text(stringResource(R.string.cancel)) } },
+        )
+    }
+
     if (replaceDialog) {
         var find by remember { mutableStateOf(vm.selectedTextHint) }
         var with by remember { mutableStateOf("") }
@@ -297,6 +335,10 @@ fun WordEditBar(vm: WordViewModel, onSave: () -> Unit) {
                 Box {
                     Tool("▦", R.string.table_menu) { tableMenu = true }
                     DropdownMenu(expanded = tableMenu, onDismissRequest = { tableMenu = false }) {
+                        DropdownMenuItem(text = { Text(stringResource(R.string.table_size)) }, onClick = {
+                            tableMenu = false
+                            sizeDialog = true
+                        })
                         for ((label, id, params) in TABLE_COMMANDS) {
                             DropdownMenuItem(text = { Text(stringResource(label)) }, onClick = {
                                 tableMenu = false
@@ -399,6 +441,8 @@ internal fun hexColor(hex: String): Color = Color(0xFF000000 or hex.toLong(16))
 private const val PAGE_TEXT_WIDTH_PT = 450.0
 
 /** Table commands offered while the caret is in a table: label, engine command, parameters. */
+private const val POINTS_PER_CM = 72.0 / 2.54
+
 private val TABLE_COMMANDS = listOf(
     Triple(R.string.table_row_above, "table.insertRowAbove", ""),
     Triple(R.string.table_row_below, "table.insertRowBelow", ""),

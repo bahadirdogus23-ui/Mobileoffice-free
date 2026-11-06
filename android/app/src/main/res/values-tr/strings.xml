@@ -467,4 +467,8 @@
     <string name="slide_edit_text">Metni düzenle</string>
     <string name="slide_smaller">Küçült</string>
     <string name="slide_bigger">Büyüt</string>
+    <string name="table_size">Hücre boyutu…</string>
+    <string name="table_size_hint">İmlecin bulunduğu (ya da seçili tüm) sütun ve satır için. Değiştirmek istemediğinizi boş bırakın.</string>
+    <string name="table_col_width_cm">Sütun genişliği (cm)</string>
+    <string name="table_row_height_cm">Satır yüksekliği, en az (cm)</string>
 </resources>

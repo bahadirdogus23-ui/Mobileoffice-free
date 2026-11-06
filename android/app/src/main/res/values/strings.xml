@@ -468,4 +468,8 @@
     <string name="slide_edit_text">Edit text</string>
     <string name="slide_smaller">Smaller</string>
     <string name="slide_bigger">Bigger</string>
+    <string name="table_size">Cell size…</string>
+    <string name="table_size_hint">For the column and row the caret is in (or every selected one). Leave a box empty to keep it.</string>
+    <string name="table_col_width_cm">Column width (cm)</string>
+    <string name="table_row_height_cm">Row height, at least (cm)</string>
 </resources>
