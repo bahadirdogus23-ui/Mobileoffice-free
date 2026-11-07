@@ -559,4 +559,8 @@
     <string name="sheet_clear">Temizle</string>
     <string name="sheet_fill_down">Aşağı doldur</string>
     <string name="text_preview_sample">Örnek yazı Ağ</string>
+    <string name="sheet_tab_format">Biçim</string>
+    <string name="sheet_tab_edit">Düzenle</string>
+    <string name="sheet_tab_data">Veri</string>
+    <string name="sheet_tab_lines">Satır ve sütun</string>
 </resources>

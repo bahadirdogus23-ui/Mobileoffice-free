@@ -1,5 +1,8 @@
 package org.mobileofficefree.app
 
+import androidx.compose.ui.unit.sp
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.material3.Checkbox
 import androidx.compose.foundation.Image
@@ -345,71 +348,94 @@ private fun SheetToolBar(vm: SheetViewModel, look: CellLook?) {
     if (formatSheet) CellFormatSheet(vm, look, onDismiss = { formatSheet = false })
     var fillMenu by remember { mutableStateOf(false) }
     var borderMenu by remember { mutableStateOf(false) }
-    Row(
-        Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(horizontal = 4.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        TextButton(onClick = { formatSheet = true }) { Text("Aa " + stringResource(R.string.cell_format)) }
-        FilledIconToggleButton(checked = look?.bold == true, onCheckedChange = { vm.format("home.bold", JSONObject().put("on", it)) }) {
-            Text("K", fontWeight = FontWeight.Bold)
+    // The tools in groups, as Office's phone app shows them: one row at a time.
+    var tab by rememberSaveable { mutableIntStateOf(0) }
+    Column(Modifier.fillMaxWidth()) {
+        Row(
+            Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(horizontal = 8.dp, vertical = 2.dp),
+            horizontalArrangement = Arrangement.spacedBy(6.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            IconButton(onClick = vm::undo) { Text("↶", fontSize = 18.sp) }
+            IconButton(onClick = vm::redo) { Text("↷", fontSize = 18.sp) }
+            for ((i, label) in listOf(R.string.sheet_tab_format, R.string.sheet_tab_edit, R.string.sheet_tab_data, R.string.sheet_tab_lines).withIndex()) {
+                FilterChip(selected = tab == i, onClick = { tab = i }, label = { Text(stringResource(label)) })
+            }
         }
-        FilledIconToggleButton(checked = look?.italic == true, onCheckedChange = { vm.format("home.italic", JSONObject().put("on", it)) }) {
-            Text("İ", fontStyle = FontStyle.Italic)
-        }
-        FilledIconToggleButton(checked = look?.underline == true, onCheckedChange = { vm.format("home.underline", JSONObject().put("on", it)) }) {
-            Text("A", textDecoration = TextDecoration.Underline)
-        }
-        Box {
-            TextButton(onClick = { fillMenu = true }) { Text("🎨") }
-            DropdownMenu(expanded = fillMenu, onDismissRequest = { fillMenu = false }) {
-                for ((label, color) in FILLS) {
-                    DropdownMenuItem(text = { Text(stringResource(label)) }, onClick = {
-                        fillMenu = false
-                        vm.format("home.fillColor", JSONObject().put("color", color))
-                    })
+        Row(
+            Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(horizontal = 4.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            when (tab) {
+                0 -> {
+                    TextButton(onClick = { formatSheet = true }) { Text("Aa " + stringResource(R.string.cell_format)) }
+                    FilledIconToggleButton(checked = look?.bold == true, onCheckedChange = { vm.format("home.bold", JSONObject().put("on", it)) }) {
+                        Text("K", fontWeight = FontWeight.Bold)
+                    }
+                    FilledIconToggleButton(checked = look?.italic == true, onCheckedChange = { vm.format("home.italic", JSONObject().put("on", it)) }) {
+                        Text("İ", fontStyle = FontStyle.Italic)
+                    }
+                    FilledIconToggleButton(checked = look?.underline == true, onCheckedChange = { vm.format("home.underline", JSONObject().put("on", it)) }) {
+                        Text("A", textDecoration = TextDecoration.Underline)
+                    }
+                    Box {
+                        TextButton(onClick = { fillMenu = true }) { Text("🎨") }
+                        DropdownMenu(expanded = fillMenu, onDismissRequest = { fillMenu = false }) {
+                            for ((label, color) in FILLS) {
+                                DropdownMenuItem(text = { Text(stringResource(label)) }, onClick = {
+                                    fillMenu = false
+                                    vm.format("home.fillColor", JSONObject().put("color", color))
+                                })
+                            }
+                        }
+                    }
+                    Box {
+                        TextButton(onClick = { borderMenu = true }) { Text("▦") }
+                        DropdownMenu(expanded = borderMenu, onDismissRequest = { borderMenu = false }) {
+                            for ((label, preset) in BORDERS) {
+                                DropdownMenuItem(text = { Text(stringResource(label)) }, onClick = {
+                                    borderMenu = false
+                                    vm.format("home.borders", JSONObject().put("preset", preset))
+                                })
+                            }
+                        }
+                    }
+                    TextButton(onClick = { vm.format("home.alignLeft") }) { Text("⇤") }
+                    TextButton(onClick = { vm.format("home.alignCenter") }) { Text("≡") }
+                    TextButton(onClick = { vm.format("home.alignRight") }) { Text("⇥") }
+                    TextButton(onClick = { vm.format("home.accounting", JSONObject().put("symbol", "₺")) }) { Text("₺") }
+                    TextButton(onClick = { vm.format("home.percent") }) { Text("%") }
+                    TextButton(onClick = { vm.format("home.increaseDecimal") }) { Text(",0→") }
+                    TextButton(onClick = { vm.format("home.decreaseDecimal") }) { Text("←,0") }
+                }
+                1 -> {
+                    val clipboardContext = androidx.compose.ui.platform.LocalContext.current
+                    val clipboard = remember { clipboardContext.getSystemService(android.content.ClipboardManager::class.java) }
+                    TextButton(onClick = {
+                        vm.copySelection(cut = false) { clipboard?.setPrimaryClip(android.content.ClipData.newPlainText("cells", it)) }
+                    }) { Text(stringResource(R.string.copy)) }
+                    TextButton(onClick = {
+                        vm.copySelection(cut = true) { clipboard?.setPrimaryClip(android.content.ClipData.newPlainText("cells", it)) }
+                    }) { Text(stringResource(R.string.cut)) }
+                    TextButton(onClick = {
+                        vm.paste(clipboard?.primaryClip?.takeIf { it.itemCount > 0 }?.getItemAt(0)?.coerceToText(clipboardContext)?.toString())
+                    }) { Text(stringResource(R.string.paste)) }
+                    TextButton(onClick = vm::clearSelection) { Text(stringResource(R.string.sheet_clear)) }
+                    TextButton(onClick = vm::fillDown) { Text(stringResource(R.string.sheet_fill_down)) }
+                }
+                2 -> {
+                    TextButton(onClick = { vm.sort(true) }) { Text("A→Z") }
+                    TextButton(onClick = { vm.sort(false) }) { Text("Z→A") }
+                    TextButton(onClick = vm::openFilter) { Text((if (vm.hasFilter) "▼● " else "▼ ") + stringResource(R.string.filter)) }
+                }
+                else -> {
+                    TextButton(onClick = { vm.lines(rows = true, insert = true) }) { Text(stringResource(R.string.row_insert)) }
+                    TextButton(onClick = { vm.lines(rows = true, insert = false) }) { Text(stringResource(R.string.row_delete)) }
+                    TextButton(onClick = { vm.lines(rows = false, insert = true) }) { Text(stringResource(R.string.col_insert)) }
+                    TextButton(onClick = { vm.lines(rows = false, insert = false) }) { Text(stringResource(R.string.col_delete)) }
                 }
             }
         }
-        Box {
-            TextButton(onClick = { borderMenu = true }) { Text("▦") }
-            DropdownMenu(expanded = borderMenu, onDismissRequest = { borderMenu = false }) {
-                for ((label, preset) in BORDERS) {
-                    DropdownMenuItem(text = { Text(stringResource(label)) }, onClick = {
-                        borderMenu = false
-                        vm.format("home.borders", JSONObject().put("preset", preset))
-                    })
-                }
-            }
-        }
-        TextButton(onClick = { vm.format("home.alignLeft") }) { Text("⇤") }
-        TextButton(onClick = { vm.format("home.alignCenter") }) { Text("≡") }
-        TextButton(onClick = { vm.format("home.alignRight") }) { Text("⇥") }
-        TextButton(onClick = { vm.format("home.accounting", JSONObject().put("symbol", "₺")) }) { Text("₺") }
-        TextButton(onClick = { vm.format("home.percent") }) { Text("%") }
-        val clipboardContext = androidx.compose.ui.platform.LocalContext.current
-        val clipboard = remember { clipboardContext.getSystemService(android.content.ClipboardManager::class.java) }
-        TextButton(onClick = {
-            vm.copySelection(cut = false) { clipboard?.setPrimaryClip(android.content.ClipData.newPlainText("cells", it)) }
-        }) { Text(stringResource(R.string.copy)) }
-        TextButton(onClick = {
-            vm.copySelection(cut = true) { clipboard?.setPrimaryClip(android.content.ClipData.newPlainText("cells", it)) }
-        }) { Text(stringResource(R.string.cut)) }
-        TextButton(onClick = {
-            vm.paste(clipboard?.primaryClip?.takeIf { it.itemCount > 0 }?.getItemAt(0)?.coerceToText(clipboardContext)?.toString())
-        }) { Text(stringResource(R.string.paste)) }
-        TextButton(onClick = vm::clearSelection) { Text(stringResource(R.string.sheet_clear)) }
-        TextButton(onClick = vm::fillDown) { Text(stringResource(R.string.sheet_fill_down)) }
-        TextButton(onClick = { vm.sort(true) }) { Text("A→Z") }
-        TextButton(onClick = { vm.sort(false) }) { Text("Z→A") }
-        TextButton(onClick = vm::openFilter) { Text((if (vm.hasFilter) "▼● " else "▼ ") + stringResource(R.string.filter)) }
-        TextButton(onClick = { vm.format("home.increaseDecimal") }) { Text(",0→") }
-        TextButton(onClick = { vm.format("home.decreaseDecimal") }) { Text("←,0") }
-        TextButton(onClick = { vm.lines(rows = true, insert = true) }) { Text(stringResource(R.string.row_insert)) }
-        TextButton(onClick = { vm.lines(rows = true, insert = false) }) { Text(stringResource(R.string.row_delete)) }
-        TextButton(onClick = { vm.lines(rows = false, insert = true) }) { Text(stringResource(R.string.col_insert)) }
-        TextButton(onClick = { vm.lines(rows = false, insert = false) }) { Text(stringResource(R.string.col_delete)) }
-        TextButton(onClick = vm::undo) { Text(stringResource(R.string.undo)) }
-        TextButton(onClick = vm::redo) { Text(stringResource(R.string.redo)) }
     }
 }
 

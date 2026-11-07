@@ -560,4 +560,8 @@
     <string name="sheet_clear">Clear</string>
     <string name="sheet_fill_down">Fill down</string>
     <string name="text_preview_sample">Sample text Ağ</string>
+    <string name="sheet_tab_format">Format</string>
+    <string name="sheet_tab_edit">Edit</string>
+    <string name="sheet_tab_data">Data</string>
+    <string name="sheet_tab_lines">Rows &amp; columns</string>
 </resources>
