@@ -6,6 +6,9 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.gestures.detectTransformGestures
 import androidx.compose.foundation.layout.Box
@@ -83,7 +86,31 @@ fun CadScreen(vm: CadViewModel, state: CadUiState) {
                 }
                 .pointerInput(state.uri, vm.measuring) {
                     if (vm.measuring) {
-                        detectTapGestures(onTap = { vm.measureTap(it.x, it.y) })
+                        // A tap measures where it lands (snapped); holding and sliding aims a point
+                        // above the finger, its snap shown live, and lifting measures it.
+                        val lift = 64.dp.toPx()
+                        awaitEachGesture {
+                            val down = awaitFirstDown()
+                            var aiming = false
+                            while (true) {
+                                val event = awaitPointerEvent()
+                                if (event.changes.size > 1) {
+                                    // A second finger: zooming, not measuring.
+                                    vm.aimCancel()
+                                    return@awaitEachGesture
+                                }
+                                val c = event.changes.firstOrNull { it.id == down.id } ?: break
+                                if (!c.pressed) {
+                                    if (aiming) vm.aimDone() else vm.measureTap(c.position.x, c.position.y)
+                                    break
+                                }
+                                if (!aiming && (c.position - down.position).getDistance() > viewConfiguration.touchSlop) aiming = true
+                                if (aiming) {
+                                    c.consume()
+                                    vm.aimAt(c.position.x, c.position.y - lift)
+                                }
+                            }
+                        }
                     } else {
                         detectTapGestures(onDoubleTap = { vm.fit() })
                     }
@@ -116,6 +143,28 @@ fun CadScreen(vm: CadViewModel, state: CadUiState) {
             }
         }
         val savePdf = rememberLauncherForActivityResult(CreateFile()) { uri -> if (uri != null) vm.exportPdf(uri) }
+        var askPdfArea by remember { mutableStateOf(false) }
+        if (askPdfArea) {
+            androidx.compose.material3.AlertDialog(
+                onDismissRequest = { askPdfArea = false },
+                title = { Text(stringResource(R.string.cad_pdf_area)) },
+                text = {
+                    androidx.compose.foundation.layout.Column {
+                        for ((onlyView, label) in listOf(false to R.string.cad_pdf_whole, true to R.string.cad_pdf_view)) {
+                            androidx.compose.material3.ListItem(
+                                headlineContent = { Text(stringResource(label)) },
+                                modifier = Modifier.clickable {
+                                    askPdfArea = false
+                                    vm.pdfOnlyView = onlyView
+                                    savePdf.launch(CreateFile.Request(state.fileName.substringBeforeLast('.') + ".pdf", "application/pdf"))
+                                },
+                            )
+                        }
+                    }
+                },
+                confirmButton = { androidx.compose.material3.TextButton(onClick = { askPdfArea = false }) { Text(stringResource(R.string.cancel)) } },
+            )
+        }
         val context = LocalContext.current
         SoftToolbar {
             ToolItem("⤢", stringResource(R.string.cad_fit), onClick = vm::fit)
@@ -126,9 +175,7 @@ fun CadScreen(vm: CadViewModel, state: CadUiState) {
             )
             ToolItem("☰", stringResource(R.string.cad_layers), onClick = { showLayers = true })
             ToolItem(if (state.dark) "☀" else "☾", stringResource(if (state.dark) R.string.cad_white_sheet else R.string.cad_dark_sheet), onClick = vm::toggleBackground)
-            ToolItem("⇩", stringResource(R.string.cad_save_pdf)) {
-                savePdf.launch(CreateFile.Request(state.fileName.substringBeforeLast('.') + ".pdf", "application/pdf"))
-            }
+            ToolItem("⇩", stringResource(R.string.cad_save_pdf)) { askPdfArea = true }
             ToolItem("⇪", stringResource(R.string.share)) {
                 val send = android.content.Intent(android.content.Intent.ACTION_SEND)
                     .setType("application/octet-stream")
@@ -169,6 +216,20 @@ private fun MeasureOverlay(vm: CadViewModel, dark: Boolean) {
     Canvas(Modifier.fillMaxSize()) {
         val screen = points.mapNotNull { vm.screenOf(it) }.map { Offset(it.first, it.second) }
         if (screen.size == 2) drawLine(accent, screen[0], screen[1], strokeWidth = 3.dp.toPx())
+        vm.aim?.let { (pt, kind) ->
+            vm.screenOf(pt)?.let { (x, y) ->
+                // The aimed point: a crosshair, its snap marked as a square.
+                val c = Offset(x, y)
+                val r = 16.dp.toPx()
+                drawLine(accent, Offset(c.x - r, c.y), Offset(c.x + r, c.y), 1.5.dp.toPx())
+                drawLine(accent, Offset(c.x, c.y - r), Offset(c.x, c.y + r), 1.5.dp.toPx())
+                if (kind.isNotEmpty()) {
+                    val q = 8.dp.toPx()
+                    drawRect(accent, topLeft = Offset(c.x - q, c.y - q), size = androidx.compose.ui.geometry.Size(2 * q, 2 * q), style = androidx.compose.ui.graphics.drawscope.Stroke(2.5.dp.toPx()))
+                }
+                if (screen.size == 1) drawLine(accent.copy(alpha = 0.6f), screen[0], c, strokeWidth = 2.dp.toPx())
+            }
+        }
         screen.forEachIndexed { i, p ->
             // A snapped point is a square, as CAD programs mark them; a free one a dot.
             if (vm.measureSnaps.getOrNull(i).isNullOrEmpty()) {
@@ -185,9 +246,9 @@ private fun MeasureOverlay(vm: CadViewModel, dark: Boolean) {
         "Intersection" to R.string.snap_intersection, "Quadrant" to R.string.snap_quadrant,
         "Node" to R.string.snap_node, "Insertion" to R.string.snap_insertion,
     )
-    val lastSnap = vm.measureSnaps.lastOrNull()?.let { snapNames[it] }?.let { stringResource(it) }
+    val lastSnap = (vm.aim?.second ?: vm.measureSnaps.lastOrNull())?.let { snapNames[it] }?.let { stringResource(it) }
     val text = when (points.size) {
-        0 -> stringResource(R.string.cad_measure_first)
+        0 -> stringResource(R.string.cad_measure_first) + (lastSnap?.let { " · $it" } ?: "")
         1 -> stringResource(R.string.cad_measure_second) + (lastSnap?.let { " · $it" } ?: "")
         else -> {
             val dx = points[1].first - points[0].first

@@ -487,7 +487,7 @@
     <string name="cad_measure">Ölç</string>
     <string name="cad_measure_stop">Ölçmeyi bitir</string>
     <string name="cad_save_pdf">PDF olarak kaydet</string>
-    <string name="cad_measure_first">İlk noktaya dokunun</string>
+    <string name="cad_measure_first">İlk noktaya dokunun ya da basılı tutup kaydırarak nişan alın</string>
     <string name="cad_measure_second">İkinci noktaya dokunun</string>
     <string name="cad_measure_result">Uzunluk %1$s  (Δx %2$s, Δy %3$s)</string>
     <string name="snap_end">uç nokta</string>
@@ -622,4 +622,7 @@
     <string name="merge_add">+ PDF ekle</string>
     <string name="selected_count">%1$d seçildi</string>
     <string name="merge_selected">Birleştir</string>
+    <string name="cad_pdf_area">PDF\'e ne girsin?</string>
+    <string name="cad_pdf_whole">Tüm çizim</string>
+    <string name="cad_pdf_view">Ekranda görünen alan (yakınlaştırıp kaydırarak seçin)</string>
 </resources>

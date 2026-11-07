@@ -207,6 +207,44 @@ class CadViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
+    /** While a finger aims: the point a lift would measure (snapped, with what it snapped to, "" if free). */
+    var aim by mutableStateOf<Pair<Pair<Double, Double>, String>?>(null)
+        private set
+    private var aimSeq = 0
+
+    /** The finger aims at screen point ([x], [y]): the snap there is looked up and shown before it is chosen. */
+    fun aimAt(x: Float, y: Float) {
+        val raw = worldAt(x, y) ?: return
+        val s = state ?: return
+        val v = view ?: return
+        val fingertip = 32.0 * getApplication<Application>().resources.displayMetrics.density / v.scale
+        val seq = ++aimSeq
+        viewModelScope.launch {
+            val hit = withContext(engine) { runCatching { doc?.snap(s.space.toUInt(), raw.first, raw.second, fingertip) }.getOrNull() }
+            // Only the newest answer counts (the finger has moved on otherwise).
+            if (seq == aimSeq) aim = (hit?.let { it.x to it.y } ?: raw) to hit?.kind.orEmpty()
+        }
+    }
+
+    /** The finger lifted: the aimed point is measured. */
+    fun aimDone() {
+        val (p, kind) = aim ?: return
+        aim = null
+        aimSeq++
+        if (measure.size >= 2) {
+            measure = listOf(p)
+            measureSnaps = listOf(kind)
+        } else {
+            measure = measure + p
+            measureSnaps = measureSnaps + kind
+        }
+    }
+
+    fun aimCancel() {
+        aim = null
+        aimSeq++
+    }
+
     fun stopMeasuring() {
         measuring = false
         measure = emptyList()
@@ -217,23 +255,33 @@ class CadViewModel(app: Application) : AndroidViewModel(app) {
      * Writes the current space, whole, as a one-page PDF into [dest]: landscape A4 or portrait,
      * whichever the drawing fits better, drawn at 200 dpi on white.
      */
+    /** Whether the next PDF holds only the area on screen (true) or the whole drawing. */
+    var pdfOnlyView = false
+
     fun exportPdf(dest: Uri) {
         val s = state ?: return
         val app = getApplication<Application>()
+        // The area on screen, in drawing units, when only it goes in the PDF.
+        val shown = view?.takeIf { pdfOnlyView }?.let { v ->
+            val (vw, vh) = viewport
+            doubleArrayOf(v.centerX, v.centerY, vw / v.scale, vh / v.scale)
+        }
         viewModelScope.launch {
             val result = withContext(engine) {
                 runCatching {
                     val d = doc ?: error("no document")
                     val e = d.extents(s.space.toUInt())
-                    val ew = (e.maxX - e.minX).coerceAtLeast(1e-9)
-                    val eh = (e.maxY - e.minY).coerceAtLeast(1e-9)
+                    val cx = shown?.get(0) ?: ((e.minX + e.maxX) / 2)
+                    val cy = shown?.get(1) ?: ((e.minY + e.maxY) / 2)
+                    val ew = (shown?.get(2) ?: (e.maxX - e.minX)).coerceAtLeast(1e-9)
+                    val eh = (shown?.get(3) ?: (e.maxY - e.minY)).coerceAtLeast(1e-9)
                     val (pw, ph) = if (ew >= eh) 842 to 595 else 595 to 842
                     val margin = 24
                     val dpi = 200.0 / 72.0
                     val w = ((pw - 2 * margin) * dpi).toInt()
                     val h = ((ph - 2 * margin) * dpi).toInt()
                     val scale = minOf(w / ew, h / eh)
-                    val r = d.render(s.space.toUInt(), (e.minX + e.maxX) / 2, (e.minY + e.maxY) / 2, scale, w.toUInt(), h.toUInt(), false)
+                    val r = d.render(s.space.toUInt(), cx, cy, scale, w.toUInt(), h.toUInt(), false)
                     val bmp = createBitmap(r.width.toInt(), r.height.toInt()).apply { copyPixelsFromBuffer(ByteBuffer.wrap(r.pixels)) }
                     val pdf = android.graphics.pdf.PdfDocument()
                     try {

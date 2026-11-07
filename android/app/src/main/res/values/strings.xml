@@ -488,7 +488,7 @@
     <string name="cad_measure">Measure</string>
     <string name="cad_measure_stop">Stop measuring</string>
     <string name="cad_save_pdf">Save as PDF</string>
-    <string name="cad_measure_first">Tap the first point</string>
+    <string name="cad_measure_first">Tap the first point, or hold and slide to aim</string>
     <string name="cad_measure_second">Tap the second point</string>
     <string name="cad_measure_result">Length %1$s  (Δx %2$s, Δy %3$s)</string>
     <string name="snap_end">endpoint</string>
@@ -623,4 +623,7 @@
     <string name="merge_add">+ Add PDF</string>
     <string name="selected_count">%1$d selected</string>
     <string name="merge_selected">Merge</string>
+    <string name="cad_pdf_area">What goes in the PDF?</string>
+    <string name="cad_pdf_whole">The whole drawing</string>
+    <string name="cad_pdf_view">The area on screen (zoom and pan to choose it)</string>
 </resources>
