@@ -152,10 +152,7 @@ pub fn objects(pres: &Presentation, index: usize) -> Result<Vec<SlideObject>, De
         .iter()
         .filter(|s| !s.hidden && !s.locked)
         .map(|s| {
-            let x = match &ctx {
-                Some(c) => deckcraft_model::resolve::xfrm(c, s),
-                None => s.xfrm.unwrap_or_default(),
-            };
+            let x = drawn_box(ctx.as_ref(), s);
             let kind = match &s.kind {
                 ShapeKind::Picture { .. } => ObjectKind::Picture,
                 ShapeKind::Table(_) => ObjectKind::Table,
@@ -167,6 +164,22 @@ pub fn objects(pres: &Presentation, index: usize) -> Result<Vec<SlideObject>, De
         .collect())
 }
 
+/// A shape's box as it is drawn: its own or inherited one, and for a table as tall as its rows
+/// are drawn (they grow to fit their text).
+fn drawn_box(ctx: Option<&deckcraft_model::resolve::Ctx>, s: &deckcraft_model::Shape) -> deckcraft_model::Xfrm {
+    let mut x = match ctx {
+        Some(c) => deckcraft_model::resolve::xfrm(c, s),
+        None => s.xfrm.unwrap_or_default(),
+    };
+    if let (ShapeKind::Table(t), Some(c)) = (&s.kind, ctx) {
+        let drawn: f64 = deckcraft_render::table_row_heights(c, t, &deckcraft_text::NoFields).iter().sum();
+        if drawn.is_finite() && drawn > x.h {
+            x.h = drawn;
+        }
+    }
+    x
+}
+
 /// Moves object `id` on slide `index` by (`dx`, `dy`) points, scales it by `scale` about its
 /// centre (1 keeps its size) and turns it `rotate` degrees clockwise. A placeholder that took its
 /// box from the layout gets its own.
@@ -174,10 +187,7 @@ pub fn place_object(pres: &mut Presentation, index: usize, id: u32, dx: f64, dy:
     let current = {
         let slide = pres.slides.get(index).ok_or(DeckError::NoSlide(index as u32))?;
         let shape = slide.shapes.iter().find(|s| s.id.0 == id).ok_or_else(|| edit_err("no such object"))?;
-        match deckcraft_model::resolve::Ctx::for_slide(pres, slide) {
-            Some(c) => deckcraft_model::resolve::xfrm(&c, shape),
-            None => shape.xfrm.unwrap_or_default(),
-        }
+        drawn_box(deckcraft_model::resolve::Ctx::for_slide(pres, slide).as_ref(), shape)
     };
     let scale = scale.clamp(0.05, 20.0);
     // Sized from a corner, a text box's letters grow and shrink with it, as in design apps.
@@ -203,6 +213,12 @@ pub fn place_object(pres: &mut Presentation, index: usize, id: u32, dx: f64, dy:
     }
     if scale != 1.0 && matches!(shape.kind, ShapeKind::Shape) {
         scale_text(shape, &sizes, scale);
+    }
+    let mut moved = moved;
+    if let ShapeKind::Table(t) = &shape.kind {
+        // A table keeps its rows' own (minimum) heights as its height: a taller box would
+        // stretch the rows when drawn.
+        moved.h = t.rows.iter().map(|r| r.height).sum::<f64>().max(1.0);
     }
     shape.xfrm = Some(moved);
     Ok(())
@@ -332,7 +348,7 @@ pub fn arrange_object(pres: &mut Presentation, index: usize, id: u32, to_front: 
 }
 
 /// A change to the look of an object's text, or to its box.
-#[derive(Clone, Copy, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq)]
 pub enum ObjectStyle {
     /// Every letter `step` points larger (smaller when negative).
     TextSize(f64),
@@ -344,6 +360,8 @@ pub enum ObjectStyle {
     Align(u8),
     /// The box filled with 0xRRGGBB, or left clear (None).
     Fill(Option<u32>),
+    /// Every letter in this font family (Latin, East Asian and complex scripts alike).
+    Font(String),
 }
 
 /// Applies `style` to object `id` on slide `index` (all of its text for the text changes).
@@ -373,14 +391,19 @@ pub fn style_object(pres: &mut Presentation, index: usize, id: u32, style: Objec
         }
         for (ri, run) in para.runs.iter_mut().enumerate() {
             let p = &mut run.props;
-            match style {
-                ObjectStyle::TextSize(step) => {
+            match &style {
+                &ObjectStyle::TextSize(step) => {
                     let now = sizes.get(pi).and_then(|r| r.get(ri)).copied().unwrap_or(18.0);
                     p.size = Some((now + step).clamp(4.0, 400.0));
                 }
-                ObjectStyle::Bold(on) => p.bold = Some(on),
-                ObjectStyle::Italic(on) => p.italic = Some(on),
-                ObjectStyle::TextColor(c) => p.fill = Some(deckcraft_model::Fill::Solid { color: rgb(c) }),
+                &ObjectStyle::Bold(on) => p.bold = Some(on),
+                &ObjectStyle::Italic(on) => p.italic = Some(on),
+                &ObjectStyle::TextColor(c) => p.fill = Some(deckcraft_model::Fill::Solid { color: rgb(c) }),
+                ObjectStyle::Font(name) => {
+                    p.font = Some(name.clone());
+                    p.font_ea = Some(name.clone());
+                    p.font_cs = Some(name.clone());
+                }
                 ObjectStyle::Align(_) | ObjectStyle::Fill(_) => {}
             }
         }
@@ -454,17 +477,17 @@ pub fn set_object_box(pres: &mut Presentation, index: usize, id: u32, x: f64, y:
     let current = {
         let slide = pres.slides.get(index).ok_or(DeckError::NoSlide(index as u32))?;
         let shape = slide.shapes.iter().find(|s| s.id.0 == id).ok_or_else(|| edit_err("no such object"))?;
-        match deckcraft_model::resolve::Ctx::for_slide(pres, slide) {
-            Some(c) => deckcraft_model::resolve::xfrm(&c, shape),
-            None => shape.xfrm.unwrap_or_default(),
-        }
+        drawn_box(deckcraft_model::resolve::Ctx::for_slide(pres, slide).as_ref(), shape)
     };
     let slide = Arc::make_mut(pres.slides.get_mut(index).ok_or(DeckError::NoSlide(index as u32))?);
     let shape = slide.shapes.iter_mut().find(|s| s.id.0 == id).ok_or_else(|| edit_err("no such object"))?;
+    let mut h = h;
     if let ShapeKind::Table(t) = &mut shape.kind {
-        let (kx, ky) = (w / current.w.max(1.0), h / current.h.max(1.0));
+        // A table's columns take the new width; its rows keep their (minimum) heights and grow
+        // to fit their text when drawn, so the height asked for (as drawn) is not imposed.
+        let kx = w / current.w.max(1.0);
         t.cols.iter_mut().for_each(|c| *c *= kx);
-        t.rows.iter_mut().for_each(|r| r.height *= ky);
+        h = t.rows.iter().map(|r| r.height).sum::<f64>().max(1.0);
     }
     shape.xfrm = Some(deckcraft_model::Xfrm { x, y, w, h, ..current });
     Ok(())

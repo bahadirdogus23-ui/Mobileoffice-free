@@ -70,7 +70,7 @@ class SlidesViewModel(app: Application) : PagedViewModel(app, DocumentKind.SLIDE
             picked = hit?.let { slide to it }
             pickedLook = null
             pickedBold = hit != null && withContext(engine) { runCatching { d.textIsBold(slide.toUInt(), hit.id) }.getOrDefault(false) }
-            if (hit != null) refreshLook(slide, hit.id)
+            if (hit != null) refreshLook(slide, hit)
         }
     }
 
@@ -78,9 +78,15 @@ class SlidesViewModel(app: Application) : PagedViewModel(app, DocumentKind.SLIDE
     var pickedLook by mutableStateOf<ObjectLook?>(null)
         private set
 
-    /** Draws the slide with and without object [id] and keeps the difference as [pickedLook]. */
-    private fun refreshLook(slide: Int, id: UInt) {
+    /**
+     * Draws the slide with and without object [o] and keeps the difference as [pickedLook]. Until
+     * it is ready the screen uses a piece of the page; a look made for the object where it was
+     * before (an older move) is never shown.
+     */
+    private fun refreshLook(slide: Int, o: SlideObject) {
         val d = doc ?: return
+        val id = o.id
+        pickedLook = null
         viewModelScope.launch {
             val look = withContext(engine) {
                 runCatching {
@@ -90,7 +96,7 @@ class SlidesViewModel(app: Application) : PagedViewModel(app, DocumentKind.SLIDE
                     objectSnapshot(full, without).also { full.recycle() }
                 }.getOrNull()
             }
-            if (picked?.second?.id == id) pickedLook = look
+            if (picked?.second == o) pickedLook = look
         }
     }
 
@@ -121,12 +127,12 @@ class SlidesViewModel(app: Application) : PagedViewModel(app, DocumentKind.SLIDE
     fun placePicked(dx: Double, dy: Double, scale: Double = 1.0, turn: Double = 0.0) {
         val (slide, o) = picked ?: return
         pickedAt = (pickedAt.first + dx.toFloat()) to (pickedAt.second + dy.toFloat())
-        change {
+        change(slide) {
             it.placeObject(slide.toUInt(), o.id, dx, dy, scale, turn)
             val now = it.objects(slide.toUInt()).firstOrNull { n -> n.id == o.id }
             viewModelScope.launch {
                 picked = now?.let { n -> slide to n }
-                if (now != null) refreshLook(slide, now.id)
+                if (now != null) refreshLook(slide, now)
             }
             null
         }
@@ -134,7 +140,7 @@ class SlidesViewModel(app: Application) : PagedViewModel(app, DocumentKind.SLIDE
 
     /** A new text box reading [text] in the middle of [slide], picked so it can be moved at once. */
     fun addTextBox(slide: Int, text: String) {
-        change {
+        change(slide) {
             val id = it.addTextBox(slide.toUInt(), text)
             pickLater(it, slide, id)
             slide
@@ -147,7 +153,7 @@ class SlidesViewModel(app: Application) : PagedViewModel(app, DocumentKind.SLIDE
      */
     fun addPicture(slide: Int, uri: Uri) {
         val app = getApplication<Application>()
-        change {
+        change(slide) {
             val bytes = app.contentResolver.openInputStream(uri)?.use { s -> s.readBytes() } ?: error("no data")
             val bounds = android.graphics.BitmapFactory.Options().apply { inJustDecodeBounds = true }
             android.graphics.BitmapFactory.decodeByteArray(bytes, 0, bytes.size, bounds)
@@ -181,7 +187,7 @@ class SlidesViewModel(app: Application) : PagedViewModel(app, DocumentKind.SLIDE
         viewModelScope.launch {
             pickedAt = (o.x + o.width / 2) to (o.y + o.height / 2)
             picked = slide to o
-            refreshLook(slide, o.id)
+            refreshLook(slide, o)
         }
     }
 
@@ -191,7 +197,7 @@ class SlidesViewModel(app: Application) : PagedViewModel(app, DocumentKind.SLIDE
 
     /** A new shape (PowerPoint's name, e.g. "ellipse") in the middle of [slide], picked. */
     fun addShape(slide: Int, preset: String) {
-        change {
+        change(slide) {
             val id = it.addShape(slide.toUInt(), preset, SHAPE_BLUE)
             pickLater(it, slide, id)
             slide
@@ -201,7 +207,7 @@ class SlidesViewModel(app: Application) : PagedViewModel(app, DocumentKind.SLIDE
     /** A copy of the picked object, picked in its place. */
     fun duplicatePicked() {
         val (slide, o) = picked ?: return
-        change {
+        change(slide) {
             val id = it.duplicateObject(slide.toUInt(), o.id)
             pickLater(it, slide, id)
             null
@@ -216,7 +222,7 @@ class SlidesViewModel(app: Application) : PagedViewModel(app, DocumentKind.SLIDE
 
     private fun restyle(op: (SlidesDocument, UInt, UInt) -> Unit) {
         val (slide, o) = picked ?: return
-        change {
+        change(slide) {
             op(it, slide.toUInt(), o.id)
             val bold = it.textIsBold(slide.toUInt(), o.id)
             pickLater(it, slide, o.id)
@@ -231,12 +237,12 @@ class SlidesViewModel(app: Application) : PagedViewModel(app, DocumentKind.SLIDE
      */
     fun setPickedBox(cx: Double, cy: Double, w: Double, h: Double) {
         val (slide, o) = picked ?: return
-        change {
+        change(slide) {
             it.setObjectBox(slide.toUInt(), o.id, cx - w / 2, cy - h / 2, w, h)
             val now = it.objects(slide.toUInt()).firstOrNull { n -> n.id == o.id }
             viewModelScope.launch {
                 picked = now?.let { n -> slide to n }
-                if (now != null) refreshLook(slide, now.id)
+                if (now != null) refreshLook(slide, now)
             }
             null
         }
@@ -245,7 +251,7 @@ class SlidesViewModel(app: Application) : PagedViewModel(app, DocumentKind.SLIDE
     fun deletePicked() {
         val (slide, o) = picked ?: return
         picked = null
-        change {
+        change(slide) {
             it.deleteObject(slide.toUInt(), o.id)
             null
         }
@@ -258,7 +264,7 @@ class SlidesViewModel(app: Application) : PagedViewModel(app, DocumentKind.SLIDE
     fun setText(text: String) {
         val (slide, shape) = editingText ?: return
         editingText = null
-        change {
+        change(slide) {
             if (shape.row >= 0) it.setCellText(slide.toUInt(), shape.id, shape.row.toUInt(), shape.col.toUInt(), text) else it.setText(slide.toUInt(), shape.id, text)
             null
         }
@@ -301,7 +307,7 @@ class SlidesViewModel(app: Application) : PagedViewModel(app, DocumentKind.SLIDE
     }
 
     /** Runs [op] on the engine thread (it may name a slide to show) and shows the slides as they are now. */
-    private fun change(op: (SlidesDocument) -> Int?) {
+    private fun change(only: Int? = null, op: (SlidesDocument) -> Int?) {
         val d = doc ?: return
         val app = getApplication<Application>()
         viewModelScope.launch {
@@ -317,7 +323,7 @@ class SlidesViewModel(app: Application) : PagedViewModel(app, DocumentKind.SLIDE
                     canUndo = history.first
                     canRedo = history.second
                     dirty = true
-                    pagesEdited(pages)
+                    pagesEdited(pages, only)
                     if (show != null) goTo = show
                 },
                 onFailure = { tell(app.getString(R.string.pdf_edit_failed, it.message ?: "")) },
@@ -388,7 +394,7 @@ class SlidesViewModel(app: Application) : PagedViewModel(app, DocumentKind.SLIDE
     }
 
     /** Makes [slide]'s speaker notes read [text]. */
-    fun setNotes(slide: Int, text: String) = change {
+    fun setNotes(slide: Int, text: String) = change(slide) {
         it.setNotes(slide.toUInt(), text)
         null
     }

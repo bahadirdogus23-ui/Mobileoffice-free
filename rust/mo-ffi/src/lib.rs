@@ -712,6 +712,10 @@ pub enum SlideStyle {
     Fill {
         rgb: Option<u32>,
     },
+    /// A font family for all of the text.
+    Font {
+        name: String,
+    },
 }
 
 #[derive(uniffi::Enum)]
@@ -879,6 +883,7 @@ impl SlidesDocument {
             SlideStyle::TextColor { rgb } => mo_deck::ObjectStyle::TextColor(rgb),
             SlideStyle::Align { align } => mo_deck::ObjectStyle::Align(align),
             SlideStyle::Fill { rgb } => mo_deck::ObjectStyle::Fill(rgb),
+            SlideStyle::Font { name } => mo_deck::ObjectStyle::Font(name),
         };
         Ok(self.doc().style_object(slide, id, style)?)
     }

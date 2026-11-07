@@ -654,6 +654,10 @@ fun PagedScreen(vm: PagedViewModel, state: PagedUiState, reading: ReadingSetting
                                 }
                             }
                             slides?.picked?.takeIf { slides.editing && it.first == i }?.let { (_, o) ->
+                                // Until the object's own look is drawn, a piece of the page follows the fingers.
+                                val quick = remember(o, bmp) {
+                                    bmp?.let { croppedLook(it, o.x / w, o.y / h, (o.x + o.width) / w, (o.y + o.height) / h) }
+                                }
                                 ObjectFrame(
                                     key = o,
                                     l = o.x / w,
@@ -661,7 +665,8 @@ fun PagedScreen(vm: PagedViewModel, state: PagedUiState, reading: ReadingSetting
                                     r = (o.x + o.width) / w,
                                     b = (o.y + o.height) / h,
                                     rotation = o.rotation,
-                                    look = slides.pickedLook,
+                                    look = slides.pickedLook ?: quick,
+                                    cover = if (slides.pickedLook == null) paper else null,
                                     onBox = { cx, cy, bw, bh -> slides.setPickedBox((cx * w).toDouble(), (cy * h).toDouble(), (bw * w).toDouble(), (bh * h).toDouble()) },
                                     reflows = o.kind == org.mobileofficefree.engine.SlideObjectKind.TEXT,
                                     onDone = { dx, dy, scale, turn -> slides.placePicked((dx * w).toDouble(), (dy * h).toDouble(), scale.toDouble(), turn.toDouble()) },

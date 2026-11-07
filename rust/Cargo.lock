@@ -1961,6 +1961,7 @@ dependencies = [
  "deckcraft-pdf",
  "deckcraft-pptx",
  "deckcraft-render",
+ "deckcraft-text",
  "png",
  "roxmltree",
  "thiserror",

@@ -165,9 +165,16 @@ abstract class PagedViewModel(app: Application, private val kind: DocumentKind) 
      * After a small edit (typing): the new page sizes; every page is drawn again but keeps its old
      * picture until the new one is ready, so the screen does not flash. Call on the main thread.
      */
-    protected fun pagesEdited(pages: List<Pair<Float, Float>>) {
+    protected fun pagesEdited(pages: List<Pair<Float, Float>>, only: Int? = null) {
         val s = state ?: return
         state = s.copy(pages = pages, edits = s.edits + 1)
+        if (only != null && pages == s.pages) {
+            // One page changed (an object moved on a slide): only it is drawn again.
+            fresh.remove(only)
+            thumbCache.remove(only)
+            thumbs.remove(only)
+            return
+        }
         invalidate()
         clearThumbnails()
         shown.keys.filter { it >= pages.size }.forEach { shown.remove(it) }

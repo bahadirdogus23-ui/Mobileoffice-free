@@ -15,6 +15,8 @@ deckcraft-pptx = { workspace = true }
 deckcraft-render = { workspace = true }
 deckcraft-model = { workspace = true }
 deckcraft-pdf = { workspace = true }
+# Measures table rows as they are drawn (already in the tree through the renderer).
+deckcraft-text = { workspace = true }
 thiserror = { workspace = true }
 # OpenDocument presentations (.odp), which DeckCraft has no reader for (src/odp.rs).
 zip = { version = "3", default-features = false, features = ["deflate"] }

@@ -146,10 +146,11 @@ fn objects_can_be_moved_scaled_and_deleted() {
     let after = saved.objects(0).unwrap();
     assert_eq!(after.len(), 3);
     let t = after.iter().find(|o| o.id == table.id).unwrap();
-    // Moved by (−36, 18), then doubled about its centre.
-    let (cx, cy) = (table.x - 36.0 + table.w / 2.0, table.y + 18.0 + table.h / 2.0);
-    assert!((t.w - table.w * 2.0).abs() < 1.0 && (t.h - table.h * 2.0).abs() < 1.0, "{t:?}");
-    assert!((t.x + t.w / 2.0 - cx).abs() < 1.0 && (t.y + t.h / 2.0 - cy).abs() < 1.0, "{t:?}");
+    // Moved by (−36, 18), then doubled about its centre. The rows' own heights double (36 → 72
+    // pt each); the text, which kept its size, now fits them, so the table is drawn 144 pt tall.
+    let cx = table.x - 36.0 + table.w / 2.0;
+    assert!((t.w - table.w * 2.0).abs() < 1.0 && (t.h - 144.0).abs() < 1.0, "{t:?}");
+    assert!((t.x + t.w / 2.0 - cx).abs() < 1.0 && (t.y - (table.y + 18.0 - table.h / 2.0)).abs() < 1.0, "{t:?}");
     assert!(!saved.text_shapes(0).unwrap().iter().any(|s| s.text == "Başlık"));
     // The cells grew with the table.
     let a1 = saved.text_shapes(0).unwrap().into_iter().find(|s| s.cell == Some((0, 0))).unwrap();
@@ -234,12 +235,14 @@ fn objects_are_copied_arranged_and_restyled() {
     d.style_object(0, box_id, ObjectStyle::TextColor(0xC00000)).unwrap();
     d.style_object(0, box_id, ObjectStyle::Align(1)).unwrap();
     d.style_object(0, box_id, ObjectStyle::Fill(Some(0xFFFF00))).unwrap();
+    d.style_object(0, box_id, ObjectStyle::Font("Georgia".into())).unwrap();
     // A picture has no text to style.
     let saved = DeckDoc::open(&d.save("x.pptx").unwrap()).unwrap();
     assert!(saved.text_is_bold(0, box_id));
     let shape = saved.pres.slides[0].shapes.iter().find(|s| s.id.0 == box_id).unwrap();
     let run = &shape.text.as_ref().unwrap().paragraphs[0].runs[0].props;
     assert_eq!(run.size, Some(28.0));
+    assert_eq!(run.font.as_deref(), Some("Georgia"));
     assert!(matches!(shape.fill, Some(deckcraft_model::Fill::Solid { .. })));
     assert_eq!(shape.text.as_ref().unwrap().paragraphs[0].props.align, Some(deckcraft_model::text::Align::Center));
     // The copy is untouched.
@@ -418,4 +421,23 @@ fn old_powerpoint_files_open_with_their_words() {
     assert_eq!(d.notes(0).unwrap(), "Süreyi kontrol et");
     assert!(d.warnings().iter().any(|w| w.contains(".ppt")));
     assert!(d.render_slide(0, 0.5).is_ok());
+}
+
+#[test]
+fn a_narrowed_table_grows_down_only_as_far_as_its_text_needs() {
+    let mut d = DeckDoc::open(include_bytes!("../testdata/grouped-text.pptx")).unwrap();
+    let t = d.objects(0).unwrap().into_iter().find(|o| o.kind == ObjectKind::Table).unwrap();
+    d.set_cell_text(0, t.id, 0, 0, "Uzun bir hücre metni, dar sütunda birkaç satıra bölünür").unwrap();
+    let before = d.objects(0).unwrap().into_iter().find(|o| o.id == t.id).unwrap();
+    // Pulled narrower from a side, with the box as it is drawn.
+    let narrow = |d: &mut DeckDoc, o: &SlideObject| d.set_object_box(0, o.id, o.x as f64, o.y as f64, o.w as f64 * 0.5, o.h as f64).unwrap();
+    narrow(&mut d, &before);
+    let after = d.objects(0).unwrap().into_iter().find(|o| o.id == t.id).unwrap();
+    assert!((after.w - before.w * 0.5).abs() < 0.5, "{after:?}");
+    // The frame is as tall as the table is drawn: the wrapped text made it taller.
+    assert!(after.h >= before.h, "{after:?} vs {before:?}");
+    // Asking again with the same width does not make it grow further.
+    d.set_object_box(0, after.id, after.x as f64, after.y as f64, after.w as f64, after.h as f64).unwrap();
+    let again = d.objects(0).unwrap().into_iter().find(|o| o.id == t.id).unwrap();
+    assert!((again.h - after.h).abs() < 0.5, "{again:?} vs {after:?}");
 }

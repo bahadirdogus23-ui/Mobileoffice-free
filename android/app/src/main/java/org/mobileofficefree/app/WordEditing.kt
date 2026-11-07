@@ -255,7 +255,7 @@ fun WordEditBar(vm: WordViewModel, onSave: () -> Unit) {
                 Box {
                     Tool(f.font?.take(10) ?: "Aa", R.string.tool_font, glyphSize = 15) { fontMenu = true }
                     DropdownMenu(expanded = fontMenu, onDismissRequest = { fontMenu = false }) {
-                        for (name in FONTS) {
+                        for (name in DOCUMENT_FONTS) {
                             DropdownMenuItem(text = { Text(name) }, onClick = {
                                 fontMenu = false
                                 vm.setFont(name)
@@ -495,7 +495,7 @@ private val STYLES = listOf(
 )
 
 /** Fonts offered: the bundled ones, and the common Office names (drawn with a matching bundled one). */
-private val FONTS = listOf("Calibri", "Arial", "Times New Roman", "Source Sans 3", "Source Serif 4", "Inter", "JetBrains Mono")
+internal val DOCUMENT_FONTS = listOf("Calibri", "Arial", "Times New Roman", "Source Sans 3", "Source Serif 4", "Inter", "JetBrains Mono")
 private val SIZES = listOf(8, 9, 10, 11, 12, 14, 16, 18, 20, 22, 24, 26, 28, 32, 36, 40, 48, 54, 60, 72)
 
 /** The caret and the selection drawn over page [page], which is [pageWidth] points wide. */

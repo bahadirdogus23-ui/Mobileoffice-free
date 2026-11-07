@@ -38,10 +38,22 @@ fun SlideObjectBar(vm: SlidesViewModel) {
     var fillMenu by remember { mutableStateOf(false) }
     var alignMenu by remember { mutableStateOf(false) }
     var arrangeMenu by remember { mutableStateOf(false) }
+    var fontMenu by remember { mutableStateOf(false) }
     Row(Modifier.horizontalScroll(rememberScrollState())) {
         TextButton(onClick = vm::undo, enabled = vm.canUndo) { Text("↶") }
         if (vm.pickedHasText) TextButton(onClick = vm::editPickedText) { Text(stringResource(R.string.slide_edit_text)) }
         if (text) {
+            Box {
+                TextButton(onClick = { fontMenu = true }) { Text("Aa " + stringResource(R.string.tool_font)) }
+                DropdownMenu(expanded = fontMenu, onDismissRequest = { fontMenu = false }) {
+                    for (name in DOCUMENT_FONTS) {
+                        DropdownMenuItem(text = { Text(name) }, onClick = {
+                            fontMenu = false
+                            vm.stylePicked(SlideStyle.Font(name))
+                        })
+                    }
+                }
+            }
             TextButton(onClick = { vm.stylePicked(SlideStyle.TextSize(-2.0)) }) { Text("A−") }
             TextButton(onClick = { vm.stylePicked(SlideStyle.TextSize(2.0)) }) { Text("A+") }
             TextButton(onClick = { vm.stylePicked(SlideStyle.Bold(!vm.pickedBold)) }) {
