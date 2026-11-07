@@ -31,6 +31,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -210,15 +211,19 @@ fun HomeScreen(onOpen: (Uri) -> Unit, onNewSheet: () -> Unit, onDiagnostics: () 
     // "New": a blank Word document or presentation written where the person chooses, then opened.
     var newMenu by remember { mutableStateOf(false) }
     var newKind by remember { mutableStateOf("docx") }
+    // A template chosen under New → From a template (null: a blank file).
+    var newTemplate by remember { mutableStateOf<String?>(null) }
+    var templatePicker by remember { mutableStateOf(false) }
     val newScope = rememberCoroutineScope()
     val resources = androidx.compose.ui.platform.LocalResources.current
     val newFile = rememberLauncherForActivityResult(CreateFile()) { dest ->
         if (dest == null) return@rememberLauncherForActivityResult
         val ext = newKind
+        val template = newTemplate
         newScope.launch {
             val ok = withContext(kotlinx.coroutines.Dispatchers.IO) {
                 runCatching {
-                    val bytes = org.mobileofficefree.engine.blankDocument(ext)
+                    val bytes = if (template != null) org.mobileofficefree.engine.templateDocument(template) else org.mobileofficefree.engine.blankDocument(ext)
                     context.contentResolver.openOutputStream(dest, "wt")?.use { it.write(bytes) } ?: error("cannot write")
                 }
             }
@@ -278,6 +283,15 @@ fun HomeScreen(onOpen: (Uri) -> Unit, onNewSheet: () -> Unit, onDiagnostics: () 
             (needle.isEmpty() || needle in it.name.searchFold())
     }.sortedBy(sort)
 
+    if (templatePicker) {
+        TemplatePicker(onDismiss = { templatePicker = false }) { t ->
+            templatePicker = false
+            newKind = t.ext
+            newTemplate = t.id
+            val mime = if (t.ext == "xlsx") "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" else "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+            newFile.launch(CreateFile.Request("${t.fileName}.${t.ext}", mime))
+        }
+    }
     Scaffold(
         floatingActionButton = {
             Box {
@@ -286,6 +300,7 @@ fun HomeScreen(onOpen: (Uri) -> Unit, onNewSheet: () -> Unit, onDiagnostics: () 
                     DropdownMenuItem(text = { Text("📝  " + stringResource(R.string.new_word)) }, onClick = {
                         newMenu = false
                         newKind = "docx"
+                        newTemplate = null
                         newFile.launch(CreateFile.Request(resources.getString(R.string.new_word_name), "application/vnd.openxmlformats-officedocument.wordprocessingml.document"))
                     })
                     DropdownMenuItem(text = { Text("📊  " + stringResource(R.string.new_spreadsheet)) }, onClick = {
@@ -295,7 +310,12 @@ fun HomeScreen(onOpen: (Uri) -> Unit, onNewSheet: () -> Unit, onDiagnostics: () 
                     DropdownMenuItem(text = { Text("📽  " + stringResource(R.string.new_slides)) }, onClick = {
                         newMenu = false
                         newKind = "pptx"
+                        newTemplate = null
                         newFile.launch(CreateFile.Request(resources.getString(R.string.new_slides_name), "application/vnd.openxmlformats-officedocument.presentationml.presentation"))
+                    })
+                    DropdownMenuItem(text = { Text("📋  " + stringResource(R.string.new_from_template)) }, onClick = {
+                        newMenu = false
+                        templatePicker = true
                     })
                 }
             }
@@ -592,6 +612,34 @@ private fun SearchPill(query: String, onChange: (String) -> Unit, modifier: Modi
             Text("✕", color = colors.onSurfaceVariant, modifier = Modifier.clip(CircleShape).clickable { onChange("") }.padding(4.dp))
         }
     }
+}
+
+/** The Turkish starting documents (petition, CV, budget…) to make a new file from. */
+@Composable
+private fun TemplatePicker(onDismiss: () -> Unit, onPick: (org.mobileofficefree.engine.DocTemplate) -> Unit) {
+    val templates = remember { runCatching { org.mobileofficefree.engine.documentTemplates() }.getOrDefault(emptyList()) }
+    val turkish = androidx.compose.ui.platform.LocalConfiguration.current.locales[0].language == "tr"
+    androidx.compose.material3.AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(stringResource(R.string.new_from_template)) },
+        text = {
+            Column(Modifier.verticalScroll(rememberScrollState())) {
+                for (t in templates) {
+                    Row(
+                        Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).clickable { onPick(t) }.padding(vertical = 12.dp, horizontal = 8.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        val kind = if (t.ext == "xlsx") DocumentKind.SHEET else DocumentKind.WORD
+                        KindBadge(kind.badge(), kind.color(), small = true)
+                        Spacer(Modifier.width(12.dp))
+                        Text(if (turkish) t.titleTr else t.titleEn, style = MaterialTheme.typography.bodyLarge)
+                    }
+                }
+            }
+        },
+        confirmButton = {},
+        dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.cancel)) } },
+    )
 }
 
 /** A lively action tile: a glyph on a coloured circle over its name. */

@@ -15,6 +15,8 @@ use mo_word::{WordDoc, WordError};
 
 uniffi::setup_scaffolding!();
 
+mod templates;
+
 #[derive(Debug, thiserror::Error, uniffi::Error)]
 #[uniffi(flat_error)]
 pub enum MoError {

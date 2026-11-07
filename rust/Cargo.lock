@@ -1977,8 +1977,10 @@ dependencies = [
  "mo-grid",
  "mo-pdf",
  "mo-word",
+ "serde_json",
  "thiserror",
  "uniffi",
+ "zip",
 ]
 
 [[package]]

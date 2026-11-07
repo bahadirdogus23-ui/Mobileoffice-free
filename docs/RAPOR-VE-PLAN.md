@@ -833,7 +833,7 @@ Geliştirme planın sırasından hızlı ilerledi; Faz 3 ve 4'ün bazı işleri 
 | 0 | Büyük ölçüde tamam | Düşük/orta segment telefonda ölçüm, PDF motoru hız karşılaştırması, Türkçe IME testi (üçü cihazda); lisans kararı |
 | 1 | Tamam | 40+ uzantının listesi ve korpus testi; Play dahili test kanalı (hesap kararı bekliyor) |
 | 2 | Büyük ölçüde tamam | Türkçe OCR; RAR (açık kaynak okuyucu yok; 7z tamam); Play kapalı testi |
-| 3 | Sürüyor | Şablonlar; kayıpsız kaydetmenin korpusla sistemli testi (otomatik kurtarma eklendi) |
+| 3 | Sürüyor | Kayıpsız kaydetmenin korpusla sistemli testi (otomatik kurtarma ve 8 Türkçe şablon eklendi: dilekçe, özgeçmiş, resmî yazı, tutanak, ders planı, bütçe, proforma, teklif) |
 | 4 | Kısmen | EPUB, EML/MSG, VCF/ICS, tablet düzeni, tam metin arama (XLS biçimleri tamam; ODP içe aktarma tamam, PPT yalnız metinleriyle) |
 | 5 | Başlamadı | Performans, erişilebilirlik denetimi, mağaza materyalleri, F-Droid |
 
