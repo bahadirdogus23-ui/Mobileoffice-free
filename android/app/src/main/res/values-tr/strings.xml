@@ -582,4 +582,5 @@
     <string name="cf_clear">Kuralları temizle</string>
     <string name="cf_value">Değer</string>
     <string name="cf_icons">Simge seti (oklar)</string>
+    <string name="sheet_note">Not</string>
 </resources>

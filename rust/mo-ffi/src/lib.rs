@@ -274,6 +274,11 @@ impl SheetDocument {
         self.doc().is_dirty()
     }
 
+    /// The notes and comments of `sheet` (a thread's replies after it, one per line).
+    pub fn notes(&self, sheet: u32) -> Result<Vec<SheetNote>, MoError> {
+        Ok(self.doc().notes(sheet)?.into_iter().map(|n| SheetNote { row: n.row, col: n.col, author: n.author, text: n.text }).collect())
+    }
+
     /// Cells of every sheet whose shown text contains `query` (Turkish case folding).
     pub fn find_cells(&self, query: String) -> Result<Vec<SheetCellHit>, MoError> {
         Ok(self.doc().find_cells(&query)?.into_iter().map(|h| SheetCellHit { sheet: h.sheet, row: h.row, col: h.col }).collect())
@@ -508,6 +513,15 @@ impl SlidesDocument {
     fn doc(&self) -> MutexGuard<'_, DeckDoc> {
         self.doc.lock().unwrap_or_else(std::sync::PoisonError::into_inner)
     }
+}
+
+/// A note or comment on a cell.
+#[derive(uniffi::Record)]
+pub struct SheetNote {
+    pub row: u32,
+    pub col: u32,
+    pub author: String,
+    pub text: String,
 }
 
 /// A cell [`SheetDocument::find_cells`] found.

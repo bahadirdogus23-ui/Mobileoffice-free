@@ -583,4 +583,5 @@
     <string name="cf_clear">Clear rules</string>
     <string name="cf_value">Value</string>
     <string name="cf_icons">Icon set (arrows)</string>
+    <string name="sheet_note">Note</string>
 </resources>

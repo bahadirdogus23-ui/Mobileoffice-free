@@ -1,5 +1,6 @@
 package org.mobileofficefree.app
 
+import androidx.compose.material3.Surface
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.sp
 import androidx.compose.runtime.mutableIntStateOf
@@ -168,6 +169,19 @@ internal fun SheetScreen(vm: SheetViewModel, state: SheetUiState) {
             onAllFormulas = { showFormulas = true },
             onCommit = vm::commitCell,
         )
+        // The selected cell's note, as Excel shows it on hover.
+        state.notes.firstOrNull { it.row.toInt() == state.selectedRow && it.col.toInt() == state.selectedCol }?.let { note ->
+            Surface(color = Color(0xFFFFF8C4), modifier = Modifier.fillMaxWidth()) {
+                Text(
+                    (if (note.author.isNotBlank()) note.author + ": " else "") + note.text,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = Color(0xFF3E3A1A),
+                    maxLines = 4,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
+                )
+            }
+        }
         if (finding) {
             FindBar(vm, onClose = {
                 finding = false
@@ -193,6 +207,7 @@ internal fun SheetScreen(vm: SheetViewModel, state: SheetUiState) {
             frozenCols = state.frozenCols,
             merges = state.merges,
             reveal = vm.reveal,
+            noteCells = remember(state.notes) { state.notes.map { it.row.toLong() * 16384 + it.col.toLong() }.toSet() },
             onResize = vm::resizeLine,
             onSelect = { row, col ->
                 if ((formulaFocused || cellEditing) && pointing(formula)) {
@@ -485,6 +500,26 @@ private fun SheetToolBar(vm: SheetViewModel, look: CellLook?) {
                     }) { Text(stringResource(R.string.paste)) }
                     TextButton(onClick = vm::clearSelection) { Text(stringResource(R.string.sheet_clear)) }
                     TextButton(onClick = vm::fillDown) { Text(stringResource(R.string.sheet_fill_down)) }
+                    Box {
+                        var noteDialog by remember { mutableStateOf(false) }
+                        TextButton(onClick = { noteDialog = true }) { Text("🗒 " + stringResource(R.string.sheet_note)) }
+                        if (noteDialog) {
+                            val existing = vm.sheetState?.let { st -> st.notes.firstOrNull { it.row.toInt() == st.selectedRow && it.col.toInt() == st.selectedCol }?.text }.orEmpty()
+                            var text by remember { mutableStateOf(existing) }
+                            AlertDialog(
+                                onDismissRequest = { noteDialog = false },
+                                title = { Text(stringResource(R.string.sheet_note)) },
+                                text = { OutlinedTextField(value = text, onValueChange = { text = it }, minLines = 3, modifier = Modifier.fillMaxWidth()) },
+                                confirmButton = {
+                                    TextButton(onClick = {
+                                        noteDialog = false
+                                        vm.setNote(text)
+                                    }) { Text(stringResource(if (text.isBlank() && existing.isNotEmpty()) R.string.delete else R.string.apply)) }
+                                },
+                                dismissButton = { TextButton(onClick = { noteDialog = false }) { Text(stringResource(R.string.cancel)) } },
+                            )
+                        }
+                    }
                 }
                 2 -> {
                     Box {

@@ -394,3 +394,20 @@ fn icon_sets_show_on_the_grid() {
     assert!(l.iter().all(|c| c.icon_kind == 1 && c.icon_count == 3), "{l:?}");
     assert_eq!((l[0].icon_index, l[2].icon_index), (0, 2));
 }
+
+#[test]
+fn notes_are_listed_added_and_removed() {
+    let mut doc = GridDoc::blank();
+    assert!(doc.notes(0).unwrap().is_empty());
+    doc.execute("review.newNote", r#"{"cell": "B2", "text": "Kontrol edilecek: Şubat", "author": "Bahadır"}"#).unwrap();
+    let notes = doc.notes(0).unwrap();
+    assert_eq!(notes.len(), 1);
+    assert_eq!((notes[0].row, notes[0].col), (1, 1));
+    assert!(notes[0].text.contains("Şubat"), "{notes:?}");
+    doc.execute("review.deleteComment", r#"{"cell": "B2"}"#).unwrap();
+    assert!(doc.notes(0).unwrap().is_empty());
+    // Kept in the file.
+    doc.execute("review.newNote", r#"{"cell": "A1", "text": "Kalıcı not"}"#).unwrap();
+    let again = GridDoc::open("x.xlsx", &doc.save("x.xlsx").unwrap(), None).unwrap();
+    assert!(again.notes(0).unwrap().iter().any(|n| n.text.contains("Kalıcı not")));
+}

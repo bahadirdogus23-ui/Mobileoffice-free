@@ -67,6 +67,8 @@ data class SheetUiState(
     val frozenCols: Int = 0,
     /** Merged ranges: [first row, first column, last row, last column]. */
     val merges: List<IntArray> = emptyList(),
+    /** Notes and comments on this sheet's cells. */
+    val notes: List<org.mobileofficefree.engine.SheetNote> = emptyList(),
 )
 
 sealed interface Screen {
@@ -335,6 +337,20 @@ class SheetViewModel(app: Application) : AndroidViewModel(app) {
     fun clearConditionalFormats() {
         val current = (screen as? Screen.Sheet)?.state ?: return
         edit { d -> d.execute("home.clearRules", JSONObject().put("range", formatRange(current)).toString()) }
+    }
+
+    /** The sheet as shown now, when one is. */
+    val sheetState: SheetUiState? get() = (screen as? Screen.Sheet)?.state
+
+    /** Gives the selected cell the note [text] (replacing one it has); an empty text removes it. */
+    fun setNote(text: String) {
+        val current = (screen as? Screen.Sheet)?.state ?: return
+        val at = cellName(current.selectedRow, current.selectedCol)
+        val had = current.notes.any { it.row.toInt() == current.selectedRow && it.col.toInt() == current.selectedCol }
+        edit { d ->
+            if (had) d.execute("review.deleteComment", JSONObject().put("cell", at).toString())
+            if (text.isNotBlank()) d.execute("review.newNote", JSONObject().put("cell", at).put("text", text.trim()).toString())
+        }
     }
 
     /** Empties the selected cells (their formats stay). */
@@ -781,6 +797,7 @@ class SheetViewModel(app: Application) : AndroidViewModel(app) {
             frozenRows = sizes.frozenRows.toInt(),
             frozenCols = sizes.frozenCols.toInt(),
             merges = d.merges(sheet.toUInt()).map { it.toInt() }.chunked(4).map { it.toIntArray() },
+            notes = runCatching { d.notes(sheet.toUInt()) }.getOrDefault(emptyList()),
         )
     }
 

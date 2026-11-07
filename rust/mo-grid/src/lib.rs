@@ -28,6 +28,15 @@ pub enum GridError {
 }
 
 /// One open workbook in its own engine session.
+/// A note or comment on a cell.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct CellNote {
+    pub row: u32,
+    pub col: u32,
+    pub author: String,
+    pub text: String,
+}
+
 /// A cell found by [`GridDoc::find_cells`].
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct CellHit {
@@ -488,6 +497,28 @@ impl GridDoc {
             self.execute("data.filter", "{}")?;
         }
         Ok(())
+    }
+
+    /// The notes and comments of `sheet`, row by row: where they are, who wrote them and their
+    /// text (a thread's replies after it, each on its own line).
+    pub fn notes(&self, sheet: u32) -> Result<Vec<CellNote>, GridError> {
+        let sh = self.wb().sheets.get(sheet as usize).ok_or(GridError::NoSheet(sheet))?;
+        Ok(sh
+            .comments
+            .iter()
+            .map(|(at, c)| {
+                let mut text = c.text.clone();
+                for (who, reply) in &c.replies {
+                    text.push('\n');
+                    if !who.is_empty() {
+                        text.push_str(who);
+                        text.push_str(": ");
+                    }
+                    text.push_str(reply);
+                }
+                CellNote { row: at.row, col: at.col, author: c.author.clone(), text }
+            })
+            .collect())
     }
 
     /// Whether the active sheet has a filter on.

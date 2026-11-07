@@ -87,6 +87,8 @@ fun SheetGrid(
     cellEditor: (@Composable (Modifier) -> Unit)? = null,
     /** Grows when the selected cell must be scrolled into view (a search result). */
     reveal: Int = 0,
+    /** Cells with a note or comment, as row × 16384 + column: marked with Excel's red corner. */
+    noteCells: Set<Long> = emptySet(),
     /** A column ([col] ≥ 0) or row dragged to a new size (the axes' unit) from its header's edge. */
     onResize: (col: Int, row: Int, points: Float) -> Unit = { _, _, _ -> },
 ) {
@@ -350,6 +352,15 @@ fun SheetGrid(
                         }
                         // A conditional format's icon at the cell's left, as Excel draws icon sets.
                         if (look.iconKind.toInt() != 0) drawCfIcon(look, Offset(xOf(c), y), rh)
+                    }
+                    // Excel's red corner on cells that have a note.
+                    if (noteCells.isNotEmpty()) for (c in colList) {
+                        if (r.toLong() * 16384 + c !in noteCells) continue
+                        val cw = columnAxis.size(c) * k
+                        val t = minOf(7.dp.toPx(), cw / 3, rh / 2)
+                        val x1 = xOf(c) + cw
+                        val tri = androidx.compose.ui.graphics.Path().apply { moveTo(x1 - t, y); lineTo(x1, y); lineTo(x1, y + t); close() }
+                        drawPath(tri, Color(0xFFD32F2F))
                     }
                 }
                 for (c in colList) {
