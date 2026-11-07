@@ -112,7 +112,17 @@ fun ImageScreen(vm: ImageViewModel, state: ImageUiState) {
                     },
             )
         }
+        var ocr by remember { mutableStateOf(false) }
+        if (ocr) {
+            val turns = quarterTurns
+            OcrDialog(state.fileName, source = {
+                // Read as it is shown: turned the way the person turned it.
+                if (turns == 0) state.bitmap
+                else android.graphics.Bitmap.createBitmap(state.bitmap, 0, 0, state.bitmap.width, state.bitmap.height, android.graphics.Matrix().apply { postRotate(90f * turns) }, true)
+            }, onDone = { ocr = false })
+        }
         SoftToolbar {
+            ToolItem("🔍", stringResource(R.string.ocr)) { ocr = true }
             ToolItem("⟳", stringResource(R.string.rotate)) {
                 quarterTurns = (quarterTurns + 1) % 4
                 scale = 1f

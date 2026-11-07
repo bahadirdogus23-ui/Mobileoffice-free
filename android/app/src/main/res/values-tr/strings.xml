@@ -632,4 +632,10 @@
     <string name="dropdown_hint">Seçenekler, virgülle ayrılmış (örneğin: Evet, Hayır, Belki). Seçili hücrelere dokununca bunlar sunulur.</string>
     <string name="dropdown_remove">Açılır listeyi kaldır</string>
     <string name="remove_duplicates">Yinelenenleri kaldır</string>
+    <string name="ocr">Metni tanı</string>
+    <string name="ocr_title">Tanınan metin</string>
+    <string name="ocr_working">Metin telefonda okunuyor…</string>
+    <string name="ocr_none">Metin bulunamadı. Daha net ve düz bir fotoğraf yardımcı olur.</string>
+    <string name="ocr_save">TXT olarak kaydet</string>
+    <string name="ocr_note">Telefonda tanındı (Türkçe); ad ve sayıları kontrol edin.</string>
 </resources>

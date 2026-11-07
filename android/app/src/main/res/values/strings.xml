@@ -633,4 +633,10 @@
     <string name="dropdown_hint">The choices, separated by commas (for example: Evet, Hayır, Belki). The selected cells offer them when tapped.</string>
     <string name="dropdown_remove">Remove drop-down list</string>
     <string name="remove_duplicates">Remove duplicates</string>
+    <string name="ocr">Recognise text</string>
+    <string name="ocr_title">Recognised text</string>
+    <string name="ocr_working">Reading the text on the phone…</string>
+    <string name="ocr_none">No text was found. A sharper, straighter photo helps.</string>
+    <string name="ocr_save">Save as TXT</string>
+    <string name="ocr_note">Recognised on the phone (Turkish); check names and numbers.</string>
 </resources>

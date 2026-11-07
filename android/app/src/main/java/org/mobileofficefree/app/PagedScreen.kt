@@ -141,6 +141,8 @@ fun PagedScreen(vm: PagedViewModel, state: PagedUiState, reading: ReadingSetting
     val list = rememberLazyListState()
     val hScroll = rememberScrollState()
     val current by remember { derivedStateOf { list.firstVisibleItemIndex + 1 } }
+    // The page whose text is being recognised (OCR), if any.
+    var ocrPage by remember { mutableStateOf<Int?>(null) }
     var zoom by remember(state.uri) { mutableFloatStateOf(1f) }
     // The zoom a gesture has added so far; it is folded into [zoom] when the fingers lift.
     var pinch by remember { mutableFloatStateOf(1f) }
@@ -781,6 +783,7 @@ fun PagedScreen(vm: PagedViewModel, state: PagedUiState, reading: ReadingSetting
                     ToolItem("▬", stringResource(R.string.redact), enabled = !pdf.busy && !pdf.restricted, onClick = { showRedact = true })
                     ToolItem("⇲", stringResource(R.string.compress), enabled = !pdf.busy, onClick = { showCompress = true })
                     ToolItem("☑", stringResource(R.string.form_fill), enabled = !pdf.busy, onClick = pdf::loadForm)
+                    ToolItem("🔍", stringResource(R.string.ocr), enabled = !pdf.busy, onClick = { ocrPage = current - 1 })
                 }
                 if (vm.exportFormats.isNotEmpty()) {
                     ToolItem("⇄", stringResource(R.string.convert), onClick = { showConvert = true })
@@ -795,6 +798,11 @@ fun PagedScreen(vm: PagedViewModel, state: PagedUiState, reading: ReadingSetting
                 }
             }
         }
+    }
+
+    ocrPage?.let { page ->
+        // The page drawn at about 300 dpi for an A4 page, the size Tesseract reads best.
+        OcrDialog("${state.fileName.substringBeforeLast('.')}-s${page + 1}", source = { vm.renderForPrint(page, 2480) }, onDone = { ocrPage = null })
     }
 
     pdf?.formFields?.takeIf { fields -> fields.any { it.kind != FormFieldKind.OTHER } }?.let { fields ->
