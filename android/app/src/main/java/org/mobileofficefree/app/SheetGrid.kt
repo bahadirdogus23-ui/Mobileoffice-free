@@ -88,7 +88,7 @@ fun SheetGrid(
     cellEditor: (@Composable (Modifier) -> Unit)? = null,
     /** Grows when the selected cell must be scrolled into view (a search result). */
     reveal: Int = 0,
-    /** The sheet's charts, each with its picture once drawn (null while it is being drawn). */
+    /** The sheet's pictures and charts, each with its bitmap once ready (null while it is being made). */
     charts: List<Pair<org.mobileofficefree.engine.SheetChartBox, android.graphics.Bitmap?>> = emptyList(),
     /** Cells with a note or comment, as row × 16384 + column: marked with Excel's red corner. */
     noteCells: Set<Long> = emptySet(),
@@ -455,7 +455,7 @@ fun SheetGrid(
         if (fr > 0) drawLine(colors.outline, Offset(rowHeader, bodyTop), Offset(size.width, bodyTop), 2.dp.toPx())
         if (fc > 0) drawLine(colors.outline, Offset(bodyLeft, colHeader), Offset(bodyLeft, size.height), 2.dp.toPx())
 
-        // Charts, floating over the cells at their anchors, as Excel places them.
+        // Pictures and charts, floating over the cells at their anchors, as Excel places them.
         if (charts.isNotEmpty()) clipRect(rowHeader, colHeader, size.width, size.height) {
             for ((box, pic) in charts) {
                 val x = xOf(box.col.toInt()) + box.dx * k

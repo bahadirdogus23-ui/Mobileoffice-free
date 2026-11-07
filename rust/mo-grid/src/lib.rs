@@ -594,6 +594,31 @@ impl GridDoc {
             .collect())
     }
 
+    /// The pictures on `sheet`: where each is, like [`GridDoc::charts`] (`index` counts pictures).
+    pub fn pictures(&self, sheet: u32) -> Result<Vec<ChartBox>, GridError> {
+        let sh = self.wb().sheets.get(sheet as usize).ok_or(GridError::NoSheet(sheet))?;
+        Ok(sh
+            .images
+            .iter()
+            .enumerate()
+            .map(|(i, im)| ChartBox {
+                index: i as u32,
+                row: im.anchor.cell.row,
+                col: im.anchor.cell.col,
+                dx: im.anchor.dx,
+                dy: im.anchor.dy,
+                width: im.anchor.width,
+                height: im.anchor.height,
+            })
+            .collect())
+    }
+
+    /// Picture `index` of `sheet` as its file's bytes (PNG or JPEG).
+    pub fn picture_bytes(&self, sheet: u32, index: u32) -> Result<Vec<u8>, GridError> {
+        let sh = self.wb().sheets.get(sheet as usize).ok_or(GridError::NoSheet(sheet))?;
+        sh.images.get(index as usize).map(|im| im.data.as_ref().clone()).ok_or_else(|| GridError::Command("no such picture".into()))
+    }
+
     /// Chart `index` of `sheet` drawn `scale` times its size on white: its shapes as straight
     /// RGBA pixels, and its words (titles, labels, legend) to be written over them.
     pub fn render_chart(&self, sheet: u32, index: u32, scale: f32) -> Result<ChartPicture, GridError> {

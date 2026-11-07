@@ -284,6 +284,21 @@ impl SheetDocument {
             .collect())
     }
 
+    /// Where the pictures on `sheet` sit (as for charts; `index` counts pictures).
+    pub fn pictures(&self, sheet: u32) -> Result<Vec<SheetChartBox>, MoError> {
+        Ok(self
+            .doc()
+            .pictures(sheet)?
+            .into_iter()
+            .map(|c| SheetChartBox { index: c.index, row: c.row, col: c.col, dx: c.dx, dy: c.dy, width: c.width, height: c.height })
+            .collect())
+    }
+
+    /// Picture `index` of `sheet` as its file's bytes (PNG or JPEG).
+    pub fn picture_bytes(&self, sheet: u32, index: u32) -> Result<Vec<u8>, MoError> {
+        Ok(self.doc().picture_bytes(sheet, index)?)
+    }
+
     /// Chart `index` of `sheet` drawn `scale` times its size: opaque RGBA pixels and its words.
     pub fn render_chart(&self, sheet: u32, index: u32, scale: f32) -> Result<SheetChartPicture, MoError> {
         let p = self.doc().render_chart(sheet, index, scale)?;

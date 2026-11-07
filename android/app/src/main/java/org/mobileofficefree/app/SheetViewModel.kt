@@ -69,6 +69,8 @@ data class SheetUiState(
     val merges: List<IntArray> = emptyList(),
     /** The selected cell's drop-down choices (Data Validation › List), if it has them. */
     val choices: List<String> = emptyList(),
+    /** Where this sheet's pictures sit. */
+    val pictures: List<org.mobileofficefree.engine.SheetChartBox> = emptyList(),
     /** Where this sheet's charts sit. */
     val charts: List<org.mobileofficefree.engine.SheetChartBox> = emptyList(),
     /** Notes and comments on this sheet's cells. */
@@ -215,6 +217,7 @@ class SheetViewModel(app: Application) : AndroidViewModel(app) {
         doc = null
         blocks.clear()
         forgetCharts()
+        forgetPictures()
         looks.clear()
         blockAt.clear()
         screen = Screen.Home
@@ -231,6 +234,7 @@ class SheetViewModel(app: Application) : AndroidViewModel(app) {
             } ?: return@launch
             blocks.clear()
             forgetCharts()
+            forgetPictures()
             looks.clear()
             blockAt.clear()
             pending.clear()
@@ -361,6 +365,38 @@ class SheetViewModel(app: Application) : AndroidViewModel(app) {
             if (bmp != null) chartPictures[key] = bmp
         }
         return null
+    }
+
+    /** Pictures decoded so far, by (sheet, picture index). */
+    private val sheetPictures = mutableStateMapOf<Pair<Int, Int>, android.graphics.Bitmap>()
+    private val picturesAsked = mutableSetOf<Pair<Int, Int>>()
+
+    /** Picture [index] of [sheet] decoded (at most 2048 pixels on its long side), or null while it is. */
+    fun sheetPicture(sheet: Int, index: Int): android.graphics.Bitmap? {
+        val key = sheet to index
+        sheetPictures[key]?.let { return it }
+        if (!picturesAsked.add(key)) return null
+        val d = doc ?: return null
+        viewModelScope.launch {
+            val bmp = withContext(engine) {
+                runCatching {
+                    val bytes = d.pictureBytes(sheet.toUInt(), index.toUInt())
+                    val bounds = android.graphics.BitmapFactory.Options().apply { inJustDecodeBounds = true }
+                    android.graphics.BitmapFactory.decodeByteArray(bytes, 0, bytes.size, bounds)
+                    var sample = 1
+                    while (maxOf(bounds.outWidth, bounds.outHeight) / (sample * 2) >= 2048) sample *= 2
+                    android.graphics.BitmapFactory.decodeByteArray(bytes, 0, bytes.size, android.graphics.BitmapFactory.Options().apply { inSampleSize = sample })
+                }.getOrNull()
+            }
+            if (bmp != null) sheetPictures[key] = bmp
+        }
+        return null
+    }
+
+    /** Pictures to be decoded again (another document, or sheets added or removed). */
+    private fun forgetPictures() {
+        sheetPictures.clear()
+        picturesAsked.clear()
     }
 
     /** Charts to be drawn again (after an edit, the data under them may differ). */
@@ -494,6 +530,7 @@ class SheetViewModel(app: Application) : AndroidViewModel(app) {
             } ?: return@launch
             blocks.clear()
             forgetCharts()
+            forgetPictures()
             looks.clear()
             blockAt.clear()
             pending.clear()
@@ -597,6 +634,7 @@ class SheetViewModel(app: Application) : AndroidViewModel(app) {
                     unsaved = true
                     blocks.clear()
                     forgetCharts()
+                    forgetPictures()
                     looks.clear()
                     blockAt.clear()
                     pending.clear()
@@ -805,6 +843,7 @@ class SheetViewModel(app: Application) : AndroidViewModel(app) {
         hasFilter = next.hasFilter()
         blocks.clear()
         forgetCharts()
+        forgetPictures()
         looks.clear()
         blockAt.clear()
         pending.clear()
@@ -833,6 +872,7 @@ class SheetViewModel(app: Application) : AndroidViewModel(app) {
             merges = d.merges(sheet.toUInt()).map { it.toInt() }.chunked(4).map { it.toIntArray() },
             notes = runCatching { d.notes(sheet.toUInt()) }.getOrDefault(emptyList()),
             charts = runCatching { d.charts(sheet.toUInt()) }.getOrDefault(emptyList()),
+            pictures = runCatching { d.pictures(sheet.toUInt()) }.getOrDefault(emptyList()),
             choices = runCatching { d.listChoices(row.toUInt(), col.toUInt()) }.getOrDefault(emptyList()),
         )
     }

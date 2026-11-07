@@ -447,3 +447,20 @@ fn charts_are_placed_and_drawn_with_their_words() {
     assert!(pic.texts.iter().any(|t| t.text == "Aylık satış"), "{:?}", pic.texts.iter().map(|t| &t.text).collect::<Vec<_>>());
     assert!(pic.texts.iter().any(|t| t.text == "Şubat"));
 }
+
+#[test]
+fn pictures_are_listed_with_their_bytes() {
+    let mut doc = GridDoc::blank();
+    // A 1×1 PNG.
+    let png = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAIAAACQd1PeAAAADElEQVR4nGP4z8AAAAMBAQDJ/pLvAAAAAElFTkSuQmCC";
+    doc.execute("insert.picture", &serde_json::json!({ "base64": png, "mime": "image/png", "at": "C3", "width": 120, "height": 80 }).to_string())
+        .unwrap();
+    let pics = doc.pictures(0).unwrap();
+    assert_eq!(pics.len(), 1);
+    assert_eq!((pics[0].row, pics[0].col), (2, 2));
+    assert!((pics[0].width - 120.0).abs() < 1.0, "{pics:?}");
+    assert!(doc.picture_bytes(0, 0).unwrap().starts_with(&[0x89, b'P', b'N', b'G']));
+    // Kept in the file.
+    let again = GridDoc::open("x.xlsx", &doc.save("x.xlsx").unwrap(), None).unwrap();
+    assert_eq!(again.pictures(0).unwrap().len(), 1);
+}
