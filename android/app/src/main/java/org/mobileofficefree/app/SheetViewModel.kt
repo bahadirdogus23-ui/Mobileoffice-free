@@ -337,6 +337,22 @@ class SheetViewModel(app: Application) : AndroidViewModel(app) {
         edit { d -> d.execute("formulas.autoSum", JSONObject().put("function", function).put("range", at).toString()) }
     }
 
+    /**
+     * A chart of [type] (column, bar, line, pie, area) made from the selected cells (or, with
+     * one cell selected, the table around it), placed to the right of them.
+     */
+    fun insertChart(type: String) {
+        val current = (screen as? Screen.Sheet)?.state ?: return
+        val b = selectionBounds(current)
+        val single = b[0] == b[2] && b[1] == b[3]
+        // Beside the data: right of the selection, or of the whole used area for one cell.
+        val col = if (single) maxOf(current.usedCols, b[3] + 1) else b[3] + 1
+        // One cell picked: the sheet's used area is the data (a one-cell range would chart that cell alone).
+        val range = if (single && current.usedRows > 0 && current.usedCols > 0) "A1:" + cellName(current.usedRows - 1, current.usedCols - 1) else formatRange(current)
+        val p = JSONObject().put("type", type).put("range", range).put("at", cellName(if (single) 0 else b[0], col))
+        edit { d -> d.execute("insert.chart", p.toString()) }
+    }
+
     /** Adds a conditional format [rule] (GridCraft's rule JSON) to the selection. */
     fun conditionalFormat(rule: JSONObject) {
         val current = (screen as? Screen.Sheet)?.state ?: return

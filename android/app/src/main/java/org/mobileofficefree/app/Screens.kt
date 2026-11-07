@@ -549,6 +549,18 @@ private fun SheetToolBar(vm: SheetViewModel, look: CellLook?) {
                             }
                         }
                     }
+                    Box {
+                        var chartMenu by remember { mutableStateOf(false) }
+                        TextButton(onClick = { chartMenu = true }) { Text("📊 " + stringResource(R.string.chart_insert)) }
+                        DropdownMenu(expanded = chartMenu, onDismissRequest = { chartMenu = false }) {
+                            for ((type, label) in listOf("column" to R.string.chart_column, "bar" to R.string.chart_bar, "line" to R.string.chart_line, "pie" to R.string.chart_pie, "area" to R.string.chart_area)) {
+                                DropdownMenuItem(text = { Text(stringResource(label)) }, onClick = {
+                                    chartMenu = false
+                                    vm.insertChart(type)
+                                })
+                            }
+                        }
+                    }
                     TextButton(onClick = { vm.sort(true) }) { Text("A→Z") }
                     TextButton(onClick = { vm.sort(false) }) { Text("Z→A") }
                     TextButton(onClick = vm::openFilter) { Text((if (vm.hasFilter) "▼● " else "▼ ") + stringResource(R.string.filter)) }

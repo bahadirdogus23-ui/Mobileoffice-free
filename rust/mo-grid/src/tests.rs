@@ -464,3 +464,17 @@ fn pictures_are_listed_with_their_bytes() {
     let again = GridDoc::open("x.xlsx", &doc.save("x.xlsx").unwrap(), None).unwrap();
     assert_eq!(again.pictures(0).unwrap().len(), 1);
 }
+
+#[test]
+fn a_chart_from_one_cell_takes_the_used_area() {
+    // With one cell selected the app sends the used area (a one-cell range charts that cell alone).
+    let mut doc = GridDoc::blank();
+    for (r, row) in [["Ay", "Satış"], ["Ocak", "10"], ["Şubat", "30"]].iter().enumerate() {
+        for (c, v) in row.iter().enumerate() {
+            doc.set_input(r as u32, c as u32, v).unwrap();
+        }
+    }
+    doc.execute("insert.chart", r#"{"type": "pie", "range": "A1:B3", "at": "D1"}"#).unwrap();
+    let pic = doc.render_chart(0, 0, 1.0).unwrap();
+    assert!(pic.texts.iter().any(|t| t.text.contains("Ocak")), "{:?}", pic.texts.iter().map(|t| &t.text).collect::<Vec<_>>());
+}

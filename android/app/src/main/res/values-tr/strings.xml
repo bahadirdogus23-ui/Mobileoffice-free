@@ -583,4 +583,10 @@
     <string name="cf_value">Değer</string>
     <string name="cf_icons">Simge seti (oklar)</string>
     <string name="sheet_note">Not</string>
+    <string name="chart_insert">Grafik</string>
+    <string name="chart_column">Sütun</string>
+    <string name="chart_bar">Çubuk</string>
+    <string name="chart_line">Çizgi</string>
+    <string name="chart_pie">Pasta</string>
+    <string name="chart_area">Alan</string>
 </resources>

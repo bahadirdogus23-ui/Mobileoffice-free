@@ -584,4 +584,10 @@
     <string name="cf_value">Value</string>
     <string name="cf_icons">Icon set (arrows)</string>
     <string name="sheet_note">Note</string>
+    <string name="chart_insert">Chart</string>
+    <string name="chart_column">Column</string>
+    <string name="chart_bar">Bar</string>
+    <string name="chart_line">Line</string>
+    <string name="chart_pie">Pie</string>
+    <string name="chart_area">Area</string>
 </resources>
