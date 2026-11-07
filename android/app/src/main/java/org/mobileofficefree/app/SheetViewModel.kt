@@ -317,6 +317,13 @@ class SheetViewModel(app: Application) : AndroidViewModel(app) {
         edit { d -> d.execute("edit.paste", p.toString()) }
     }
 
+    /** Excel's AutoSum in the selected cell: [function] (SUM, AVERAGE, COUNT, MAX, MIN) of the numbers above or beside it. */
+    fun autoSum(function: String) {
+        val current = (screen as? Screen.Sheet)?.state ?: return
+        val at = cellName(current.selectedRow, current.selectedCol)
+        edit { d -> d.execute("formulas.autoSum", JSONObject().put("function", function).put("range", at).toString()) }
+    }
+
     /** Empties the selected cells (their formats stay). */
     fun clearSelection() {
         val current = (screen as? Screen.Sheet)?.state ?: return

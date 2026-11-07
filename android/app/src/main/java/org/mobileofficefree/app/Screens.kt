@@ -424,6 +424,18 @@ private fun SheetToolBar(vm: SheetViewModel, look: CellLook?) {
                     TextButton(onClick = vm::fillDown) { Text(stringResource(R.string.sheet_fill_down)) }
                 }
                 2 -> {
+                    Box {
+                        var sumMenu by remember { mutableStateOf(false) }
+                        TextButton(onClick = { sumMenu = true }) { Text("Σ " + stringResource(R.string.autosum)) }
+                        DropdownMenu(expanded = sumMenu, onDismissRequest = { sumMenu = false }) {
+                            for ((fn, label) in listOf("SUM" to R.string.autosum_sum, "AVERAGE" to R.string.autosum_average, "COUNT" to R.string.autosum_count, "MAX" to R.string.autosum_max, "MIN" to R.string.autosum_min)) {
+                                DropdownMenuItem(text = { Text(stringResource(label)) }, onClick = {
+                                    sumMenu = false
+                                    vm.autoSum(fn)
+                                })
+                            }
+                        }
+                    }
                     TextButton(onClick = { vm.sort(true) }) { Text("A→Z") }
                     TextButton(onClick = { vm.sort(false) }) { Text("Z→A") }
                     TextButton(onClick = vm::openFilter) { Text((if (vm.hasFilter) "▼● " else "▼ ") + stringResource(R.string.filter)) }

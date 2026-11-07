@@ -298,3 +298,16 @@ fn columns_and_rows_take_sizes_dragged_in_points() {
     assert!((s.col_widths[1] - 133.333).abs() < 0.5, "{:?}", s.col_widths);
     assert!((s.row_heights[2] - 40.0).abs() < 0.5, "{:?}", s.row_heights);
 }
+
+#[test]
+fn autosum_adds_up_the_numbers_above() {
+    let mut doc = GridDoc::blank();
+    doc.set_turkish(true);
+    for (r, v) in ["10", "20,5", "30"].iter().enumerate() {
+        doc.set_input(r as u32, 0, v).unwrap();
+    }
+    doc.execute("formulas.autoSum", r#"{"range": "A4"}"#).unwrap();
+    let typed = doc.edit_text(0, 3, 0).unwrap();
+    assert!(typed.starts_with("=TOPLA(") && typed.contains("A1:A3"), "{typed}");
+    assert_eq!(doc.cell_texts(0, 3, 0, 1, 1).unwrap(), ["60,5"]);
+}

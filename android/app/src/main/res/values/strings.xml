@@ -564,4 +564,10 @@
     <string name="sheet_tab_edit">Edit</string>
     <string name="sheet_tab_data">Data</string>
     <string name="sheet_tab_lines">Rows &amp; columns</string>
+    <string name="autosum">AutoSum</string>
+    <string name="autosum_sum">Sum</string>
+    <string name="autosum_average">Average</string>
+    <string name="autosum_count">Count numbers</string>
+    <string name="autosum_max">Max</string>
+    <string name="autosum_min">Min</string>
 </resources>

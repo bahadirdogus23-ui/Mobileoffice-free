@@ -563,4 +563,10 @@
     <string name="sheet_tab_edit">Düzenle</string>
     <string name="sheet_tab_data">Veri</string>
     <string name="sheet_tab_lines">Satır ve sütun</string>
+    <string name="autosum">Otomatik toplam</string>
+    <string name="autosum_sum">Toplam</string>
+    <string name="autosum_average">Ortalama</string>
+    <string name="autosum_count">Say</string>
+    <string name="autosum_max">En büyük</string>
+    <string name="autosum_min">En küçük</string>
 </resources>
