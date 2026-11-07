@@ -52,7 +52,7 @@ enum class DocumentKind(val extensions: Set<String>, val mimeTypes: Set<String>)
         setOf("txt", "log", "json", "xml", "ini", "conf", "cfg", "yaml", "yml", "properties", "sql", "srt", "vtt", "nfo"),
         setOf("text/plain", "application/json", "text/xml", "application/xml", "application/x-subrip", "text/vtt"),
     ),
-    ARCHIVE(setOf("zip"), setOf("application/zip", "application/x-zip-compressed")),
+    ARCHIVE(setOf("zip", "7z"), setOf("application/zip", "application/x-zip-compressed", "application/x-7z-compressed")),
     /** GİB e-Fatura / e-Arşiv / e-İrsaliye: XML files recognised by content (FileInfo). */
     INVOICE(emptySet(), emptySet()),
     OTHER(emptySet(), emptySet());

@@ -132,6 +132,44 @@ pub fn blank_document(ext: String) -> Result<Vec<u8>, MoError> {
     })
 }
 
+/// One file or folder inside a 7z archive.
+#[derive(uniffi::Record)]
+pub struct ArchiveItem {
+    pub path: String,
+    pub size: u64,
+    pub is_dir: bool,
+}
+
+fn archive_error(e: mo_archive::ArchiveError) -> MoError {
+    match e {
+        mo_archive::ArchiveError::Encrypted => MoError::NeedsPassword(e.to_string()),
+        mo_archive::ArchiveError::NoEntry(_) => MoError::NotFound(e.to_string()),
+        _ => MoError::Open(e.to_string()),
+    }
+}
+
+/// Whether `head` (a file's first bytes) starts a 7z archive.
+#[uniffi::export]
+pub fn is_seven_zip(head: Vec<u8>) -> bool {
+    mo_archive::is_7z(&head)
+}
+
+/// The entries of the 7z archive at `path` (a file the app can read).
+#[uniffi::export]
+pub fn seven_zip_entries(path: String) -> Result<Vec<ArchiveItem>, MoError> {
+    Ok(mo_archive::list(std::path::Path::new(&path))
+        .map_err(archive_error)?
+        .into_iter()
+        .map(|e| ArchiveItem { path: e.path, size: e.size, is_dir: e.is_dir })
+        .collect())
+}
+
+/// The bytes of entry `name` of the 7z archive at `path`, refused above `max` bytes.
+#[uniffi::export]
+pub fn seven_zip_extract(path: String, name: String, max: u64) -> Result<Vec<u8>, MoError> {
+    mo_archive::extract(std::path::Path::new(&path), &name, max).map_err(archive_error)
+}
+
 /// A spreadsheet open in the GridCraft engine.
 #[derive(uniffi::Object)]
 pub struct SheetDocument {

@@ -1,0 +1,18 @@
+[package]
+name = "mo-archive"
+description = "MobileOffice archive bridge: 7z archives, listed and opened entry by entry"
+version = "0.1.0"
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+publish = false
+
+[dependencies]
+# 7-Zip archives in pure Rust (Apache-2.0); reading only, with the common LZMA/LZMA2, PPMd and
+# Deflate methods. Password-protected archives are refused rather than half read.
+sevenz-rust2 = { version = "0.25", default-features = false, features = ["ppmd"] }
+
+[dev-dependencies]
+# The tests make their archives with the same crate's writer.
+sevenz-rust2 = { version = "0.25", default-features = false, features = ["compress", "util"] }
