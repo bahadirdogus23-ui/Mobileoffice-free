@@ -569,4 +569,5 @@
     <string name="autosum_count">Say</string>
     <string name="autosum_max">En büyük</string>
     <string name="autosum_min">En küçük</string>
+    <string name="freeze_at_cell">%1$s hücresinin üstünü ve solunu dondur</string>
 </resources>

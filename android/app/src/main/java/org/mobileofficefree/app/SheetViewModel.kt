@@ -524,6 +524,13 @@ class SheetViewModel(app: Application) : AndroidViewModel(app) {
     /** Freezes the top row, the first column, or neither ([id]: view.freezeTopRow, view.freezeFirstColumn, view.unfreezePanes). */
     fun freeze(id: String) = edit { d -> d.execute(id, "{}") }
 
+    /** Freezes the rows above and the columns left of the selected cell, as Excel's Freeze Panes. */
+    fun freezeAtSelection() {
+        val current = (screen as? Screen.Sheet)?.state ?: return
+        val at = cellName(current.selectedRow, current.selectedCol)
+        edit { d -> d.execute("view.freezePanes", JSONObject().put("cell", at).toString()) }
+    }
+
     fun undo() = edit { d -> d.execute("edit.undo", "{}") }
 
     fun redo() = edit { d -> d.execute("edit.redo", "{}") }

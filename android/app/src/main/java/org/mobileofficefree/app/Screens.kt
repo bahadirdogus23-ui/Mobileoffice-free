@@ -247,6 +247,14 @@ internal fun SheetScreen(vm: SheetViewModel, state: SheetUiState) {
                         sheetMenu = false
                         vm.addSheet()
                     })
+                    DropdownMenuItem(
+                        text = { Text(stringResource(R.string.freeze_at_cell, cellName(state.selectedRow, state.selectedCol))) },
+                        enabled = state.selectedRow > 0 || state.selectedCol > 0,
+                        onClick = {
+                            sheetMenu = false
+                            vm.freezeAtSelection()
+                        },
+                    )
                     for ((label, id) in listOf(
                         R.string.freeze_top_row to "view.freezeTopRow",
                         R.string.freeze_first_col to "view.freezeFirstColumn",

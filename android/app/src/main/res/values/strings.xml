@@ -570,4 +570,5 @@
     <string name="autosum_count">Count numbers</string>
     <string name="autosum_max">Max</string>
     <string name="autosum_min">Min</string>
+    <string name="freeze_at_cell">Freeze panes above and left of %1$s</string>
 </resources>

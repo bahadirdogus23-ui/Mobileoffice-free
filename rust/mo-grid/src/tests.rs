@@ -311,3 +311,14 @@ fn autosum_adds_up_the_numbers_above() {
     assert!(typed.starts_with("=TOPLA(") && typed.contains("A1:A3"), "{typed}");
     assert_eq!(doc.cell_texts(0, 3, 0, 1, 1).unwrap(), ["60,5"]);
 }
+
+#[test]
+fn panes_freeze_above_and_left_of_a_cell() {
+    let mut doc = GridDoc::blank();
+    doc.execute("view.freezePanes", r#"{"cell": "B3"}"#).unwrap();
+    let s = doc.sizes(0, 2, 2).unwrap();
+    assert_eq!((s.frozen_rows, s.frozen_cols), (2, 1));
+    doc.execute("view.unfreezePanes", "{}").unwrap();
+    let s = doc.sizes(0, 2, 2).unwrap();
+    assert_eq!((s.frozen_rows, s.frozen_cols), (0, 0));
+}
