@@ -431,6 +431,11 @@ class SheetViewModel(app: Application) : AndroidViewModel(app) {
     /** True while the next cell tapped is where the picked chart goes. */
     var movingChart by mutableStateOf(false)
 
+    /** Shows [text] in the bar at the bottom (a hint for the next step). */
+    fun hint(text: String) {
+        message = text
+    }
+
     fun pickChart(index: Int?) {
         pickedChart = index
         movingChart = false

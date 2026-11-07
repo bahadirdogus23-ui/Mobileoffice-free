@@ -1049,7 +1049,7 @@ private fun ChartMenu(vm: SheetViewModel) {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 OutlinedButton(onClick = {
                     vm.movingChart = true
-                    vm.message = moveHint
+                    vm.hint(moveHint)
                 }, modifier = Modifier.fillMaxWidth()) { Text("✥ " + stringResource(R.string.chart_move)) }
                 Text(stringResource(R.string.chart_type), style = MaterialTheme.typography.labelLarge)
                 Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
