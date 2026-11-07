@@ -161,7 +161,7 @@ class SheetViewModel(app: Application) : AndroidViewModel(app) {
         val d = doc ?: return
         if (!unsaved) return
         lastCopyAt = System.currentTimeMillis()
-        withContext(engine) { runCatching { recovery.write(uri, "recovery.xlsx", d.save("recovery.xlsx")) } }
+        withContext(engine) { runCatching { Measurements.time("Excel: kurtarma kopyası") { recovery.write(uri, "recovery.xlsx", d.save("recovery.xlsx")) } } }
     }
 
     private val copyNow: () -> Unit = { viewModelScope.launch { copyForRecovery() } }
@@ -486,7 +486,7 @@ class SheetViewModel(app: Application) : AndroidViewModel(app) {
         if (!chartsAsked.add(key)) return null
         val d = doc ?: return null
         viewModelScope.launch {
-            val bmp = withContext(engine) { runCatching { drawChart(d.renderChart(sheet.toUInt(), index.toUInt(), CHART_SCALE)) }.getOrNull() }
+            val bmp = withContext(engine) { runCatching { Measurements.time("Excel: grafik çizimi") { drawChart(d.renderChart(sheet.toUInt(), index.toUInt(), CHART_SCALE)) } }.getOrNull() }
             if (bmp != null) chartPictures[key] = bmp
         }
         return null
@@ -793,8 +793,8 @@ class SheetViewModel(app: Application) : AndroidViewModel(app) {
             val result = withContext(engine) {
                 runCatching {
                     val d = doc ?: error("no document")
-                    op(d)
-                    stateFor(d, current.fileName, current.sheet, current.selectedRow, current.selectedCol)
+                    Measurements.time("Excel: düzenleme") { op(d) }
+                    Measurements.time("Excel: ekran durumu (düzenleme sonrası)") { stateFor(d, current.fileName, current.sheet, current.selectedRow, current.selectedCol) }
                         .copy(endRow = current.endRow, endCol = current.endCol)
                 }
             }
@@ -827,7 +827,8 @@ class SheetViewModel(app: Application) : AndroidViewModel(app) {
                 runCatching {
                     val d = doc ?: error("no document")
                     val name = displayName(resolver, uri)
-                    val bytes = d.save(name)
+                    val bytes = Measurements.time("Excel: kaydetme") { d.save(name) }
+                    Diagnostics.event("Excel kaydedildi: ${bytes.size / 1024} KB")
                     // "wt" truncates: without it some providers leave the old file's tail behind.
                     resolver.openOutputStream(uri, "wt")?.use { it.write(bytes) } ?: error("cannot write")
                 }
@@ -948,8 +949,10 @@ class SheetViewModel(app: Application) : AndroidViewModel(app) {
                 runCatching {
                     val d = doc ?: return@runCatching null
                     val (r, c) = (br * BLOCK_ROWS).toUInt() to (bc * BLOCK_COLS).toUInt()
-                    d.cellTexts(sheet.toUInt(), r, c, BLOCK_ROWS.toUInt(), BLOCK_COLS.toUInt()) to
-                        d.cellLooks(sheet.toUInt(), r, c, BLOCK_ROWS.toUInt(), BLOCK_COLS.toUInt())
+                    Measurements.time("Excel: hücre bloğu yükleme") {
+                        d.cellTexts(sheet.toUInt(), r, c, BLOCK_ROWS.toUInt(), BLOCK_COLS.toUInt()) to
+                            d.cellLooks(sheet.toUInt(), r, c, BLOCK_ROWS.toUInt(), BLOCK_COLS.toUInt())
+                    }
                 }.getOrNull()
             }
             pending.remove(key)

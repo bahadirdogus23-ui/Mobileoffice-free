@@ -144,7 +144,7 @@ class CadViewModel(app: Application) : AndroidViewModel(app) {
         viewModelScope.launch {
             val bmp = withContext(engine) {
                 runCatching {
-                    val r = doc?.render(s.space.toUInt(), v.centerX, v.centerY, v.scale, w.toUInt(), h.toUInt(), s.dark)
+                    val r = Measurements.time("CAD: görünüm çizimi") { doc?.render(s.space.toUInt(), v.centerX, v.centerY, v.scale, w.toUInt(), h.toUInt(), s.dark) }
                         ?: return@runCatching null
                     // tiny-skia's premultiplied RGBA is exactly ARGB_8888's memory layout.
                     createBitmap(r.width.toInt(), r.height.toInt()).apply { copyPixelsFromBuffer(ByteBuffer.wrap(r.pixels)) }

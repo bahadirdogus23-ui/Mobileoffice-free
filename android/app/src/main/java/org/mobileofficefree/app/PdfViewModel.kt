@@ -391,11 +391,11 @@ class PdfViewModel(app: Application) : PagedViewModel(app, DocumentKind.PDF) {
             val result = withContext(engine) {
                 runCatching {
                     val doc = editor()
-                    op(doc)
+                    Measurements.time("PDF: düzenleme") { op(doc) }
                     // A new cache file per edit: the renderer still has the previous one open.
                     val dir = File(app.cacheDir, "pdf-edit").apply { mkdirs() }
                     val file = File(dir, "edit-${++editCount}.pdf")
-                    file.writeBytes(doc.displayCopy())
+                    Measurements.time("PDF: düzenleme sonrası yeniden yükleme") { file.writeBytes(doc.displayCopy()) }
                     closeRenderer()
                     dir.listFiles()?.filter { it != file }?.forEach { it.delete() }
                     openRenderer(ParcelFileDescriptor.open(file, ParcelFileDescriptor.MODE_READ_ONLY))
@@ -421,7 +421,8 @@ class PdfViewModel(app: Application) : PagedViewModel(app, DocumentKind.PDF) {
         viewModelScope.launch {
             val result = withContext(engine) {
                 runCatching {
-                    val out = bytes(editor())
+                    val out = Measurements.time("PDF: kaydetme") { bytes(editor()) }
+                    Diagnostics.event("PDF kaydedildi: ${out.size / 1024} KB")
                     app.contentResolver.openOutputStream(dest, "wt")?.use { it.write(out) } ?: error("cannot write")
                 }
             }

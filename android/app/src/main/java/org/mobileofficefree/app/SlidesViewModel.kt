@@ -100,9 +100,11 @@ class SlidesViewModel(app: Application) : PagedViewModel(app, DocumentKind.SLIDE
             val look = withContext(engine) {
                 runCatching {
                     val scale = LOOK_WIDTH_PX / d.slideSize().width
-                    val full = d.renderSlide(slide.toUInt(), scale).toBitmap()
-                    val without = d.renderSlideWithout(slide.toUInt(), id, scale).toBitmap()
-                    objectSnapshot(full, without).also { full.recycle() }
+                    Measurements.time("Sunu: nesne görüntüsü (sürükleme için)") {
+                        val full = d.renderSlide(slide.toUInt(), scale).toBitmap()
+                        val without = d.renderSlideWithout(slide.toUInt(), id, scale).toBitmap()
+                        objectSnapshot(full, without).also { full.recycle() }
+                    }
                 }.getOrNull()
             }
             if (picked?.second == o) pickedLook = look
@@ -338,7 +340,7 @@ class SlidesViewModel(app: Application) : PagedViewModel(app, DocumentKind.SLIDE
         viewModelScope.launch {
             val result = withContext(engine) {
                 runCatching {
-                    val show = op(d)
+                    val show = Measurements.time("Sunu: düzenleme") { op(d) }
                     val size = d.slideSize()
                     Triple(List(d.slideCount().toInt()) { size.width to size.height }, show, d.canUndo() to d.canRedo())
                 }
@@ -367,7 +369,8 @@ class SlidesViewModel(app: Application) : PagedViewModel(app, DocumentKind.SLIDE
         viewModelScope.launch {
             val result = withContext(engine) {
                 runCatching {
-                    val bytes = d.save(name)
+                    val bytes = Measurements.time("Sunu: kaydetme") { d.save(name) }
+                    Diagnostics.event("Sunu kaydedildi: ${bytes.size / 1024} KB")
                     app.contentResolver.openOutputStream(dest, "wt")?.use { it.write(bytes) } ?: error("cannot write")
                 }
             }

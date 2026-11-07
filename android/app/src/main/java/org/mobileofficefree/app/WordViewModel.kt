@@ -190,16 +190,17 @@ class WordViewModel(app: Application) : PagedViewModel(app, DocumentKind.WORD) {
     fun setHighlight(name: String) = command("format.highlight", JSONObject().put("color", name).toString())
 
     /** Runs engine command [id]; [changes] says whether it can change the text or its look. */
-    fun command(id: String, params: String = "", changes: Boolean = true) = perform(changes) { it.execute(id, params) }
+    fun command(id: String, params: String = "", changes: Boolean = true) = perform(changes, what = id) { it.execute(id, params) }
 
     /** [moves] says whether the caret can move other than by the keyboard's own typing. */
-    private fun perform(changes: Boolean, moves: Boolean = true, op: (WordDocument) -> Unit) {
+    private fun perform(changes: Boolean, moves: Boolean = true, what: String = "yazma", op: (WordDocument) -> Unit) {
         val d = doc ?: return
         if (moves) inputEpoch++
         viewModelScope.launch {
             val result = withContext(engine) {
                 runCatching {
-                    op(d)
+                    // The edit with the new layout, measured by what it was (a command, typing).
+                    Measurements.time("Word: $what") { op(d) }
                     val sizes = if (changes) (0u until d.pageCount()).map { d.pageSize(it).let { s -> s.width to s.height } } else null
                     val f = runCatching { JSONObject(d.execute("format.state", "")) }.getOrNull()
                     Edited(sizes, d.caret(), d.selection(), f?.let { formatOf(it) } ?: WordFormat(), d.isDirty(), d.selectedText().take(200), d.objectSelected(), d.selectedObjectBox())
@@ -256,7 +257,8 @@ class WordViewModel(app: Application) : PagedViewModel(app, DocumentKind.WORD) {
         viewModelScope.launch {
             val result = withContext(engine) {
                 runCatching {
-                    val bytes = d.export(name)
+                    val bytes = Measurements.time("Word: kaydetme") { d.export(name) }
+                    Diagnostics.event("Word kaydedildi: ${bytes.size / 1024} KB")
                     app.contentResolver.openOutputStream(dest, "wt")?.use { it.write(bytes) } ?: error("cannot write")
                     d.markSaved()
                 }

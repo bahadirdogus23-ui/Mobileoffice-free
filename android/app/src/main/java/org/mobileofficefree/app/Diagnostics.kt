@@ -22,10 +22,24 @@ class MobileOfficeApp : Application() {
     override fun onCreate() {
         super.onCreate()
         Diagnostics.installCrashRecorder(this)
+        Measurements.load(this)
+        registerComponentCallbacks(object : android.content.ComponentCallbacks2 {
+            override fun onTrimMemory(level: Int) = Measurements.trimmed(level)
+            override fun onConfigurationChanged(newConfig: android.content.res.Configuration) {}
+            @Deprecated("Deprecated in Android") override fun onLowMemory() = Diagnostics.event("Android: düşük bellek (onLowMemory) · ekran: ${Measurements.screen}")
+        })
         // The screen on show, for a picture of it when something goes wrong.
         registerActivityLifecycleCallbacks(object : ActivityLifecycleCallbacks {
-            override fun onActivityResumed(activity: android.app.Activity) { Diagnostics.current = java.lang.ref.WeakReference(activity) }
-            override fun onActivityPaused(activity: android.app.Activity) {}
+            override fun onActivityResumed(activity: android.app.Activity) {
+                Diagnostics.current = java.lang.ref.WeakReference(activity)
+                // Stutters and memory are measured while the app is on screen.
+                Measurements.watchFrames(true)
+                Measurements.watchMemory(activity, true)
+            }
+            override fun onActivityPaused(activity: android.app.Activity) {
+                Measurements.watchFrames(false)
+                Measurements.watchMemory(activity, false)
+            }
             override fun onActivityCreated(activity: android.app.Activity, state: android.os.Bundle?) {}
             override fun onActivityStarted(activity: android.app.Activity) {}
             override fun onActivityStopped(activity: android.app.Activity) {}
@@ -111,6 +125,7 @@ object Diagnostics {
     fun clear() {
         synchronized(events) { events.clear() }
         synchronized(timings) { timings.clear() }
+        Measurements.clear()
         persist()
     }
 
@@ -287,11 +302,13 @@ object Diagnostics {
         val info = ActivityManager.MemoryInfo().also { am?.getMemoryInfo(it) }
         appendLine("Telefonun belleği: ${mb(info.totalMem)}, boş ${mb(info.availMem)}")
         appendLine()
-        appendLine("Açma süreleri (saklanan, en yenisi üstte):")
+        append(Measurements.report(context))
+        appendLine()
+        appendLine("── Açma süreleri (saklanan, en yenisi üstte) ──")
         val t = timings()
         if (t.isEmpty()) appendLine("  —") else t.forEach { appendLine("  $it") }
         appendLine()
-        appendLine("Olaylar (saklanan, en yenisi üstte):")
+        appendLine("── Olaylar (saklanan, en yenisi üstte) ──")
         val e = events()
         if (e.isEmpty()) appendLine("  —") else e.forEach { appendLine("  $it") }
     }

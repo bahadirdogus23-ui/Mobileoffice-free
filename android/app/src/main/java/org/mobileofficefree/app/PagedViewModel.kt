@@ -112,7 +112,7 @@ abstract class PagedViewModel(app: Application, private val kind: DocumentKind) 
         val uri = state?.uri ?: return
         if (!hasUnsavedChanges) return
         lastCopyAt = System.currentTimeMillis()
-        withContext(engine) { runCatching { recoveryBytes()?.let { (name, bytes) -> recovery.write(uri, name, bytes) } } }
+        withContext(engine) { runCatching { Measurements.time("${kind.label()}: kurtarma kopyası") { recoveryBytes()?.let { (name, bytes) -> recovery.write(uri, name, bytes) } } } }
     }
 
     private val copyNow: () -> Unit = { viewModelScope.launch { copyForRecovery() } }
@@ -417,7 +417,7 @@ abstract class PagedViewModel(app: Application, private val kind: DocumentKind) 
         if (pending.add(index)) {
             val gen = generation
             viewModelScope.launch {
-                val bmp = withContext(engine) { runCatching { renderPage(index, widthPx, dark) }.getOrNull() }
+                val bmp = withContext(engine) { runCatching { Measurements.time("${kind.label()}: sayfa çizimi (${widthBucket(widthPx)})") { renderPage(index, widthPx, dark) } }.getOrNull() }
                 if (gen != generation) return@launch
                 pending.remove(index)
                 if (bmp != null) {
@@ -453,7 +453,7 @@ abstract class PagedViewModel(app: Application, private val kind: DocumentKind) 
         if (thumbsPending.add(index)) {
             val doc = state?.uri
             viewModelScope.launch {
-                val bmp = withContext(engine) { runCatching { renderPage(index, THUMB_WIDTH, false) }.getOrNull() }
+                val bmp = withContext(engine) { runCatching { Measurements.time("${kind.label()}: küçük resim") { renderPage(index, THUMB_WIDTH, false) } }.getOrNull() }
                 thumbsPending.remove(index)
                 if (bmp != null && doc == state?.uri) {
                     thumbCache.put(index, bmp)
@@ -490,6 +490,13 @@ abstract class PagedViewModel(app: Application, private val kind: DocumentKind) 
         // The engine thread may be busy; release on it so a render in progress finishes first.
         // viewModelScope is already cancelled here, so this runs in a scope of its own.
         CoroutineScope(engine).launch { release() }
+    }
+
+    /** Picture widths grouped for the measurements: about a phone's width, zoomed, very zoomed. */
+    private fun widthBucket(px: Int): String = when {
+        px <= 1200 -> "≤1200 px"
+        px <= 2400 -> "≤2400 px"
+        else -> ">2400 px"
     }
 
     private companion object {

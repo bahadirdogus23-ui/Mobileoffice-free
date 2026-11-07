@@ -158,6 +158,19 @@ fun AppRoot(sheet: SheetViewModel, word: WordViewModel, pdf: PdfViewModel, slide
             val textState = text.state
             val archiveState = archive.state
             val invoiceState = invoice.state
+            // What is on screen, for the measurements (stutters and events are kept with it).
+            Measurements.screen = when {
+                wordState != null -> if (word.editing) "Word (düzenleme)" else "Word"
+                pdfState != null -> "PDF"
+                slidesState != null -> if (slides.editing) "Sunu (düzenleme)" else "Sunu"
+                cadState != null -> "CAD"
+                imageState != null -> "Resim"
+                textState != null -> "Metin"
+                invoiceState != null -> "e-Fatura"
+                sheetScreen is Screen.Sheet -> "Excel"
+                archiveState != null -> "Arşiv"
+                else -> "Ana ekran"
+            }
             when {
                 word.loading || pdf.loading || slides.loading || cad.loading || image.loading || text.loading || archive.loading || invoice.loading || sheetScreen == Screen.Loading -> Loading()
                 wordState != null -> PagedScreen(word, wordState, reading)
