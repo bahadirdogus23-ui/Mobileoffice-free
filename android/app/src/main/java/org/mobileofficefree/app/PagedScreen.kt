@@ -652,6 +652,7 @@ fun PagedScreen(vm: PagedViewModel, state: PagedUiState, reading: ReadingSetting
                                         drawRect(tint, Offset(r.left * size.width, r.top * size.height), Size((r.right - r.left) * size.width, (r.bottom - r.top) * size.height))
                                     }
                                 }
+                                PdfSelectionHandles(pdf, i, sel.rects)
                             }
                             slides?.picked?.takeIf { slides.editing && it.first == i }?.let { (_, o) ->
                                 // Until the object's own look is drawn, a piece of the page follows the fingers.

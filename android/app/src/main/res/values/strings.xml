@@ -620,4 +620,7 @@
     <string name="chart_type">Type</string>
     <string name="chart_title">Title</string>
     <string name="chart_delete">Delete chart</string>
+    <string name="merge_add">+ Add PDF</string>
+    <string name="selected_count">%1$d selected</string>
+    <string name="merge_selected">Merge</string>
 </resources>

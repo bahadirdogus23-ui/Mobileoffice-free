@@ -171,6 +171,12 @@ class PdfViewModel(app: Application) : PagedViewModel(app, DocumentKind.PDF) {
         }
     }
 
+    /** The selection from the end that stays (([fx], [fy]) on [page]) to ([x], [y]): a handle dragged. */
+    fun selectFromFixed(page: Int, fx: Float, fy: Float, x: Float, y: Float) {
+        selectFrom = page to (fx to fy)
+        selectTo(page, x, y)
+    }
+
     fun clearSelection() {
         selectFrom = null
         textSelection = null
@@ -399,7 +405,9 @@ class PdfViewModel(app: Application) : PagedViewModel(app, DocumentKind.PDF) {
             result.fold(
                 onSuccess = {
                     edited = true
-                    pagesChanged(it)
+                    // Same pages (a note, a signature, text added): each keeps its old picture until
+                    // the new one is drawn, so the view does not jump or zoom elsewhere.
+                    if (it == state?.pages) pagesEdited(it) else pagesChanged(it)
                     after()
                 },
                 onFailure = { tell(app.getString(R.string.pdf_edit_failed, it.message ?: it.javaClass.simpleName)) },

@@ -37,7 +37,7 @@ import org.mobileofficefree.engine.PdfDocument
  * The picked files are only read. Returns the action that starts it.
  */
 @Composable
-fun rememberPdfMerge(onOpen: (Uri) -> Unit): () -> Unit {
+fun rememberPdfMerge(onOpen: (Uri) -> Unit): PdfMergeAction {
     val context = LocalContext.current
     val resources = LocalResources.current
     val scope = rememberCoroutineScope()
@@ -79,7 +79,9 @@ fun rememberPdfMerge(onOpen: (Uri) -> Unit): () -> Unit {
     val pick = rememberLauncherForActivityResult(ActivityResultContracts.OpenMultipleDocuments()) { uris ->
         if (uris.isNotEmpty()) {
             val resolver = context.contentResolver
-            picked = uris.map { it to runCatching { FileInfo.of(resolver, it).name }.getOrDefault("PDF") }
+            // Picked again from the list: the new files join the end, the same file not twice.
+            val added = uris.map { it to runCatching { FileInfo.of(resolver, it).name }.getOrDefault("PDF") }
+            picked = (picked + added).distinctBy { it.first }
             choosing = true
         }
     }
@@ -103,6 +105,7 @@ fun rememberPdfMerge(onOpen: (Uri) -> Unit): () -> Unit {
                             }
                         }
                     }
+                    TextButton(onClick = { pick.launch(arrayOf("application/pdf")) }) { Text(stringResource(R.string.merge_add)) }
                     if (picked.size < 2) Text(stringResource(R.string.merge_need_two), color = MaterialTheme.colorScheme.error)
                 }
             },
@@ -123,5 +126,18 @@ fun rememberPdfMerge(onOpen: (Uri) -> Unit): () -> Unit {
     if (working) {
         AlertDialog(onDismissRequest = {}, confirmButton = {}, text = { Text(stringResource(R.string.merge_working)) })
     }
-    return { if (!working) pick.launch(arrayOf("application/pdf")) }
+    return remember {
+        PdfMergeAction(
+            pick = { if (!working) pick.launch(arrayOf("application/pdf")) },
+            with = { files ->
+                if (!working) {
+                    picked = files.distinctBy { it.first }
+                    choosing = true
+                }
+            },
+        )
+    }
 }
+
+/** Starts "Combine PDFs": by picking files ([pick]), or with files already chosen ([with], in order). */
+class PdfMergeAction(val pick: () -> Unit, val with: (List<Pair<Uri, String>>) -> Unit)

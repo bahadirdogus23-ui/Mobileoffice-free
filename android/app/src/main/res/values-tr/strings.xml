@@ -619,4 +619,7 @@
     <string name="chart_type">Tür</string>
     <string name="chart_title">Başlık</string>
     <string name="chart_delete">Grafiği sil</string>
+    <string name="merge_add">+ PDF ekle</string>
+    <string name="selected_count">%1$d seçildi</string>
+    <string name="merge_selected">Birleştir</string>
 </resources>

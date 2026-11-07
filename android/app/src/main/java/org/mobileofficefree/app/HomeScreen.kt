@@ -17,6 +17,7 @@ import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.ui.draw.clip
 import java.text.Collator
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -197,6 +198,8 @@ fun HomeScreen(onOpen: (Uri) -> Unit, onNewSheet: () -> Unit, onDiagnostics: () 
     }
     val imagesToPdf = rememberImagesToPdf(onOpen)
     val mergePdfs = rememberPdfMerge(onOpen)
+    // Rows chosen by holding them (for combining PDFs): their addresses, in the order chosen.
+    var chosen by remember { mutableStateOf<List<HomeItem>>(emptyList()) }
     var showSettings by remember { mutableStateOf(false) }
     if (showSettings) {
         SettingsSheet(
@@ -321,7 +324,20 @@ fun HomeScreen(onOpen: (Uri) -> Unit, onNewSheet: () -> Unit, onDiagnostics: () 
             }
         },
         bottomBar = {
-            NavigationBar {
+            if (chosen.isNotEmpty()) {
+                // Chosen rows: combine the PDFs among them, or let them go.
+                val pdfs = chosen.filter { it.kind == DocumentKind.PDF }
+                androidx.compose.material3.Surface(tonalElevation = 3.dp) {
+                    Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 6.dp), verticalAlignment = Alignment.CenterVertically) {
+                        Text(stringResource(R.string.selected_count, chosen.size), modifier = Modifier.weight(1f))
+                        Button(enabled = pdfs.size >= 2, onClick = {
+                            mergePdfs.with(pdfs.map { it.uri to it.name })
+                            chosen = emptyList()
+                        }) { Text("📑 " + stringResource(R.string.merge_selected)) }
+                        TextButton(onClick = { chosen = emptyList() }) { Text(stringResource(R.string.cancel)) }
+                    }
+                }
+            } else NavigationBar {
                 HomeTab.entries.forEachIndexed { i, t ->
                     NavigationBarItem(
                         selected = i == tab,
@@ -362,7 +378,7 @@ fun HomeScreen(onOpen: (Uri) -> Unit, onNewSheet: () -> Unit, onDiagnostics: () 
                         Row(Modifier.fillMaxWidth().height(IntrinsicSize.Min).padding(horizontal = 16.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                             QuickTile("📷", stringResource(R.string.scan), Color(0xFF0A84FF), Modifier.weight(1f), scan)
                             QuickTile("🖼", stringResource(R.string.images_to_pdf), Color(0xFFFF9F0A), Modifier.weight(1f), imagesToPdf)
-                            QuickTile("📑", stringResource(R.string.merge_short), Color(0xFFFF375F), Modifier.weight(1f), mergePdfs)
+                            QuickTile("📑", stringResource(R.string.merge_short), Color(0xFFFF375F), Modifier.weight(1f), mergePdfs.pick)
                             QuickTile("📂", stringResource(R.string.open_short), Color(0xFF34C759), Modifier.weight(1f)) { pick.launch(DocumentKind.openableTypes) }
                         }
                         Spacer(Modifier.height(10.dp))
@@ -472,10 +488,17 @@ fun HomeScreen(onOpen: (Uri) -> Unit, onNewSheet: () -> Unit, onDiagnostics: () 
                     Column(Modifier.padding(horizontal = 16.dp).clip(shape).background(MaterialTheme.colorScheme.surfaceContainerLow)) {
                         DocumentRow(
                             file = f,
+                            chosen = chosen.any { it.uri == f.uri },
                             onOpen = {
-                                FileInfo.rememberName(f.uri, f.name)
-                                onOpen(f.uri)
+                                if (chosen.isNotEmpty()) {
+                                    // Choosing: a tap adds or removes the row.
+                                    chosen = if (chosen.any { it.uri == f.uri }) chosen.filter { it.uri != f.uri } else chosen + f
+                                } else {
+                                    FileInfo.rememberName(f.uri, f.name)
+                                    onOpen(f.uri)
+                                }
                             },
+                            onHold = { if (chosen.none { it.uri == f.uri }) chosen = chosen + f },
                             onShare = {
                                 val send = Intent(Intent.ACTION_SEND)
                                     .setType(context.contentResolver.getType(f.uri) ?: "*/*")
@@ -502,14 +525,18 @@ fun HomeScreen(onOpen: (Uri) -> Unit, onNewSheet: () -> Unit, onDiagnostics: () 
 }
 
 @Composable
-private fun DocumentRow(file: HomeItem, onOpen: () -> Unit, onShare: () -> Unit, onForget: (() -> Unit)?) {
+@OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
+private fun DocumentRow(file: HomeItem, onOpen: () -> Unit, onShare: () -> Unit, onForget: (() -> Unit)?, chosen: Boolean = false, onHold: () -> Unit = {}) {
     val context = LocalContext.current
     var menu by remember { mutableStateOf(false) }
     val ext = file.name.substringAfterLast('.', "").uppercase(Locale.ROOT)
     val size = if (file.size >= 0) Formatter.formatShortFileSize(context, file.size) else null
     val date = DateFormat.getDateInstance(DateFormat.SHORT).format(Date(file.date))
     Row(
-        Modifier.fillMaxWidth().clickable(onClick = onOpen).padding(horizontal = 16.dp, vertical = 12.dp),
+        Modifier.fillMaxWidth()
+            .background(if (chosen) MaterialTheme.colorScheme.secondaryContainer else Color.Transparent)
+            .combinedClickable(onClick = onOpen, onLongClick = onHold)
+            .padding(horizontal = 16.dp, vertical = 12.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         // UYAP documents read as Word files but are a family of their own to people.
