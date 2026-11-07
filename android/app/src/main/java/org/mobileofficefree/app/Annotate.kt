@@ -1,5 +1,7 @@
 package org.mobileofficefree.app
 
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.ui.unit.sp
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
@@ -49,7 +51,6 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.Slider
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.ui.draw.clip
@@ -157,6 +158,21 @@ object TextStyleMemory {
     var color by mutableIntStateOf(0)
 }
 
+/** Sizes offered at a tap (points), as Office's list. */
+private val COMMON_SIZES = listOf(8, 10, 12, 14, 18, 24, 36, 48, 72)
+
+/** One step from [size] toward bigger ([dir] 1) or smaller (-1): 1 pt under 12, then 2, 4, 8, as Office steps. */
+internal fun stepSize(size: Float, dir: Int): Float {
+    val s = size.roundToInt()
+    val step = when {
+        s < 12 || (dir < 0 && s <= 12) -> 1
+        s < 28 || (dir < 0 && s <= 28) -> 2
+        s < 72 || (dir < 0 && s <= 72) -> 4
+        else -> 8
+    }
+    return (s + dir * step).coerceIn(4, 144).toFloat()
+}
+
 /** Colours offered for typed text: black, dark blue, red, green, grey. */
 internal val TEXT_STAMP_COLORS = listOf(
     Color(0xFF000000), Color(0xFF1A3A8F), Color(0xFFC62828), Color(0xFF2E7D32), Color(0xFF616161),
@@ -197,8 +213,38 @@ fun TextStampDialog(onDismiss: () -> Unit, initialText: String = "", initialLook
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 OutlinedTextField(value = text, onValueChange = { text = it }, minLines = 2, modifier = Modifier.fillMaxWidth())
-                Text(stringResource(R.string.text_point_size, memory.size.roundToInt()), style = MaterialTheme.typography.labelLarge)
-                Slider(value = memory.size, onValueChange = { memory.size = it }, valueRange = 6f..48f, steps = 20)
+                // How it will look: the chosen face, colour and size (large sizes shown smaller).
+                val face = when (memory.font) {
+                    PdfTextFont.SERIF, PdfTextFont.SERIF_BOLD -> androidx.compose.ui.text.font.FontFamily.Serif
+                    PdfTextFont.MONO -> androidx.compose.ui.text.font.FontFamily.Monospace
+                    else -> androidx.compose.ui.text.font.FontFamily.SansSerif
+                }
+                val bold = memory.font == PdfTextFont.SANS_BOLD || memory.font == PdfTextFont.SERIF_BOLD
+                Box(
+                    Modifier.fillMaxWidth().heightIn(min = 56.dp).clip(RoundedCornerShape(10.dp)).background(Color.White)
+                        .border(1.dp, MaterialTheme.colorScheme.outlineVariant, RoundedCornerShape(10.dp)).padding(10.dp),
+                    contentAlignment = Alignment.CenterStart,
+                ) {
+                    Text(
+                        text.ifBlank { stringResource(R.string.text_preview_sample) },
+                        fontFamily = face,
+                        fontWeight = if (bold) androidx.compose.ui.text.font.FontWeight.Bold else androidx.compose.ui.text.font.FontWeight.Normal,
+                        color = TEXT_STAMP_COLORS[memory.color],
+                        fontSize = memory.size.coerceAtMost(40f).sp,
+                        maxLines = 3,
+                    )
+                }
+                // Size: steps, a few common sizes, Office's range.
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(stringResource(R.string.text_point_size, memory.size.roundToInt()), style = MaterialTheme.typography.labelLarge, modifier = Modifier.weight(1f))
+                    androidx.compose.material3.FilledTonalIconButton(onClick = { memory.size = stepSize(memory.size, -1) }) { Text("−") }
+                    androidx.compose.material3.FilledTonalIconButton(onClick = { memory.size = stepSize(memory.size, 1) }) { Text("+") }
+                }
+                FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    for (pt in COMMON_SIZES) {
+                        FilterChip(selected = memory.size.roundToInt() == pt, onClick = { memory.size = pt.toFloat() }, label = { Text("$pt") })
+                    }
+                }
                 FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                     for ((font, label) in TEXT_FONTS) {
                         FilterChip(selected = memory.font == font, onClick = { memory.font = font }, label = { Text(stringResource(label)) })

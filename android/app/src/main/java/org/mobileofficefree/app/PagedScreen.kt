@@ -418,8 +418,8 @@ fun PagedScreen(vm: PagedViewModel, state: PagedUiState, reading: ReadingSetting
                         Text(stringResource(R.string.text_drag_hint), style = MaterialTheme.typography.bodySmall, modifier = Modifier.padding(start = 8.dp))
                         Row(Modifier.horizontalScroll(rememberScrollState()), verticalAlignment = Alignment.CenterVertically) {
                             Text(stringResource(R.string.text_picked) + " " + t.text.take(18), style = MaterialTheme.typography.labelLarge, modifier = Modifier.padding(horizontal = 8.dp))
-                            TextButton(onClick = { pdf.resizePicked(-2.0) }, enabled = !pdf.busy) { Text("A−") }
-                            TextButton(onClick = { pdf.resizePicked(2.0) }, enabled = !pdf.busy) { Text("A+") }
+                            TextButton(onClick = { pdf.resizePicked(-1) }, enabled = !pdf.busy) { Text("A−") }
+                            TextButton(onClick = { pdf.resizePicked(1) }, enabled = !pdf.busy) { Text("A+") }
                             TextButton(onClick = { editingPicked = true }, enabled = !pdf.busy) { Text(stringResource(R.string.text_edit)) }
                             TextButton(onClick = pdf::deletePicked, enabled = !pdf.busy) { Text(stringResource(R.string.delete)) }
                             TextButton(onClick = pdf::dropPick) { Text(stringResource(R.string.done)) }

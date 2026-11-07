@@ -224,10 +224,10 @@ class PdfViewModel(app: Application) : PagedViewModel(app, DocumentKind.PDF) {
         changePicked(dx = dx - (w * scale - w) / 2, dy = dy - (h * scale - h) / 2, look = look)
     }
 
-    /** The picked text made [step] points larger (smaller when negative). */
-    fun resizePicked(step: Double) {
+    /** The picked text one size step larger ([dir] 1) or smaller (-1), as Office steps sizes. */
+    fun resizePicked(dir: Int) {
         val t = pickedText?.second ?: return
-        changePicked(look = TextLook((t.look.size + step).coerceIn(4.0, 144.0), t.look.font, t.look.color))
+        changePicked(look = TextLook(stepSize(t.look.size.toFloat(), dir).toDouble(), t.look.font, t.look.color))
     }
 
     fun deletePicked() {
