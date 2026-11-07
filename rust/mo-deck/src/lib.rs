@@ -190,6 +190,11 @@ impl DeckDoc {
         Ok(new)
     }
 
+    /// Moves object `id` of slide `from` to slide `to` (same place, on top); returns its new id.
+    pub fn move_object_to_slide(&mut self, from: u32, id: u32, to: u32) -> Result<u32, DeckError> {
+        self.change(|p| edit::move_object_to_slide(p, from as usize, id, to as usize))
+    }
+
     /// Object `id` brought in front of the others, or sent behind them.
     pub fn arrange_object(&mut self, slide: u32, id: u32, to_front: bool) -> Result<(), DeckError> {
         self.change(|p| edit::arrange_object(p, slide as usize, id, to_front))?;

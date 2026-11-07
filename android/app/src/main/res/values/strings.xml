@@ -626,4 +626,5 @@
     <string name="cad_pdf_area">What goes in the PDF?</string>
     <string name="cad_pdf_whole">The whole drawing</string>
     <string name="cad_pdf_view">The area on screen (zoom and pan to choose it)</string>
+    <string name="slide_move_to">To slide %1$d</string>
 </resources>

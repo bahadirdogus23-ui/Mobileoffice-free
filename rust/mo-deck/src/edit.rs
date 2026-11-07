@@ -323,6 +323,34 @@ pub fn duplicate_object(pres: &mut Presentation, index: usize, id: u32) -> Resul
     push_shape(pres, index, copy)
 }
 
+/// Moves object `id` from slide `from` to slide `to`, where it is at the same place and on top
+/// of the others; returns its id there. Its animations stay behind (they belong to the slide).
+pub fn move_object_to_slide(pres: &mut Presentation, from: usize, id: u32, to: usize) -> Result<u32, DeckError> {
+    if from == to {
+        return Ok(id);
+    }
+    if to >= pres.slides.len() {
+        return Err(DeckError::NoSlide(to as u32));
+    }
+    let mut shape = {
+        let slide = pres.slides.get(from).ok_or(DeckError::NoSlide(from as u32))?;
+        let shape = slide.shapes.iter().find(|s| s.id.0 == id).ok_or_else(|| edit_err("no such object"))?;
+        let at = match deckcraft_model::resolve::Ctx::for_slide(pres, slide) {
+            Some(c) => deckcraft_model::resolve::xfrm(&c, shape),
+            None => shape.xfrm.unwrap_or_default(),
+        };
+        let mut s = shape.clone();
+        // On another slide it is no placeholder: it keeps its own box.
+        s.ph = None;
+        s.xfrm = Some(at);
+        s
+    };
+    delete_object(pres, from, id)?;
+    renumber_children(pres, &mut shape)?;
+    shape.name = shape.name.split(' ').next().unwrap_or("Shape").to_string();
+    push_shape(pres, to, shape)
+}
+
 /// Fresh ids for the shapes inside a group being copied.
 fn renumber_children(pres: &mut Presentation, shape: &mut deckcraft_model::Shape) -> Result<(), DeckError> {
     if let ShapeKind::Group { children, .. } = &mut shape.kind {

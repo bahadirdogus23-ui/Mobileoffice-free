@@ -625,4 +625,5 @@
     <string name="cad_pdf_area">PDF\'e ne girsin?</string>
     <string name="cad_pdf_whole">Tüm çizim</string>
     <string name="cad_pdf_view">Ekranda görünen alan (yakınlaştırıp kaydırarak seçin)</string>
+    <string name="slide_move_to">%1$d. slayta taşı</string>
 </resources>

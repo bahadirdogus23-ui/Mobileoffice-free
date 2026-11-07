@@ -877,6 +877,11 @@ impl SlidesDocument {
         Ok(self.doc().duplicate_object(slide, id)?)
     }
 
+    /// Moves object `id` of slide `from` to slide `to` (same place, on top); returns its new id.
+    pub fn move_object_to_slide(&self, from: u32, id: u32, to: u32) -> Result<u32, MoError> {
+        Ok(self.doc().move_object_to_slide(from, id, to)?)
+    }
+
     /// Object `id` brought in front of the others, or sent behind them.
     pub fn arrange_object(&self, slide: u32, id: u32, to_front: bool) -> Result<(), MoError> {
         Ok(self.doc().arrange_object(slide, id, to_front)?)

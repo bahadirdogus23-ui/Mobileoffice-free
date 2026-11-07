@@ -109,6 +109,15 @@ fun SlideObjectBar(vm: SlidesViewModel) {
                     arrangeMenu = false
                     vm.arrangePicked(false)
                 })
+                // To another slide, at the same place.
+                val here = vm.picked?.first ?: 0
+                for (n in 0 until (vm.state?.pages?.size ?: 0)) {
+                    if (n == here) continue
+                    DropdownMenuItem(text = { Text(stringResource(R.string.slide_move_to, n + 1)) }, onClick = {
+                        arrangeMenu = false
+                        vm.movePickedTo(n)
+                    })
+                }
             }
         }
         TextButton(onClick = vm::deletePicked) { Text(stringResource(R.string.delete)) }

@@ -441,3 +441,20 @@ fn a_narrowed_table_grows_down_only_as_far_as_its_text_needs() {
     let again = d.objects(0).unwrap().into_iter().find(|o| o.id == t.id).unwrap();
     assert!((again.h - after.h).abs() < 0.5, "{again:?} vs {after:?}");
 }
+
+#[test]
+fn an_object_moves_to_another_slide_where_it_was() {
+    let mut d = DeckDoc::open(include_bytes!("../testdata/grouped-text.pptx")).unwrap();
+    let to = d.new_slide(0).unwrap() as u32;
+    let id = d.add_text_box(0, "Taşınan kutu").unwrap();
+    let before = d.objects(0).unwrap().into_iter().find(|o| o.id == id).unwrap();
+    let new_id = d.move_object_to_slide(0, id, to).unwrap();
+    assert!(!d.objects(0).unwrap().iter().any(|o| o.id == id));
+    let after = d.objects(to).unwrap().into_iter().find(|o| o.id == new_id).unwrap();
+    assert_eq!((after.x, after.y, after.w, after.h), (before.x, before.y, before.w, before.h));
+    assert!(d.text_shapes(to).unwrap().iter().any(|s| s.text == "Taşınan kutu"));
+    assert!(d.move_object_to_slide(0, new_id, 99).is_err());
+    // One step back puts it where it was.
+    assert!(d.undo());
+    assert!(d.objects(0).unwrap().iter().any(|o| o.id == id));
+}

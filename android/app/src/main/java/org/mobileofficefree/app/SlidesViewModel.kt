@@ -214,6 +214,19 @@ class SlidesViewModel(app: Application) : PagedViewModel(app, DocumentKind.SLIDE
         }
     }
 
+    /** The picked object moved to slide [to] (same place, on top), picked there and shown. */
+    fun movePickedTo(to: Int) {
+        val (slide, o) = picked ?: return
+        if (to == slide) return
+        picked = null
+        pickedLook = null
+        change {
+            val id = it.moveObjectToSlide(slide.toUInt(), o.id, to.toUInt())
+            pickLater(it, to, id)
+            to
+        }
+    }
+
     /** The picked object brought in front of the others ([front]) or sent behind them. */
     fun arrangePicked(front: Boolean) = restyle { d, slide, id -> d.arrangeObject(slide, id, front) }
 
