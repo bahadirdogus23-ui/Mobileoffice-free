@@ -29,7 +29,9 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Button
@@ -330,140 +332,150 @@ fun HomeScreen(onOpen: (Uri) -> Unit, onNewSheet: () -> Unit, onDiagnostics: () 
             }
             // Search, as a soft pill.
             SearchPill(query, onChange = { query = it }, modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp))
-            // Quick actions: lively tiles.
-            Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                QuickTile("📷", stringResource(R.string.scan), Color(0xFF0A84FF), Modifier.weight(1f), scan)
-                QuickTile("🖼", stringResource(R.string.images_to_pdf), Color(0xFFFF9F0A), Modifier.weight(1f), imagesToPdf)
-                QuickTile("📑", stringResource(R.string.merge_short), Color(0xFFFF375F), Modifier.weight(1f), mergePdfs)
-                QuickTile("📂", stringResource(R.string.open_short), Color(0xFF34C759), Modifier.weight(1f)) { pick.launch(DocumentKind.openableTypes) }
-            }
-            Spacer(Modifier.height(10.dp))
-            if (current.kind == null) {
-                Row(
-                    Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(horizontal = 16.dp),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                ) {
-                    for (f in ExtraFilter.entries) {
-                        FilterChip(
-                            selected = extra == f,
-                            onClick = { extraName = if (extra == f) null else f.name },
-                            label = { Text(stringResource(f.label)) },
-                        )
-                    }
-                }
-            }
-            Segmented(
-                listOf(stringResource(R.string.all_documents), stringResource(R.string.recently_opened)),
-                source,
-                { source = it },
-                Modifier.padding(horizontal = 16.dp, vertical = 10.dp),
-            )
-            if (shown.isNotEmpty()) {
-                Row(
-                    Modifier.fillMaxWidth().padding(start = 16.dp, end = 4.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Text(
-                        stringResource(R.string.documents_count, shown.size),
-                        style = MaterialTheme.typography.labelMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.weight(1f),
-                    )
-                    Box {
-                        TextButton(onClick = { sortMenu = true }) {
-                            Text(stringResource(R.string.sort_by, stringResource(sort.label)) + " ▾")
+            // Everything below the search scrolls together, so the list gets the screen; a new tab,
+            // source, filter or sort starts at its top.
+            val listState = remember(tab, source, extraName, sort) { LazyListState() }
+            LazyColumn(Modifier.fillMaxSize(), state = listState, contentPadding = PaddingValues(bottom = 96.dp)) {
+                item(key = "header") {
+                    Column {
+                        // Quick actions: lively tiles.
+                        Row(Modifier.fillMaxWidth().height(IntrinsicSize.Min).padding(horizontal = 16.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                            QuickTile("📷", stringResource(R.string.scan), Color(0xFF0A84FF), Modifier.weight(1f), scan)
+                            QuickTile("🖼", stringResource(R.string.images_to_pdf), Color(0xFFFF9F0A), Modifier.weight(1f), imagesToPdf)
+                            QuickTile("📑", stringResource(R.string.merge_short), Color(0xFFFF375F), Modifier.weight(1f), mergePdfs)
+                            QuickTile("📂", stringResource(R.string.open_short), Color(0xFF34C759), Modifier.weight(1f)) { pick.launch(DocumentKind.openableTypes) }
                         }
-                        DropdownMenu(expanded = sortMenu, onDismissRequest = { sortMenu = false }) {
-                            for (s in HomeSort.entries) {
-                                DropdownMenuItem(
-                                    text = { Text((if (s == sort) "✓ " else "") + stringResource(s.label)) },
-                                    onClick = {
-                                        sortMenu = false
-                                        sort = s
-                                        prefs.edit { putString("sort", s.name) }
-                                    },
-                                )
+                        Spacer(Modifier.height(10.dp))
+                        if (current.kind == null) {
+                            Row(
+                                Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(horizontal = 16.dp),
+                                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            ) {
+                                for (f in ExtraFilter.entries) {
+                                    FilterChip(
+                                        selected = extra == f,
+                                        onClick = { extraName = if (extra == f) null else f.name },
+                                        label = { Text(stringResource(f.label)) },
+                                    )
+                                }
                             }
                         }
-                    }
-                }
-            }
-            if (source == 0 && !access) {
-                Card(Modifier.fillMaxWidth().padding(16.dp)) {
-                    Column(Modifier.padding(16.dp)) {
-                        Text(stringResource(R.string.all_files_title), style = MaterialTheme.typography.titleMedium)
-                        Spacer(Modifier.height(4.dp))
-                        Text(stringResource(R.string.all_files_body), style = MaterialTheme.typography.bodyMedium)
-                        Spacer(Modifier.height(12.dp))
-                        Row {
-                            Button(onClick = askAccess) { Text(stringResource(R.string.all_files_button)) }
-                            Spacer(Modifier.width(8.dp))
-                            OutlinedButton(onClick = { pickFolder.launch(null) }) { Text(stringResource(R.string.pick_folder)) }
-                        }
-                        for (tree in folders) {
-                            Row(verticalAlignment = Alignment.CenterVertically) {
+                        Segmented(
+                            listOf(stringResource(R.string.all_documents), stringResource(R.string.recently_opened)),
+                            source,
+                            { source = it },
+                            Modifier.padding(horizontal = 16.dp, vertical = 10.dp),
+                        )
+                        if (shown.isNotEmpty()) {
+                            Row(
+                                Modifier.fillMaxWidth().padding(start = 16.dp, end = 4.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                            ) {
                                 Text(
-                                    stringResource(R.string.folder_label, folderAccess.label(tree)),
-                                    style = MaterialTheme.typography.bodyMedium,
+                                    stringResource(R.string.documents_count, shown.size),
+                                    style = MaterialTheme.typography.labelMedium,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
                                     modifier = Modifier.weight(1f),
                                 )
-                                IconButton(onClick = {
-                                    folderAccess.remove(tree)
-                                    folders = folderAccess.all()
-                                }) { Text("✕") }
+                                Box {
+                                    TextButton(onClick = { sortMenu = true }) {
+                                        Text(stringResource(R.string.sort_by, stringResource(sort.label)) + " ▾")
+                                    }
+                                    DropdownMenu(expanded = sortMenu, onDismissRequest = { sortMenu = false }) {
+                                        for (s in HomeSort.entries) {
+                                            DropdownMenuItem(
+                                                text = { Text((if (s == sort) "✓ " else "") + stringResource(s.label)) },
+                                                onClick = {
+                                                    sortMenu = false
+                                                    sort = s
+                                                    prefs.edit { putString("sort", s.name) }
+                                                },
+                                            )
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                        if (source == 0 && !access) {
+                            Card(Modifier.fillMaxWidth().padding(16.dp)) {
+                                Column(Modifier.padding(16.dp)) {
+                                    Text(stringResource(R.string.all_files_title), style = MaterialTheme.typography.titleMedium)
+                                    Spacer(Modifier.height(4.dp))
+                                    Text(stringResource(R.string.all_files_body), style = MaterialTheme.typography.bodyMedium)
+                                    Spacer(Modifier.height(12.dp))
+                                    Row {
+                                        Button(onClick = askAccess) { Text(stringResource(R.string.all_files_button)) }
+                                        Spacer(Modifier.width(8.dp))
+                                        OutlinedButton(onClick = { pickFolder.launch(null) }) { Text(stringResource(R.string.pick_folder)) }
+                                    }
+                                    for (tree in folders) {
+                                        Row(verticalAlignment = Alignment.CenterVertically) {
+                                            Text(
+                                                stringResource(R.string.folder_label, folderAccess.label(tree)),
+                                                style = MaterialTheme.typography.bodyMedium,
+                                                modifier = Modifier.weight(1f),
+                                            )
+                                            IconButton(onClick = {
+                                                folderAccess.remove(tree)
+                                                folders = folderAccess.all()
+                                            }) { Text("✕") }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                        if (current.kind == DocumentKind.SHEET) {
+                            OutlinedButton(onClick = onNewSheet, Modifier.padding(horizontal = 20.dp, vertical = 8.dp)) {
+                                Text(stringResource(R.string.new_spreadsheet))
                             }
                         }
                     }
                 }
-            }
-            if (current.kind == DocumentKind.SHEET) {
-                OutlinedButton(onClick = onNewSheet, Modifier.padding(horizontal = 20.dp, vertical = 8.dp)) {
-                    Text(stringResource(R.string.new_spreadsheet))
-                }
-            }
-            if (shown.isEmpty() && needle.isNotEmpty()) {
-                Text(
-                    stringResource(R.string.no_search_results, query.trim()),
-                    style = MaterialTheme.typography.bodyMedium,
-                    textAlign = TextAlign.Center,
-                    modifier = Modifier.fillMaxWidth().padding(32.dp),
-                )
-            } else if (shown.isEmpty() && !(source == 0 && listsDevice && device == null)) {
-                EmptyState(engineVersion)
-            } else {
-                LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(start = 16.dp, end = 16.dp, bottom = 96.dp)) {
-                    itemsIndexed(shown, key = { _, f -> f.uri.toString() }) { i, f ->
-                        // One white rounded group, as iPhone lists: the first and last rows round it off.
-                        val r = 16.dp
-                        val shape = RoundedCornerShape(topStart = if (i == 0) r else 0.dp, topEnd = if (i == 0) r else 0.dp, bottomStart = if (i == shown.lastIndex) r else 0.dp, bottomEnd = if (i == shown.lastIndex) r else 0.dp)
-                        Column(Modifier.clip(shape).background(MaterialTheme.colorScheme.surfaceContainerLow)) {
-                            DocumentRow(
-                                file = f,
-                                onOpen = {
-                                    FileInfo.rememberName(f.uri, f.name)
-                                    onOpen(f.uri)
-                                },
-                                onShare = {
-                                    val send = Intent(Intent.ACTION_SEND)
-                                        .setType(context.contentResolver.getType(f.uri) ?: "*/*")
-                                        .putExtra(Intent.EXTRA_STREAM, shareable(context, f.uri))
-                                        .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-                                    context.startActivity(Intent.createChooser(send, f.name))
-                                },
-                                onForget = if (source == 1 || !listsDevice) {
-                                    {
-                                        recents.forget(f.uri)
-                                        files = recents.all()
-                                    }
-                                } else {
-                                    null
-                                },
+                if (shown.isEmpty()) {
+                    item(key = "empty") {
+                        if (shown.isEmpty() && needle.isNotEmpty()) {
+                            Text(
+                                stringResource(R.string.no_search_results, query.trim()),
+                                style = MaterialTheme.typography.bodyMedium,
+                                textAlign = TextAlign.Center,
+                                modifier = Modifier.fillMaxWidth().padding(32.dp),
                             )
-                            if (i < shown.lastIndex) HorizontalDivider(Modifier.padding(start = 72.dp), color = MaterialTheme.colorScheme.outlineVariant)
+                        } else if (shown.isEmpty() && !(source == 0 && listsDevice && device == null)) {
+                            EmptyState(engineVersion)
                         }
                     }
-                    item(key = "support") { SupportCard(Modifier.padding(vertical = 16.dp)) }
                 }
+                itemsIndexed(shown, key = { _, f -> f.uri.toString() }) { i, f ->
+                    // One white rounded group, as iPhone lists: the first and last rows round it off.
+                    val r = 16.dp
+                    val shape = RoundedCornerShape(topStart = if (i == 0) r else 0.dp, topEnd = if (i == 0) r else 0.dp, bottomStart = if (i == shown.lastIndex) r else 0.dp, bottomEnd = if (i == shown.lastIndex) r else 0.dp)
+                    Column(Modifier.padding(horizontal = 16.dp).clip(shape).background(MaterialTheme.colorScheme.surfaceContainerLow)) {
+                        DocumentRow(
+                            file = f,
+                            onOpen = {
+                                FileInfo.rememberName(f.uri, f.name)
+                                onOpen(f.uri)
+                            },
+                            onShare = {
+                                val send = Intent(Intent.ACTION_SEND)
+                                    .setType(context.contentResolver.getType(f.uri) ?: "*/*")
+                                    .putExtra(Intent.EXTRA_STREAM, shareable(context, f.uri))
+                                    .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                                context.startActivity(Intent.createChooser(send, f.name))
+                            },
+                            onForget = if (source == 1 || !listsDevice) {
+                                {
+                                    recents.forget(f.uri)
+                                    files = recents.all()
+                                }
+                            } else {
+                                null
+                            },
+                        )
+                        if (i < shown.lastIndex) HorizontalDivider(Modifier.padding(start = 72.dp), color = MaterialTheme.colorScheme.outlineVariant)
+                    }
+                }
+                item(key = "support") { SupportCard(Modifier.padding(horizontal = 16.dp, vertical = 16.dp)) }
             }
         }
     }
@@ -586,14 +598,23 @@ private fun SearchPill(query: String, onChange: (String) -> Unit, modifier: Modi
 @Composable
 private fun QuickTile(glyph: String, label: String, tint: Color, modifier: Modifier = Modifier, onClick: () -> Unit) {
     Column(
-        modifier.clip(RoundedCornerShape(16.dp)).background(MaterialTheme.colorScheme.surfaceContainerLow).clickable(onClick = onClick).padding(vertical = 12.dp),
+        modifier.fillMaxHeight().clip(RoundedCornerShape(16.dp)).background(MaterialTheme.colorScheme.surfaceContainerLow).clickable(onClick = onClick).padding(horizontal = 4.dp, vertical = 12.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(6.dp),
     ) {
         Box(Modifier.size(40.dp).clip(CircleShape).background(tint.copy(alpha = 0.16f)), contentAlignment = Alignment.Center) {
             Text(glyph, fontSize = 20.sp)
         }
-        Text(label, style = MaterialTheme.typography.labelMedium, maxLines = 1, color = MaterialTheme.colorScheme.onSurface)
+        // Large system font sizes: the name wraps to a second, centred line rather than spilling out.
+        Text(
+            label,
+            style = MaterialTheme.typography.labelMedium,
+            maxLines = 2,
+            overflow = TextOverflow.Ellipsis,
+            textAlign = TextAlign.Center,
+            color = MaterialTheme.colorScheme.onSurface,
+            modifier = Modifier.fillMaxWidth(),
+        )
     }
 }
 
