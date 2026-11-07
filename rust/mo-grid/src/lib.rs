@@ -125,6 +125,11 @@ pub struct CellLook {
     /// A conditional format's data bar: the fraction (0–1) of the cell it fills (0 for none) and its colour.
     pub bar: f32,
     pub bar_color: u32,
+    /// A conditional format's icon: 0 none, 1 arrow, 2 rating (filled share), 3 dot; its index
+    /// (0 = lowest) among `icon_count` icons.
+    pub icon_kind: u8,
+    pub icon_index: u8,
+    pub icon_count: u8,
 }
 
 /// The rectangle from A1 to the last used cell, as counts.
@@ -299,6 +304,7 @@ impl GridDoc {
                 let st = merged.as_ref().unwrap_or(base);
                 let scale_fill = cfl.as_ref().and_then(|l| l.scale_fill);
                 let bar = cfl.as_ref().and_then(|l| l.bar);
+                let icon = cfl.as_ref().and_then(|l| l.icon.clone());
                 let b = &st.borders;
                 let sides = [&b.left, &b.right, &b.top, &b.bottom];
                 let borders = sides.iter().enumerate().fold(0u32, |acc, (i, l)| acc | weight(l) << (8 * i));
@@ -317,6 +323,18 @@ impl GridDoc {
                     },
                     bar: bar.map_or(0.0, |(f, _, _)| f.clamp(0.0, 1.0)),
                     bar_color: bar.map_or(0, |(_, rgb, _)| argb(Some(rgb))),
+                    icon_kind: icon.as_ref().map_or(0, |(set, _)| {
+                        let set = set.to_ascii_lowercase();
+                        if set.contains("arrow") {
+                            1
+                        } else if set.contains("rating") || set.contains("quarter") {
+                            2
+                        } else {
+                            3
+                        }
+                    }),
+                    icon_index: icon.as_ref().map_or(0, |(_, i)| (*i).min(255) as u8),
+                    icon_count: icon.as_ref().map_or(0, |(set, _)| gridcraft_engine::cf::icon_count(set).min(255) as u8),
                     wrap: st.align.wrap,
                     valign: match st.align.v {
                         VAlign::Center | VAlign::Justify | VAlign::Distributed => 1,

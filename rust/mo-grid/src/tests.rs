@@ -382,3 +382,15 @@ fn the_apps_conditional_format_rules_are_accepted() {
     doc.execute("home.clearRules", r#"{"range": "A1:B3"}"#).unwrap();
     assert!(doc.cell_looks(0, 0, 0, 3, 2).unwrap().iter().all(|l| l.fill == 0 && l.bar == 0.0));
 }
+
+#[test]
+fn icon_sets_show_on_the_grid() {
+    let mut doc = GridDoc::blank();
+    for (r, v) in ["1", "50", "100"].iter().enumerate() {
+        doc.set_input(r as u32, 0, v).unwrap();
+    }
+    doc.execute("home.conditionalFormat", r#"{"range": "A1:A3", "rule": {"type": "iconSet", "set": "3Arrows"}}"#).unwrap();
+    let l = doc.cell_looks(0, 0, 0, 3, 1).unwrap();
+    assert!(l.iter().all(|c| c.icon_kind == 1 && c.icon_count == 3), "{l:?}");
+    assert_eq!((l[0].icon_index, l[2].icon_index), (0, 2));
+}

@@ -348,6 +348,8 @@ fun SheetGrid(
                                 Size(((cw - 2 * inset) * look.bar).coerceAtLeast(1f), rh - 3 * inset),
                             )
                         }
+                        // A conditional format's icon at the cell's left, as Excel draws icon sets.
+                        if (look.iconKind.toInt() != 0) drawCfIcon(look, Offset(xOf(c), y), rh)
                     }
                 }
                 for (c in colList) {
@@ -514,5 +516,43 @@ fun SheetGrid(
                 .size(with(density) { w.toDp() }, with(density) { h.toDp() }),
         )
     }
+    }
+}
+
+/** Red, amber, green: low, middle and high icons (more icons blend between red and green). */
+private fun iconColor(index: Int, count: Int): Color {
+    if (count <= 3) return listOf(Color(0xFFD13B2F), Color(0xFFF2B82E), Color(0xFF2E9E4F)).getOrElse(index) { Color.Gray }
+    val t = index.toFloat() / (count - 1).coerceAtLeast(1)
+    return Color(red = (0xD1 * (1 - t) + 0x2E * t) / 255f, green = (0x3B * (1 - t) + 0x9E * t) / 255f, blue = (0x2F * (1 - t) + 0x4F * t) / 255f)
+}
+
+/** A conditional format's icon in a cell whose top-left corner is [at] and height [rowH]. */
+private fun androidx.compose.ui.graphics.drawscope.DrawScope.drawCfIcon(look: CellLook, at: Offset, rowH: Float) {
+    val side = minOf(rowH * 0.62f, 16.dp.toPx())
+    val c = Offset(at.x + 3.dp.toPx() + side / 2, at.y + rowH / 2)
+    val s = side / 2
+    val i = look.iconIndex.toInt()
+    val n = look.iconCount.toInt().coerceAtLeast(1)
+    val col = iconColor(i, n)
+    when (look.iconKind.toInt()) {
+        1 -> {
+            // Up for the highest, down for the lowest, sideways between.
+            val path = androidx.compose.ui.graphics.Path().apply {
+                when {
+                    i + 1 == n -> { moveTo(c.x, c.y - s); lineTo(c.x + s, c.y + 0.1f * s); lineTo(c.x - s, c.y + 0.1f * s) }
+                    i == 0 -> { moveTo(c.x, c.y + s); lineTo(c.x - s, c.y - 0.1f * s); lineTo(c.x + s, c.y - 0.1f * s) }
+                    else -> { moveTo(c.x + s, c.y); lineTo(c.x - 0.1f * s, c.y - s); lineTo(c.x - 0.1f * s, c.y + s) }
+                }
+                close()
+            }
+            drawPath(path, col)
+        }
+        2 -> {
+            val share = i.toFloat() / (n - 1).coerceAtLeast(1)
+            drawCircle(Color.Gray, s - 0.5f, c, style = Stroke(1f))
+            val h = (side - 4f) * share
+            drawRect(Color(0xFF2B7CD3), Offset(c.x - s + 2f, c.y + s - 2f - h), Size(side - 4f, h))
+        }
+        else -> drawCircle(col, s - 0.5f, c)
     }
 }

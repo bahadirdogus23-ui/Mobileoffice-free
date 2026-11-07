@@ -258,6 +258,9 @@ impl SheetDocument {
                 valign: l.valign,
                 bar: l.bar,
                 bar_color: l.bar_color,
+                icon_kind: l.icon_kind,
+                icon_index: l.icon_index,
+                icon_count: l.icon_count,
             })
             .collect())
     }
@@ -1099,6 +1102,10 @@ pub struct CellLook {
     /// A conditional format's data bar: the fraction (0–1) of the cell it fills (0 for none) and its colour.
     pub bar: f32,
     pub bar_color: u32,
+    /// A conditional format's icon: 0 none, 1 arrow, 2 rating, 3 dot; its index (0 = lowest) among `icon_count`.
+    pub icon_kind: u8,
+    pub icon_index: u8,
+    pub icon_count: u8,
 }
 
 /// A PDF whose pages are being reorganised (rotate, delete, move, combine, extract). Viewing

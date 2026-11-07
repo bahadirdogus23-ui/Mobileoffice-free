@@ -391,6 +391,10 @@ private fun SheetToolBar(vm: SheetViewModel, look: CellLook?) {
                                 cfMenu = false
                                 vm.conditionalFormat(JSONObject().put("type", "dataBar").put("color", "#638EC6"))
                             })
+                            DropdownMenuItem(text = { Text(stringResource(R.string.cf_icons)) }, onClick = {
+                                cfMenu = false
+                                vm.conditionalFormat(JSONObject().put("type", "iconSet").put("set", "3Arrows"))
+                            })
                             DropdownMenuItem(text = { Text(stringResource(R.string.cf_greater)) }, onClick = {
                                 cfMenu = false
                                 overDialog = true
