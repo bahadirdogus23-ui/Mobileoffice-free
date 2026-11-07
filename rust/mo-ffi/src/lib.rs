@@ -274,6 +274,41 @@ impl SheetDocument {
         self.doc().is_dirty()
     }
 
+    /// Where the charts on `sheet` sit (anchor cell, offset and size in the grid's unit).
+    pub fn charts(&self, sheet: u32) -> Result<Vec<SheetChartBox>, MoError> {
+        Ok(self
+            .doc()
+            .charts(sheet)?
+            .into_iter()
+            .map(|c| SheetChartBox { index: c.index, row: c.row, col: c.col, dx: c.dx, dy: c.dy, width: c.width, height: c.height })
+            .collect())
+    }
+
+    /// Chart `index` of `sheet` drawn `scale` times its size: opaque RGBA pixels and its words.
+    pub fn render_chart(&self, sheet: u32, index: u32, scale: f32) -> Result<SheetChartPicture, MoError> {
+        let p = self.doc().render_chart(sheet, index, scale)?;
+        Ok(SheetChartPicture {
+            width: p.width,
+            height: p.height,
+            pixels: p.pixels,
+            texts: p
+                .texts
+                .into_iter()
+                .map(|t| SheetChartText {
+                    x: t.x,
+                    y: t.y,
+                    text: t.text,
+                    size: t.size,
+                    color: t.color,
+                    bold: t.bold,
+                    align: t.align,
+                    valign: t.valign,
+                    rotation: t.rotation,
+                })
+                .collect(),
+        })
+    }
+
     /// The choices of cell (`row`, `col`)'s drop-down list on the active sheet (empty for none).
     pub fn list_choices(&self, row: u32, col: u32) -> Vec<String> {
         self.doc().list_choices(row, col)
@@ -518,6 +553,42 @@ impl SlidesDocument {
     fn doc(&self) -> MutexGuard<'_, DeckDoc> {
         self.doc.lock().unwrap_or_else(std::sync::PoisonError::into_inner)
     }
+}
+
+/// Where a chart sits: anchor cell, offset from its corner and size, in the grid's unit.
+#[derive(uniffi::Record)]
+pub struct SheetChartBox {
+    pub index: u32,
+    pub row: u32,
+    pub col: u32,
+    pub dx: f32,
+    pub dy: f32,
+    pub width: f32,
+    pub height: f32,
+}
+
+/// A chart drawn: opaque RGBA pixels and the words to write over them.
+#[derive(uniffi::Record)]
+pub struct SheetChartPicture {
+    pub width: u32,
+    pub height: u32,
+    pub pixels: Vec<u8>,
+    pub texts: Vec<SheetChartText>,
+}
+
+/// A word on a chart, anchored at (`x`, `y`) by `align` (0 left, 1 centre, 2 right) and `valign`
+/// (0 top, 1 middle, 2 bottom), turned `rotation` radians; `color` ARGB.
+#[derive(uniffi::Record)]
+pub struct SheetChartText {
+    pub x: f32,
+    pub y: f32,
+    pub text: String,
+    pub size: f32,
+    pub color: u32,
+    pub bold: bool,
+    pub align: u8,
+    pub valign: u8,
+    pub rotation: f32,
 }
 
 /// A note or comment on a cell.

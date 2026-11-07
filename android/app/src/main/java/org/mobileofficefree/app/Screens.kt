@@ -220,6 +220,7 @@ internal fun SheetScreen(vm: SheetViewModel, state: SheetUiState) {
             frozenCols = state.frozenCols,
             merges = state.merges,
             reveal = vm.reveal,
+            charts = state.charts.map { it to vm.chartPicture(state.sheet, it.index.toInt()) },
             noteCells = remember(state.notes) { state.notes.map { it.row.toLong() * 16384 + it.col.toLong() }.toSet() },
             onResize = vm::resizeLine,
             onSelect = { row, col ->

@@ -28,6 +28,44 @@ pub enum GridError {
 }
 
 /// One open workbook in its own engine session.
+/// Where a chart sits on its sheet: its anchor cell, the offset from that cell's top-left corner
+/// and its size, in the grid's unit.
+#[derive(Clone, Debug, PartialEq)]
+pub struct ChartBox {
+    pub index: u32,
+    pub row: u32,
+    pub col: u32,
+    pub dx: f32,
+    pub dy: f32,
+    pub width: f32,
+    pub height: f32,
+}
+
+/// A chart drawn: straight RGBA pixels (`width`×`height`, opaque on white) and the words to
+/// write over them.
+#[derive(Clone, Debug, PartialEq)]
+pub struct ChartPicture {
+    pub width: u32,
+    pub height: u32,
+    pub pixels: Vec<u8>,
+    pub texts: Vec<ChartText>,
+}
+
+/// A word on a chart: anchored at (`x`, `y`) pixels by `align` (0 left, 1 centre, 2 right) and
+/// `valign` (0 top, 1 middle, 2 bottom), turned `rotation` radians; `color` is ARGB.
+#[derive(Clone, Debug, PartialEq)]
+pub struct ChartText {
+    pub x: f32,
+    pub y: f32,
+    pub text: String,
+    pub size: f32,
+    pub color: u32,
+    pub bold: bool,
+    pub align: u8,
+    pub valign: u8,
+    pub rotation: f32,
+}
+
 /// A note or comment on a cell.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct CellNote {
@@ -534,6 +572,82 @@ impl GridDoc {
             .find(|v| v.kind == ValidationKind::List && v.ranges.iter().any(|r| r.contains(at)))
             .map(|v| gridcraft_engine::cmd::data::list_items(wb, sheet, v))
             .unwrap_or_default()
+    }
+
+    /// The charts on `sheet`: where each is (its anchor cell, the offset from that cell's corner
+    /// and its size, in the grid's unit).
+    pub fn charts(&self, sheet: u32) -> Result<Vec<ChartBox>, GridError> {
+        let sh = self.wb().sheets.get(sheet as usize).ok_or(GridError::NoSheet(sheet))?;
+        Ok(sh
+            .charts
+            .iter()
+            .enumerate()
+            .map(|(i, c)| ChartBox {
+                index: i as u32,
+                row: c.anchor.cell.row,
+                col: c.anchor.cell.col,
+                dx: c.anchor.dx,
+                dy: c.anchor.dy,
+                width: c.anchor.width,
+                height: c.anchor.height,
+            })
+            .collect())
+    }
+
+    /// Chart `index` of `sheet` drawn `scale` times its size on white: its shapes as straight
+    /// RGBA pixels, and its words (titles, labels, legend) to be written over them.
+    pub fn render_chart(&self, sheet: u32, index: u32, scale: f32) -> Result<ChartPicture, GridError> {
+        use gridcraft_chart::Prim;
+        let wb = self.wb();
+        let sh = wb.sheets.get(sheet as usize).ok_or(GridError::NoSheet(sheet))?;
+        let chart = sh.charts.get(index as usize).ok_or_else(|| GridError::Command("no such chart".into()))?;
+        let (w, h) = (chart.anchor.width.max(1.0), chart.anchor.height.max(1.0));
+        let scale = scale.clamp(0.1, 4.0);
+        let data = gridcraft_chart::resolve(wb, sheet as usize, chart);
+        let prims = gridcraft_chart::render(chart, &data, w, h, &gridcraft_chart::ApproxMeasure);
+        let k = |v: f32| v * scale;
+        let kp = |pts: &[[f32; 2]]| pts.iter().map(|p| [p[0] * scale, p[1] * scale]).collect::<Vec<_>>();
+        let ks = |s: Option<([u8; 4], f32)>| s.map(|(c, wd)| (c, wd * scale));
+        let mut texts = Vec::new();
+        let scaled: Vec<Prim> = prims
+            .into_iter()
+            .filter_map(|p| match p {
+                Prim::Rect { x, y, w, h, fill, stroke, radius } => {
+                    Some(Prim::Rect { x: k(x), y: k(y), w: k(w), h: k(h), fill, stroke: ks(stroke), radius: k(radius) })
+                }
+                Prim::Line { pts, color, width, dash } => Some(Prim::Line { pts: kp(&pts), color, width: k(width), dash }),
+                Prim::Polygon { pts, fill, stroke } => Some(Prim::Polygon { pts: kp(&pts), fill, stroke: ks(stroke) }),
+                Prim::Wedge { cx, cy, r_outer, r_inner, a0, a1, fill, stroke } => {
+                    Some(Prim::Wedge { cx: k(cx), cy: k(cy), r_outer: k(r_outer), r_inner: k(r_inner), a0, a1, fill, stroke: ks(stroke) })
+                }
+                Prim::Circle { cx, cy, r, fill, stroke } => Some(Prim::Circle { cx: k(cx), cy: k(cy), r: k(r), fill, stroke: ks(stroke) }),
+                Prim::Text { x, y, text, size, color, bold, align, valign, rotation } => {
+                    texts.push(ChartText {
+                        x: k(x),
+                        y: k(y),
+                        text,
+                        size: k(size),
+                        color: u32::from(color[3]) << 24 | u32::from(color[0]) << 16 | u32::from(color[1]) << 8 | u32::from(color[2]),
+                        bold,
+                        align: match align {
+                            gridcraft_chart::HAlign::Left => 0,
+                            gridcraft_chart::HAlign::Center => 1,
+                            gridcraft_chart::HAlign::Right => 2,
+                        },
+                        valign: match valign {
+                            gridcraft_chart::VAlign::Top => 0,
+                            gridcraft_chart::VAlign::Middle => 1,
+                            gridcraft_chart::VAlign::Bottom => 2,
+                        },
+                        rotation,
+                    });
+                    None
+                }
+            })
+            .collect();
+        let (pw, ph) = ((w * scale).round().max(1.0) as u32, (h * scale).round().max(1.0) as u32);
+        let pixels = gridcraft_chart::rasterize(&scaled, pw, ph, [255, 255, 255, 255]);
+        Ok(ChartPicture { width: pw, height: ph, pixels, texts })
     }
 
     /// Whether the active sheet has a filter on.

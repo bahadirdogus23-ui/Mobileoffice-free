@@ -69,6 +69,8 @@ data class SheetUiState(
     val merges: List<IntArray> = emptyList(),
     /** The selected cell's drop-down choices (Data Validation › List), if it has them. */
     val choices: List<String> = emptyList(),
+    /** Where this sheet's charts sit. */
+    val charts: List<org.mobileofficefree.engine.SheetChartBox> = emptyList(),
     /** Notes and comments on this sheet's cells. */
     val notes: List<org.mobileofficefree.engine.SheetNote> = emptyList(),
 )
@@ -212,6 +214,7 @@ class SheetViewModel(app: Application) : AndroidViewModel(app) {
         val old = doc
         doc = null
         blocks.clear()
+        forgetCharts()
         looks.clear()
         blockAt.clear()
         screen = Screen.Home
@@ -227,6 +230,7 @@ class SheetViewModel(app: Application) : AndroidViewModel(app) {
                 stateFor(d, current.fileName, index, 0, 0)
             } ?: return@launch
             blocks.clear()
+            forgetCharts()
             looks.clear()
             blockAt.clear()
             pending.clear()
@@ -340,6 +344,29 @@ class SheetViewModel(app: Application) : AndroidViewModel(app) {
     fun clearConditionalFormats() {
         val current = (screen as? Screen.Sheet)?.state ?: return
         edit { d -> d.execute("home.clearRules", JSONObject().put("range", formatRange(current)).toString()) }
+    }
+
+    /** Charts drawn so far, by (sheet, chart index); emptied when the data may have changed. */
+    private val chartPictures = mutableStateMapOf<Pair<Int, Int>, android.graphics.Bitmap>()
+    private val chartsAsked = mutableSetOf<Pair<Int, Int>>()
+
+    /** Chart [index] of [sheet] as a picture, or null while it is being drawn (then asked for). */
+    fun chartPicture(sheet: Int, index: Int): android.graphics.Bitmap? {
+        val key = sheet to index
+        chartPictures[key]?.let { return it }
+        if (!chartsAsked.add(key)) return null
+        val d = doc ?: return null
+        viewModelScope.launch {
+            val bmp = withContext(engine) { runCatching { drawChart(d.renderChart(sheet.toUInt(), index.toUInt(), CHART_SCALE)) }.getOrNull() }
+            if (bmp != null) chartPictures[key] = bmp
+        }
+        return null
+    }
+
+    /** Charts to be drawn again (after an edit, the data under them may differ). */
+    private fun forgetCharts() {
+        chartPictures.clear()
+        chartsAsked.clear()
     }
 
     /** The sheet as shown now, when one is. */
@@ -466,6 +493,7 @@ class SheetViewModel(app: Application) : AndroidViewModel(app) {
                 stateFor(d, current.fileName, sheet, row, col)
             } ?: return@launch
             blocks.clear()
+            forgetCharts()
             looks.clear()
             blockAt.clear()
             pending.clear()
@@ -568,6 +596,7 @@ class SheetViewModel(app: Application) : AndroidViewModel(app) {
                 onSuccess = {
                     unsaved = true
                     blocks.clear()
+                    forgetCharts()
                     looks.clear()
                     blockAt.clear()
                     pending.clear()
@@ -614,6 +643,7 @@ class SheetViewModel(app: Application) : AndroidViewModel(app) {
                     )
                     // A formula, a new row or a format can change any cell: fetch the loaded ones again.
                     for ((key, at) in blockAt.toMap()) requestBlock(at.first, at.second, at.third, key)
+                    forgetCharts()
                 },
                 onFailure = { message = text(R.string.cell_update_failed, it.message ?: "") },
             )
@@ -774,6 +804,7 @@ class SheetViewModel(app: Application) : AndroidViewModel(app) {
         functionDocs = next.functionDocs()
         hasFilter = next.hasFilter()
         blocks.clear()
+        forgetCharts()
         looks.clear()
         blockAt.clear()
         pending.clear()
@@ -801,6 +832,7 @@ class SheetViewModel(app: Application) : AndroidViewModel(app) {
             frozenCols = sizes.frozenCols.toInt(),
             merges = d.merges(sheet.toUInt()).map { it.toInt() }.chunked(4).map { it.toIntArray() },
             notes = runCatching { d.notes(sheet.toUInt()) }.getOrDefault(emptyList()),
+            charts = runCatching { d.charts(sheet.toUInt()) }.getOrDefault(emptyList()),
             choices = runCatching { d.listChoices(row.toUInt(), col.toUInt()) }.getOrDefault(emptyList()),
         )
     }
@@ -877,4 +909,40 @@ fun rangeName(s: SheetUiState): String {
     val c0 = minOf(s.selectedCol, s.endCol)
     val c1 = maxOf(s.selectedCol, s.endCol)
     return if (r0 == r1 && c0 == c1) cellName(r0, c0) else cellName(r0, c0) + ":" + cellName(r1, c1)
+}
+
+/** How many pixels per grid unit charts are drawn at (sharp when zoomed in a little). */
+private const val CHART_SCALE = 2f
+
+/** A drawn chart as a bitmap: its shapes, then its words written in the phone's own type. */
+private fun drawChart(p: org.mobileofficefree.engine.SheetChartPicture): android.graphics.Bitmap {
+    val w = p.width.toInt()
+    val h = p.height.toInt()
+    // Opaque straight RGBA is ARGB_8888's memory layout.
+    val bmp = android.graphics.Bitmap.createBitmap(w, h, android.graphics.Bitmap.Config.ARGB_8888)
+    bmp.copyPixelsFromBuffer(java.nio.ByteBuffer.wrap(p.pixels))
+    val canvas = android.graphics.Canvas(bmp)
+    val paint = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG)
+    for (t in p.texts) {
+        paint.color = t.color.toInt()
+        paint.textSize = t.size
+        paint.typeface = if (t.bold) android.graphics.Typeface.DEFAULT_BOLD else android.graphics.Typeface.DEFAULT
+        paint.textAlign = when (t.align.toInt()) {
+            1 -> android.graphics.Paint.Align.CENTER
+            2 -> android.graphics.Paint.Align.RIGHT
+            else -> android.graphics.Paint.Align.LEFT
+        }
+        val fm = paint.fontMetrics
+        // The baseline that puts the text's top, middle or bottom at y.
+        val dy = when (t.valign.toInt()) {
+            0 -> -fm.ascent
+            1 -> -(fm.ascent + fm.descent) / 2
+            else -> -fm.descent
+        }
+        canvas.save()
+        canvas.rotate(Math.toDegrees(t.rotation.toDouble()).toFloat(), t.x, t.y)
+        canvas.drawText(t.text, t.x, t.y + dy, paint)
+        canvas.restore()
+    }
+    return bmp
 }

@@ -424,3 +424,26 @@ fn drop_down_lists_offer_their_choices() {
     assert_eq!(doc.list_choices(0, 1), ["Ankara", "İzmir", "Şanlıurfa"]);
     assert!(doc.list_choices(0, 2).is_empty());
 }
+
+#[test]
+fn charts_are_placed_and_drawn_with_their_words() {
+    let mut doc = GridDoc::blank();
+    for (r, row) in [["Ay", "Satış"], ["Ocak", "10"], ["Şubat", "30"], ["Mart", "20"]].iter().enumerate() {
+        for (c, v) in row.iter().enumerate() {
+            doc.set_input(r as u32, c as u32, v).unwrap();
+        }
+    }
+    doc.execute("insert.chart", r#"{"range": "A1:B4", "type": "column", "title": "Aylık satış", "at": "D2"}"#).unwrap();
+    let charts = doc.charts(0).unwrap();
+    assert_eq!(charts.len(), 1);
+    assert_eq!((charts[0].row, charts[0].col), (1, 3));
+    assert!(charts[0].width > 50.0 && charts[0].height > 50.0, "{charts:?}");
+    let pic = doc.render_chart(0, 0, 2.0).unwrap();
+    assert_eq!((pic.width as f32, pic.height as f32), ((charts[0].width * 2.0).round(), (charts[0].height * 2.0).round()));
+    assert_eq!(pic.pixels.len(), (pic.width * pic.height * 4) as usize);
+    // Columns are drawn in colour, not only white.
+    let coloured = pic.pixels.as_chunks::<4>().0.iter().filter(|p| !(p[0] > 240 && p[1] > 240 && p[2] > 240)).count();
+    assert!(coloured > 500, "{coloured}");
+    assert!(pic.texts.iter().any(|t| t.text == "Aylık satış"), "{:?}", pic.texts.iter().map(|t| &t.text).collect::<Vec<_>>());
+    assert!(pic.texts.iter().any(|t| t.text == "Şubat"));
+}

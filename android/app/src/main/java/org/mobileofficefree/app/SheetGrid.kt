@@ -1,5 +1,6 @@
 package org.mobileofficefree.app
 
+import androidx.compose.ui.graphics.asImageBitmap
 import kotlin.math.abs
 import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.foundation.gestures.awaitFirstDown
@@ -87,6 +88,8 @@ fun SheetGrid(
     cellEditor: (@Composable (Modifier) -> Unit)? = null,
     /** Grows when the selected cell must be scrolled into view (a search result). */
     reveal: Int = 0,
+    /** The sheet's charts, each with its picture once drawn (null while it is being drawn). */
+    charts: List<Pair<org.mobileofficefree.engine.SheetChartBox, android.graphics.Bitmap?>> = emptyList(),
     /** Cells with a note or comment, as row × 16384 + column: marked with Excel's red corner. */
     noteCells: Set<Long> = emptySet(),
     /** A column ([col] ≥ 0) or row dragged to a new size (the axes' unit) from its header's edge. */
@@ -451,6 +454,27 @@ fun SheetGrid(
         // The edges of frozen panes, as Excel marks them.
         if (fr > 0) drawLine(colors.outline, Offset(rowHeader, bodyTop), Offset(size.width, bodyTop), 2.dp.toPx())
         if (fc > 0) drawLine(colors.outline, Offset(bodyLeft, colHeader), Offset(bodyLeft, size.height), 2.dp.toPx())
+
+        // Charts, floating over the cells at their anchors, as Excel places them.
+        if (charts.isNotEmpty()) clipRect(rowHeader, colHeader, size.width, size.height) {
+            for ((box, pic) in charts) {
+                val x = xOf(box.col.toInt()) + box.dx * k
+                val y = yOf(box.row.toInt()) + box.dy * k
+                val w = box.width * k
+                val h = box.height * k
+                if (x > size.width || y > size.height || x + w < rowHeader || y + h < colHeader) continue
+                if (pic != null) {
+                    drawImage(
+                        pic.asImageBitmap(),
+                        dstOffset = androidx.compose.ui.unit.IntOffset(x.roundToInt(), y.roundToInt()),
+                        dstSize = androidx.compose.ui.unit.IntSize(w.roundToInt().coerceAtLeast(1), h.roundToInt().coerceAtLeast(1)),
+                    )
+                } else {
+                    drawRect(Color(0xFFF4F4F4), Offset(x, y), Size(w, h))
+                }
+                drawRect(Color(0xFFBDBDBD), Offset(x, y), Size(w, h), style = Stroke(1f))
+            }
+        }
 
         // Selection: the range tinted and framed, its first cell framed.
         var r0 = min(selectedRow, endRow)
