@@ -350,6 +350,31 @@ class SheetViewModel(app: Application) : AndroidViewModel(app) {
         edit { d -> d.execute(if (col >= 0) "home.columnWidth" else "home.rowHeight", p.toString()) }
     }
 
+    /** The selected rows ("2:5") or columns ("B:D"), for whole-line commands. */
+    private fun selectedLines(s: SheetUiState, rows: Boolean): String {
+        val (r0, c0, r1, c1) = selectionBounds(s)
+        return if (rows) "${r0 + 1}:${r1 + 1}" else "${columnName(c0)}:${columnName(c1)}"
+    }
+
+    /** Hides the selected rows ([rows]) or columns. */
+    fun hideLines(rows: Boolean) {
+        val current = (screen as? Screen.Sheet)?.state ?: return
+        val p = JSONObject().put(if (rows) "rows" else "cols", selectedLines(current, rows))
+        edit { d -> d.execute(if (rows) "home.hideRows" else "home.hideColumns", p.toString()) }
+    }
+
+    /** Shows every hidden row and column of the sheet again. */
+    fun unhideAll() = edit { d ->
+        d.execute("home.unhideRows", JSONObject().put("rows", "1:1048576").toString())
+        d.execute("home.unhideColumns", JSONObject().put("cols", "A:XFD").toString())
+    }
+
+    /** The selected columns as wide as their contents. */
+    fun autofitColumns() {
+        val current = (screen as? Screen.Sheet)?.state ?: return
+        edit { d -> d.execute("home.autofitColumnWidth", JSONObject().put("cols", selectedLines(current, false)).toString()) }
+    }
+
     /** Inserts ([insert]) or deletes a whole row ([rows]) or column at the selection. */
     fun lines(rows: Boolean, insert: Boolean) {
         val current = (screen as? Screen.Sheet)?.state ?: return

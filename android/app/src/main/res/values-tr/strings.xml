@@ -570,4 +570,8 @@
     <string name="autosum_max">En büyük</string>
     <string name="autosum_min">En küçük</string>
     <string name="freeze_at_cell">%1$s hücresinin üstünü ve solunu dondur</string>
+    <string name="row_hide">Satırı gizle</string>
+    <string name="col_hide">Sütunu gizle</string>
+    <string name="unhide_all">Gizlileri göster</string>
+    <string name="col_autofit">Sütunu içeriğe sığdır</string>
 </resources>

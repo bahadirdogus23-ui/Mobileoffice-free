@@ -571,4 +571,8 @@
     <string name="autosum_max">Max</string>
     <string name="autosum_min">Min</string>
     <string name="freeze_at_cell">Freeze panes above and left of %1$s</string>
+    <string name="row_hide">Hide rows</string>
+    <string name="col_hide">Hide columns</string>
+    <string name="unhide_all">Show hidden</string>
+    <string name="col_autofit">Fit column width</string>
 </resources>

@@ -453,6 +453,10 @@ private fun SheetToolBar(vm: SheetViewModel, look: CellLook?) {
                     TextButton(onClick = { vm.lines(rows = true, insert = false) }) { Text(stringResource(R.string.row_delete)) }
                     TextButton(onClick = { vm.lines(rows = false, insert = true) }) { Text(stringResource(R.string.col_insert)) }
                     TextButton(onClick = { vm.lines(rows = false, insert = false) }) { Text(stringResource(R.string.col_delete)) }
+                    TextButton(onClick = { vm.hideLines(rows = true) }) { Text(stringResource(R.string.row_hide)) }
+                    TextButton(onClick = { vm.hideLines(rows = false) }) { Text(stringResource(R.string.col_hide)) }
+                    TextButton(onClick = vm::unhideAll) { Text(stringResource(R.string.unhide_all)) }
+                    TextButton(onClick = vm::autofitColumns) { Text(stringResource(R.string.col_autofit)) }
                 }
             }
         }

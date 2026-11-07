@@ -322,3 +322,16 @@ fn panes_freeze_above_and_left_of_a_cell() {
     let s = doc.sizes(0, 2, 2).unwrap();
     assert_eq!((s.frozen_rows, s.frozen_cols), (0, 0));
 }
+
+#[test]
+fn rows_and_columns_hide_and_show_again() {
+    let mut doc = GridDoc::blank();
+    doc.execute("home.hideRows", r#"{"rows": "2:3"}"#).unwrap();
+    doc.execute("home.hideColumns", r#"{"cols": "B:B"}"#).unwrap();
+    let s = doc.sizes(0, 3, 4).unwrap();
+    assert_eq!((s.row_heights[1], s.row_heights[2], s.col_widths[1]), (0.0, 0.0, 0.0));
+    doc.execute("home.unhideRows", r#"{"rows": "1:1048576"}"#).unwrap();
+    doc.execute("home.unhideColumns", r#"{"cols": "A:XFD"}"#).unwrap();
+    let s = doc.sizes(0, 3, 4).unwrap();
+    assert!(s.row_heights.iter().all(|h| *h > 0.0) && s.col_widths.iter().all(|w| *w > 0.0), "{s:?}");
+}
