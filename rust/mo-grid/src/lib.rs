@@ -521,6 +521,21 @@ impl GridDoc {
             .collect())
     }
 
+    /// The choices of cell (`row`, `col`)'s drop-down list (Data Validation › List) on the active
+    /// sheet: written out in the rule or read from a range. Empty when it has none.
+    pub fn list_choices(&self, row: u32, col: u32) -> Vec<String> {
+        use gridcraft_engine::model::ValidationKind;
+        let sheet = self.active_sheet() as usize;
+        let wb = self.wb();
+        let Some(sh) = wb.sheets.get(sheet) else { return Vec::new() };
+        let at = gridcraft_engine::cell(row, col);
+        sh.validations
+            .iter()
+            .find(|v| v.kind == ValidationKind::List && v.ranges.iter().any(|r| r.contains(at)))
+            .map(|v| gridcraft_engine::cmd::data::list_items(wb, sheet, v))
+            .unwrap_or_default()
+    }
+
     /// Whether the active sheet has a filter on.
     pub fn has_filter(&self) -> bool {
         self.wb().sheets.get(self.active_sheet() as usize).is_some_and(|sh| sh.autofilter.is_some())

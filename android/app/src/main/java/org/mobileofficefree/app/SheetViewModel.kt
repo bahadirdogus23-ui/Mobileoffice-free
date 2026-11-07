@@ -67,6 +67,8 @@ data class SheetUiState(
     val frozenCols: Int = 0,
     /** Merged ranges: [first row, first column, last row, last column]. */
     val merges: List<IntArray> = emptyList(),
+    /** The selected cell's drop-down choices (Data Validation › List), if it has them. */
+    val choices: List<String> = emptyList(),
     /** Notes and comments on this sheet's cells. */
     val notes: List<org.mobileofficefree.engine.SheetNote> = emptyList(),
 )
@@ -234,14 +236,15 @@ class SheetViewModel(app: Application) : AndroidViewModel(app) {
 
     fun selectCell(row: Int, col: Int) {
         val current = (screen as? Screen.Sheet)?.state ?: return
-        screen = Screen.Sheet(current.copy(selectedRow = row, selectedCol = col, endRow = row, endCol = col))
+        screen = Screen.Sheet(current.copy(selectedRow = row, selectedCol = col, endRow = row, endCol = col, choices = emptyList()))
         viewModelScope.launch {
-            val edit = withContext(engine) {
-                doc?.editText(current.sheet.toUInt(), row.toUInt(), col.toUInt())
+            val (edit, choices) = withContext(engine) {
+                val d = doc ?: return@withContext null
+                d.editText(current.sheet.toUInt(), row.toUInt(), col.toUInt()) to runCatching { d.listChoices(row.toUInt(), col.toUInt()) }.getOrDefault(emptyList())
             } ?: return@launch
             val now = (screen as? Screen.Sheet)?.state ?: return@launch
             if (now.selectedRow == row && now.selectedCol == col) {
-                screen = Screen.Sheet(now.copy(editText = edit))
+                screen = Screen.Sheet(now.copy(editText = edit, choices = choices))
             }
         }
     }
@@ -798,6 +801,7 @@ class SheetViewModel(app: Application) : AndroidViewModel(app) {
             frozenCols = sizes.frozenCols.toInt(),
             merges = d.merges(sheet.toUInt()).map { it.toInt() }.chunked(4).map { it.toIntArray() },
             notes = runCatching { d.notes(sheet.toUInt()) }.getOrDefault(emptyList()),
+            choices = runCatching { d.listChoices(row.toUInt(), col.toUInt()) }.getOrDefault(emptyList()),
         )
     }
 

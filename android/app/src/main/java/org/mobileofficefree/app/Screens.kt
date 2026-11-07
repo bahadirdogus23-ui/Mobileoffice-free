@@ -169,6 +169,19 @@ internal fun SheetScreen(vm: SheetViewModel, state: SheetUiState) {
             onAllFormulas = { showFormulas = true },
             onCommit = vm::commitCell,
         )
+        // The selected cell's drop-down list, as Excel's ▾ button opens it.
+        if (state.choices.isNotEmpty()) {
+            Row(
+                Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(horizontal = 8.dp, vertical = 2.dp),
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text("▾", color = MaterialTheme.colorScheme.primary)
+                for (choice in state.choices.take(100)) {
+                    FilterChip(selected = choice == state.editText, onClick = { vm.commitCell(choice) }, label = { Text(choice, maxLines = 1) })
+                }
+            }
+        }
         // The selected cell's note, as Excel shows it on hover.
         state.notes.firstOrNull { it.row.toInt() == state.selectedRow && it.col.toInt() == state.selectedCol }?.let { note ->
             Surface(color = Color(0xFFFFF8C4), modifier = Modifier.fillMaxWidth()) {

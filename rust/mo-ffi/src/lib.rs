@@ -274,6 +274,11 @@ impl SheetDocument {
         self.doc().is_dirty()
     }
 
+    /// The choices of cell (`row`, `col`)'s drop-down list on the active sheet (empty for none).
+    pub fn list_choices(&self, row: u32, col: u32) -> Vec<String> {
+        self.doc().list_choices(row, col)
+    }
+
     /// The notes and comments of `sheet` (a thread's replies after it, one per line).
     pub fn notes(&self, sheet: u32) -> Result<Vec<SheetNote>, MoError> {
         Ok(self.doc().notes(sheet)?.into_iter().map(|n| SheetNote { row: n.row, col: n.col, author: n.author, text: n.text }).collect())

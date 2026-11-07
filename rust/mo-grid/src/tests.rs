@@ -411,3 +411,16 @@ fn notes_are_listed_added_and_removed() {
     let again = GridDoc::open("x.xlsx", &doc.save("x.xlsx").unwrap(), None).unwrap();
     assert!(again.notes(0).unwrap().iter().any(|n| n.text.contains("Kalıcı not")));
 }
+
+#[test]
+fn drop_down_lists_offer_their_choices() {
+    let mut doc = GridDoc::blank();
+    for (r, v) in ["Ankara", "İzmir", "Şanlıurfa"].iter().enumerate() {
+        doc.set_input(r as u32, 4, v).unwrap();
+    }
+    doc.execute("data.validation", r#"{"range": "A1:A5", "type": "list", "formula1": "Evet,Hayır"}"#).unwrap();
+    doc.execute("data.validation", r#"{"range": "B1", "type": "list", "formula1": "=$E$1:$E$3"}"#).unwrap();
+    assert_eq!(doc.list_choices(2, 0), ["Evet", "Hayır"]);
+    assert_eq!(doc.list_choices(0, 1), ["Ankara", "İzmir", "Şanlıurfa"]);
+    assert!(doc.list_choices(0, 2).is_empty());
+}
