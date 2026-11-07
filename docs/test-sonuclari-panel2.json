@@ -1,0 +1,257 @@
+{
+ "C1": {
+  "note": "",
+  "status": "ok",
+  "updatedAt": "2026-11-07T17:21:21.669Z"
+ },
+ "C2": {
+  "note": "Object snap tam çalışmıyor orta boktayı hiç anlamıyor.  Ona iyi bir sistem lazım",
+  "status": "part",
+  "updatedAt": "2026-11-07T17:22:44.774Z"
+ },
+ "C3": {
+  "note": "Fakat neresini seçiçcz ne kadar yakınlaştıracaz hani alanı pdf yapıcaz seçilmiyor.",
+  "status": "ok",
+  "updatedAt": "2026-11-07T17:23:18.567Z"
+ },
+ "P1": {
+  "note": "Metin seçme yöntemi iyi değil sağda ve solda küçük noktacıklar olacak ki rahat yapsın.",
+  "status": "ok",
+  "updatedAt": "2026-11-07T17:16:07.568Z"
+ },
+ "P2": {
+  "note": "Metin ekledikten sonra program sayfada alakasız bir yeri yakınlaştırıp gösteriyor",
+  "status": "ok",
+  "updatedAt": "2026-11-07T17:16:44.578Z"
+ },
+ "P3": {
+  "note": "Birleştirme ekranında seçimler yapıldıktan sonra yine pdf ekleme tuşu olmalı. Ve programın kendi pdf listesinden 1den fazla pdf seçilirse orada da birleştir görülmeli",
+  "status": "ok",
+  "updatedAt": "2026-11-07T17:17:59.612Z"
+ },
+ "P4": {
+  "note": "Fakat dolu olan form alanlarını tanımıyor belki de onları da değiştirmek isteyecem?",
+  "status": "ok",
+  "updatedAt": "2026-11-07T17:18:57.302Z"
+ },
+ "S1": {
+  "note": "Çok kasıyor",
+  "status": "part",
+  "updatedAt": "2026-11-07T16:53:00.241Z"
+ },
+ "S10": {
+  "note": "",
+  "status": "skip",
+  "updatedAt": "2026-11-07T16:58:12.682Z"
+ },
+ "S11": {
+  "note": "",
+  "status": "ok",
+  "updatedAt": "2026-11-07T16:58:15.571Z"
+ },
+ "S2": {
+  "note": "Yavaş",
+  "status": "part",
+  "updatedAt": "2026-11-07T16:53:45.007Z"
+ },
+ "S3": {
+  "note": "Yavaş",
+  "status": "ok",
+  "updatedAt": "2026-11-07T16:53:52.262Z"
+ },
+ "S4": {
+  "note": "Hazır bir slaytta dokundum yazı tipi seçenekleri yok",
+  "status": "bad",
+  "updatedAt": "2026-11-07T16:54:33.152Z"
+ },
+ "S5": {
+  "note": "Sayfasını değiştir özelliği de olmalı",
+  "status": "ok",
+  "updatedAt": "2026-11-07T16:55:08.505Z"
+ },
+ "S6": {
+  "note": "",
+  "status": "ok",
+  "updatedAt": "2026-11-07T16:55:16.635Z"
+ },
+ "S7": {
+  "note": "Böyle bir tuş yok ya da bulamadım. Notlar yazıyor. Onu konuşmacı notu yapalım",
+  "status": "ok",
+  "updatedAt": "2026-11-07T16:57:40.839Z"
+ },
+ "S8": {
+  "note": "",
+  "status": "ok",
+  "updatedAt": "2026-11-07T16:57:58.305Z"
+ },
+ "S9": {
+  "note": "Odp hazırlarsan bakarız",
+  "status": "skip",
+  "updatedAt": "2026-11-07T16:58:11.247Z"
+ },
+ "W1": {
+  "note": "",
+  "status": "ok",
+  "updatedAt": "2026-11-07T16:58:32.895Z"
+ },
+ "W2": {
+  "note": "",
+  "status": "ok",
+  "updatedAt": "2026-11-07T16:58:44.705Z"
+ },
+ "W3": {
+  "note": "",
+  "status": "ok",
+  "updatedAt": "2026-11-07T16:59:24.942Z"
+ },
+ "W4": {
+  "note": "Tablo var ama görüntüsü yok",
+  "status": "bad",
+  "updatedAt": "2026-11-07T17:00:19.932Z"
+ },
+ "W5": {
+  "note": "",
+  "status": "ok",
+  "updatedAt": "2026-11-07T17:00:20.439Z"
+ },
+ "W6": {
+  "note": "",
+  "status": "ok",
+  "updatedAt": "2026-11-07T17:00:43.551Z"
+ },
+ "W7": {
+  "note": "",
+  "status": "ok",
+  "updatedAt": "2026-11-07T17:00:54.623Z"
+ },
+ "X1": {
+  "note": "",
+  "status": "ok",
+  "updatedAt": "2026-11-07T17:00:58.684Z"
+ },
+ "X10": {
+  "note": "Neden not başlığı: gridcraft user?. Mesela program ayarlarında bilgilerim diye bir yer olur kişi oraya bilgilerini girer böyle şeyler de ona göre şekillenir.",
+  "status": "ok",
+  "updatedAt": "2026-11-07T17:09:49.841Z"
+ },
+ "X11": {
+  "note": "Bulamadım ve anlamadım seni. Excelde açıklanmayan eksikler ve alakasız yerlere gitmiş özellik vutonları var",
+  "status": "skip",
+  "updatedAt": "2026-11-07T17:26:16.490Z"
+ },
+ "X12": {
+  "note": "Grafik taşıma veya grafik düzenleme menüsü açılmıyor.",
+  "status": "part",
+  "updatedAt": "2026-11-07T17:12:46.286Z"
+ },
+ "X13": {
+  "note": "",
+  "status": "ok",
+  "updatedAt": "2026-11-07T17:12:49.662Z"
+ },
+ "X14": {
+  "note": "",
+  "status": "ok",
+  "updatedAt": "2026-11-07T17:12:53.007Z"
+ },
+ "X15": {
+  "note": "",
+  "status": "ok",
+  "updatedAt": "2026-11-07T17:13:12.213Z"
+ },
+ "X16": {
+  "note": "Tablo ekleme ve tablo seçenekleri yok",
+  "status": "bad",
+  "updatedAt": "2026-11-07T17:14:58.133Z"
+ },
+ "X2": {
+  "note": "Göremedim ama çoklu seçim yapınca aşağı doğru kaydırmak gerekiyor bazen ve olmuyor.",
+  "status": "skip",
+  "updatedAt": "2026-11-07T17:05:31.459Z"
+ },
+ "X3": {
+  "note": "",
+  "status": "ok",
+  "updatedAt": "2026-11-07T17:05:31.937Z"
+ },
+ "X4": {
+  "note": "",
+  "status": "ok",
+  "updatedAt": "2026-11-07T17:06:23.917Z"
+ },
+ "X5": {
+  "note": "Çalışıyor ama bir sütun ismi seçince tüm belgeyi seçiyor. Bu sadece sol en köşedeki tuşla olmalı",
+  "status": "part",
+  "updatedAt": "2026-11-07T17:07:27.082Z"
+ },
+ "X6": {
+  "note": "",
+  "status": "ok",
+  "updatedAt": "2026-11-07T17:07:27.544Z"
+ },
+ "X7": {
+  "note": "",
+  "status": "ok",
+  "updatedAt": "2026-11-07T17:07:30.190Z"
+ },
+ "X8": {
+  "note": "",
+  "status": "ok",
+  "updatedAt": "2026-11-07T17:07:58.493Z"
+ },
+ "X9": {
+  "note": "",
+  "status": "ok",
+  "updatedAt": "2026-11-07T17:07:59.902Z"
+ },
+ "Y1": {
+  "note": "Formül yazarken formül içerisinde seçilen hücreler işaretlenmeli.",
+  "status": "ok",
+  "updatedAt": "2026-11-07T16:45:59.411Z"
+ },
+ "Y2": {
+  "note": "Fakat hücreleri birleştir seçeneği yok ve hücreye tıkladığımda biçim sekmesindeki özelliklerin gösterim şekli anlaşılmıyor.",
+  "status": "ok",
+  "updatedAt": "2026-11-07T16:46:41.990Z"
+ },
+ "Y3": {
+  "note": "Tüm tablo olursa seçiyor . Tablo içinde münferit metin seçimini de seçiyor ama seçilen metni kare içine almıyor",
+  "status": "part",
+  "updatedAt": "2026-11-07T16:48:55.738Z"
+ },
+ "Y4": {
+  "note": "Genişlik değiştirmede problem var. Genişlik değişiyor ama tablo alta doğru uzuyor ve seçim kare alanından taşıyor",
+  "status": "part",
+  "updatedAt": "2026-11-07T16:49:50.188Z"
+ },
+ "Y5": {
+  "note": "",
+  "status": "ok",
+  "updatedAt": "2026-11-07T16:49:58.769Z"
+ },
+ "Y6": {
+  "note": "",
+  "status": "bad",
+  "updatedAt": "2026-11-07T16:50:18.400Z"
+ },
+ "Z1": {
+  "note": "",
+  "status": "skip",
+  "updatedAt": "2026-11-07T17:22:45.257Z"
+ },
+ "Z2": {
+  "note": "",
+  "status": "ok",
+  "updatedAt": "2026-11-07T17:23:19.066Z"
+ },
+ "Z3": {
+  "note": "",
+  "status": "bad",
+  "updatedAt": "2026-11-07T17:24:35.730Z"
+ },
+ "Z4": {
+  "note": "Hem hata bildir yeri hem de hata ya da öneri bildir yeri var gereksiz. Hata veya öneri bildire basıp github ve eposta seçenek olarak görünmeli. Bu tekerrür pdfde de var hem imzla tuşu var hem de imzala ve yaz. Ne alaka. Bence bu tekerrür konularını incelemelisin.",
+  "status": "part",
+  "updatedAt": "2026-11-07T17:26:13.393Z"
+ }
+}
