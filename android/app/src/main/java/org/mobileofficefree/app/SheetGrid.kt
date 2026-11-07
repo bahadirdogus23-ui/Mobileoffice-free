@@ -1,5 +1,9 @@
 package org.mobileofficefree.app
 
+import kotlin.math.abs
+import androidx.compose.ui.input.pointer.PointerEventPass
+import androidx.compose.foundation.gestures.awaitFirstDown
+import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.LaunchedEffect
@@ -83,7 +87,18 @@ fun SheetGrid(
     cellEditor: (@Composable (Modifier) -> Unit)? = null,
     /** Grows when the selected cell must be scrolled into view (a search result). */
     reveal: Int = 0,
+    /** A column ([col] ≥ 0) or row dragged to a new size (the axes' unit) from its header's edge. */
+    onResize: (col: Int, row: Int, points: Float) -> Unit = { _, _, _ -> },
 ) {
+    // A column or row being dragged wider or narrower: (is a column, its index, its size in points).
+    var resizing by remember(sheet) { mutableStateOf<Triple<Boolean, Int, Float>?>(null) }
+    val baseCols by rememberUpdatedState(columnAxis)
+    val baseRows by rememberUpdatedState(rowAxis)
+    val resized by rememberUpdatedState(onResize)
+    @Suppress("NAME_SHADOWING")
+    val columnAxis = resizing?.takeIf { it.first }?.let { columnAxis.with(it.second, it.third) } ?: columnAxis
+    @Suppress("NAME_SHADOWING")
+    val rowAxis = resizing?.takeIf { !it.first }?.let { rowAxis.with(it.second, it.third) } ?: rowAxis
     val density = LocalDensity.current
     // Pixels per point at zoom 1: the file's sizes, a little larger than on paper for fingers.
     val unit = with(density) { 1.7.dp.toPx() }
@@ -152,6 +167,49 @@ fun SheetGrid(
     Canvas(
         Modifier
             .fillMaxSize()
+            .pointerInput(sheet, fr, fc) {
+                // Dragging the edge between two column letters (or row numbers) sizes that column (row).
+                val edge = 14.dp.toPx()
+                awaitEachGesture {
+                    val down = awaitFirstDown(requireUnconsumed = false, pass = PointerEventPass.Initial)
+                    val p = down.position
+                    val k = unit * scale
+                    val cAxis = baseCols
+                    val rAxis = baseRows
+                    val target: Triple<Boolean, Int, Float>? = when {
+                        p.y <= colHeader && p.x > rowHeader -> {
+                            // The column whose right edge is under the finger.
+                            val frozenW = cAxis.start(fc) * k
+                            fun rightEdge(c: Int) = if (c < fc) rowHeader + cAxis.start(c + 1) * k else rowHeader + frozenW + (cAxis.start(c + 1) - cAxis.start(fc)) * k - offsetX
+                            val gx = p.x - rowHeader
+                            val at = if (gx < frozenW) cAxis.at(gx / k) else cAxis.at(cAxis.start(fc) + (gx - frozenW + offsetX) / k)
+                            listOf(at, at - 1).firstOrNull { it >= 0 && abs(rightEdge(it) - p.x) < edge }?.let { Triple(true, it, cAxis.size(it)) }
+                        }
+                        p.x <= rowHeader && p.y > colHeader -> {
+                            val frozenH = rAxis.start(fr) * k
+                            fun bottomEdge(r: Int) = if (r < fr) colHeader + rAxis.start(r + 1) * k else colHeader + frozenH + (rAxis.start(r + 1) - rAxis.start(fr)) * k - offsetY
+                            val gy = p.y - colHeader
+                            val at = if (gy < frozenH) rAxis.at(gy / k) else rAxis.at(rAxis.start(fr) + (gy - frozenH + offsetY) / k)
+                            listOf(at, at - 1).firstOrNull { it >= 0 && abs(bottomEdge(it) - p.y) < edge }?.let { Triple(false, it, rAxis.size(it)) }
+                        }
+                        else -> null
+                    } ?: return@awaitEachGesture
+                    down.consume()
+                    resizing = target
+                    var size = target.third
+                    while (true) {
+                        val event = awaitPointerEvent(PointerEventPass.Initial)
+                        val change = event.changes.firstOrNull { it.id == down.id } ?: break
+                        if (!change.pressed) break
+                        val d = change.position - change.previousPosition
+                        size = (size + (if (target.first) d.x else d.y) / k).coerceIn(2f, 1000f)
+                        resizing = Triple(target.first, target.second, size)
+                        change.consume()
+                    }
+                    resizing = null
+                    if (size != target.third) resized(if (target.first) target.second else -1, if (target.first) -1 else target.second, size)
+                }
+            }
             .pointerInput(sheet, rows, cols, columnAxis, rowAxis, fr, fc) {
                 detectTransformGestures { centroid, pan, zoom, _ ->
                     val newScale = (scale * zoom).coerceIn(0.4f, 3f)

@@ -287,3 +287,14 @@ fn finds_and_replaces_the_turkish_way() {
     assert!(doc.edit_text(0, 3, 0).unwrap().starts_with('='));
     assert_eq!(doc.active_sheet(), 0);
 }
+
+#[test]
+fn columns_and_rows_take_sizes_dragged_in_points() {
+    // Sizes go in and come back in the same unit (Excel's pixels), the one the app's grid draws in.
+    let mut doc = GridDoc::blank();
+    doc.execute("home.columnWidth", r#"{"cols": "B:B", "width": 133.333}"#).unwrap();
+    doc.execute("home.rowHeight", r#"{"rows": "3:3", "height": 40}"#).unwrap();
+    let s = doc.sizes(0, 3, 4).unwrap();
+    assert!((s.col_widths[1] - 133.333).abs() < 0.5, "{:?}", s.col_widths);
+    assert!((s.row_heights[2] - 40.0).abs() < 0.5, "{:?}", s.row_heights);
+}

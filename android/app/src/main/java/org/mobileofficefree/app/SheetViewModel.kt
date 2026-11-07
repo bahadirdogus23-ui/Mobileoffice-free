@@ -329,6 +329,20 @@ class SheetViewModel(app: Application) : AndroidViewModel(app) {
         edit { d -> d.execute("edit.fillDown", JSONObject().put("range", formatRange(current)).toString()) }
     }
 
+    /**
+     * Column [col] (when ≥ 0) or row [row] made [size] wide or tall (dragged by its header's
+     * edge), in the grid's unit: Excel's pixels, as GridCraft gives and takes sizes.
+     */
+    fun resizeLine(col: Int, row: Int, size: Float) {
+        val px = size
+        val p = if (col >= 0) {
+            JSONObject().put("cols", "${columnName(col)}:${columnName(col)}").put("width", px.toDouble())
+        } else {
+            JSONObject().put("rows", "${row + 1}:${row + 1}").put("height", px.toDouble())
+        }
+        edit { d -> d.execute(if (col >= 0) "home.columnWidth" else "home.rowHeight", p.toString()) }
+    }
+
     /** Inserts ([insert]) or deletes a whole row ([rows]) or column at the selection. */
     fun lines(rows: Boolean, insert: Boolean) {
         val current = (screen as? Screen.Sheet)?.state ?: return

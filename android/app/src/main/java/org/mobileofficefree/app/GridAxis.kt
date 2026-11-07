@@ -12,6 +12,14 @@ class GridAxis(private val sizes: FloatArray, private val default: Float) {
 
     fun size(i: Int): Float = if (i < sizes.size) sizes[i] else default
 
+    /** The same axis with line [i] made [size] long (a column or row being dragged wider). */
+    fun with(i: Int, size: Float): GridAxis {
+        val n = maxOf(sizes.size, i + 1)
+        val out = FloatArray(n) { if (it < sizes.size) sizes[it] else default }
+        out[i] = size
+        return GridAxis(out, default)
+    }
+
     fun start(i: Int): Float = if (i <= sizes.size) start[i] else start[sizes.size] + (i - sizes.size) * default
 
     /** The line at position [pos] (≥ 0). */

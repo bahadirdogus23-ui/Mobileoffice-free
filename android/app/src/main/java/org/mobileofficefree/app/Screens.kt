@@ -189,6 +189,7 @@ internal fun SheetScreen(vm: SheetViewModel, state: SheetUiState) {
             frozenCols = state.frozenCols,
             merges = state.merges,
             reveal = vm.reveal,
+            onResize = vm::resizeLine,
             onSelect = { row, col ->
                 if ((formulaFocused || cellEditing) && pointing(formula)) {
                     val (v, r) = insertReference(formula, cellName(row, col), lastReference)
