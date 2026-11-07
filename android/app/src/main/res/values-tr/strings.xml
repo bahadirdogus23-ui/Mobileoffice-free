@@ -638,4 +638,8 @@
     <string name="ocr_none">Metin bulunamadı. Daha net ve düz bir fotoğraf yardımcı olur.</string>
     <string name="ocr_save">TXT olarak kaydet</string>
     <string name="ocr_note">Telefonda tanındı (Türkçe); ad ve sayıları kontrol edin.</string>
+    <string name="ocr_searchable">Aranabilir yap (OCR)</string>
+    <string name="ocr_progress">Sayfa %1$d / %2$d okunuyor…</string>
+    <string name="ocr_done">%1$d sayfa aranabilir yapıldı (%2$d kelime). Korumak için kaydedin.</string>
+    <string name="ocr_nothing">Tüm sayfalarda zaten metin var; okunacak bir şey yok.</string>
 </resources>

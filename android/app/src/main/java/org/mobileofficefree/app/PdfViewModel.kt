@@ -142,6 +142,42 @@ class PdfViewModel(app: Application) : PagedViewModel(app, DocumentKind.PDF) {
         }
     }
 
+    /** While pages are read for "Make searchable": (page being read, of how many); null otherwise. */
+    var ocrProgress by mutableStateOf<Pair<Int, Int>?>(null)
+        private set
+
+    /**
+     * "Make searchable": every page without text (a scan) is read on the phone and its words laid
+     * over it as invisible text, so the PDF can be searched and copied. Pages that already have
+     * text are left alone. The change is saved like any other edit.
+     */
+    fun makeSearchable() {
+        val s = state ?: return
+        val app = getApplication<Application>()
+        if (ocrProgress != null) return
+        viewModelScope.launch {
+            val found = ArrayList<Pair<Int, List<org.mobileofficefree.engine.OcrWord>>>()
+            for (i in s.pages.indices) {
+                ocrProgress = (i + 1) to s.pages.size
+                val hasText = withContext(engine) { runCatching { editor().pageText(i.toUInt()).count { !it.isWhitespace() } > 20 }.getOrDefault(false) }
+                if (hasText) continue
+                val bmp = renderForPrint(i, 2480) ?: continue
+                val words = runCatching { Ocr.recognizeWords(app, bmp) }.getOrDefault(emptyList())
+                bmp.recycle()
+                if (words.isNotEmpty()) found += i to words
+            }
+            ocrProgress = null
+            if (found.isEmpty()) {
+                tell(app.getString(R.string.ocr_nothing))
+                return@launch
+            }
+            var total = 0
+            edit(after = { tell(app.getString(R.string.ocr_done, found.size, total)) }) { doc ->
+                for ((page, words) in found) total += doc.addOcrWords(page.toUInt(), words).toInt()
+            }
+        }
+    }
+
     /** [text] typed on page [page], its top-left corner at ([x], [y]) (fractions of the page). */
     fun addText(page: Int, x: Float, y: Float, text: String, look: TextLook) = edit {
         it.addText(page.toUInt(), x.toDouble(), y.toDouble(), text, look)

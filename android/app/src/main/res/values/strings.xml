@@ -639,4 +639,8 @@
     <string name="ocr_none">No text was found. A sharper, straighter photo helps.</string>
     <string name="ocr_save">Save as TXT</string>
     <string name="ocr_note">Recognised on the phone (Turkish); check names and numbers.</string>
+    <string name="ocr_searchable">Make searchable (OCR)</string>
+    <string name="ocr_progress">Reading page %1$d of %2$d…</string>
+    <string name="ocr_done">%1$d pages made searchable (%2$d words). Save to keep it.</string>
+    <string name="ocr_nothing">Every page already has text; nothing to read.</string>
 </resources>

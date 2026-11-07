@@ -734,6 +734,16 @@ pub enum SlideObjectKind {
     Other,
 }
 
+/// A word recognised on a page: its text and box as fractions of the displayed page (y down).
+#[derive(uniffi::Record)]
+pub struct OcrWord {
+    pub text: String,
+    pub left: f64,
+    pub top: f64,
+    pub right: f64,
+    pub bottom: f64,
+}
+
 /// An object on a slide that can be moved: its id, its box in points and what it is.
 #[derive(uniffi::Record)]
 pub struct SlideObject {
@@ -1341,6 +1351,13 @@ impl PdfDocument {
     /// A sticky note holding `text` at (`x`, `y`), fractions of the displayed page.
     pub fn note(&self, page: u32, x: f64, y: f64, text: String) -> Result<(), MoError> {
         Ok(self.doc().note(page, [x, y], &text)?)
+    }
+
+    /// Lays recognised words over `page` as invisible text (a scanned page made searchable);
+    /// returns how many were written.
+    pub fn add_ocr_words(&self, page: u32, words: Vec<OcrWord>) -> Result<u32, MoError> {
+        let words: Vec<(String, [f64; 4])> = words.into_iter().map(|w| (w.text, [w.left, w.top, w.right, w.bottom])).collect();
+        Ok(self.doc().add_ocr_words(page, &words)?)
     }
 
     /// Text typed on `page`, its top-left corner at (`x`, `y`) (fractions of the displayed page).

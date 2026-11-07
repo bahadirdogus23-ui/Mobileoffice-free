@@ -420,3 +420,38 @@ fn selected_text_can_be_highlighted_underlined_and_struck() {
     // The text is still there to read and find.
     assert!(again.page_text(0).unwrap().contains("İşaretlenecek"));
 }
+
+#[test]
+fn recognised_words_make_a_scanned_page_searchable_without_changing_its_look() {
+    let mut doc = PdfDoc::open(pdf(1, "x"), None).unwrap();
+    let words = vec![
+        ("İSTANBUL".to_string(), [0.12, 0.30, 0.40, 0.34]),
+        ("Şirketi".to_string(), [0.42, 0.30, 0.60, 0.34]),
+        ("ığdır".to_string(), [0.12, 0.40, 0.30, 0.44]),
+    ];
+    assert_eq!(doc.add_ocr_words(0, &words).unwrap(), 3);
+    // Found, Turkish letters included, and kept in the saved file.
+    let saved = reopened(doc.save().unwrap());
+    let mut saved = saved;
+    assert_eq!(saved.find_text("istanbul", 10).unwrap().len(), 1);
+    assert_eq!(saved.find_text("şirketi", 10).unwrap().len(), 1);
+    assert!(saved.page_text(0).unwrap().contains("ığdır"), "{}", saved.page_text(0).unwrap());
+    // Invisible: written in text render mode 3 (neither filled nor stroked).
+    let page_ref = annot::page_refs(&saved.doc).unwrap()[0];
+    let contents = saved.doc.get(page_ref).as_dict().and_then(|d| d.get(b"Contents").cloned()).unwrap();
+    use pdfcraft_cos::Object;
+    let top = saved.doc.resolve(&contents);
+    let streams: Vec<std::sync::Arc<Object>> = match top.as_ref() {
+        Object::Array(a) => a.iter().map(|o| saved.doc.resolve(o)).collect(),
+        _ => vec![top.clone()],
+    };
+    let plain = streams
+        .iter()
+        .filter_map(|o| match o.as_ref() {
+            Object::Stream(st) => Some(st),
+            _ => None,
+        })
+        .filter_map(|st| st.decoded().ok())
+        .any(|d| d.windows(4).any(|w| w == b"3 Tr"));
+    assert!(plain, "the words are drawn invisibly");
+}

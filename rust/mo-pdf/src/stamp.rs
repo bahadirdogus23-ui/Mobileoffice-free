@@ -189,3 +189,92 @@ pub(crate) fn add_text(
     .map_err(|e| edit(&e))?;
     Ok(index)
 }
+
+/// One recognised word to lay over a scanned page: its text and its box in user space, as the
+/// bottom-left, bottom-right and top-left corners (a turned page turns the box).
+pub(crate) struct OcrWord {
+    pub text: String,
+    pub bottom_left: [f64; 2],
+    pub bottom_right: [f64; 2],
+    pub top_left: [f64; 2],
+}
+
+/// Writes `words` onto `page` as invisible text (render mode 3), each stretched over its box, so
+/// a scanned page can be searched, selected and copied while it looks exactly as before.
+pub(crate) fn add_invisible_words(doc: &mut Document, page: usize, words: &[OcrWord]) -> Result<usize, PdfError> {
+    let edit = |e: &dyn std::fmt::Display| PdfError::Edit(e.to_string());
+    let font = TextFont::Sans;
+    let data = font.data().ok_or_else(|| PdfError::Edit("the font could not be read".into()))?;
+    let face = ttf_parser::Face::parse(data, 0).map_err(|e| edit(&e))?;
+    let upem = f64::from(face.units_per_em().max(1));
+    let advance = |c: char| face.glyph_index(c).and_then(|g| face.glyph_hor_advance(g)).map_or(upem / 2.0, f64::from) / upem;
+    let n = |v: f64| format!("{:.3}", v).trim_end_matches('0').trim_end_matches('.').to_string();
+    let mut content = b"BT 3 Tr\n".to_vec();
+    let mut written = 0usize;
+    for w in words {
+        let text = w.text.trim();
+        if text.is_empty() {
+            continue;
+        }
+        let dx = [w.bottom_right[0] - w.bottom_left[0], w.bottom_right[1] - w.bottom_left[1]];
+        let dy = [w.top_left[0] - w.bottom_left[0], w.top_left[1] - w.bottom_left[1]];
+        let width = dx[0].hypot(dx[1]);
+        let height = dy[0].hypot(dy[1]);
+        if !(width.is_finite() && height.is_finite()) || width < 0.5 || height < 0.5 {
+            continue;
+        }
+        let (ux, uy) = (dx[0] / width, dx[1] / width);
+        let natural = text.chars().map(advance).sum::<f64>().max(0.1);
+        // The letters' height is the box's; Tz stretches them across its width.
+        let size = height;
+        let stretch = (width / (natural * size) * 100.0).clamp(1.0, 1000.0);
+        content.extend_from_slice(
+            format!(
+                "/MoOcrF {} Tf {} Tz {} {} {} {} {} {} Tm (",
+                n(size),
+                n(stretch),
+                n(ux),
+                n(uy),
+                n(-uy),
+                n(ux),
+                n(w.bottom_left[0]),
+                n(w.bottom_left[1])
+            )
+            .as_bytes(),
+        );
+        for c in text.chars() {
+            let b = gridcraft_pdf::win_ansi(c);
+            if matches!(b, b'(' | b')' | b'\\') {
+                content.push(b'\\');
+            }
+            content.push(b);
+        }
+        // A space after each word, so copied text keeps its words apart.
+        content.extend_from_slice(b" ) Tj\n");
+        written += 1;
+    }
+    if written == 0 {
+        return Ok(0);
+    }
+    content.extend_from_slice(b"ET\n");
+    let font_ref = embedded_font(doc, data).ok_or_else(|| PdfError::Edit("the font could not be read".into()))?;
+    pdfcraft_edit::stamp(doc, page, "MoOcr", content).map_err(|e| edit(&e))?;
+    // The page's own resources (copied from its parents when inherited) get the font.
+    let page_ref = *annot::page_refs(doc).map_err(|e| edit(&e))?.get(page).ok_or_else(|| PdfError::Edit("no such page".into()))?;
+    let mut resources = Dict::new();
+    let mut at = Some(page_ref);
+    while let Some(r) = at {
+        let d = doc.get(r).as_dict().cloned();
+        let Some(d) = d else { break };
+        if let Some(res) = d.get(b"Resources").map(|o| doc.resolve(o)).and_then(|o| o.as_dict().cloned()) {
+            resources = res;
+            break;
+        }
+        at = d.get(b"Parent").and_then(Object::as_ref);
+    }
+    let mut fonts = resources.get(b"Font").map(|o| doc.resolve(o)).and_then(|o| o.as_dict().cloned()).unwrap_or_default();
+    fonts.set(b"MoOcrF".to_vec(), Object::Ref(font_ref));
+    resources.set(b"Font".to_vec(), Object::Dict(fonts));
+    doc.update_dict(page_ref, |d| d.set(b"Resources".to_vec(), Object::Dict(resources.clone()))).map_err(|e| edit(&e))?;
+    Ok(written)
+}

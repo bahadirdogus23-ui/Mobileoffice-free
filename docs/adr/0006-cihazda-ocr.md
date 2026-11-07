@@ -30,5 +30,5 @@ Metin tanıma **Tesseract** ile, tamamen telefonda yapılır:
 - APK, her işlemci mimarisi için birkaç MB yerel kitaplık ve 4,5 MB model kadar büyür.
 - İlk aşamada resim görüntüleyicide ve PDF sayfalarında “Metni tanı” vardır: tanınan metin
   seçilir, kopyalanır, paylaşılır ya da TXT olarak kaydedilir. Taranmış PDF'e görünmez metin
-  katmanı eklemek (aranabilir PDF) sonraki adımdır.
+  katmanı eklenir (“Aranabilir yap”): metni olmayan her sayfa okunur, kelimeler yerlerine görünmez metin (render mode 3) olarak yazılır.
 - Tanıma süreleri Ölçümler'de “OCR: tanıma” olarak görünür.

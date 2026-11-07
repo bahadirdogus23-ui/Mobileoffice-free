@@ -214,6 +214,28 @@ impl PdfDoc {
         Ok(())
     }
 
+    /// Lays recognised `words` (each its text and box as fractions of the displayed page: left,
+    /// top, right, bottom) over `page` as invisible text, so a scanned page can be searched and
+    /// copied while it looks the same. Returns how many words were written.
+    pub fn add_ocr_words(&mut self, page: u32, words: &[(String, [f64; 4])]) -> Result<u32, PdfError> {
+        self.refuse_restricted()?;
+        self.text = None;
+        let p = page as usize;
+        let boxes = organize::page_boxes(&self.doc).map_err(edit)?;
+        let crop = boxes.get(p).ok_or_else(|| PdfError::Edit("no such page".into()))?[1];
+        let turn = organize::page_rotation(&self.doc, p).map_err(edit)?;
+        let words: Vec<stamp::OcrWord> = words
+            .iter()
+            .map(|(text, [l, t, r, b])| stamp::OcrWord {
+                text: text.clone(),
+                bottom_left: user_point(crop, turn, [*l, *b]),
+                bottom_right: user_point(crop, turn, [*r, *b]),
+                top_left: user_point(crop, turn, [*l, *t]),
+            })
+            .collect();
+        Ok(stamp::add_invisible_words(&mut self.doc, p, &words)? as u32)
+    }
+
     /// The texts typed with [`PdfDoc::add_text`] on `page`, to select, move and restyle: their
     /// boxes as fractions of the displayed page (left, top, right, bottom; y down).
     pub fn typed_texts(&self, page: u32) -> Result<Vec<TypedText>, PdfError> {

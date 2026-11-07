@@ -63,6 +63,41 @@ object Ocr {
         return root
     }
 
+    /** The words in [bitmap] with their boxes as fractions of it, for an invisible text layer. */
+    suspend fun recognizeWords(context: Context, bitmap: Bitmap): List<org.mobileofficefree.engine.OcrWord> = lock.withLock {
+        withContext(Dispatchers.Default) {
+            val started = SystemClock.elapsedRealtime()
+            val api = TessBaseAPI()
+            try {
+                if (!api.init(dataDir(context).absolutePath, LANG)) error("OCR model could not be loaded")
+                api.setPageSegMode(TessBaseAPI.PageSegMode.PSM_AUTO)
+                api.setImage(bitmap)
+                api.getUTF8Text()
+                val w = bitmap.width.toDouble()
+                val h = bitmap.height.toDouble()
+                val out = ArrayList<org.mobileofficefree.engine.OcrWord>()
+                val it = api.getResultIterator() ?: return@withContext emptyList()
+                try {
+                    it.begin()
+                    val level = TessBaseAPI.PageIteratorLevel.RIL_WORD
+                    do {
+                        val text = it.getUTF8Text(level)?.trim().orEmpty()
+                        val r = it.getBoundingRect(level)
+                        if (text.isNotEmpty() && r.width() > 0 && r.height() > 0) {
+                            out += org.mobileofficefree.engine.OcrWord(text, r.left / w, r.top / h, r.right / w, r.bottom / h)
+                        }
+                    } while (it.next(level))
+                } finally {
+                    it.delete()
+                }
+                Measurements.sample("OCR: sayfa kelimeleri (${bitmap.width}×${bitmap.height})", SystemClock.elapsedRealtime() - started)
+                out
+            } finally {
+                api.recycle()
+            }
+        }
+    }
+
     /** The text in [bitmap], lines kept as lines; blank when none was found. */
     suspend fun recognize(context: Context, bitmap: Bitmap): String = lock.withLock {
         withContext(Dispatchers.Default) {

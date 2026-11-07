@@ -784,6 +784,7 @@ fun PagedScreen(vm: PagedViewModel, state: PagedUiState, reading: ReadingSetting
                     ToolItem("⇲", stringResource(R.string.compress), enabled = !pdf.busy, onClick = { showCompress = true })
                     ToolItem("☑", stringResource(R.string.form_fill), enabled = !pdf.busy, onClick = pdf::loadForm)
                     ToolItem("🔍", stringResource(R.string.ocr), enabled = !pdf.busy, onClick = { ocrPage = current - 1 })
+                    ToolItem("⌕", stringResource(R.string.ocr_searchable), enabled = !pdf.busy && pdf.ocrProgress == null && !pdf.restricted, onClick = pdf::makeSearchable)
                 }
                 if (vm.exportFormats.isNotEmpty()) {
                     ToolItem("⇄", stringResource(R.string.convert), onClick = { showConvert = true })
@@ -800,6 +801,14 @@ fun PagedScreen(vm: PagedViewModel, state: PagedUiState, reading: ReadingSetting
         }
     }
 
+    pdf?.ocrProgress?.let { (at, of) ->
+        AlertDialog(onDismissRequest = {}, confirmButton = {}, text = {
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                androidx.compose.material3.CircularProgressIndicator()
+                Text(stringResource(R.string.ocr_progress, at, of))
+            }
+        })
+    }
     ocrPage?.let { page ->
         // The page drawn at about 300 dpi for an A4 page, the size Tesseract reads best.
         OcrDialog("${state.fileName.substringBeforeLast('.')}-s${page + 1}", source = { vm.renderForPrint(page, 2480) }, onDone = { ocrPage = null })
