@@ -44,8 +44,10 @@ class MobileOfficeApp : Application() {
 object Diagnostics {
     private const val CRASH_FILE = "last-crash.txt"
     private const val CRASH_SHOT = "last-crash.png"
-    private const val MAX_TIMINGS = 50
-    private const val MAX_EVENTS = 80
+    // Kept across sessions (see [load]), so measurements gather up until the person sends them.
+    private const val MAX_TIMINGS = 500
+    private const val MAX_EVENTS = 1000
+    private const val LOG_FILE = "measurements.txt"
     private const val MAX_SHOTS = 3
 
     /** Where problem reports go: the developer's mailbox, through the person's own mail app. */
@@ -56,7 +58,61 @@ object Diagnostics {
     private val events = ArrayDeque<String>()
     @Volatile var current: java.lang.ref.WeakReference<android.app.Activity>? = null
 
-    private fun now(): String = java.text.SimpleDateFormat("HH:mm:ss", java.util.Locale.ROOT).format(Date())
+    private fun now(): String = java.text.SimpleDateFormat("dd.MM HH:mm:ss", java.util.Locale.ROOT).format(Date())
+
+    /** Where the events and timings are kept between sessions (the app's private storage). */
+    @Volatile private var logFile: File? = null
+    private val writer = java.util.concurrent.Executors.newSingleThreadExecutor()
+
+    /**
+     * Reads the events and timings kept from earlier sessions; from now on every new one is kept
+     * too. They stay until the person clears them ([clear]), however often the app is closed.
+     */
+    fun load(context: Context) {
+        val file = File(context.filesDir, LOG_FILE)
+        logFile = file
+        runCatching {
+            if (!file.exists()) return
+            var section = 0
+            val ev = ArrayList<String>()
+            val tm = ArrayList<String>()
+            file.forEachLine { line ->
+                when (line) {
+                    "[events]" -> section = 1
+                    "[timings]" -> section = 2
+                    else -> if (line.isNotBlank()) (if (section == 1) ev else if (section == 2) tm else null)?.add(line)
+                }
+            }
+            synchronized(events) { events.clear(); events.addAll(ev.take(MAX_EVENTS)) }
+            synchronized(timings) { timings.clear(); timings.addAll(tm.take(MAX_TIMINGS)) }
+        }
+    }
+
+    /** Writes the events and timings out (off the calling thread; a file written whole beside, then moved). */
+    private fun persist() {
+        val file = logFile ?: return
+        val ev = events()
+        val tm = timings()
+        writer.execute {
+            runCatching {
+                val tmp = File(file.parentFile, "$LOG_FILE.tmp")
+                tmp.bufferedWriter().use { w ->
+                    w.write("[events]\n")
+                    ev.forEach { w.write(it.replace('\n', ' ')); w.write("\n") }
+                    w.write("[timings]\n")
+                    tm.forEach { w.write(it.replace('\n', ' ')); w.write("\n") }
+                }
+                tmp.renameTo(file)
+            }
+        }
+    }
+
+    /** Forgets every kept event and timing (the person sent them, or wants a fresh start). */
+    fun clear() {
+        synchronized(events) { events.clear() }
+        synchronized(timings) { timings.clear() }
+        persist()
+    }
 
     /** Remembers something worth knowing in a report (an open, a save, a setting changed). */
     fun event(what: String) {
@@ -64,6 +120,7 @@ object Diagnostics {
             events.addFirst("${now()} $what")
             while (events.size > MAX_EVENTS) events.removeLast()
         }
+        persist()
     }
 
     fun events(): List<String> = synchronized(events) { events.toList() }
@@ -152,16 +209,17 @@ object Diagnostics {
     /** Remembers how long [what] took since [startedAt] (a [SystemClock.elapsedRealtime] value). */
     fun record(what: String, startedAt: Long) {
         val ms = SystemClock.elapsedRealtime() - startedAt
-        event("$what: $ms ms")
         synchronized(timings) {
-            timings.addFirst("$what: $ms ms")
+            timings.addFirst("${now()} $what: $ms ms")
             while (timings.size > MAX_TIMINGS) timings.removeLast()
         }
+        event("$what: $ms ms")
     }
 
     fun timings(): List<String> = synchronized(timings) { timings.toList() }
 
     fun installCrashRecorder(context: Context) {
+        load(context)
         val file = File(context.filesDir, CRASH_FILE)
         val previous = Thread.getDefaultUncaughtExceptionHandler()
         Thread.setDefaultUncaughtExceptionHandler { thread, error ->
@@ -229,11 +287,11 @@ object Diagnostics {
         val info = ActivityManager.MemoryInfo().also { am?.getMemoryInfo(it) }
         appendLine("Telefonun belleği: ${mb(info.totalMem)}, boş ${mb(info.availMem)}")
         appendLine()
-        appendLine("Açma süreleri (bu oturum):")
+        appendLine("Açma süreleri (saklanan, en yenisi üstte):")
         val t = timings()
         if (t.isEmpty()) appendLine("  —") else t.forEach { appendLine("  $it") }
         appendLine()
-        appendLine("Olaylar (bu oturum, en yenisi üstte):")
+        appendLine("Olaylar (saklanan, en yenisi üstte):")
         val e = events()
         if (e.isEmpty()) appendLine("  —") else e.forEach { appendLine("  $it") }
     }

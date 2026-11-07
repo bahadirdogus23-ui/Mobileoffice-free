@@ -446,6 +446,14 @@ fn charts_are_placed_and_drawn_with_their_words() {
     assert!(coloured > 500, "{coloured}");
     assert!(pic.texts.iter().any(|t| t.text == "Aylık satış"), "{:?}", pic.texts.iter().map(|t| &t.text).collect::<Vec<_>>());
     assert!(pic.texts.iter().any(|t| t.text == "Şubat"));
+    // Moved, retitled and turned into a line chart; then deleted.
+    doc.change_chart(0, 0, r#"{"at": "F8", "dx": 0, "dy": 0, "title": "Satışlar", "type": "line"}"#).unwrap();
+    let moved = doc.charts(0).unwrap();
+    assert_eq!((moved[0].row, moved[0].col), (7, 5));
+    assert!(doc.render_chart(0, 0, 1.0).unwrap().texts.iter().any(|t| t.text == "Satışlar"));
+    doc.change_chart(0, 0, r#"{"delete": true}"#).unwrap();
+    assert!(doc.charts(0).unwrap().is_empty());
+    assert!(doc.change_chart(0, 0, "{}").is_err());
 }
 
 #[test]

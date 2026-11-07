@@ -69,7 +69,7 @@
         <item quantity="other">%1$d files</item>
     </plurals>
     <string name="diagnostics">Measurements</string>
-    <string name="diagnostics_hint">Your phone, the app size, memory and how long files opened in this session took. Tap “Share” to send it to the developers; the app itself never goes online.</string>
+    <string name="diagnostics_hint">Your phone, the app size, memory and how long files took to open. Records are kept when the app closes and gather until you clear them. Tap “Share” or “Report by email” to send them to the developers; the app itself never goes online.</string>
     <string name="refresh">Refresh</string>
     <string name="crash_title">The app closed unexpectedly</string>
     <string name="crash_body">Sorry about that. Would you like to e-mail the report to the developer? It holds the phone model, Android and app versions, the last steps and the technical detail of the error; when one could be taken, a picture of the screen at the crash is attached (a document on screen may show; you can remove it before sending). You do the sending.</string>
@@ -612,4 +612,12 @@
     <string name="settings_profile_hint">Your name on the notes you add</string>
     <string name="profile_name">Your name</string>
     <string name="profile_unset">Not set</string>
+    <string name="diagnostics_clear">Clear records</string>
+    <string name="diagnostics_clear_confirm">Delete all kept measurements and events? Send them first if you need them.</string>
+    <string name="chart_menu_title">Chart</string>
+    <string name="chart_move">Move</string>
+    <string name="chart_move_hint">Tap the cell where the chart\'s top-left corner should go.</string>
+    <string name="chart_type">Type</string>
+    <string name="chart_title">Title</string>
+    <string name="chart_delete">Delete chart</string>
 </resources>

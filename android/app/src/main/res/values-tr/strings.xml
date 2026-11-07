@@ -68,7 +68,7 @@
         <item quantity="other">%1$d dosya</item>
     </plurals>
     <string name="diagnostics">Ölçümler</string>
-    <string name="diagnostics_hint">Telefonun, uygulamanın boyutu, bellek ve bu oturumda açılan dosyaların süreleri. Geliştiricilere iletmek için “Paylaş”a dokun; uygulama internete hiç bağlanmaz.</string>
+    <string name="diagnostics_hint">Telefonun, uygulamanın boyutu, bellek ve açılan dosyaların süreleri. Kayıtlar uygulama kapansa da saklanır, siz temizleyene kadar birikir. Geliştiricilere iletmek için “Paylaş” ya da “E-postayla bildir”e dokunun; uygulama internete hiç bağlanmaz.</string>
     <string name="refresh">Yenile</string>
     <string name="crash_title">Uygulama beklenmedik şekilde kapandı</string>
     <string name="crash_body">Bunun için özür dileriz. Hata raporunu geliştiriciye e-postayla iletmek ister misiniz? Rapor telefon modelini, Android ve uygulama sürümünü, son işlemleri ve hatanın teknik ayrıntısını içerir; açılabiliyorsa kapanma anının ekran görüntüsü de eklenir (ekranda belge varsa görünebilir, göndermeden önce silebilirsiniz). Göndermeyi siz yaparsınız.</string>
@@ -611,4 +611,12 @@
     <string name="settings_profile_hint">Eklediğiniz notlarda görünen adınız</string>
     <string name="profile_name">Adınız soyadınız</string>
     <string name="profile_unset">Girilmedi</string>
+    <string name="diagnostics_clear">Kayıtları temizle</string>
+    <string name="diagnostics_clear_confirm">Saklanan tüm ölçümler ve olaylar silinsin mi? Gerekliyse önce gönderin.</string>
+    <string name="chart_menu_title">Grafik</string>
+    <string name="chart_move">Taşı</string>
+    <string name="chart_move_hint">Grafiğin sol üst köşesinin gideceği hücreye dokunun.</string>
+    <string name="chart_type">Tür</string>
+    <string name="chart_title">Başlık</string>
+    <string name="chart_delete">Grafiği sil</string>
 </resources>

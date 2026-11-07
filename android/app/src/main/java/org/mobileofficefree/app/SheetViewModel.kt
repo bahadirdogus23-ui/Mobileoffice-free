@@ -426,6 +426,37 @@ class SheetViewModel(app: Application) : AndroidViewModel(app) {
         edit { d -> d.execute("insert.chart", p.toString()) }
     }
 
+    /** The chart tapped on the sheet (its index), whose menu is open; null when none. */
+    var pickedChart by mutableStateOf<Int?>(null)
+    /** True while the next cell tapped is where the picked chart goes. */
+    var movingChart by mutableStateOf(false)
+
+    fun pickChart(index: Int?) {
+        pickedChart = index
+        movingChart = false
+    }
+
+    /** Changes the picked chart with GridCraft's chart.set [params] (type, title…), or deletes it ([delete]). */
+    fun changeChart(params: JSONObject, delete: Boolean = false) {
+        val current = (screen as? Screen.Sheet)?.state ?: return
+        val index = pickedChart ?: return
+        if (delete) {
+            params.put("delete", true)
+            pickedChart = null
+        }
+        edit { d -> d.changeChart(current.sheet.toUInt(), index.toUInt(), params.toString()) }
+    }
+
+    /** Puts the picked chart's top-left corner at cell ([row], [col]). Returns true when a move was waiting. */
+    fun placeChart(row: Int, col: Int): Boolean {
+        if (!movingChart || pickedChart == null) return false
+        movingChart = false
+        // Moved charts go last in the sheet's list: the menu is closed rather than following it.
+        changeChart(JSONObject().put("at", cellName(row, col)).put("dx", 0).put("dy", 0))
+        pickedChart = null
+        return true
+    }
+
     /** Adds a conditional format [rule] (GridCraft's rule JSON) to the selection. */
     fun conditionalFormat(rule: JSONObject) {
         val current = (screen as? Screen.Sheet)?.state ?: return

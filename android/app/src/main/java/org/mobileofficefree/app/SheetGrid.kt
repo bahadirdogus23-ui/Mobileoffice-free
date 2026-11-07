@@ -94,6 +94,10 @@ fun SheetGrid(
     noteCells: Set<Long> = emptySet(),
     /** A column ([col] ≥ 0) or row dragged to a new size (the axes' unit) from its header's edge. */
     onResize: (col: Int, row: Int, points: Float) -> Unit = { _, _, _ -> },
+    /** A tap on chart [index] (the sheet's chart index; pictures do not count). */
+    onChartTap: (index: Int) -> Unit = {},
+    /** The chart index shown as picked (framed), if any. */
+    pickedChart: Int? = null,
     /** A whole row or column chosen by its header: merged cells do not widen the selection. */
     wholeLine: Boolean = false,
     /** The ranges a formula being typed refers to ([first row, first column, last row, last column]), framed in colour as Excel does. */
@@ -137,6 +141,8 @@ fun SheetGrid(
     /** The cell a tap on (`r`, `c`) means: a merged range's first cell, where its value lives. */
     fun anchorOf(r: Int, c: Int): Pair<Int, Int> = mergeAt(r, c)?.let { it[0] to it[1] } ?: (r to c)
     val extend by rememberUpdatedState(onExtend)
+    val chartsNow by rememberUpdatedState(charts)
+    val chartTap by rememberUpdatedState(onChartTap)
     val line by rememberUpdatedState(onLine)
     val edit by rememberUpdatedState(onEditCell)
     /** The cell under screen point [p] (inside the cells area). */
@@ -169,6 +175,29 @@ fun SheetGrid(
             val y0 = (rowAxis.start(selectedRow) - rowAxis.start(fr)) * k
             val y1 = (rowAxis.start(selectedRow + 1) - rowAxis.start(fr)) * k
             if (y0 < offsetY || y1 > offsetY + roomH) offsetY = max(0f, y0 - roomH / 3)
+        }
+    }
+
+    // Stretching a selection near an edge: the sheet scrolls on by itself, as in Excel, for as
+    // long as the finger stays there.
+    var dragPoint by remember(sheet) { mutableStateOf<Offset?>(null) }
+    LaunchedEffect(dragPoint != null) {
+        while (true) {
+            val p = dragPoint ?: break
+            val zone = with(density) { 40.dp.toPx() }
+            fun speed(depth: Float) = (depth / zone).coerceIn(0f, 1f) * with(density) { 14.dp.toPx() }
+            val vx = speed(p.x - (viewSize.width - zone)) - speed(rowHeader + zone - p.x)
+            val vy = speed(p.y - (viewSize.height - zone)) - speed(colHeader + zone - p.y)
+            if (vx != 0f || vy != 0f) {
+                val k = unit * scale
+                val frozenW = columnAxis.start(fc) * k
+                val frozenH = rowAxis.start(fr) * k
+                offsetX = (offsetX + vx).coerceIn(0f, max(0f, (columnAxis.start(cols) - columnAxis.start(fc)) * k - (viewSize.width - rowHeader - frozenW)))
+                offsetY = (offsetY + vy).coerceIn(0f, max(0f, (rowAxis.start(rows) - rowAxis.start(fr)) * k - (viewSize.height - colHeader - frozenH)))
+                val inside = Offset(p.x.coerceIn(rowHeader + 1f, viewSize.width - 1f), p.y.coerceIn(colHeader + 1f, viewSize.height - 1f))
+                cellAt(inside).let { (r, c) -> extend(r, c) }
+            }
+            kotlinx.coroutines.delay(16)
         }
     }
 
@@ -238,6 +267,24 @@ fun SheetGrid(
             }
             .pointerInput(sheet, columnAxis, rowAxis, fr, fc) {
                 detectTapGestures { p ->
+                    // A chart under the finger (the topmost): picked rather than the cell beneath.
+                    val k = unit * scale
+                    val frozenW = columnAxis.start(fc) * k
+                    val frozenH = rowAxis.start(fr) * k
+                    fun sx(c: Int) = if (c < fc) rowHeader + columnAxis.start(c) * k else rowHeader + frozenW + (columnAxis.start(c) - columnAxis.start(fc)) * k - offsetX
+                    fun sy(r: Int) = if (r < fr) colHeader + rowAxis.start(r) * k else colHeader + frozenH + (rowAxis.start(r) - rowAxis.start(fr)) * k - offsetY
+                    val chart = chartsNow.lastOrNull { (box, _) ->
+                        // Charts only: pictures have no menu yet. A chart's picture slot is made by chartPicture.
+                        box.isChart && run {
+                            val x = sx(box.col.toInt()) + box.dx * k
+                            val y = sy(box.row.toInt()) + box.dy * k
+                            p.x in x..(x + box.width * k) && p.y in y..(y + box.height * k)
+                        }
+                    }
+                    if (chart != null && p.x > rowHeader && p.y > colHeader) {
+                        chartTap(chart.first.index.toInt())
+                        return@detectTapGestures
+                    }
                     when {
                         p.x > rowHeader && p.y > colHeader -> {
                             val (r, c) = cellAt(p).let { (r, c) -> anchorOf(r, c) }
@@ -252,10 +299,18 @@ fun SheetGrid(
             .pointerInput(sheet, columnAxis, rowAxis, fr, fc) {
                 // Hold a cell, then drag: the selection stretches with the finger.
                 detectDragGesturesAfterLongPress(
-                    onDragStart = { p -> if (p.x > rowHeader && p.y > colHeader) cellAt(p).let { (r, c) -> anchorOf(r, c) }.let { (r, c) -> select(r, c) } },
+                    onDragStart = { p ->
+                        if (p.x > rowHeader && p.y > colHeader) {
+                            cellAt(p).let { (r, c) -> anchorOf(r, c) }.let { (r, c) -> select(r, c) }
+                            dragPoint = p
+                        }
+                    },
+                    onDragEnd = { dragPoint = null },
+                    onDragCancel = { dragPoint = null },
                 ) { change, _ ->
                     change.consume()
                     val p = change.position
+                    if (dragPoint != null) dragPoint = p
                     if (p.x > rowHeader && p.y > colHeader) cellAt(p).let { (r, c) -> extend(r, c) }
                 }
             },
@@ -477,6 +532,7 @@ fun SheetGrid(
                     drawRect(Color(0xFFF4F4F4), Offset(x, y), Size(w, h))
                 }
                 drawRect(Color(0xFFBDBDBD), Offset(x, y), Size(w, h), style = Stroke(1f))
+                if (box.isChart && box.index.toInt() == pickedChart) drawRect(colors.primary, Offset(x, y), Size(w, h), style = Stroke(3.dp.toPx()))
             }
         }
 

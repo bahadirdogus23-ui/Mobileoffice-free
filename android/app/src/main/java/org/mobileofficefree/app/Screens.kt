@@ -224,9 +224,13 @@ internal fun SheetScreen(vm: SheetViewModel, state: SheetUiState) {
             noteCells = remember(state.notes) { state.notes.map { it.row.toLong() * 16384 + it.col.toLong() }.toSet() },
             onResize = vm::resizeLine,
             wholeLine = state.wholeLine,
+            onChartTap = { vm.pickChart(it) },
+            pickedChart = vm.pickedChart,
             formulaRefs = if (formulaFocused || cellEditing) remember(formula.text) { formulaReferences(formula.text) } else emptyList(),
             onSelect = { row, col ->
-                if ((formulaFocused || cellEditing) && pointing(formula)) {
+                if (vm.placeChart(row, col)) {
+                    // The tap put the picked chart there.
+                } else if ((formulaFocused || cellEditing) && pointing(formula)) {
                     val (v, r) = insertReference(formula, cellName(row, col), lastReference)
                     formula = v
                     lastReference = r
@@ -314,6 +318,7 @@ internal fun SheetScreen(vm: SheetViewModel, state: SheetUiState) {
         }
     }
 
+    if (vm.pickedChart != null && !vm.movingChart) ChartMenu(vm)
 
     vm.recoveryOffer?.let { copy ->
         val time = remember(copy) { java.text.DateFormat.getTimeInstance(java.text.DateFormat.SHORT).format(java.util.Date(copy.savedAt)) }
@@ -1030,4 +1035,42 @@ private fun FindBar(vm: SheetViewModel, onClose: () -> Unit) {
         // A new word is looked for afresh.
         vm.endFind()
     }
+}
+
+/** What a tapped chart offers: move it, change its type or title, delete it. */
+@Composable
+private fun ChartMenu(vm: SheetViewModel) {
+    var title by remember { mutableStateOf("") }
+    val moveHint = stringResource(R.string.chart_move_hint)
+    AlertDialog(
+        onDismissRequest = { vm.pickChart(null) },
+        title = { Text(stringResource(R.string.chart_menu_title)) },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                OutlinedButton(onClick = {
+                    vm.movingChart = true
+                    vm.message = moveHint
+                }, modifier = Modifier.fillMaxWidth()) { Text("✥ " + stringResource(R.string.chart_move)) }
+                Text(stringResource(R.string.chart_type), style = MaterialTheme.typography.labelLarge)
+                Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    for ((type, label) in listOf("column" to R.string.chart_column, "bar" to R.string.chart_bar, "line" to R.string.chart_line, "pie" to R.string.chart_pie, "area" to R.string.chart_area)) {
+                        AssistChip(onClick = { vm.changeChart(JSONObject().put("type", type)) }, label = { Text(stringResource(label)) })
+                    }
+                }
+                OutlinedTextField(
+                    value = title,
+                    onValueChange = { title = it },
+                    singleLine = true,
+                    label = { Text(stringResource(R.string.chart_title)) },
+                    trailingIcon = {
+                        TextButton(onClick = { vm.changeChart(JSONObject().put("title", title.trim())) }, enabled = title.isNotBlank()) { Text(stringResource(R.string.apply)) }
+                    },
+                )
+                TextButton(onClick = { vm.changeChart(JSONObject(), delete = true) }) {
+                    Text(stringResource(R.string.chart_delete), color = MaterialTheme.colorScheme.error)
+                }
+            }
+        },
+        confirmButton = { TextButton(onClick = { vm.pickChart(null) }) { Text(stringResource(R.string.close)) } },
+    )
 }

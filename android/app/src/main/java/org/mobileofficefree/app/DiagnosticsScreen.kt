@@ -18,6 +18,8 @@ import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -35,6 +37,21 @@ fun DiagnosticsScreen(onBack: () -> Unit) {
     val context = LocalContext.current
     var refresh by remember { mutableIntStateOf(0) }
     val report = remember(refresh) { Diagnostics.report(context) }
+    var askClear by remember { mutableStateOf(false) }
+    if (askClear) {
+        androidx.compose.material3.AlertDialog(
+            onDismissRequest = { askClear = false },
+            text = { Text(stringResource(R.string.diagnostics_clear_confirm)) },
+            confirmButton = {
+                TextButton(onClick = {
+                    askClear = false
+                    Diagnostics.clear()
+                    refresh++
+                }) { Text(stringResource(R.string.diagnostics_clear)) }
+            },
+            dismissButton = { TextButton(onClick = { askClear = false }) { Text(stringResource(R.string.cancel)) } },
+        )
+    }
     BackHandler(onBack = onBack)
     Column(Modifier.fillMaxSize()) {
         TopAppBar(
@@ -54,9 +71,12 @@ fun DiagnosticsScreen(onBack: () -> Unit) {
             Text(report, fontFamily = FontFamily.Monospace, style = MaterialTheme.typography.bodySmall, modifier = Modifier.padding(16.dp))
         }
         BottomAppBar {
+            androidx.compose.foundation.layout.Row(Modifier.horizontalScroll(rememberScrollState())) {
             TextButton(onClick = { refresh++ }) { Text(stringResource(R.string.refresh)) }
             TextButton(onClick = { shareText(context, report) }) { Text(stringResource(R.string.share)) }
             TextButton(onClick = { Diagnostics.emailReport(context, "Ölçümler") }) { Text(stringResource(R.string.report_email)) }
+            TextButton(onClick = { askClear = true }) { Text(stringResource(R.string.diagnostics_clear)) }
+            }
         }
     }
 }

@@ -320,7 +320,7 @@ impl SheetDocument {
             .doc()
             .charts(sheet)?
             .into_iter()
-            .map(|c| SheetChartBox { index: c.index, row: c.row, col: c.col, dx: c.dx, dy: c.dy, width: c.width, height: c.height })
+            .map(|c| SheetChartBox { index: c.index, row: c.row, col: c.col, dx: c.dx, dy: c.dy, width: c.width, height: c.height, is_chart: true })
             .collect())
     }
 
@@ -330,13 +330,19 @@ impl SheetDocument {
             .doc()
             .pictures(sheet)?
             .into_iter()
-            .map(|c| SheetChartBox { index: c.index, row: c.row, col: c.col, dx: c.dx, dy: c.dy, width: c.width, height: c.height })
+            .map(|c| SheetChartBox { index: c.index, row: c.row, col: c.col, dx: c.dx, dy: c.dy, width: c.width, height: c.height, is_chart: false })
             .collect())
     }
 
     /// Picture `index` of `sheet` as its file's bytes (PNG or JPEG).
     pub fn picture_bytes(&self, sheet: u32, index: u32) -> Result<Vec<u8>, MoError> {
         Ok(self.doc().picture_bytes(sheet, index)?)
+    }
+
+    /// Changes chart `index` of `sheet` (GridCraft's `chart.set` parameters: type, title, at, dx,
+    /// dy, width, height), or deletes it with `{"delete": true}`.
+    pub fn change_chart(&self, sheet: u32, index: u32, params_json: String) -> Result<(), MoError> {
+        Ok(self.doc().change_chart(sheet, index, &params_json)?)
     }
 
     /// Chart `index` of `sheet` drawn `scale` times its size: opaque RGBA pixels and its words.
@@ -620,6 +626,8 @@ pub struct SheetChartBox {
     pub dy: f32,
     pub width: f32,
     pub height: f32,
+    /// A chart (true) or a picture.
+    pub is_chart: bool,
 }
 
 /// A chart drawn: opaque RGBA pixels and the words to write over them.

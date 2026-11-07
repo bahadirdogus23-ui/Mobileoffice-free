@@ -594,6 +594,26 @@ impl GridDoc {
             .collect())
     }
 
+    /// Changes chart `index` of `sheet` with GridCraft's `chart.set` (`params`: type, title, at,
+    /// dx, dy, width, height…), or deletes it when `params` is `{"delete": true}`.
+    pub fn change_chart(&mut self, sheet: u32, index: u32, params: &str) -> Result<(), GridError> {
+        let id = {
+            let sh = self.wb().sheets.get(sheet as usize).ok_or(GridError::NoSheet(sheet))?;
+            sh.charts.get(index as usize).map(|c| c.id).ok_or_else(|| GridError::Command("no such chart".into()))?
+        };
+        // The engine's chart commands work on the active sheet.
+        self.set_active_sheet(sheet)?;
+        let mut p: serde_json::Value = serde_json::from_str(params).map_err(|e| GridError::Command(e.to_string()))?;
+        let delete = p.get("delete").and_then(serde_json::Value::as_bool) == Some(true);
+        p["chart"] = id.into();
+        if delete {
+            self.execute("chart.delete", &serde_json::json!({ "chart": id }).to_string())?;
+        } else {
+            self.execute("chart.set", &p.to_string())?;
+        }
+        Ok(())
+    }
+
     /// The pictures on `sheet`: where each is, like [`GridDoc::charts`] (`index` counts pictures).
     pub fn pictures(&self, sheet: u32) -> Result<Vec<ChartBox>, GridError> {
         let sh = self.wb().sheets.get(sheet as usize).ok_or(GridError::NoSheet(sheet))?;
