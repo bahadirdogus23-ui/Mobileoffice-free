@@ -627,4 +627,10 @@
     <string name="cad_pdf_whole">The whole drawing</string>
     <string name="cad_pdf_view">The area on screen (zoom and pan to choose it)</string>
     <string name="slide_move_to">To slide %1$d</string>
+    <string name="sheet_tab_insert">Insert</string>
+    <string name="insert_table_sheet">Table</string>
+    <string name="dropdown_list">Drop-down list</string>
+    <string name="dropdown_hint">The choices, separated by commas (for example: Evet, Hayır, Belki). The selected cells offer them when tapped.</string>
+    <string name="dropdown_remove">Remove drop-down list</string>
+    <string name="remove_duplicates">Remove duplicates</string>
 </resources>

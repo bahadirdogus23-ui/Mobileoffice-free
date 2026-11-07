@@ -415,7 +415,7 @@ private fun SheetToolBar(vm: SheetViewModel, look: CellLook?) {
         ) {
             IconButton(onClick = vm::undo) { Text("↶", fontSize = 18.sp) }
             IconButton(onClick = vm::redo) { Text("↷", fontSize = 18.sp) }
-            for ((i, label) in listOf(R.string.sheet_tab_format, R.string.sheet_tab_edit, R.string.sheet_tab_data, R.string.sheet_tab_lines).withIndex()) {
+            for ((i, label) in listOf(R.string.sheet_tab_format, R.string.sheet_tab_insert, R.string.sheet_tab_edit, R.string.sheet_tab_data, R.string.sheet_tab_lines).withIndex()) {
                 FilterChip(selected = tab == i, onClick = { tab = i }, label = { Text(stringResource(label)) })
             }
         }
@@ -520,19 +520,35 @@ private fun SheetToolBar(vm: SheetViewModel, look: CellLook?) {
                     Tool("Aa", R.string.tool_format_more, glyphSize = 16) { formatSheet = true }
                 }
                 1 -> {
-                    val clipboardContext = androidx.compose.ui.platform.LocalContext.current
-                    val clipboard = remember { clipboardContext.getSystemService(android.content.ClipboardManager::class.java) }
-                    TextButton(onClick = {
-                        vm.copySelection(cut = false) { clipboard?.setPrimaryClip(android.content.ClipData.newPlainText("cells", it)) }
-                    }) { Text(stringResource(R.string.copy)) }
-                    TextButton(onClick = {
-                        vm.copySelection(cut = true) { clipboard?.setPrimaryClip(android.content.ClipData.newPlainText("cells", it)) }
-                    }) { Text(stringResource(R.string.cut)) }
-                    TextButton(onClick = {
-                        vm.paste(clipboard?.primaryClip?.takeIf { it.itemCount > 0 }?.getItemAt(0)?.coerceToText(clipboardContext)?.toString())
-                    }) { Text(stringResource(R.string.paste)) }
-                    TextButton(onClick = vm::clearSelection) { Text(stringResource(R.string.sheet_clear)) }
-                    TextButton(onClick = vm::fillDown) { Text(stringResource(R.string.sheet_fill_down)) }
+                    // Insert: a table over the selection, a chart, a note, a drop-down list.
+                    Box {
+                        var tableMenu by remember { mutableStateOf(false) }
+                        TextButton(onClick = { tableMenu = true }) { Text("▦ " + stringResource(R.string.insert_table_sheet)) }
+                        DropdownMenu(expanded = tableMenu, onDismissRequest = { tableMenu = false }) {
+                            Text(stringResource(R.string.table_style_hint), style = MaterialTheme.typography.bodySmall, modifier = Modifier.padding(horizontal = 12.dp))
+                            for ((style, color) in TABLE_STYLES) {
+                                DropdownMenuItem(
+                                    text = { Box(Modifier.size(64.dp, 18.dp).background(color, RoundedCornerShape(4.dp))) },
+                                    onClick = {
+                                        tableMenu = false
+                                        vm.format("home.formatAsTable", JSONObject().put("style", style).put("header", true))
+                                    },
+                                )
+                            }
+                        }
+                    }
+                    Box {
+                        var chartMenu by remember { mutableStateOf(false) }
+                        TextButton(onClick = { chartMenu = true }) { Text("📊 " + stringResource(R.string.chart_insert)) }
+                        DropdownMenu(expanded = chartMenu, onDismissRequest = { chartMenu = false }) {
+                            for ((type, label) in listOf("column" to R.string.chart_column, "bar" to R.string.chart_bar, "line" to R.string.chart_line, "pie" to R.string.chart_pie, "area" to R.string.chart_area)) {
+                                DropdownMenuItem(text = { Text(stringResource(label)) }, onClick = {
+                                    chartMenu = false
+                                    vm.insertChart(type)
+                                })
+                            }
+                        }
+                    }
                     Box {
                         var noteDialog by remember { mutableStateOf(false) }
                         TextButton(onClick = { noteDialog = true }) { Text("🗒 " + stringResource(R.string.sheet_note)) }
@@ -553,8 +569,53 @@ private fun SheetToolBar(vm: SheetViewModel, look: CellLook?) {
                             )
                         }
                     }
+                    Box {
+                        var listDialog by remember { mutableStateOf(false) }
+                        TextButton(onClick = { listDialog = true }) { Text("☰ " + stringResource(R.string.dropdown_list)) }
+                        if (listDialog) {
+                            var items by remember { mutableStateOf(vm.sheetState?.choices?.joinToString(", ").orEmpty()) }
+                            AlertDialog(
+                                onDismissRequest = { listDialog = false },
+                                title = { Text(stringResource(R.string.dropdown_list)) },
+                                text = {
+                                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                                        Text(stringResource(R.string.dropdown_hint), style = MaterialTheme.typography.bodySmall)
+                                        OutlinedTextField(value = items, onValueChange = { items = it }, modifier = Modifier.fillMaxWidth())
+                                        TextButton(onClick = {
+                                            listDialog = false
+                                            vm.format("data.validation", JSONObject().put("clear", true))
+                                        }) { Text(stringResource(R.string.dropdown_remove)) }
+                                    }
+                                },
+                                confirmButton = {
+                                    TextButton(enabled = items.isNotBlank(), onClick = {
+                                        listDialog = false
+                                        // Excel's list: the choices in quotes, separated by commas.
+                                        val list = items.split(',').map { it.trim().replace("\"", "") }.filter { it.isNotEmpty() }.joinToString(",")
+                                        vm.format("data.validation", JSONObject().put("type", "list").put("formula1", "\"$list\"").put("dropdown", true))
+                                    }) { Text(stringResource(R.string.apply)) }
+                                },
+                                dismissButton = { TextButton(onClick = { listDialog = false }) { Text(stringResource(R.string.cancel)) } },
+                            )
+                        }
+                    }
                 }
                 2 -> {
+                    val clipboardContext = androidx.compose.ui.platform.LocalContext.current
+                    val clipboard = remember { clipboardContext.getSystemService(android.content.ClipboardManager::class.java) }
+                    TextButton(onClick = {
+                        vm.copySelection(cut = false) { clipboard?.setPrimaryClip(android.content.ClipData.newPlainText("cells", it)) }
+                    }) { Text(stringResource(R.string.copy)) }
+                    TextButton(onClick = {
+                        vm.copySelection(cut = true) { clipboard?.setPrimaryClip(android.content.ClipData.newPlainText("cells", it)) }
+                    }) { Text(stringResource(R.string.cut)) }
+                    TextButton(onClick = {
+                        vm.paste(clipboard?.primaryClip?.takeIf { it.itemCount > 0 }?.getItemAt(0)?.coerceToText(clipboardContext)?.toString())
+                    }) { Text(stringResource(R.string.paste)) }
+                    TextButton(onClick = vm::clearSelection) { Text(stringResource(R.string.sheet_clear)) }
+                    TextButton(onClick = vm::fillDown) { Text(stringResource(R.string.sheet_fill_down)) }
+                }
+                3 -> {
                     Box {
                         var sumMenu by remember { mutableStateOf(false) }
                         TextButton(onClick = { sumMenu = true }) { Text("Σ " + stringResource(R.string.autosum)) }
@@ -567,21 +628,10 @@ private fun SheetToolBar(vm: SheetViewModel, look: CellLook?) {
                             }
                         }
                     }
-                    Box {
-                        var chartMenu by remember { mutableStateOf(false) }
-                        TextButton(onClick = { chartMenu = true }) { Text("📊 " + stringResource(R.string.chart_insert)) }
-                        DropdownMenu(expanded = chartMenu, onDismissRequest = { chartMenu = false }) {
-                            for ((type, label) in listOf("column" to R.string.chart_column, "bar" to R.string.chart_bar, "line" to R.string.chart_line, "pie" to R.string.chart_pie, "area" to R.string.chart_area)) {
-                                DropdownMenuItem(text = { Text(stringResource(label)) }, onClick = {
-                                    chartMenu = false
-                                    vm.insertChart(type)
-                                })
-                            }
-                        }
-                    }
                     TextButton(onClick = { vm.sort(true) }) { Text("A→Z") }
                     TextButton(onClick = { vm.sort(false) }) { Text("Z→A") }
                     TextButton(onClick = vm::openFilter) { Text((if (vm.hasFilter) "▼● " else "▼ ") + stringResource(R.string.filter)) }
+                    TextButton(onClick = { vm.format("data.removeDuplicates") }) { Text(stringResource(R.string.remove_duplicates)) }
                 }
                 else -> {
                     TextButton(onClick = { vm.lines(rows = true, insert = true) }) { Text(stringResource(R.string.row_insert)) }
