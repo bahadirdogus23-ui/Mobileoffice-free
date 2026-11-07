@@ -176,7 +176,7 @@ fun SheetGrid(
                     val k = unit * scale
                     val cAxis = baseCols
                     val rAxis = baseRows
-                    val target: Triple<Boolean, Int, Float>? = when {
+                    val target = when {
                         p.y <= colHeader && p.x > rowHeader -> {
                             // The column whose right edge is under the finger.
                             val frozenW = cAxis.start(fc) * k
