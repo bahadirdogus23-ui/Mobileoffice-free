@@ -54,7 +54,7 @@ pub fn import(bytes: &[u8]) -> Result<(Presentation, Vec<String>), DeckError> {
             },
             TEXT_CHARS_ATOM | TEXT_BYTES_ATOM => {
                 let text = if rec_type == TEXT_CHARS_ATOM {
-                    String::from_utf16_lossy(&body.chunks_exact(2).map(|c| u16::from_le_bytes([c[0], c[1]])).collect::<Vec<_>>())
+                    String::from_utf16_lossy(&body.as_chunks::<2>().0.iter().map(|c| u16::from_le_bytes(*c)).collect::<Vec<_>>())
                 } else {
                     body.iter().map(|&b| char::from(b)).collect()
                 };
