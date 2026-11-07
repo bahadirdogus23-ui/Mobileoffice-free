@@ -946,6 +946,18 @@ fun PagedScreen(vm: PagedViewModel, state: PagedUiState, reading: ReadingSetting
         )
     }
 
+
+    vm.recoveryOffer?.let { copy ->
+        val time = remember(copy) { java.text.DateFormat.getTimeInstance(java.text.DateFormat.SHORT).format(java.util.Date(copy.savedAt)) }
+        AlertDialog(
+            onDismissRequest = {},
+            title = { Text(stringResource(R.string.recovery_title)) },
+            text = { Text(stringResource(R.string.recovery_text, time)) },
+            confirmButton = { TextButton(onClick = vm::restoreRecovery) { Text(stringResource(R.string.recovery_restore)) } },
+            dismissButton = { TextButton(onClick = vm::discardRecovery) { Text(stringResource(R.string.recovery_discard)) } },
+        )
+    }
+
     if (presenting && slides != null) {
         PresentScreen(slides, state, start = current - 1, onClose = { presenting = false })
     }

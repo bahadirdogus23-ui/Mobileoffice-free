@@ -589,4 +589,9 @@
     <string name="chart_line">Çizgi</string>
     <string name="chart_pie">Pasta</string>
     <string name="chart_area">Alan</string>
+    <string name="recovery_title">Kaydedilmemiş değişiklikler bulundu</string>
+    <string name="recovery_text">Bu dosya kaydedilmemiş değişikliklerle kapanmış. Uygulama saat %1$s itibarıyla bir kopya tuttu. Geri yüklensin mi?</string>
+    <string name="recovery_restore">Geri yükle</string>
+    <string name="recovery_discard">Sil</string>
+    <string name="recovery_failed">Kurtarılan kopya açılamadı.</string>
 </resources>

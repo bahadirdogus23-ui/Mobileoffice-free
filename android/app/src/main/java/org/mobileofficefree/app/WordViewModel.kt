@@ -263,6 +263,7 @@ class WordViewModel(app: Application) : PagedViewModel(app, DocumentKind.WORD) {
             }
             if (result.isSuccess) {
                 dirty = false
+                savedCleanly()
                 then()
             }
             tell(result.fold(onSuccess = { app.getString(R.string.saved) }, onFailure = { app.getString(R.string.save_failed, it.message ?: "") }))
@@ -276,6 +277,17 @@ class WordViewModel(app: Application) : PagedViewModel(app, DocumentKind.WORD) {
         doc = next
         source = uri
         fileName = name
+        return (0u until next.pageCount()).map { next.pageSize(it).let { s -> s.width to s.height } }
+    }
+
+    override fun recoveryBytes(): Pair<String, ByteArray>? = doc?.let { "recovery.docx" to it.export("recovery.docx") }
+
+    override fun restoreFrom(name: String, bytes: ByteArray): List<Pair<Float, Float>> {
+        val next = WordDocument.open(name, bytes, null)
+        doc?.close()
+        doc = next
+        // Recovered edits are not in the file yet: saving stays to be done.
+        viewModelScope.launch { dirty = true }
         return (0u until next.pageCount()).map { next.pageSize(it).let { s -> s.width to s.height } }
     }
 

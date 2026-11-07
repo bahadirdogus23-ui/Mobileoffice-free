@@ -313,6 +313,18 @@ internal fun SheetScreen(vm: SheetViewModel, state: SheetUiState) {
         }
     }
 
+
+    vm.recoveryOffer?.let { copy ->
+        val time = remember(copy) { java.text.DateFormat.getTimeInstance(java.text.DateFormat.SHORT).format(java.util.Date(copy.savedAt)) }
+        AlertDialog(
+            onDismissRequest = {},
+            title = { Text(stringResource(R.string.recovery_title)) },
+            text = { Text(stringResource(R.string.recovery_text, time)) },
+            confirmButton = { TextButton(onClick = vm::restoreRecovery) { Text(stringResource(R.string.recovery_restore)) } },
+            dismissButton = { TextButton(onClick = vm::discardRecovery) { Text(stringResource(R.string.recovery_discard)) } },
+        )
+    }
+
     BackHandler { vm.requestClose() }
     if (vm.askClose) {
         AlertDialog(

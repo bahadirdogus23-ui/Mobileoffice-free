@@ -342,10 +342,26 @@ class SlidesViewModel(app: Application) : PagedViewModel(app, DocumentKind.SLIDE
             }
             if (result.isSuccess) {
                 dirty = false
+                savedCleanly()
                 then()
             }
             tell(result.fold(onSuccess = { app.getString(R.string.saved) }, onFailure = { app.getString(R.string.save_failed, it.message ?: "") }))
         }
+    }
+
+    override fun recoveryBytes(): Pair<String, ByteArray>? = doc?.let { "recovery.pptx" to it.save("recovery.pptx") }
+
+    override fun restoreFrom(name: String, bytes: ByteArray): List<Pair<Float, Float>> {
+        val next = SlidesDocument.open(bytes)
+        doc?.close()
+        doc = next
+        viewModelScope.launch {
+            dirty = true
+            picked = null
+            pickedLook = null
+        }
+        val size = next.slideSize()
+        return List(next.slideCount().toInt()) { size.width to size.height }
     }
 
     override fun load(uri: Uri, name: String): List<Pair<Float, Float>> {

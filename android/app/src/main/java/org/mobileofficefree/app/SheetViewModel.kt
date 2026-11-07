@@ -144,6 +144,48 @@ class SheetViewModel(app: Application) : AndroidViewModel(app) {
     var askClose by mutableStateOf(false)
         private set
 
+    // Auto-recovery: unsaved edits are copied every so often (see RecoveryStore).
+    private val recovery = RecoveryStore(getApplication())
+
+    /** A recovery copy left behind for the opened workbook: offered back once it opens. */
+    var recoveryOffer by mutableStateOf<RecoveryStore.Copy?>(null)
+        private set
+
+    init {
+        viewModelScope.launch {
+            while (true) {
+                kotlinx.coroutines.delay(RECOVERY_EVERY_MS)
+                val uri = source ?: continue
+                val d = doc ?: continue
+                if (!unsaved) continue
+                withContext(engine) { runCatching { recovery.write(uri, "recovery.xlsx", d.save("recovery.xlsx")) } }
+            }
+        }
+    }
+
+    /** Takes the recovery copy back: the workbook as it was when last copied. */
+    fun restoreRecovery() {
+        val copy = recoveryOffer ?: return
+        val current = (screen as? Screen.Sheet)?.state ?: return
+        recoveryOffer = null
+        viewModelScope.launch {
+            val state = withContext(engine) { runCatching { replaceDocument(SheetDocument.open(copy.name, copy.file.readBytes(), null)) }.getOrNull() }
+            if (state != null) {
+                screen = Screen.Sheet(state.copy(fileName = current.fileName))
+                // Recovered edits are not in the file yet.
+                unsaved = true
+            } else {
+                message = text(R.string.recovery_failed)
+            }
+        }
+    }
+
+    /** Throws the recovery copy away (the person chose the file as it is). */
+    fun discardRecovery() {
+        recoveryOffer = null
+        source?.let(recovery::clear)
+    }
+
     /** Back or the arrow: closes, asking first when there are unsaved edits. */
     fun requestClose() {
         if (unsaved) askClose = true else close()
@@ -154,7 +196,11 @@ class SheetViewModel(app: Application) : AndroidViewModel(app) {
         askClose = false
         when (saveFirst) {
             true -> closeAfterSave = true
-            false -> close()
+            false -> {
+                // Thrown away on purpose: no copy to offer next time.
+                source?.let(recovery::clear)
+                close()
+            }
             null -> Unit
         }
     }
@@ -189,6 +235,7 @@ class SheetViewModel(app: Application) : AndroidViewModel(app) {
                 onSuccess = { (state, name) ->
                     screen = Screen.Sheet(state.copy(fileName = name))
                     importNotes = withContext(engine) { doc?.warnings().orEmpty() }
+                    recoveryOffer = recovery.find(uri)
                 },
                 onFailure = {
                     screen = Screen.Home
@@ -727,6 +774,7 @@ class SheetViewModel(app: Application) : AndroidViewModel(app) {
             )
             if (result.isSuccess) {
                 unsaved = false
+                source?.let(recovery::clear)
                 if (closeAfterSave) close()
             }
             closeAfterSave = false

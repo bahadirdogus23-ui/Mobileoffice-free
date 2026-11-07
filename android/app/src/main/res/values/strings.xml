@@ -590,4 +590,9 @@
     <string name="chart_line">Line</string>
     <string name="chart_pie">Pie</string>
     <string name="chart_area">Area</string>
+    <string name="recovery_title">Unsaved changes found</string>
+    <string name="recovery_text">This file was closed with changes that were not saved. The app kept a copy at %1$s. Restore it?</string>
+    <string name="recovery_restore">Restore</string>
+    <string name="recovery_discard">Discard</string>
+    <string name="recovery_failed">The recovered copy could not be opened.</string>
 </resources>

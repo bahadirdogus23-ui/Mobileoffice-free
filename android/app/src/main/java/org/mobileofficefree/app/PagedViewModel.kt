@@ -85,7 +85,56 @@ abstract class PagedViewModel(app: Application, private val kind: DocumentKind) 
     /** The answer to "save the changes?": true closes (discarding), null stays. */
     fun answerClose(discard: Boolean?) {
         askClose = false
-        if (discard == true) close()
+        if (discard == true) {
+            // Thrown away on purpose: no copy to offer next time.
+            state?.uri?.let(recovery::clear)
+            close()
+        }
+    }
+
+    // Auto-recovery: unsaved edits are copied every so often (see RecoveryStore).
+    private val recovery = RecoveryStore(app)
+
+    /** A recovery copy left behind for the opened file: offered back once it opens. */
+    var recoveryOffer by mutableStateOf<RecoveryStore.Copy?>(null)
+        private set
+
+    /** The document as a file for recovery: its name (whose extension says the format) and bytes; null when it cannot be. */
+    protected open fun recoveryBytes(): Pair<String, ByteArray>? = null
+
+    /** Opens the recovered [bytes] (a document named [name]) in place of the open one; returns its pages. */
+    protected open fun restoreFrom(name: String, bytes: ByteArray): List<Pair<Float, Float>> = error("cannot recover")
+
+    init {
+        viewModelScope.launch {
+            while (true) {
+                kotlinx.coroutines.delay(RECOVERY_EVERY_MS)
+                val uri = state?.uri ?: continue
+                if (!hasUnsavedChanges) continue
+                withContext(engine) { runCatching { recoveryBytes()?.let { (name, bytes) -> recovery.write(uri, name, bytes) } } }
+            }
+        }
+    }
+
+    /** Takes the recovery copy back: the document as it was when last copied. */
+    fun restoreRecovery() {
+        val copy = recoveryOffer ?: return
+        recoveryOffer = null
+        viewModelScope.launch {
+            val pages = withContext(engine) { runCatching { restoreFrom(copy.name, copy.file.readBytes()) }.getOrNull() }
+            if (pages != null) pagesChanged(pages) else tell(getApplication<Application>().getString(R.string.recovery_failed))
+        }
+    }
+
+    /** Throws the recovery copy away (the person chose the file as it is). */
+    fun discardRecovery() {
+        recoveryOffer = null
+        state?.uri?.let(recovery::clear)
+    }
+
+    /** After a save: the recovery copy is not needed any more. Call on the main thread. */
+    protected fun savedCleanly() {
+        state?.uri?.let(recovery::clear)
     }
 
     /** After an edit changed the pages: show the new ones. Call on the main thread. */
@@ -299,6 +348,7 @@ abstract class PagedViewModel(app: Application, private val kind: DocumentKind) 
                 onSuccess = { (opened, note) ->
                     state = opened
                     notice = note
+                    recoveryOffer = recovery.find(uri)
                 },
                 onFailure = { if (!openFailed(uri, it)) error = it.message ?: it.javaClass.simpleName },
             )
