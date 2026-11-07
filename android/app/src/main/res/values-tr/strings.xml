@@ -574,4 +574,11 @@
     <string name="col_hide">Sütunu gizle</string>
     <string name="unhide_all">Gizlileri göster</string>
     <string name="col_autofit">Sütunu içeriğe sığdır</string>
+    <string name="cf_menu">Koşullu biçim</string>
+    <string name="cf_color_scale">Renk ölçeği (kırmızı–sarı–yeşil)</string>
+    <string name="cf_data_bars">Veri çubukları</string>
+    <string name="cf_greater">Şundan büyükleri vurgula…</string>
+    <string name="cf_duplicates">Yinelenenleri vurgula</string>
+    <string name="cf_clear">Kuralları temizle</string>
+    <string name="cf_value">Değer</string>
 </resources>

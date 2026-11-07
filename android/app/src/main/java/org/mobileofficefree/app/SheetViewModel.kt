@@ -324,6 +324,19 @@ class SheetViewModel(app: Application) : AndroidViewModel(app) {
         edit { d -> d.execute("formulas.autoSum", JSONObject().put("function", function).put("range", at).toString()) }
     }
 
+    /** Adds a conditional format [rule] (GridCraft's rule JSON) to the selection. */
+    fun conditionalFormat(rule: JSONObject) {
+        val current = (screen as? Screen.Sheet)?.state ?: return
+        val range = formatRange(current)
+        edit { d -> d.execute("home.conditionalFormat", JSONObject().put("range", range).put("rule", rule).toString()) }
+    }
+
+    /** Removes the conditional formats from the selection. */
+    fun clearConditionalFormats() {
+        val current = (screen as? Screen.Sheet)?.state ?: return
+        edit { d -> d.execute("home.clearRules", JSONObject().put("range", formatRange(current)).toString()) }
+    }
+
     /** Empties the selected cells (their formats stay). */
     fun clearSelection() {
         val current = (screen as? Screen.Sheet)?.state ?: return

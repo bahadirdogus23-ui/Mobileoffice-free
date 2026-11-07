@@ -339,6 +339,15 @@ fun SheetGrid(
                         if (cw <= 0f) continue // a hidden column
                         val look = cellLook(sheet, r, c) ?: continue
                         if (look.fill != 0u) drawRect(Color(look.fill.toInt()), Offset(xOf(c) + 0.5f, y + 0.5f), Size(cw - 1f, rh - 1f))
+                        // A conditional format's data bar, under the value as Excel draws it.
+                        if (look.bar > 0f && look.barColor != 0u) {
+                            val inset = 2f
+                            drawRect(
+                                Color(look.barColor.toInt()).copy(alpha = 0.75f),
+                                Offset(xOf(c) + inset, y + inset * 1.5f),
+                                Size(((cw - 2 * inset) * look.bar).coerceAtLeast(1f), rh - 3 * inset),
+                            )
+                        }
                     }
                 }
                 for (c in colList) {

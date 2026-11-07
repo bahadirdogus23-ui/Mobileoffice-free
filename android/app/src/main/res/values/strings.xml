@@ -575,4 +575,11 @@
     <string name="col_hide">Hide columns</string>
     <string name="unhide_all">Show hidden</string>
     <string name="col_autofit">Fit column width</string>
+    <string name="cf_menu">Conditional</string>
+    <string name="cf_color_scale">Colour scale (red–yellow–green)</string>
+    <string name="cf_data_bars">Data bars</string>
+    <string name="cf_greater">Highlight values greater than…</string>
+    <string name="cf_duplicates">Highlight duplicates</string>
+    <string name="cf_clear">Clear rules</string>
+    <string name="cf_value">Value</string>
 </resources>

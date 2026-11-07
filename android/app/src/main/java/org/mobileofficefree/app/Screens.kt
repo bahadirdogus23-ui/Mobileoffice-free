@@ -1,5 +1,6 @@
 package org.mobileofficefree.app
 
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.sp
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -377,6 +378,56 @@ private fun SheetToolBar(vm: SheetViewModel, look: CellLook?) {
             when (tab) {
                 0 -> {
                     TextButton(onClick = { formatSheet = true }) { Text("Aa " + stringResource(R.string.cell_format)) }
+                    Box {
+                        var cfMenu by remember { mutableStateOf(false) }
+                        var overDialog by remember { mutableStateOf(false) }
+                        TextButton(onClick = { cfMenu = true }) { Text("◧ " + stringResource(R.string.cf_menu)) }
+                        DropdownMenu(expanded = cfMenu, onDismissRequest = { cfMenu = false }) {
+                            DropdownMenuItem(text = { Text(stringResource(R.string.cf_color_scale)) }, onClick = {
+                                cfMenu = false
+                                vm.conditionalFormat(JSONObject().put("type", "colorScale").put("colors", org.json.JSONArray(listOf("#F8696B", "#FFEB84", "#63BE7B"))))
+                            })
+                            DropdownMenuItem(text = { Text(stringResource(R.string.cf_data_bars)) }, onClick = {
+                                cfMenu = false
+                                vm.conditionalFormat(JSONObject().put("type", "dataBar").put("color", "#638EC6"))
+                            })
+                            DropdownMenuItem(text = { Text(stringResource(R.string.cf_greater)) }, onClick = {
+                                cfMenu = false
+                                overDialog = true
+                            })
+                            DropdownMenuItem(text = { Text(stringResource(R.string.cf_duplicates)) }, onClick = {
+                                cfMenu = false
+                                vm.conditionalFormat(JSONObject().put("type", "duplicate").put("preset", "lightRedFillDarkRedText"))
+                            })
+                            DropdownMenuItem(text = { Text(stringResource(R.string.cf_clear)) }, onClick = {
+                                cfMenu = false
+                                vm.clearConditionalFormats()
+                            })
+                        }
+                        if (overDialog) {
+                            var value by remember { mutableStateOf("") }
+                            AlertDialog(
+                                onDismissRequest = { overDialog = false },
+                                title = { Text(stringResource(R.string.cf_greater)) },
+                                text = {
+                                    OutlinedTextField(
+                                        value = value, onValueChange = { value = it }, singleLine = true,
+                                        label = { Text(stringResource(R.string.cf_value)) },
+                                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                                    )
+                                },
+                                confirmButton = {
+                                    TextButton(onClick = {
+                                        overDialog = false
+                                        // Turkish decimal comma typed: the engine reads a point.
+                                        val v = if (vm.turkish) value.trim().replace(".", "").replace(',', '.') else value.trim()
+                                        vm.conditionalFormat(JSONObject().put("type", "cellIs").put("operator", "greaterThan").put("value", v).put("preset", "lightRedFillDarkRedText"))
+                                    }, enabled = value.isNotBlank()) { Text(stringResource(R.string.apply)) }
+                                },
+                                dismissButton = { TextButton(onClick = { overDialog = false }) { Text(stringResource(R.string.cancel)) } },
+                            )
+                        }
+                    }
                     FilledIconToggleButton(checked = look?.bold == true, onCheckedChange = { vm.format("home.bold", JSONObject().put("on", it)) }) {
                         Text("K", fontWeight = FontWeight.Bold)
                     }

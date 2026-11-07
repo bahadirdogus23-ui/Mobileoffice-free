@@ -335,3 +335,50 @@ fn rows_and_columns_hide_and_show_again() {
     let s = doc.sizes(0, 3, 4).unwrap();
     assert!(s.row_heights.iter().all(|h| *h > 0.0) && s.col_widths.iter().all(|w| *w > 0.0), "{s:?}");
 }
+
+#[test]
+fn conditional_formats_show_on_the_grid() {
+    let mut doc = GridDoc::blank();
+    for (r, v) in ["5", "50", "500"].iter().enumerate() {
+        doc.set_input(r as u32, 0, v).unwrap();
+        doc.set_input(r as u32, 1, v).unwrap();
+        doc.set_input(r as u32, 2, v).unwrap();
+    }
+    // Over 100: light red fill with dark red text.
+    let rule = r#"{"range": "A1:A3", "rule": {"type": "cellIs", "operator": "greaterThan", "value": "100", "preset": "lightRedFillDarkRedText"}}"#;
+    doc.execute("home.conditionalFormat", rule).unwrap();
+    doc.execute("home.conditionalFormat", r#"{"range": "B1:B3", "rule": {"type": "colorScale"}}"#).unwrap();
+    doc.execute("home.conditionalFormat", r##"{"range": "C1:C3", "rule": {"type": "dataBar", "color": "#638EC6"}}"##).unwrap();
+    let a = doc.cell_looks(0, 0, 0, 3, 1).unwrap();
+    assert_eq!(a[0].fill, 0, "5 is not over 100");
+    assert_ne!(a[2].fill, 0, "500 is: {:?}", a[2]);
+    assert_ne!(a[2].color, 0);
+    let b = doc.cell_looks(0, 0, 1, 3, 1).unwrap();
+    assert!(b.iter().all(|l| l.fill != 0) && b[0].fill != b[2].fill, "{b:?}");
+    let c = doc.cell_looks(0, 0, 2, 3, 1).unwrap();
+    assert!(c[2].bar > c[0].bar && c[2].bar_color != 0, "{c:?}");
+}
+
+#[test]
+fn the_apps_conditional_format_rules_are_accepted() {
+    // The rules the sheet's menu sends: duplicates on names in A, the rest on numbers in B.
+    let mut doc = GridDoc::blank();
+    for (r, (name, n)) in [("a", "10"), ("b", "2000"), ("a", "30")].iter().enumerate() {
+        doc.set_input(r as u32, 0, name).unwrap();
+        doc.set_input(r as u32, 1, n).unwrap();
+    }
+    doc.execute("home.conditionalFormat", r#"{"range": "A1:A3", "rule": {"type": "duplicate", "preset": "lightRedFillDarkRedText"}}"#).unwrap();
+    for rule in [
+        r##"{"type": "colorScale", "colors": ["#F8696B", "#FFEB84", "#63BE7B"]}"##,
+        r##"{"type": "dataBar", "color": "#638EC6"}"##,
+        r##"{"type": "cellIs", "operator": "greaterThan", "value": "1250.5", "preset": "lightRedFillDarkRedText"}"##,
+    ] {
+        doc.execute("home.conditionalFormat", &format!(r#"{{"range": "B1:B3", "rule": {rule}}}"#)).unwrap();
+    }
+    let dup = doc.cell_looks(0, 0, 0, 3, 1).unwrap();
+    assert!(dup[0].fill != 0 && dup[2].fill != 0 && dup[1].fill == 0, "{dup:?}");
+    let nums = doc.cell_looks(0, 0, 1, 3, 1).unwrap();
+    assert!(nums.iter().all(|l| l.fill != 0) && nums[1].bar > nums[0].bar, "{nums:?}");
+    doc.execute("home.clearRules", r#"{"range": "A1:B3"}"#).unwrap();
+    assert!(doc.cell_looks(0, 0, 0, 3, 2).unwrap().iter().all(|l| l.fill == 0 && l.bar == 0.0));
+}

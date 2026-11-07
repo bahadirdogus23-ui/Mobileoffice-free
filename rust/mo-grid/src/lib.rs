@@ -105,7 +105,7 @@ pub struct Sizes {
 
 /// How a cell looks in the grid. Colours are 0xAARRGGBB; 0 means the default (black text, no
 /// fill). `align`: 0 general (numbers right, text left), 1 left, 2 centre, 3 right.
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq)]
 pub struct CellLook {
     pub bold: bool,
     pub italic: bool,
@@ -122,6 +122,9 @@ pub struct CellLook {
     pub wrap: bool,
     /// 0 bottom (Excel's default), 1 centre, 2 top.
     pub valign: u8,
+    /// A conditional format's data bar: the fraction (0–1) of the cell it fills (0 for none) and its colour.
+    pub bar: f32,
+    pub bar_color: u32,
 }
 
 /// The rectangle from A1 to the last used cell, as counts.
@@ -255,6 +258,8 @@ impl GridDoc {
         let wb = self.wb();
         let sh = wb.sheets.get(sheet as usize).ok_or(GridError::NoSheet(sheet))?;
         let argb = |rgb: Option<[u8; 3]>| rgb.map_or(0, |[r, g, b]| 0xFF00_0000 | u32::from(r) << 16 | u32::from(g) << 8 | u32::from(b));
+        // Conditional formats (colour scales, data bars, highlight rules), as Excel shows them.
+        let mut cf = (!sh.cond_formats.is_empty()).then(gridcraft_engine::cf::CfCache::new);
         let mut out = Vec::with_capacity((rows as usize) * (cols as usize));
         for r in row..row.saturating_add(rows) {
             for c in col..col.saturating_add(cols) {
@@ -262,7 +267,38 @@ impl GridDoc {
                 // Inside a table (Format as Table, or one in the file): its banding and header.
                 let table_style =
                     sh.tables.iter().find(|t| t.range.contains(at)).map(|t| gridcraft_engine::tables::table_cell_style(wb, sheet as usize, t, at));
-                let st = table_style.as_ref().unwrap_or_else(|| wb.styles.get(sh.style_id(at)));
+                let base = table_style.as_ref().unwrap_or_else(|| wb.styles.get(sh.style_id(at)));
+                let cfl = cf.as_mut().and_then(|c| c.look(wb, sheet as usize, at));
+                let merged = cfl.as_ref().and_then(|l| l.style.as_ref()).map(|d| {
+                    use gridcraft_engine::model::Color;
+                    // A differential style: only what it sets applies.
+                    let mut st = base.clone();
+                    if d.fill.pattern != PatternType::None {
+                        st.fill = d.fill;
+                    }
+                    if d.font.color != Color::Auto {
+                        st.font.color = d.font.color;
+                    }
+                    st.font.bold |= d.font.bold;
+                    st.font.italic |= d.font.italic;
+                    if d.font.underline != Underline::None {
+                        st.font.underline = d.font.underline;
+                    }
+                    for (dst, src) in [
+                        (&mut st.borders.left, d.borders.left),
+                        (&mut st.borders.right, d.borders.right),
+                        (&mut st.borders.top, d.borders.top),
+                        (&mut st.borders.bottom, d.borders.bottom),
+                    ] {
+                        if !src.is_none() {
+                            *dst = src;
+                        }
+                    }
+                    st
+                });
+                let st = merged.as_ref().unwrap_or(base);
+                let scale_fill = cfl.as_ref().and_then(|l| l.scale_fill);
+                let bar = cfl.as_ref().and_then(|l| l.bar);
                 let b = &st.borders;
                 let sides = [&b.left, &b.right, &b.top, &b.bottom];
                 let borders = sides.iter().enumerate().fold(0u32, |acc, (i, l)| acc | weight(l) << (8 * i));
@@ -274,7 +310,13 @@ impl GridDoc {
                     italic: st.font.italic,
                     underline: st.font.underline != Underline::None,
                     color: argb(st.font.color.resolve(&wb.theme)),
-                    fill: if st.fill.pattern == PatternType::Solid { argb(st.fill.fg.resolve(&wb.theme)) } else { 0 },
+                    fill: match scale_fill {
+                        Some(rgb) => argb(Some(rgb)),
+                        None if st.fill.pattern == PatternType::Solid => argb(st.fill.fg.resolve(&wb.theme)),
+                        None => 0,
+                    },
+                    bar: bar.map_or(0.0, |(f, _, _)| f.clamp(0.0, 1.0)),
+                    bar_color: bar.map_or(0, |(_, rgb, _)| argb(Some(rgb))),
                     wrap: st.align.wrap,
                     valign: match st.align.v {
                         VAlign::Center | VAlign::Justify | VAlign::Distributed => 1,

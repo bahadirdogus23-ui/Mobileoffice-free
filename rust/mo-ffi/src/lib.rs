@@ -256,6 +256,8 @@ impl SheetDocument {
                 border_color: l.border_color,
                 wrap: l.wrap,
                 valign: l.valign,
+                bar: l.bar,
+                bar_color: l.bar_color,
             })
             .collect())
     }
@@ -1094,6 +1096,9 @@ pub struct CellLook {
     pub wrap: bool,
     /// 0 bottom (Excel's default), 1 centre, 2 top.
     pub valign: u8,
+    /// A conditional format's data bar: the fraction (0–1) of the cell it fills (0 for none) and its colour.
+    pub bar: f32,
+    pub bar_color: u32,
 }
 
 /// A PDF whose pages are being reorganised (rotate, delete, move, combine, extract). Viewing
