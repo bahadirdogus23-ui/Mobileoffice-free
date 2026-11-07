@@ -672,6 +672,14 @@ fun PagedScreen(vm: PagedViewModel, state: PagedUiState, reading: ReadingSetting
                                     reflows = o.kind == org.mobileofficefree.engine.SlideObjectKind.TEXT,
                                     onDone = { dx, dy, scale, turn -> slides.placePicked((dx * w).toDouble(), (dy * h).toDouble(), scale.toDouble(), turn.toDouble()) },
                                 )
+                                // The tapped cell of a picked table, framed so it is plain which text Edit text opens.
+                                slides.pickedCell?.takeIf { it.id == o.id }?.let { cell ->
+                                    val cellColor = MaterialTheme.colorScheme.tertiary
+                                    Canvas(Modifier.fillMaxSize()) {
+                                        val k = size.width / w
+                                        drawRect(cellColor, Offset(cell.x * k, cell.y * k), Size(cell.width * k, cell.height * k), style = androidx.compose.ui.graphics.drawscope.Stroke(3.dp.toPx()))
+                                    }
+                                }
                             }
                             pdf?.pickedText?.takeIf { annotating && it.first == i }?.let { (_, t) ->
                                 val look = remember(t, bmp) {

@@ -69,10 +69,19 @@ class SlidesViewModel(app: Application) : PagedViewModel(app, DocumentKind.SLIDE
             pickedAt = x to y
             picked = hit?.let { slide to it }
             pickedLook = null
+            // In a table: the cell under the finger is framed too (its text is what Edit text opens).
+            pickedCell = if (hit?.kind == SlideObjectKind.TABLE) withContext(engine) {
+                runCatching { d.textShapes(slide.toUInt()) }.getOrDefault(emptyList())
+                    .firstOrNull { it.id == hit.id && it.row >= 0 && x >= it.x && x <= it.x + it.width && y >= it.y && y <= it.y + it.height }
+            } else null
             pickedBold = hit != null && withContext(engine) { runCatching { d.textIsBold(slide.toUInt(), hit.id) }.getOrDefault(false) }
             if (hit != null) refreshLook(slide, hit)
         }
     }
+
+    /** The table cell tapped in a picked table (its box in points), framed on the slide. */
+    var pickedCell by mutableStateOf<org.mobileofficefree.engine.SlideText?>(null)
+        private set
 
     /** The picked object on its own and the slide behind it, for dragging it (see [ObjectFrame]). */
     var pickedLook by mutableStateOf<ObjectLook?>(null)
@@ -106,6 +115,7 @@ class SlidesViewModel(app: Application) : PagedViewModel(app, DocumentKind.SLIDE
     fun dropPick() {
         picked = null
         pickedLook = null
+        pickedCell = null
     }
 
     /** Whether the picked object has text to retype. */
@@ -322,6 +332,8 @@ class SlidesViewModel(app: Application) : PagedViewModel(app, DocumentKind.SLIDE
     /** Runs [op] on the engine thread (it may name a slide to show) and shows the slides as they are now. */
     private fun change(only: Int? = null, op: (SlidesDocument) -> Int?) {
         val d = doc ?: return
+        // An edit may move or change the table: its tapped cell is no longer framed.
+        pickedCell = null
         val app = getApplication<Application>()
         viewModelScope.launch {
             val result = withContext(engine) {
