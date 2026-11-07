@@ -1942,13 +1942,16 @@ dependencies = [
 name = "mo-deck"
 version = "0.1.0"
 dependencies = [
+ "cfb",
  "deckcraft-engine",
  "deckcraft-model",
  "deckcraft-pdf",
  "deckcraft-pptx",
  "deckcraft-render",
  "png",
+ "roxmltree",
  "thiserror",
+ "zip",
 ]
 
 [[package]]

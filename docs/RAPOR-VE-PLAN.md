@@ -834,7 +834,7 @@ Geliştirme planın sırasından hızlı ilerledi; Faz 3 ve 4'ün bazı işleri 
 | 1 | Tamam | 40+ uzantının listesi ve korpus testi; Play dahili test kanalı (hesap kararı bekliyor) |
 | 2 | Büyük ölçüde tamam | Türkçe OCR; 7z/RAR arşivleri; Play kapalı testi |
 | 3 | Sürüyor | Şablonlar; kayıpsız kaydetmenin korpusla sistemli testi (otomatik kurtarma eklendi) |
-| 4 | Kısmen | PPT/ODP içe aktarma, EPUB, EML/MSG, VCF/ICS, tablet düzeni, tam metin arama (XLS biçimleri tamam) |
+| 4 | Kısmen | EPUB, EML/MSG, VCF/ICS, tablet düzeni, tam metin arama (XLS biçimleri tamam; ODP içe aktarma tamam, PPT yalnız metinleriyle) |
 | 5 | Başlamadı | Performans, erişilebilirlik denetimi, mağaza materyalleri, F-Droid |
 
 ### 13.3 Faz kabul testlerine örnekler

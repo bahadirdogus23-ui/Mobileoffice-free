@@ -3,6 +3,8 @@
 //! (see `edit.rs`), so the app carries neither the editing engine nor its media decoders.
 
 mod edit;
+mod odp;
+mod ppt;
 pub use edit::{ObjectKind, ObjectStyle, SlideObject, TextShape};
 
 use deckcraft_model::Presentation;
@@ -49,6 +51,14 @@ impl DeckDoc {
     pub fn open(bytes: &[u8]) -> Result<DeckDoc, DeckError> {
         if deckcraft_pptx::is_encrypted(bytes) {
             return Err(DeckError::Open("This presentation is password-protected.".into()));
+        }
+        if ppt::sniff(bytes) {
+            let (pres, warnings) = ppt::import(bytes)?;
+            return Ok(DeckDoc { pres, warnings, dirty: false, undo: Vec::new(), redo: Vec::new() });
+        }
+        if odp::sniff(bytes) {
+            let (pres, warnings) = odp::import(bytes)?;
+            return Ok(DeckDoc { pres, warnings, dirty: false, undo: Vec::new(), redo: Vec::new() });
         }
         if !deckcraft_pptx::sniff(bytes) {
             return Err(DeckError::Open("Not a PowerPoint (.pptx) presentation.".into()));

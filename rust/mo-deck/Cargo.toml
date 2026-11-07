@@ -16,6 +16,11 @@ deckcraft-render = { workspace = true }
 deckcraft-model = { workspace = true }
 deckcraft-pdf = { workspace = true }
 thiserror = { workspace = true }
+# OpenDocument presentations (.odp), which DeckCraft has no reader for (src/odp.rs).
+zip = { version = "3", default-features = false, features = ["deflate"] }
+roxmltree = "0.20"
+# Old binary PowerPoint (.ppt), read for its text (src/ppt.rs).
+cfb = "0.15"
 
 [dev-dependencies]
 # The engine's built-in sample deck gives the tests a real presentation.

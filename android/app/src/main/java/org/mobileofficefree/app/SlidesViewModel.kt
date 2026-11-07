@@ -349,6 +349,9 @@ class SlidesViewModel(app: Application) : PagedViewModel(app, DocumentKind.SLIDE
         }
     }
 
+    /** What the engine could not keep when it read the file (an .odp's styles, a .ppt's pictures…). */
+    override fun openedNotice(): String? = doc?.warnings()?.takeIf { it.isNotEmpty() }?.joinToString("\n")
+
     override fun recoveryBytes(): Pair<String, ByteArray>? = doc?.let { "recovery.pptx" to it.save("recovery.pptx") }
 
     override fun restoreFrom(name: String, bytes: ByteArray): List<Pair<Float, Float>> {

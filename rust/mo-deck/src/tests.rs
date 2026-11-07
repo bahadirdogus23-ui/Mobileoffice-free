@@ -336,3 +336,86 @@ fn text_boxes_resize_like_design_apps() {
     let saved = DeckDoc::open(&d.save("x.pptx").unwrap()).unwrap();
     assert!(saved.objects(0).unwrap().iter().any(|o| o.id == id && (o.w - after.w).abs() < 0.5));
 }
+
+#[test]
+fn opendocument_presentations_open() {
+    // Made with Python's zipfile as LibreOffice lays an .odp out: two pages, a title, a list, an
+    // ellipse with text, a picture, an embedded object it cannot show, and speaker notes.
+    let mut d = DeckDoc::open(include_bytes!("../testdata/sample.odp")).unwrap();
+    assert_eq!(d.slide_count(), 2);
+    let (w, h) = d.slide_size();
+    assert!((w - 793.7).abs() < 0.5 && (h - 446.5).abs() < 0.5, "{w}×{h}");
+    let texts: Vec<String> = d.text_shapes(0).unwrap().into_iter().map(|t| t.text).collect();
+    assert_eq!(texts, ["Çalışma Raporu 2026", "Birinci madde\nİkinci  madde", "Şekil yazısı"]);
+    let title = d.text_shapes(0).unwrap().into_iter().next().unwrap();
+    assert!((title.x - 56.7).abs() < 0.5 && (title.y - 28.3).abs() < 0.5, "{title:?}");
+    assert_eq!(d.notes(0).unwrap(), "Önce teşekkür et.");
+    let pics: Vec<_> = d.objects(1).unwrap().into_iter().filter(|o| o.kind == ObjectKind::Picture).collect();
+    assert_eq!(pics.len(), 1);
+    assert!(d.warnings().iter().any(|w| w.contains("gösterilemedi")), "{:?}", d.warnings());
+    assert!(d.render_slide(0, 0.5).is_ok());
+    // Saved as PowerPoint (the format DeckCraft writes), it opens again with its text.
+    let again = DeckDoc::open(&d.save("x.pptx").unwrap()).unwrap();
+    assert_eq!(again.slide_count(), 2);
+    assert!(again.text_shapes(0).unwrap().iter().any(|t| t.text == "Çalışma Raporu 2026"));
+}
+
+/// A record of the PowerPoint 97–2003 binary format: header (version/instance, type, length) and body.
+fn ppt_record(ver: u16, instance: u16, rec_type: u16, body: &[u8]) -> Vec<u8> {
+    let mut out = Vec::new();
+    out.extend_from_slice(&(ver | instance << 4).to_le_bytes());
+    out.extend_from_slice(&rec_type.to_le_bytes());
+    out.extend_from_slice(&(body.len() as u32).to_le_bytes());
+    out.extend_from_slice(body);
+    out
+}
+
+fn ppt_text(text_type: u32, text: &str, wide: bool) -> Vec<u8> {
+    let mut out = ppt_record(0, 0, 0x0F9F, &text_type.to_le_bytes());
+    if wide {
+        let chars: Vec<u8> = text.encode_utf16().flat_map(u16::to_le_bytes).collect();
+        out.extend(ppt_record(0, 0, 0x0FA0, &chars));
+    } else {
+        out.extend(ppt_record(0, 0, 0x0FA8, text.as_bytes()));
+    }
+    out
+}
+
+#[test]
+fn old_powerpoint_files_open_with_their_words() {
+    // A .ppt built record by record ([MS-PPT]): a 10×7.5 inch deck, two slides and a note.
+    let mut doc_atom = Vec::new();
+    doc_atom.extend_from_slice(&5760i32.to_le_bytes());
+    doc_atom.extend_from_slice(&4320i32.to_le_bytes());
+    doc_atom.extend_from_slice(&[0u8; 32]);
+    let persist = ppt_record(0, 0, 0x03F3, &[0u8; 20]);
+    let mut slides = persist.clone();
+    slides.extend(ppt_text(0, "Yıllık Değerlendirme", true));
+    slides.extend(ppt_text(1, "Birinci madde\rİkinci madde", true));
+    slides.extend(persist.clone());
+    slides.extend(ppt_text(6, "Second slide", false));
+    let mut notes = persist;
+    notes.extend(ppt_text(2, "Süreyi kontrol et", true));
+    let mut container = ppt_record(1, 0, 0x03E9, &doc_atom);
+    container.extend(ppt_record(0x0F, 0, 0x0FF0, &slides));
+    container.extend(ppt_record(0x0F, 2, 0x0FF0, &notes));
+    let stream = ppt_record(0x0F, 0, 0x03E8, &container);
+    let mut file = cfb::CompoundFile::create(std::io::Cursor::new(Vec::new())).unwrap();
+    {
+        use std::io::Write;
+        let mut s = file.create_stream("/PowerPoint Document").unwrap();
+        s.write_all(&stream).unwrap();
+    }
+    let bytes = file.into_inner().into_inner();
+
+    let d = DeckDoc::open(&bytes).unwrap();
+    assert_eq!(d.slide_count(), 2);
+    assert_eq!(d.slide_size(), (720.0, 540.0));
+    let first: Vec<String> = d.text_shapes(0).unwrap().into_iter().map(|t| t.text).collect();
+    assert_eq!(first, ["Yıllık Değerlendirme", "Birinci madde\nİkinci madde"]);
+    let second: Vec<String> = d.text_shapes(1).unwrap().into_iter().map(|t| t.text).collect();
+    assert_eq!(second, ["Second slide"]);
+    assert_eq!(d.notes(0).unwrap(), "Süreyi kontrol et");
+    assert!(d.warnings().iter().any(|w| w.contains(".ppt")));
+    assert!(d.render_slide(0, 0.5).is_ok());
+}
