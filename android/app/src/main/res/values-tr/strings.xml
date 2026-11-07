@@ -173,10 +173,10 @@
     <string name="signature_saved">Kayıtlı imzalar</string>
     <string name="signature_keep">Bu imzayı bu telefonda sakla</string>
     <string name="form_fill">Formu doldur</string>
-    <string name="form_none">Bu PDF\'te doldurulabilir alan bulunamadı. Bu satırı geliştiriciye iletirseniz nedeni bulunur; o zamana kadar İmzala ve yaz → Metin ile yazabilirsiniz:</string>
+    <string name="form_none">Bu PDF\'te doldurulabilir alan bulunamadı. Bu satırı geliştiriciye iletirseniz nedeni bulunur; o zamana kadar Yaz ve çiz → Metin ile yazabilirsiniz:</string>
     <string name="form_page">Sayfa %1$d</string>
     <string name="apply">Uygula</string>
-    <string name="annotate">İmzala ve yaz</string>
+    <string name="annotate">Yaz ve çiz</string>
     <string name="pen_black">Kalem</string>
     <string name="pen_red">Kırmızı</string>
     <string name="pen_blue">Mavi</string>
@@ -246,7 +246,7 @@
     <string name="fill_red">Kırmızı</string>
     <string name="fill_grey">Gri</string>
     <string name="present">Sun</string>
-    <string name="speaker_notes">Notlar</string>
+    <string name="speaker_notes">Konuşmacı notu</string>
     <string name="end_show">Bitir</string>
     <string name="no_notes">Bu slaytta konuşmacı notu yok.</string>
     <string name="sheet_menu">Sayfa ▾</string>
@@ -542,7 +542,7 @@
     <string name="new_slides">Sunum</string>
     <string name="new_word_name">Yeni belge.docx</string>
     <string name="new_slides_name">Yeni sunum.pptx</string>
-    <string name="slide_notes">Notlar</string>
+    <string name="slide_notes">Konuşmacı notu</string>
     <string name="slide_notes_title">Konuşmacı notları · slayt %1$d</string>
     <string name="slide_notes_hint">Bu slaytta söyleyecekleriniz (sunarken yalnızca siz görürsünüz)</string>
     <string name="page_layout">Sayfa</string>
@@ -595,4 +595,20 @@
     <string name="recovery_discard">Sil</string>
     <string name="recovery_failed">Kurtarılan kopya açılamadı.</string>
     <string name="new_from_template">Şablondan…</string>
+    <string name="tool_fill">Dolgu</string>
+    <string name="tool_borders">Kenarlık</string>
+    <string name="tool_merge">Birleştir</string>
+    <string name="tool_unmerge">Ayır</string>
+    <string name="tool_currency">Lira</string>
+    <string name="tool_percent">Yüzde</string>
+    <string name="tool_more_decimals">Ondalık +</string>
+    <string name="tool_fewer_decimals">Ondalık −</string>
+    <string name="tool_format_more">Diğer</string>
+    <string name="tool_conditional">Kurallar</string>
+    <string name="report_by_email">E-postayla (rapor ve ekran görüntüsü ekli)</string>
+    <string name="report_on_github">GitHub\'da (herkese açık)</string>
+    <string name="settings_profile">Bilgilerim</string>
+    <string name="settings_profile_hint">Eklediğiniz notlarda görünen adınız</string>
+    <string name="profile_name">Adınız soyadınız</string>
+    <string name="profile_unset">Girilmedi</string>
 </resources>

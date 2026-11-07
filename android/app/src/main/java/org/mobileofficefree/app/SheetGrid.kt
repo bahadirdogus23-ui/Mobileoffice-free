@@ -94,6 +94,10 @@ fun SheetGrid(
     noteCells: Set<Long> = emptySet(),
     /** A column ([col] ≥ 0) or row dragged to a new size (the axes' unit) from its header's edge. */
     onResize: (col: Int, row: Int, points: Float) -> Unit = { _, _, _ -> },
+    /** A whole row or column chosen by its header: merged cells do not widen the selection. */
+    wholeLine: Boolean = false,
+    /** The ranges a formula being typed refers to ([first row, first column, last row, last column]), framed in colour as Excel does. */
+    formulaRefs: List<IntArray> = emptyList(),
 ) {
     // A column or row being dragged wider or narrower: (is a column, its index, its size in points).
     var resizing by remember(sheet) { mutableStateOf<Triple<Boolean, Int, Float>?>(null) }
@@ -481,8 +485,8 @@ fun SheetGrid(
         var r1 = max(selectedRow, endRow)
         var c0 = min(selectedCol, endCol)
         var c1 = max(selectedCol, endCol)
-        // A selection takes in every merged range it touches, as Excel's does.
-        var grown = true
+        // A selection takes in every merged range it touches, as Excel's does (not a whole row or column).
+        var grown = !wholeLine
         while (grown) {
             grown = false
             for (m in merges) {
@@ -501,6 +505,19 @@ fun SheetGrid(
             val h = (rowAxis.start(r1 + 1) - rowAxis.start(r0)) * k
             if (r0 != r1 || c0 != c1) drawRect(colors.primary.copy(alpha = 0.12f), Offset(x0, y0), Size(w, h))
             drawRect(colors.primary, Offset(x0, y0), Size(w, h), style = Stroke(2.dp.toPx()))
+        }
+
+        // The cells a formula being typed refers to: each range framed and tinted in its own colour.
+        if (formulaRefs.isNotEmpty()) clipRect(rowHeader, colHeader, size.width, size.height) {
+            formulaRefs.forEachIndexed { i, ref ->
+                val tint = REFERENCE_COLORS[i % REFERENCE_COLORS.size]
+                val x0 = xOf(ref[1])
+                val y0 = yOf(ref[0])
+                val w = (columnAxis.start(ref[3] + 1) - columnAxis.start(ref[1])) * k
+                val h = (rowAxis.start(ref[2] + 1) - rowAxis.start(ref[0])) * k
+                drawRect(tint.copy(alpha = 0.10f), Offset(x0, y0), Size(w, h))
+                drawRect(tint, Offset(x0, y0), Size(w, h), style = Stroke(2.dp.toPx()))
+            }
         }
 
         // Headers: column letters and row numbers.
@@ -590,4 +607,29 @@ private fun androidx.compose.ui.graphics.drawscope.DrawScope.drawCfIcon(look: Ce
         }
         else -> drawCircle(col, s - 0.5f, c)
     }
+}
+
+/** Excel's colours for the references in a formula being typed, in turn. */
+private val REFERENCE_COLORS = listOf(
+    Color(0xFF4472C4), Color(0xFFC0504D), Color(0xFF8064A2), Color(0xFF4BACC6), Color(0xFF9BBB59), Color(0xFFF79646),
+)
+
+private val REFERENCE = Regex("""(?<![A-Za-z0-9_.!'"])\$?([A-Za-z]{1,3})\$?([0-9]{1,7})(?::\$?([A-Za-z]{1,3})\$?([0-9]{1,7}))?(?![A-Za-z0-9_(])""")
+
+/**
+ * The cell ranges a formula refers to on its own sheet ("=TOPLA(A1:B3;C5)" → A1:B3, C5), as
+ * [first row, first column, last row, last column]; text in quotes and other sheets are skipped.
+ */
+fun formulaReferences(formula: String): List<IntArray> {
+    if (!formula.startsWith("=")) return emptyList()
+    // Quoted text is not a reference: blank it out, keeping positions.
+    val plain = Regex(""""[^"]*"?""").replace(formula) { " ".repeat(it.value.length) }
+    fun col(letters: String): Int = letters.uppercase(java.util.Locale.ROOT).fold(0) { n, ch -> n * 26 + (ch - 'A' + 1) } - 1
+    return REFERENCE.findAll(plain).mapNotNull { m ->
+        val (c1, r1, c2, r2) = m.destructured
+        val a = intArrayOf(r1.toInt() - 1, col(c1))
+        val b = if (c2.isEmpty()) a else intArrayOf(r2.toInt() - 1, col(c2))
+        if (a[0] < 0 || b[0] < 0 || a[1] > 16383 || b[1] > 16383) null
+        else intArrayOf(minOf(a[0], b[0]), minOf(a[1], b[1]), maxOf(a[0], b[0]), maxOf(a[1], b[1]))
+    }.distinctBy { it.toList() }.take(12).toList()
 }

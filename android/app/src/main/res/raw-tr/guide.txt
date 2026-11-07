@@ -22,7 +22,7 @@ Word, Excel, PowerPoint, PDF, UYAP (UDF), e-Fatura ve çizim (DWG/DXF) dosyalar�
 - Düzenle'de bir yazıya dokunup metnini değiştirin; slayt ekleyin, çoğaltın, taşıyın ya da silin.
 # PDF
 - Ara, Sesli oku ve Metin görünümü Türkçe çalışır.
-- İmzala ve yaz: imza atın, kalemle çizin, fosforlu kalemle işaretleyin ya da Metin ile sayfanın istediğiniz yerine yazın.
+- Yaz ve çiz: kalemle çizin, fosforlu kalemle işaretleyin ya da Metin ile sayfanın istediğiniz yerine yazın.
 - Formu doldur: PDF'teki form alanlarını doldurur. Tarayıcıdan basılmış formlarda boş kutular kendiliğinden doldurulabilir alana çevrilir.
 - Sayfalar: döndürün, silin, taşıyın, başka PDF ekleyin ya da seçtiğiniz sayfaları yeni bir PDF yapın.
 - Karart: T.C. kimlik, IBAN, telefon ve e-postayı bulur, kalıcı olarak siler. Parola ve Küçült de bu menüdedir.

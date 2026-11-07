@@ -345,3 +345,52 @@ fn a_tap_on_a_picture_selects_it_for_sizing() {
     doc.tap(t.page, t.x + 1.0, t.y + t.h / 2.0, false).unwrap();
     assert!(!doc.object_selected());
 }
+
+/// A DOCX as Word writes it: only the styles it uses, so no "Table Grid".
+fn docx_without_table_grid() -> Vec<u8> {
+    use std::io::Write;
+    let mut out = std::io::Cursor::new(Vec::new());
+    let mut z = zip::ZipWriter::new(&mut out);
+    let opts = zip::write::SimpleFileOptions::default();
+    let parts = [
+        (
+            "[Content_Types].xml",
+            r#"<?xml version="1.0"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/><Override PartName="/word/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.styles+xml"/></Types>"#,
+        ),
+        (
+            "_rels/.rels",
+            r#"<?xml version="1.0"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/></Relationships>"#,
+        ),
+        (
+            "word/_rels/document.xml.rels",
+            r#"<?xml version="1.0"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/></Relationships>"#,
+        ),
+        (
+            "word/styles.xml",
+            r#"<?xml version="1.0"?><w:styles xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:style w:type="paragraph" w:default="1" w:styleId="Normal"><w:name w:val="Normal"/></w:style><w:style w:type="table" w:default="1" w:styleId="TableNormal"><w:name w:val="Normal Table"/></w:style></w:styles>"#,
+        ),
+        (
+            "word/document.xml",
+            r#"<?xml version="1.0"?><w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:body><w:p><w:r><w:t>Merhaba</w:t></w:r></w:p><w:sectPr><w:pgSz w:w="11906" w:h="16838"/><w:pgMar w:top="1440" w:right="1440" w:bottom="1440" w:left="1440"/></w:sectPr></w:body></w:document>"#,
+        ),
+    ];
+    for (name, body) in parts {
+        z.start_file(name, opts).unwrap();
+        z.write_all(body.as_bytes()).unwrap();
+    }
+    z.finish().unwrap();
+    out.into_inner()
+}
+
+#[test]
+fn a_new_table_has_lines_in_a_file_without_table_grid() {
+    let mut doc = WordDoc::open("a.docx", &docx_without_table_grid(), None).unwrap();
+    doc.execute("caret.docEnd", "").unwrap();
+    doc.execute("insert.table", r#"{"rows": 2, "cols": 3}"#).unwrap();
+    let r = doc.render_page(0, 1.0, false).unwrap();
+    // Below the first line (from 1.25 in), the table's grid draws dark pixels.
+    let dark = (90..140u32).flat_map(|y| (0..r.width).map(move |x| (y * r.width + x) as usize * 4)).filter(|&i| r.pixels[i] < 128).count();
+    assert!(dark > 100, "the table's lines are drawn ({dark} dark pixels)");
+    let styles = zip_entry(&doc.export("a.docx").unwrap(), "word/styles.xml");
+    assert!(styles.contains("TableGrid"), "the style is saved with the file");
+}

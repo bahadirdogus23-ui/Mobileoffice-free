@@ -105,16 +105,33 @@ abstract class PagedViewModel(app: Application, private val kind: DocumentKind) 
     /** Opens the recovered [bytes] (a document named [name]) in place of the open one; returns its pages. */
     protected open fun restoreFrom(name: String, bytes: ByteArray): List<Pair<Float, Float>> = error("cannot recover")
 
+    /** When the last recovery copy was made (0: none since the last save or open). */
+    private var lastCopyAt = 0L
+
+    private suspend fun copyForRecovery() {
+        val uri = state?.uri ?: return
+        if (!hasUnsavedChanges) return
+        lastCopyAt = System.currentTimeMillis()
+        withContext(engine) { runCatching { recoveryBytes()?.let { (name, bytes) -> recovery.write(uri, name, bytes) } } }
+    }
+
+    private val copyNow: () -> Unit = { viewModelScope.launch { copyForRecovery() } }
+
     init {
+        RecoveryHub.register(copyNow)
         viewModelScope.launch {
+            // The first copy soon after the first edit, then one every RECOVERY_EVERY_MS.
             while (true) {
-                kotlinx.coroutines.delay(RECOVERY_EVERY_MS)
-                val uri = state?.uri ?: continue
-                if (!hasUnsavedChanges) continue
-                withContext(engine) { runCatching { recoveryBytes()?.let { (name, bytes) -> recovery.write(uri, name, bytes) } } }
+                kotlinx.coroutines.delay(RECOVERY_FIRST_MS)
+                if (!hasUnsavedChanges) {
+                    lastCopyAt = 0L
+                    continue
+                }
+                if (lastCopyAt == 0L || System.currentTimeMillis() - lastCopyAt >= RECOVERY_EVERY_MS) copyForRecovery()
             }
         }
     }
+
 
     /** Takes the recovery copy back: the document as it was when last copied. */
     fun restoreRecovery() {
@@ -461,6 +478,7 @@ abstract class PagedViewModel(app: Application, private val kind: DocumentKind) 
     }
 
     override fun onCleared() {
+        RecoveryHub.unregister(copyNow)
         voice?.shutdown()
         // The engine thread may be busy; release on it so a render in progress finishes first.
         // viewModelScope is already cancelled here, so this runs in a scope of its own.

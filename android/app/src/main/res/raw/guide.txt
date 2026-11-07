@@ -22,7 +22,7 @@ A free office app that opens, edits and converts Word, Excel, PowerPoint, PDF, U
 - In Edit, tap a text to change it; add, duplicate, move or delete slides.
 # PDF
 - Search, Read aloud and Text view work in Turkish.
-- Sign & write: sign, draw, highlight, or type Text anywhere on the page.
+- Write & draw: draw, highlight, or type Text anywhere on the page.
 - Fill form fills the PDF's fields. On forms printed from a browser, empty boxes become fillable fields.
 - Pages: rotate, delete, move, add another PDF, or save chosen pages as a new PDF.
 - Black out finds ID numbers, IBANs, phone numbers and e-mails and removes them for good. Password and Compress are in this menu too.

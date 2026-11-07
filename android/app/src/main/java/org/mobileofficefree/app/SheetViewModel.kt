@@ -57,6 +57,8 @@ data class SheetUiState(
     /** The far corner of the selected range (the selected cell itself when one cell is chosen). */
     val endRow: Int = selectedRow,
     val endCol: Int = selectedCol,
+    /** A whole row or column was chosen by its header: merged cells do not widen it, as in Excel. */
+    val wholeLine: Boolean = false,
     /** What the formula bar shows for the selected cell. */
     val editText: String = "",
     /** Column widths and row heights (points) as the file has them. */
@@ -151,14 +153,30 @@ class SheetViewModel(app: Application) : AndroidViewModel(app) {
     var recoveryOffer by mutableStateOf<RecoveryStore.Copy?>(null)
         private set
 
+    /** When the last recovery copy was made (0: none since the last save or open). */
+    private var lastCopyAt = 0L
+
+    private suspend fun copyForRecovery() {
+        val uri = source ?: return
+        val d = doc ?: return
+        if (!unsaved) return
+        lastCopyAt = System.currentTimeMillis()
+        withContext(engine) { runCatching { recovery.write(uri, "recovery.xlsx", d.save("recovery.xlsx")) } }
+    }
+
+    private val copyNow: () -> Unit = { viewModelScope.launch { copyForRecovery() } }
+
     init {
+        RecoveryHub.register(copyNow)
         viewModelScope.launch {
+            // The first copy soon after the first edit, then one every RECOVERY_EVERY_MS.
             while (true) {
-                kotlinx.coroutines.delay(RECOVERY_EVERY_MS)
-                val uri = source ?: continue
-                val d = doc ?: continue
-                if (!unsaved) continue
-                withContext(engine) { runCatching { recovery.write(uri, "recovery.xlsx", d.save("recovery.xlsx")) } }
+                kotlinx.coroutines.delay(RECOVERY_FIRST_MS)
+                if (!unsaved) {
+                    lastCopyAt = 0L
+                    continue
+                }
+                if (lastCopyAt == 0L || System.currentTimeMillis() - lastCopyAt >= RECOVERY_EVERY_MS) copyForRecovery()
             }
         }
     }
@@ -291,7 +309,7 @@ class SheetViewModel(app: Application) : AndroidViewModel(app) {
 
     fun selectCell(row: Int, col: Int) {
         val current = (screen as? Screen.Sheet)?.state ?: return
-        screen = Screen.Sheet(current.copy(selectedRow = row, selectedCol = col, endRow = row, endCol = col, choices = emptyList()))
+        screen = Screen.Sheet(current.copy(selectedRow = row, selectedCol = col, endRow = row, endCol = col, choices = emptyList(), wholeLine = false))
         viewModelScope.launch {
             val (edit, choices) = withContext(engine) {
                 val d = doc ?: return@withContext null
@@ -311,6 +329,13 @@ class SheetViewModel(app: Application) : AndroidViewModel(app) {
         screen = Screen.Sheet(current.copy(endRow = row, endCol = col))
     }
 
+    /** Whether the selection is exactly one merged cell (so Merge would split it). */
+    fun selectionIsMerged(): Boolean {
+        val s = (screen as? Screen.Sheet)?.state ?: return false
+        val b = selectionBounds(s)
+        return s.merges.any { it[0] == b[0] && it[1] == b[1] && it[2] == b[2] && it[3] == b[3] }
+    }
+
     /** Selects a whole row ([row]) or column ([col]) across the used area. */
     fun selectLine(row: Int?, col: Int?) {
         val current = (screen as? Screen.Sheet)?.state ?: return
@@ -326,6 +351,7 @@ class SheetViewModel(app: Application) : AndroidViewModel(app) {
                 extendSelection(lastRow, col)
             }
         }
+        (screen as? Screen.Sheet)?.state?.let { screen = Screen.Sheet(it.copy(wholeLine = true)) }
     }
 
     /** Enters [input] (a value or =formula) in the selected cell through GridCraft's `cell.set`. */
@@ -476,9 +502,11 @@ class SheetViewModel(app: Application) : AndroidViewModel(app) {
         val current = (screen as? Screen.Sheet)?.state ?: return
         val at = cellName(current.selectedRow, current.selectedCol)
         val had = current.notes.any { it.row.toInt() == current.selectedRow && it.col.toInt() == current.selectedCol }
+        // Signed with the name from Settings › My details (none rather than a placeholder).
+        val author = Profile.get(getApplication()).name
         edit { d ->
             if (had) d.execute("review.deleteComment", JSONObject().put("cell", at).toString())
-            if (text.isNotBlank()) d.execute("review.newNote", JSONObject().put("cell", at).put("text", text.trim()).toString())
+            if (text.isNotBlank()) d.execute("review.newNote", JSONObject().put("cell", at).put("text", text.trim()).put("author", author).toString())
         }
     }
 
@@ -944,6 +972,7 @@ class SheetViewModel(app: Application) : AndroidViewModel(app) {
     private fun text(id: Int, vararg args: Any): String = getApplication<Application>().getString(id, *args)
 
     override fun onCleared() {
+        RecoveryHub.unregister(copyNow)
         val old = doc
         doc = null
         old?.close()
@@ -987,7 +1016,7 @@ fun selectionBounds(s: SheetUiState): IntArray {
     var r1 = maxOf(s.selectedRow, s.endRow)
     var c0 = minOf(s.selectedCol, s.endCol)
     var c1 = maxOf(s.selectedCol, s.endCol)
-    var grown = true
+    var grown = !s.wholeLine
     while (grown) {
         grown = false
         for (m in s.merges) {

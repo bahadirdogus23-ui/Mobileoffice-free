@@ -386,7 +386,7 @@ fun WordEditBar(vm: WordViewModel, onSave: () -> Unit) {
 
 /** A tool: a large sign over its name, so what it does is plain. [on] marks a format in force. */
 @Composable
-private fun Tool(
+internal fun Tool(
     glyph: String,
     label: Int,
     on: Boolean = false,

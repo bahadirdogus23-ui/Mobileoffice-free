@@ -125,10 +125,25 @@ impl WordDoc {
         } else {
             serde_json::from_str(params).map_err(|e| WordError::Command(e.to_string()))?
         };
+        if matches!(id, "insert.table" | "table.quick" | "table.fromText" | "table.draw" | "table.insertAt") {
+            self.ensure_table_grid();
+        }
         let out = self.session.run(id, &params).map_err(|e| WordError::Command(e.to_string()));
         // Even a refused command may have moved the caret; the layout follows the session.
         self.layout = self.session.layout();
         Ok(out?.to_string())
+    }
+
+    /// New tables use Word's "Table Grid" style for their lines, but files made in Word only
+    /// carry the styles they use: without it a new table would have no borders at all. The
+    /// built-in definition is added when the file lacks one.
+    fn ensure_table_grid(&mut self) {
+        let styles = &mut self.session.doc.styles;
+        if styles.get("TableGrid").is_none()
+            && let Some(grid) = wordcraft_doc::styles::StyleSheet::builtin().styles.into_iter().find(|s| s.id == "TableGrid")
+        {
+            styles.styles.push(grid);
+        }
     }
 
     /// Puts the caret at (`x`, `y`) points on `page`, or extends the selection there.

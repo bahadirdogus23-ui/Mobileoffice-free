@@ -47,3 +47,27 @@ class RecoveryStore(context: Context) {
 
 /** How often unsaved edits are copied for recovery. */
 const val RECOVERY_EVERY_MS = 30_000L
+
+/** How soon after the first unsaved edit the first copy is made, and how often the loop looks. */
+const val RECOVERY_FIRST_MS = 5_000L
+
+/**
+ * The open documents' "copy now" hooks: when the app goes to the background (where Android may
+ * end it, or the person swipes it away), every document with unsaved edits is copied at once.
+ */
+object RecoveryHub {
+    private val hooks = java.util.concurrent.CopyOnWriteArraySet<() -> Unit>()
+
+    fun register(hook: () -> Unit) {
+        hooks.add(hook)
+    }
+
+    fun unregister(hook: () -> Unit) {
+        hooks.remove(hook)
+    }
+
+    /** Called when the app leaves the screen. */
+    fun copyAll() {
+        hooks.forEach { runCatching { it() } }
+    }
+}

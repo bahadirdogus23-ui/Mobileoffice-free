@@ -16,7 +16,9 @@ import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ListItem
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.ListItemDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
@@ -62,6 +64,9 @@ fun SettingsSheet(
         runCatching { context.packageManager.getPackageInfo(context.packageName, 0).versionName }.getOrNull().orEmpty()
     }
     var support by remember { mutableStateOf(false) }
+    var report by remember { mutableStateOf(false) }
+    var editProfile by remember { mutableStateOf(false) }
+    val profile = remember { Profile.get(context) }
     var guide by remember { mutableStateOf(false) }
     Dialog(onDismissRequest = onDismiss, properties = DialogProperties(usePlatformDefaultWidth = false)) {
         Scaffold(
@@ -111,16 +116,17 @@ fun SettingsSheet(
                         Toast.makeText(context, cleared, Toast.LENGTH_SHORT).show()
                     }
                 }
+                Section(stringResource(R.string.settings_profile)) {
+                    Item("👤", Color(0xFF0A84FF), profile.name.ifBlank { stringResource(R.string.profile_unset) }, stringResource(R.string.settings_profile_hint)) { editProfile = true }
+                }
                 Section(stringResource(R.string.settings_section_support)) {
                     Item("♥", Color(0xFFD81B60), stringResource(R.string.support_developer), stringResource(R.string.support_developer_hint)) { support = true }
                     Item("☕", Color(0xFF795548), stringResource(R.string.buy_coffee), stringResource(R.string.buy_coffee_hint)) { Coffee.open() }
                     Item("📣", Color(0xFF1E88E5), stringResource(R.string.support_share_app), null) { Support.shareApp(context) }
-                    Item("🐞", Color(0xFFE53935), stringResource(R.string.report_problem), stringResource(R.string.report_problem_hint)) {
-                        Diagnostics.emailReport(context, "Hata bildirimi")
-                    }
+                    // One place to report a problem or suggest something: by email or on GitHub.
+                    Item("🐞", Color(0xFFE53935), stringResource(R.string.support_report), stringResource(R.string.report_problem_hint)) { report = true }
                     val reports = remember { ReportSettings.get(context) }
                     Toggle("📷", Color(0xFF6D4C41), stringResource(R.string.report_screenshots), stringResource(R.string.report_screenshots_hint), reports.screenshots, true, reports::updateScreenshots)
-                    Item("✉", Color(0xFF43A047), stringResource(R.string.support_report), null) { Support.open(context, Support.ISSUES_URL) }
                 }
                 Section(stringResource(R.string.settings_section_about)) {
                     Item("?", Color(0xFF00897B), stringResource(R.string.guide), stringResource(R.string.guide_hint)) { guide = true }
@@ -152,6 +158,55 @@ fun SettingsSheet(
     }
     // Composed after the settings screen, so they open over it.
     if (support) SupportDialog { support = false }
+    if (editProfile) {
+        var name by remember { mutableStateOf(profile.name) }
+        AlertDialog(
+            onDismissRequest = { editProfile = false },
+            title = { Text(stringResource(R.string.settings_profile)) },
+            text = {
+                androidx.compose.material3.OutlinedTextField(
+                    value = name,
+                    onValueChange = { name = it },
+                    singleLine = true,
+                    label = { Text(stringResource(R.string.profile_name)) },
+                )
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    profile.updateName(name)
+                    editProfile = false
+                }) { Text(stringResource(R.string.save)) }
+            },
+            dismissButton = { TextButton(onClick = { editProfile = false }) { Text(stringResource(R.string.cancel)) } },
+        )
+    }
+    if (report) {
+        AlertDialog(
+            onDismissRequest = { report = false },
+            title = { Text(stringResource(R.string.support_report)) },
+            text = {
+                Column {
+                    ListItem(
+                        leadingContent = { Text("✉", fontSize = 20.sp) },
+                        headlineContent = { Text(stringResource(R.string.report_by_email)) },
+                        modifier = Modifier.clickable {
+                            report = false
+                            Diagnostics.emailReport(context, "Hata / öneri")
+                        },
+                    )
+                    ListItem(
+                        leadingContent = { Text("🐙", fontSize = 20.sp) },
+                        headlineContent = { Text(stringResource(R.string.report_on_github)) },
+                        modifier = Modifier.clickable {
+                            report = false
+                            Support.open(context, Support.ISSUES_URL)
+                        },
+                    )
+                }
+            },
+            confirmButton = { TextButton(onClick = { report = false }) { Text(stringResource(R.string.cancel)) } },
+        )
+    }
     if (guide) GuideScreen { guide = false }
     CoffeeDialog()
 }

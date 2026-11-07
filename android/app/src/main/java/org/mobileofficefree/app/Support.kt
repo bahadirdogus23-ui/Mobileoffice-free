@@ -93,7 +93,6 @@ fun SupportDialog(onDismiss: () -> Unit) {
                 SupportChoice("☕", stringResource(R.string.buy_coffee)) { Coffee.open() }
                 SupportChoice("📣", stringResource(R.string.support_share_app)) { Support.shareApp(context) }
                 SupportChoice("⭐", stringResource(R.string.support_star)) { Support.open(context, Support.PROJECT_URL) }
-                SupportChoice("✉", stringResource(R.string.support_report)) { Support.open(context, Support.ISSUES_URL) }
             }
         },
         confirmButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.close)) } },

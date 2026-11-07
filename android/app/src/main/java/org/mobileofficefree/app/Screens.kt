@@ -37,7 +37,6 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.FilledIconToggleButton
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -224,6 +223,8 @@ internal fun SheetScreen(vm: SheetViewModel, state: SheetUiState) {
                 state.charts.map { it to vm.chartPicture(state.sheet, it.index.toInt()) },
             noteCells = remember(state.notes) { state.notes.map { it.row.toLong() * 16384 + it.col.toLong() }.toSet() },
             onResize = vm::resizeLine,
+            wholeLine = state.wholeLine,
+            formulaRefs = if (formulaFocused || cellEditing) remember(formula.text) { formulaReferences(formula.text) } else emptyList(),
             onSelect = { row, col ->
                 if ((formulaFocused || cellEditing) && pointing(formula)) {
                     val (v, r) = insertReference(formula, cellName(row, col), lastReference)
@@ -419,11 +420,48 @@ private fun SheetToolBar(vm: SheetViewModel, look: CellLook?) {
         ) {
             when (tab) {
                 0 -> {
-                    TextButton(onClick = { formatSheet = true }) { Text("Aa " + stringResource(R.string.cell_format)) }
+                    // Each tool is a sign over its name, as in Word's bar, so what it does is plain.
+                    Tool("K", R.string.tool_bold, on = look?.bold == true, weight = FontWeight.Bold) { vm.format("home.bold", JSONObject().put("on", look?.bold != true)) }
+                    Tool("İ", R.string.tool_italic, on = look?.italic == true, style = FontStyle.Italic) { vm.format("home.italic", JSONObject().put("on", look?.italic != true)) }
+                    Tool("A", R.string.tool_underline, on = look?.underline == true, decoration = TextDecoration.Underline) { vm.format("home.underline", JSONObject().put("on", look?.underline != true)) }
+                    Box {
+                        Tool("🎨", R.string.tool_fill, glyphSize = 18) { fillMenu = true }
+                        DropdownMenu(expanded = fillMenu, onDismissRequest = { fillMenu = false }) {
+                            for ((label, color) in FILLS) {
+                                DropdownMenuItem(text = { Text(stringResource(label)) }, onClick = {
+                                    fillMenu = false
+                                    vm.format("home.fillColor", JSONObject().put("color", color))
+                                })
+                            }
+                        }
+                    }
+                    Box {
+                        Tool("▦", R.string.tool_borders) { borderMenu = true }
+                        DropdownMenu(expanded = borderMenu, onDismissRequest = { borderMenu = false }) {
+                            for ((label, preset) in BORDERS) {
+                                DropdownMenuItem(text = { Text(stringResource(label)) }, onClick = {
+                                    borderMenu = false
+                                    vm.format("home.borders", JSONObject().put("preset", preset))
+                                })
+                            }
+                        }
+                    }
+                    // Merge: the selected cells become one, or a merged cell is split again.
+                    val merged = vm.selectionIsMerged()
+                    Tool(if (merged) "⊟" else "⊞", if (merged) R.string.tool_unmerge else R.string.tool_merge, on = merged) {
+                        vm.format(if (merged) "home.unmergeCells" else "home.mergeCenter")
+                    }
+                    Tool("⇤", R.string.tool_left, on = look?.align?.toInt() == 1) { vm.format("home.alignLeft") }
+                    Tool("≡", R.string.tool_center, on = look?.align?.toInt() == 2) { vm.format("home.alignCenter") }
+                    Tool("⇥", R.string.tool_right, on = look?.align?.toInt() == 3) { vm.format("home.alignRight") }
+                    Tool("₺", R.string.tool_currency) { vm.format("home.accounting", JSONObject().put("symbol", "₺")) }
+                    Tool("%", R.string.tool_percent) { vm.format("home.percent") }
+                    Tool(",0→", R.string.tool_more_decimals, glyphSize = 15) { vm.format("home.increaseDecimal") }
+                    Tool("←,0", R.string.tool_fewer_decimals, glyphSize = 15) { vm.format("home.decreaseDecimal") }
                     Box {
                         var cfMenu by remember { mutableStateOf(false) }
                         var overDialog by remember { mutableStateOf(false) }
-                        TextButton(onClick = { cfMenu = true }) { Text("◧ " + stringResource(R.string.cf_menu)) }
+                        Tool("◧", R.string.tool_conditional) { cfMenu = true }
                         DropdownMenu(expanded = cfMenu, onDismissRequest = { cfMenu = false }) {
                             DropdownMenuItem(text = { Text(stringResource(R.string.cf_color_scale)) }, onClick = {
                                 cfMenu = false
@@ -474,44 +512,7 @@ private fun SheetToolBar(vm: SheetViewModel, look: CellLook?) {
                             )
                         }
                     }
-                    FilledIconToggleButton(checked = look?.bold == true, onCheckedChange = { vm.format("home.bold", JSONObject().put("on", it)) }) {
-                        Text("K", fontWeight = FontWeight.Bold)
-                    }
-                    FilledIconToggleButton(checked = look?.italic == true, onCheckedChange = { vm.format("home.italic", JSONObject().put("on", it)) }) {
-                        Text("İ", fontStyle = FontStyle.Italic)
-                    }
-                    FilledIconToggleButton(checked = look?.underline == true, onCheckedChange = { vm.format("home.underline", JSONObject().put("on", it)) }) {
-                        Text("A", textDecoration = TextDecoration.Underline)
-                    }
-                    Box {
-                        TextButton(onClick = { fillMenu = true }) { Text("🎨") }
-                        DropdownMenu(expanded = fillMenu, onDismissRequest = { fillMenu = false }) {
-                            for ((label, color) in FILLS) {
-                                DropdownMenuItem(text = { Text(stringResource(label)) }, onClick = {
-                                    fillMenu = false
-                                    vm.format("home.fillColor", JSONObject().put("color", color))
-                                })
-                            }
-                        }
-                    }
-                    Box {
-                        TextButton(onClick = { borderMenu = true }) { Text("▦") }
-                        DropdownMenu(expanded = borderMenu, onDismissRequest = { borderMenu = false }) {
-                            for ((label, preset) in BORDERS) {
-                                DropdownMenuItem(text = { Text(stringResource(label)) }, onClick = {
-                                    borderMenu = false
-                                    vm.format("home.borders", JSONObject().put("preset", preset))
-                                })
-                            }
-                        }
-                    }
-                    TextButton(onClick = { vm.format("home.alignLeft") }) { Text("⇤") }
-                    TextButton(onClick = { vm.format("home.alignCenter") }) { Text("≡") }
-                    TextButton(onClick = { vm.format("home.alignRight") }) { Text("⇥") }
-                    TextButton(onClick = { vm.format("home.accounting", JSONObject().put("symbol", "₺")) }) { Text("₺") }
-                    TextButton(onClick = { vm.format("home.percent") }) { Text("%") }
-                    TextButton(onClick = { vm.format("home.increaseDecimal") }) { Text(",0→") }
-                    TextButton(onClick = { vm.format("home.decreaseDecimal") }) { Text("←,0") }
+                    Tool("Aa", R.string.tool_format_more, glyphSize = 16) { formatSheet = true }
                 }
                 1 -> {
                     val clipboardContext = androidx.compose.ui.platform.LocalContext.current

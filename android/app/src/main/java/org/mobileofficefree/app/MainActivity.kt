@@ -82,6 +82,8 @@ class MainActivity : ComponentActivity() {
     override fun onStop() {
         super.onStop()
         lock.leaving()
+        // Leaving the screen: Android may end the app now, so unsaved edits are copied at once.
+        RecoveryHub.copyAll()
     }
 
     override fun onStart() {

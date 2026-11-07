@@ -177,7 +177,7 @@
     <string name="form_none">No fillable field was found in this PDF. Sending the line below to the developer helps find why; meanwhile use Sign &amp; write → Text:</string>
     <string name="form_page">Page %1$d</string>
     <string name="apply">Apply</string>
-    <string name="annotate">Sign &amp; write</string>
+    <string name="annotate">Write &amp; draw</string>
     <string name="pen_black">Pen</string>
     <string name="pen_red">Red</string>
     <string name="pen_blue">Blue</string>
@@ -247,7 +247,7 @@
     <string name="fill_red">Red</string>
     <string name="fill_grey">Grey</string>
     <string name="present">Present</string>
-    <string name="speaker_notes">Notes</string>
+    <string name="speaker_notes">Speaker notes</string>
     <string name="end_show">End</string>
     <string name="no_notes">This slide has no speaker notes.</string>
     <string name="sheet_menu">Sheet ▾</string>
@@ -543,7 +543,7 @@
     <string name="new_slides">Presentation</string>
     <string name="new_word_name">New document.docx</string>
     <string name="new_slides_name">New presentation.pptx</string>
-    <string name="slide_notes">Notes</string>
+    <string name="slide_notes">Speaker notes</string>
     <string name="slide_notes_title">Speaker notes · slide %1$d</string>
     <string name="slide_notes_hint">What to say on this slide (seen only by you while presenting)</string>
     <string name="page_layout">Page</string>
@@ -596,4 +596,20 @@
     <string name="recovery_discard">Discard</string>
     <string name="recovery_failed">The recovered copy could not be opened.</string>
     <string name="new_from_template">From a template…</string>
+    <string name="tool_fill">Fill</string>
+    <string name="tool_borders">Borders</string>
+    <string name="tool_merge">Merge</string>
+    <string name="tool_unmerge">Unmerge</string>
+    <string name="tool_currency">Lira</string>
+    <string name="tool_percent">Percent</string>
+    <string name="tool_more_decimals">Decimals +</string>
+    <string name="tool_fewer_decimals">Decimals −</string>
+    <string name="tool_format_more">More</string>
+    <string name="tool_conditional">Rules</string>
+    <string name="report_by_email">By email (report and screenshot attached)</string>
+    <string name="report_on_github">On GitHub (public)</string>
+    <string name="settings_profile">My details</string>
+    <string name="settings_profile_hint">Your name on the notes you add</string>
+    <string name="profile_name">Your name</string>
+    <string name="profile_unset">Not set</string>
 </resources>
