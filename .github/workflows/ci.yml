@@ -73,6 +73,30 @@ jobs:
       - name: Build APK and run lint
         working-directory: android
         run: ./gradlew assembleDebug testDebugUnitTest lintDebug --console=plain
+      - name: Build the release (minified) APKs and the Play bundle
+        working-directory: android
+        env:
+          UPLOAD_KEYSTORE_BASE64: ${{ secrets.UPLOAD_KEYSTORE_BASE64 }}
+          MO_UPLOAD_STORE_PASSWORD: ${{ secrets.UPLOAD_STORE_PASSWORD }}
+          MO_UPLOAD_KEY_ALIAS: ${{ secrets.UPLOAD_KEY_ALIAS }}
+          MO_UPLOAD_KEY_PASSWORD: ${{ secrets.UPLOAD_KEY_PASSWORD }}
+        run: |
+          # The upload key exists only when the owner has added it as repository secrets.
+          if [ -n "$UPLOAD_KEYSTORE_BASE64" ]; then
+            echo "$UPLOAD_KEYSTORE_BASE64" | base64 -d > "$RUNNER_TEMP/upload.jks"
+            export MO_UPLOAD_STORE_FILE="$RUNNER_TEMP/upload.jks"
+            echo "Signed with the Play upload key" >> "$GITHUB_STEP_SUMMARY"
+          fi
+          ./gradlew assembleRelease bundleRelease --console=plain
+          rm -f "$RUNNER_TEMP/upload.jks"
+          ls -l app/build/outputs/apk/release/ app/build/outputs/bundle/release/
+      - uses: actions/upload-artifact@v4
+        with:
+          name: mobileoffice-release
+          path: |
+            android/app/build/outputs/apk/release/*.apk
+            android/app/build/outputs/bundle/release/*.aab
+          if-no-files-found: error
       - name: Show lint findings
         if: failure()
         run: find android -path '*lint_intermediate_text_report*' -name '*.txt' -exec cat {} +
@@ -112,6 +136,10 @@ jobs:
       - uses: actions/download-artifact@v4
         with:
           name: mobileoffice-debug-apk
+      - uses: actions/download-artifact@v4
+        with:
+          name: mobileoffice-release
+          path: release
       - name: Update the pre-release
         run: |
           # The plain name is the 64-bit ARM build, which nearly every phone from the last years is.
@@ -119,6 +147,8 @@ jobs:
           mv app-armeabi-v7a-debug.apk MobileOffice-Free-eski-32bit.apk
           mv app-x86_64-debug.apk MobileOffice-Free-x86_64.apk
           mv app-universal-debug.apk MobileOffice-Free-hepsi-bir-arada.apk
+          # The release build as Google Play will ship it (minified), to test before uploading.
+          mv release/apk/release/app-arm64-v8a-release.apk MobileOffice-Free-yayin-denemesi.apk
           apks=(MobileOffice-Free*.apk)
           notes="Otomatik test sürümü 0.1.0-dev.${GITHUB_RUN_NUMBER} (${GITHUB_SHA::7}, ${GITHUB_REF_NAME}).
           Bu bir geliştirme sürümüdür; hata içerebilir. Kurmak için telefonda bilinmeyen kaynaklardan

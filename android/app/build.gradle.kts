@@ -43,10 +43,22 @@ android {
             keyAlias = "androiddebugkey"
             keyPassword = "android"
         }
+        // Google Play's upload key: never in the repository. CI writes it from the repository's
+        // secrets (docs/GOOGLE-PLAY.md); without them release builds use the debug key, for testing.
+        val uploadStore = providers.environmentVariable("MO_UPLOAD_STORE_FILE").orNull
+        if (uploadStore != null) {
+            create("upload") {
+                storeFile = file(uploadStore)
+                storePassword = providers.environmentVariable("MO_UPLOAD_STORE_PASSWORD").get()
+                keyAlias = providers.environmentVariable("MO_UPLOAD_KEY_ALIAS").get()
+                keyPassword = providers.environmentVariable("MO_UPLOAD_KEY_PASSWORD").get()
+            }
+        }
     }
 
     buildTypes {
         release {
+            signingConfig = signingConfigs.findByName("upload") ?: signingConfigs.getByName("debug")
             isMinifyEnabled = true
             isShrinkResources = true
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
