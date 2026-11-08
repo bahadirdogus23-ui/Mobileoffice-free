@@ -310,8 +310,28 @@ class WordViewModel(app: Application) : PagedViewModel(app, DocumentKind.WORD) {
 
     override val canReadAloud = true
 
-    override fun openedNotice(): String? =
-        if (doc?.isSigned() == true) getApplication<Application>().getString(R.string.udf_signed) else null
+    override fun openedNotice(): String? {
+        val d = doc ?: return null
+        // Read here, on the engine thread, as the document opens.
+        attachments = runCatching { d.attachmentNames() }.getOrDefault(emptyList())
+        val notes = d.notes() + listOfNotNull(if (d.isSigned()) getApplication<Application>().getString(R.string.udf_signed) else null)
+        return notes.takeIf { it.isNotEmpty() }?.joinToString("\n")
+    }
+
+    /** The files an opened e-mail carries (empty for other documents). */
+    var attachments by mutableStateOf<List<String>>(emptyList())
+        private set
+
+    /** Attachment [index] written into the cache, as an address other apps (and this one) can open. */
+    suspend fun attachmentFile(index: Int): Uri? = withContext(engine) {
+        runCatching {
+            val d = doc ?: return@runCatching null
+            val name = ArchiveReader.safeName(d.attachmentNames()[index])
+            val dir = java.io.File(getApplication<Application>().cacheDir, "attachments").apply { mkdirs() }
+            val f = java.io.File(dir, name).apply { writeBytes(d.attachment(index.toUInt())) }
+            androidx.core.content.FileProvider.getUriForFile(getApplication(), ArchiveFiles.authority(getApplication()), f)
+        }.getOrNull()
+    }
 
     override val exportFormats = WORD_FORMATS
 

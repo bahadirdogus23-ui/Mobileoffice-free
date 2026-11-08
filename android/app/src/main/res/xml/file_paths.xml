@@ -6,6 +6,7 @@
     <cache-path name="scan" path="scan/" />
     <!-- Screen pictures attached to problem reports. -->
     <cache-path name="reports" path="reports/" />
+    <cache-path name="attachments" path="attachments/" />
     <!-- Documents found by walking shared storage that the system had not indexed (with "All
          files access"), shared from the home list. -->
     <external-path name="storage" path="." />

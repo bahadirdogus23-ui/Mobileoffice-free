@@ -141,6 +141,7 @@ fun PagedScreen(vm: PagedViewModel, state: PagedUiState, reading: ReadingSetting
     val list = rememberLazyListState()
     val hScroll = rememberScrollState()
     val current by remember { derivedStateOf { list.firstVisibleItemIndex + 1 } }
+    var showAttachments by remember { mutableStateOf(false) }
     // The page whose text is being recognised (OCR), if any.
     var ocrPage by remember { mutableStateOf<Int?>(null) }
     var zoom by remember(state.uri) { mutableFloatStateOf(1f) }
@@ -772,6 +773,7 @@ fun PagedScreen(vm: PagedViewModel, state: PagedUiState, reading: ReadingSetting
         } else SoftToolbar {
             run {
                 if (word != null) ToolItem("✎", stringResource(R.string.edit), onClick = word::startEditing)
+                if (word != null && word.attachments.isNotEmpty()) ToolItem("📎", stringResource(R.string.attachments), onClick = { showAttachments = true })
                 if (slides != null) ToolItem("▶", stringResource(R.string.present), onClick = { presenting = true })
                 if (slides != null) ToolItem("✎", stringResource(R.string.edit), onClick = { slides.editing = true })
                 ToolItem("Aa", stringResource(R.string.reading), onClick = { showReading = true })
@@ -801,6 +803,39 @@ fun PagedScreen(vm: PagedViewModel, state: PagedUiState, reading: ReadingSetting
         }
     }
 
+    if (showAttachments && word != null) {
+        // An e-mail's attachments: each opened in the app that suits it (this one included) or shared.
+        AlertDialog(
+            onDismissRequest = { showAttachments = false },
+            title = { Text(stringResource(R.string.attachments)) },
+            text = {
+                Column {
+                    word.attachments.forEachIndexed { i, name ->
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text(name, maxLines = 2, modifier = Modifier.weight(1f))
+                            TextButton(onClick = {
+                                scope.launch {
+                                    val uri = word.attachmentFile(i) ?: return@launch
+                                    val type = context.contentResolver.getType(uri) ?: "*/*"
+                                    val view = Intent(Intent.ACTION_VIEW).setDataAndType(uri, type).addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                                    runCatching { context.startActivity(Intent.createChooser(view, name)) }
+                                }
+                            }) { Text(stringResource(R.string.attachment_open)) }
+                            TextButton(onClick = {
+                                scope.launch {
+                                    val uri = word.attachmentFile(i) ?: return@launch
+                                    val send = Intent(Intent.ACTION_SEND).setType(context.contentResolver.getType(uri) ?: "*/*")
+                                        .putExtra(Intent.EXTRA_STREAM, uri).addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                                    context.startActivity(Intent.createChooser(send, name))
+                                }
+                            }) { Text(stringResource(R.string.share)) }
+                        }
+                    }
+                }
+            },
+            confirmButton = { TextButton(onClick = { showAttachments = false }) { Text(stringResource(R.string.close)) } },
+        )
+    }
     pdf?.ocrProgress?.let { (at, of) ->
         AlertDialog(onDismissRequest = {}, confirmButton = {}, text = {
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {

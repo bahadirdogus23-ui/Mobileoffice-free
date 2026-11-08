@@ -394,3 +394,17 @@ fn a_new_table_has_lines_in_a_file_without_table_grid() {
     let styles = zip_entry(&doc.export("a.docx").unwrap(), "word/styles.xml");
     assert!(styles.contains("TableGrid"), "the style is saved with the file");
 }
+
+#[test]
+fn contacts_calendars_and_mails_open_as_documents() {
+    let vcf = "BEGIN:VCARD\nVERSION:3.0\nFN:Ahmet Yılmaz\nTEL;TYPE=CELL:0532 111 22 33\nEND:VCARD\n";
+    let doc = WordDoc::open("rehber.vcf", vcf.as_bytes(), None).unwrap();
+    assert_eq!(doc.find("ahmet yilmaz").len(), 1);
+    assert!(doc.find("0532 111 22 33").len() == 1);
+    let eml = "From: a@b.c\r\nSubject: Merhaba\r\nContent-Type: multipart/mixed; boundary=x\r\n\r\n--x\r\nContent-Type: text/plain; charset=utf-8\r\n\r\nŞirket notu.\r\n--x\r\nContent-Type: application/pdf\r\nContent-Disposition: attachment; filename=\"fatura.pdf\"\r\n\r\n%PDF-1.4\r\n--x--\r\n";
+    let doc = WordDoc::open("ileti.eml", eml.as_bytes(), None).unwrap();
+    assert_eq!(doc.find("şirket notu").len(), 1);
+    assert_eq!(doc.attachment_names(), ["fatura.pdf"]);
+    assert!(doc.attachment(0).unwrap().starts_with(b"%PDF"));
+    assert!(!doc.notes().is_empty());
+}

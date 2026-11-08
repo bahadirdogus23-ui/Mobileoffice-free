@@ -504,6 +504,21 @@ impl WordDocument {
         Ok(self.doc().execute(&id, &params)?)
     }
 
+    /// What opening could not keep (an e-book's fonts, an e-mail's remote pictures…).
+    pub fn notes(&self) -> Vec<String> {
+        self.doc().notes().to_vec()
+    }
+
+    /// The names of the files carried inside (an e-mail's attachments).
+    pub fn attachment_names(&self) -> Vec<String> {
+        self.doc().attachment_names()
+    }
+
+    /// Attachment `index`'s bytes.
+    pub fn attachment(&self, index: u32) -> Result<Vec<u8>, MoError> {
+        self.doc().attachment(index).map(<[u8]>::to_vec).ok_or_else(|| MoError::NotFound(format!("no attachment {index}")))
+    }
+
     /// Puts the caret at (`x`, `y`) points on `page`, or extends the selection there.
     pub fn tap(&self, page: u32, x: f32, y: f32, extend: bool) -> Result<(), MoError> {
         Ok(self.doc().tap(page, x, y, extend)?)

@@ -1,0 +1,22 @@
+[package]
+name = "mo-convert"
+description = "MobileOffice readers for e-books, e-mails, contacts and calendars, turned into HTML the word engine lays out"
+version = "0.1.0"
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+publish = false
+
+[dependencies]
+# EPUB is a zip of XHTML chapters.
+zip = { version = "3", default-features = false, features = ["deflate"] }
+roxmltree = "0.20"
+# E-mail (MIME, RFC 5322) with every common charset, Turkish ones included (Apache-2.0 OR MIT).
+mail-parser = { version = "0.11", default-features = false, features = ["full_encoding"] }
+# Outlook .msg files are compound files.
+cfb = "0.15"
+base64 = "0.22"
+
+[dev-dependencies]
+zip = { version = "3", default-features = false, features = ["deflate"] }

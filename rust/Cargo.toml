@@ -1,6 +1,6 @@
 [workspace]
 resolver = "3"
-members = ["mo-archive", "mo-grid", "mo-word", "mo-deck", "mo-cad", "mo-pdf", "mo-ffi", "uniffi-bindgen", "vendor/gridcraft-pdf"]
+members = ["mo-archive", "mo-convert", "mo-grid", "mo-word", "mo-deck", "mo-cad", "mo-pdf", "mo-ffi", "uniffi-bindgen", "vendor/gridcraft-pdf"]
 
 [workspace.package]
 edition = "2024"
@@ -47,6 +47,7 @@ uniffi = "0.32"
 serde_json = "1"
 thiserror = "2"
 mo-archive = { path = "mo-archive" }
+mo-convert = { path = "mo-convert" }
 mo-grid = { path = "mo-grid" }
 mo-word = { path = "mo-word" }
 mo-deck = { path = "mo-deck" }

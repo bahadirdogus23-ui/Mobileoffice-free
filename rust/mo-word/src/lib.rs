@@ -69,6 +69,10 @@ pub struct WordDoc {
     session: Session,
     layout: Arc<DocLayout>,
     signed: bool,
+    /// What opening could not keep (an e-book's fonts, an e-mail's remote pictures…).
+    notes: Vec<String>,
+    /// Files carried inside (an e-mail's attachments), to open on their own.
+    attachments: Vec<mo_convert::Attachment>,
 }
 
 impl WordDoc {
@@ -81,8 +85,32 @@ impl WordDoc {
             doc.signed = udf.signed;
             return Ok(doc);
         }
+        // E-books, e-mails, contacts and calendars: read into HTML, laid out as a document.
+        if mo_convert::kind_of(name, bytes).is_some() {
+            let c = mo_convert::to_html(name, bytes).map_err(WordError::Open)?;
+            let (doc, _) = wordcraft_engine::io::open_bytes_with("okunan.html", c.html.as_bytes(), None).map_err(WordError::Open)?;
+            let mut out = WordDoc::from_document(doc);
+            out.notes = c.notes;
+            out.attachments = c.attachments;
+            return Ok(out);
+        }
         let (doc, _encrypted) = wordcraft_engine::io::open_bytes_with(name, bytes, password).map_err(WordError::Open)?;
         Ok(WordDoc::from_document(doc))
+    }
+
+    /// What opening could not keep, to tell the person.
+    pub fn notes(&self) -> &[String] {
+        &self.notes
+    }
+
+    /// The names of the files carried inside (an e-mail's attachments).
+    pub fn attachment_names(&self) -> Vec<String> {
+        self.attachments.iter().map(|a| a.name.clone()).collect()
+    }
+
+    /// Attachment `index`'s bytes.
+    pub fn attachment(&self, index: u32) -> Option<&[u8]> {
+        self.attachments.get(index as usize).map(|a| a.data.as_slice())
     }
 
     /// Plain text laid out on `page`: one paragraph per line, in `page.font` at `page.size_pt`.
@@ -110,7 +138,7 @@ impl WordDoc {
     fn from_document(doc: Document) -> WordDoc {
         let mut session = Session::new(doc);
         let layout = session.layout();
-        WordDoc { session, layout, signed: false }
+        WordDoc { session, layout, signed: false, notes: Vec::new(), attachments: Vec::new() }
     }
 
     fn doc(&self) -> &Document {

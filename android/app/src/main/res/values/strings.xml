@@ -643,4 +643,6 @@
     <string name="ocr_progress">Reading page %1$d of %2$d…</string>
     <string name="ocr_done">%1$d pages made searchable (%2$d words). Save to keep it.</string>
     <string name="ocr_nothing">Every page already has text; nothing to read.</string>
+    <string name="attachments">Attachments</string>
+    <string name="attachment_open">Open</string>
 </resources>

@@ -642,4 +642,6 @@
     <string name="ocr_progress">Sayfa %1$d / %2$d okunuyor…</string>
     <string name="ocr_done">%1$d sayfa aranabilir yapıldı (%2$d kelime). Korumak için kaydedin.</string>
     <string name="ocr_nothing">Tüm sayfalarda zaten metin var; okunacak bir şey yok.</string>
+    <string name="attachments">Ekler</string>
+    <string name="attachment_open">Aç</string>
 </resources>

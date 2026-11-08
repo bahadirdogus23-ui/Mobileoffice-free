@@ -5,7 +5,8 @@ import java.util.Locale
 /** What a file is, by extension first and MIME type second (Locale.ROOT: Turkish "I" must not leak in). */
 enum class DocumentKind(val extensions: Set<String>, val mimeTypes: Set<String>) {
     WORD(
-        setOf("docx", "docm", "dotx", "dotm", "doc", "dot", "odt", "rtf", "md", "html", "htm", "udf"),
+        // E-books, e-mails, contacts and calendars are read as documents too (mo-convert).
+        setOf("docx", "docm", "dotx", "dotm", "doc", "dot", "odt", "rtf", "md", "html", "htm", "udf", "epub", "eml", "mht", "mhtml", "msg", "vcf", "vcard", "ics"),
         setOf(
             "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
             "application/vnd.ms-word.document.macroenabled.12",
@@ -15,6 +16,12 @@ enum class DocumentKind(val extensions: Set<String>, val mimeTypes: Set<String>)
             "application/rtf",
             "text/rtf",
             "text/markdown",
+            "application/epub+zip",
+            "message/rfc822",
+            "application/vnd.ms-outlook",
+            "text/vcard",
+            "text/x-vcard",
+            "text/calendar",
         ),
     ),
     SHEET(
