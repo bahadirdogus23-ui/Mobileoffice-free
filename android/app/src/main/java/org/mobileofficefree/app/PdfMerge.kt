@@ -99,9 +99,9 @@ fun rememberPdfMerge(onOpen: (Uri) -> Unit): PdfMergeAction {
                         itemsIndexed(picked, key = { _, p -> p.first.toString() }) { i, (_, name) ->
                             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                                 Text("${i + 1}. $name", maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
-                                TextButton(onClick = { picked = moved(picked, i, i - 1) }, enabled = i > 0) { Text("▲") }
-                                TextButton(onClick = { picked = moved(picked, i, i + 1) }, enabled = i < picked.lastIndex) { Text("▼") }
-                                TextButton(onClick = { picked = picked.filterIndexed { j, _ -> j != i } }) { Text("✕") }
+                                TextButton(onClick = { picked = moved(picked, i, i - 1) }, enabled = i > 0, modifier = Modifier.described(stringResource(R.string.a11y_move_up))) { Text("▲") }
+                                TextButton(onClick = { picked = moved(picked, i, i + 1) }, enabled = i < picked.lastIndex, modifier = Modifier.described(stringResource(R.string.a11y_move_down))) { Text("▼") }
+                                TextButton(onClick = { picked = picked.filterIndexed { j, _ -> j != i } }, modifier = Modifier.described(stringResource(R.string.a11y_remove))) { Text("✕") }
                             }
                         }
                     }

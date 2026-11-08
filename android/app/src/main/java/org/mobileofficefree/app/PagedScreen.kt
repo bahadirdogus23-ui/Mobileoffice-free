@@ -791,8 +791,8 @@ fun PagedScreen(vm: PagedViewModel, state: PagedUiState, reading: ReadingSetting
                         }
                         TextButton(onClick = { slides.newSlide(at) }) { Text(stringResource(R.string.slide_new)) }
                         TextButton(onClick = { slides.duplicateSlide(at) }) { Text(stringResource(R.string.slide_duplicate)) }
-                        TextButton(onClick = { slides.moveSlide(at, at - 1) }, enabled = at > 0) { Text("▲") }
-                        TextButton(onClick = { slides.moveSlide(at, at + 1) }, enabled = at < state.pages.lastIndex) { Text("▼") }
+                        TextButton(onClick = { slides.moveSlide(at, at - 1) }, enabled = at > 0, modifier = Modifier.described(stringResource(R.string.a11y_move_up))) { Text("▲") }
+                        TextButton(onClick = { slides.moveSlide(at, at + 1) }, enabled = at < state.pages.lastIndex, modifier = Modifier.described(stringResource(R.string.a11y_move_down))) { Text("▼") }
                         TextButton(onClick = { slides.deleteSlide(at) }, enabled = state.pages.size > 1) { Text(stringResource(R.string.delete)) }
                         TextButton(onClick = { startSlidesSave(false) }, enabled = slides.dirty) { Text(stringResource(R.string.save)) }
                         TextButton(onClick = {

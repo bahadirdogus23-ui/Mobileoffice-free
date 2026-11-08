@@ -1,0 +1,22 @@
+MobileOffice, belgelerinizi telefonda açan, düzenleyen ve dönüştüren ücretsiz bir ofis uygulamasıdır. Reklam yok, hesap yok, internet izni yok: dosyalarınız telefonunuzdan çıkmaz.
+
+<b>Belgeler</b>
+• Word (DOCX, DOC, ODT, RTF): yazın, biçimlendirin, resim ve tablo ekleyin, PDF'e dönüştürün.
+• Excel (XLSX, XLS, ODS, CSV): Türkçe formüller (TOPLA, EĞER, DÜŞEYARA…), grafikler, süzme, koşullu biçim, açılır liste, tablo.
+• PowerPoint (PPTX, ODP, PPT): sunun, slaytları ve nesneleri düzenleyin; şekil, resim ve metin kutusu ekleyin.
+• PDF: arayın, sesli dinleyin, imzalayın, form doldurun, işaretleyin, sayfaları düzenleyin, birleştirin, parolayla koruyun, küçültün, kişisel bilgileri karartın.
+
+<b>Türkiye için</b>
+• UYAP UDF belgeleri UYAP'taki biçimiyle açılır, PDF ya da DOCX'e dönüşür.
+• e-Fatura ve e-Arşiv faturaları kendi tasarımıyla gösterilir.
+• Türkçe metin tanıma (OCR) telefonda çalışır: taranmış PDF'leri aranabilir yapar, fotoğraftaki yazıyı metne çevirir.
+• Türk alfabesine göre sıralama, İ/ı farkına takılmayan arama, hazır Türkçe şablonlar (dilekçe, özgeçmiş, bütçe…).
+
+<b>Daha fazlası</b>
+• Kâğıt tarama ve resimden PDF.
+• DWG/DXF çizimleri: katmanlar, ölçüm ve nesne yakalama.
+• EPUB e-kitaplar, EML/MSG e-postalar, VCF kişi kartları, ICS takvimler, ZIP ve 7z arşivleri.
+• Belgelerin içinde arama, otomatik kurtarma, klavye kısayolları, tablet düzeni.
+• Uygulama kilidi, ekran görüntüsü engeli, gizli mod.
+
+Açık kaynaklıdır; belgeleri işleyen motorlar Rust ile yazılmıştır ve telefonda çalışır.

@@ -168,7 +168,7 @@ internal fun SheetScreen(vm: SheetViewModel, state: SheetUiState) {
                 if (vm.canSaveInPlace && vm.hasUnsaved) {
                     TextButton(onClick = vm::saveInPlace) { Text(stringResource(R.string.save)) }
                 }
-                TextButton(onClick = { finding = !finding }) { Text("🔍") }
+                TextButton(onClick = { finding = !finding }, modifier = Modifier.described(stringResource(R.string.a11y_find))) { Text("🔍") }
                 TextButton(onClick = { showPdf = true }) { Text("PDF") }
                 TextButton(onClick = { saveAs.launch(saveName(state.fileName)) }) {
                     Text(stringResource(R.string.save_as))
@@ -431,8 +431,8 @@ private fun SheetToolBar(vm: SheetViewModel, look: CellLook?) {
             horizontalArrangement = Arrangement.spacedBy(6.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            IconButton(onClick = vm::undo) { Text("↶", fontSize = 18.sp) }
-            IconButton(onClick = vm::redo) { Text("↷", fontSize = 18.sp) }
+            IconButton(onClick = vm::undo, modifier = Modifier.described(stringResource(R.string.undo))) { Text("↶", fontSize = 18.sp) }
+            IconButton(onClick = vm::redo, modifier = Modifier.described(stringResource(R.string.redo))) { Text("↷", fontSize = 18.sp) }
             for ((i, label) in listOf(R.string.sheet_tab_format, R.string.sheet_tab_insert, R.string.sheet_tab_edit, R.string.sheet_tab_data, R.string.sheet_tab_lines).withIndex()) {
                 FilterChip(selected = tab == i, onClick = { tab = i }, label = { Text(stringResource(label)) })
             }

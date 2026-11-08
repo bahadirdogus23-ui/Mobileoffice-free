@@ -824,7 +824,7 @@ Varsayım: Başlangıç Kasım 2026; 1–2 geliştirici + yapay zekâ destekli g
   - [x] izinler ve dağıtım ([ADR-0005](adr/0005-izinler-ve-dagitim.md))
 - [x] Faz 1 iş listesi ve tahminlerin güncellenmesi (§13.2)
 
-### 13.2 Durum (7 Kasım 2026)
+### 13.2 Durum (8 Kasım 2026)
 
 Geliştirme planın sırasından hızlı ilerledi; Faz 3 ve 4'ün bazı işleri öne alındı. Kalanlar:
 
@@ -834,8 +834,8 @@ Geliştirme planın sırasından hızlı ilerledi; Faz 3 ve 4'ün bazı işleri 
 | 1 | Tamam | 40+ uzantının listesi ve korpus testi; Play dahili test kanalı (hesap kararı bekliyor) |
 | 2 | Büyük ölçüde tamam | Türkçe OCR tamam (resim, PDF sayfası, taranmış PDF’i aranabilir yapma; ADR-0006); RAR (açık kaynak okuyucu yok; 7z tamam); Play kapalı testi |
 | 3 | Sürüyor | Kayıpsız kaydetmenin korpusla sistemli testi (otomatik kurtarma ve 8 Türkçe şablon eklendi: dilekçe, özgeçmiş, resmî yazı, tutanak, ders planı, bütçe, proforma, teklif) |
-| 4 | Kısmen | EPUB, EML/MSG, VCF/ICS okunur (mo-convert, ekler açılır); belgelerin içinde arama, geniş ekranda iki sütun ve klavye kısayolları tamam (XLS biçimleri tamam; ODP içe aktarma tamam, PPT yalnız metinleriyle) |
-| 5 | Başlamadı | Performans, erişilebilirlik denetimi, mağaza materyalleri, F-Droid |
+| 4 | Tamam | EPUB, EML/MSG, VCF/ICS okunur (mo-convert, ekler açılır); belgelerin içinde arama, geniş ekranda iki sütun ve klavye kısayolları tamam (XLS biçimleri tamam; ODP içe aktarma tamam, PPT yalnız metinleriyle) |
+| 5 | Başladı | Erişilebilirlik: simge düğmelerine ekran okuyucu adları; mağaza ve F-Droid metinleri (fastlane/metadata); kalan: ekran görüntüleri, performans ölçümü (Ölçümler raporlarıyla), lisans kararı |
 
 ### 13.3 Faz kabul testlerine örnekler
 

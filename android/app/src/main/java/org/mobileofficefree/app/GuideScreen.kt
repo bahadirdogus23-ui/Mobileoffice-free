@@ -51,7 +51,7 @@ fun GuideScreen(onDismiss: () -> Unit) {
             topBar = {
                 TopAppBar(
                     title = { Text(stringResource(R.string.guide)) },
-                    navigationIcon = { IconButton(onClick = onDismiss) { Text("←", fontSize = 22.sp) } },
+                    navigationIcon = { IconButton(onClick = onDismiss, modifier = Modifier.described(stringResource(R.string.back))) { Text("←", fontSize = 22.sp) } },
                 )
             },
         ) { padding ->

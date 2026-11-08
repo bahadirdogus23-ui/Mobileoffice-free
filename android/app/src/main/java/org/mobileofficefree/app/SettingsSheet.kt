@@ -73,7 +73,7 @@ fun SettingsSheet(
             topBar = {
                 TopAppBar(
                     title = { Text(stringResource(R.string.settings)) },
-                    navigationIcon = { IconButton(onClick = onDismiss) { Text("←", fontSize = 22.sp) } },
+                    navigationIcon = { IconButton(onClick = onDismiss, modifier = Modifier.described(stringResource(R.string.back))) { Text("←", fontSize = 22.sp) } },
                 )
             },
         ) { padding ->

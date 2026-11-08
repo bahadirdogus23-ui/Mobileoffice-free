@@ -623,7 +623,7 @@ private fun DocumentRow(file: HomeItem, onOpen: () -> Unit, onShare: () -> Unit,
             }
         }
         Box {
-            IconButton(onClick = { menu = true }) { Text("⋮", fontSize = 22.sp) }
+            IconButton(onClick = { menu = true }, modifier = Modifier.described(stringResource(R.string.a11y_more))) { Text("⋮", fontSize = 22.sp) }
             DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
                 DropdownMenuItem(text = { Text(stringResource(R.string.share)) }, onClick = { menu = false; onShare() })
                 if (onForget != null) {

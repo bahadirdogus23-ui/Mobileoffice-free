@@ -1,0 +1,22 @@
+MobileOffice is a free office app that opens, edits and converts your documents on your phone. No ads, no account, no internet permission: your files never leave your phone.
+
+<b>Documents</b>
+• Word (DOCX, DOC, ODT, RTF): type, format, add pictures and tables, convert to PDF.
+• Excel (XLSX, XLS, ODS, CSV): formulas in Turkish or English, charts, filters, conditional formats, drop-down lists, tables.
+• PowerPoint (PPTX, ODP, PPT): present, edit slides and objects, add shapes, pictures and text boxes.
+• PDF: search, read aloud, sign, fill forms, mark up, rearrange pages, combine, protect with a password, compress, redact personal data.
+
+<b>Made for Turkey</b>
+• UYAP UDF court documents open as UYAP shows them and convert to PDF or DOCX.
+• Turkish e-invoices (e-Fatura, e-Arşiv) show in their own design.
+• On-device Turkish text recognition (OCR): makes scanned PDFs searchable and turns photos into text.
+• Turkish alphabetical sorting, search that ignores the İ/ı difference, ready Turkish templates.
+
+<b>More</b>
+• Scan paper and turn pictures into PDF.
+• DWG/DXF drawings with layers, measuring and object snaps.
+• EPUB e-books, EML/MSG e-mails, VCF contacts, ICS calendars, ZIP and 7z archives.
+• Search inside files, auto-recovery, keyboard shortcuts, tablet layout.
+• App lock, screenshot blocking, private mode.
+
+Open source; the engines that process documents are written in Rust and run on the phone.

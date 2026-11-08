@@ -649,4 +649,9 @@
     <string name="search_contents_progress">Reading files: %1$d / %2$d</string>
     <string name="search_contents_found">Found inside (%1$d)</string>
     <string name="search_contents_none">Not found inside the files.</string>
+    <string name="a11y_more">More options</string>
+    <string name="a11y_move_up">Move up</string>
+    <string name="a11y_move_down">Move down</string>
+    <string name="a11y_remove">Remove</string>
+    <string name="a11y_find">Find</string>
 </resources>
