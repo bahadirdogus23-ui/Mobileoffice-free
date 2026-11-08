@@ -63,7 +63,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
@@ -395,6 +395,39 @@ fun HomeScreen(onOpen: (Uri) -> Unit, onNewSheet: () -> Unit, onDiagnostics: () 
             // Everything below the search scrolls together, so the list gets the screen; a new tab,
             // source, filter or sort starts at its top.
             val listState = remember(tab, source, extraName, sort) { LazyListState() }
+            val windowWidth = with(androidx.compose.ui.platform.LocalDensity.current) { androidx.compose.ui.platform.LocalWindowInfo.current.containerSize.width.toDp() }
+            val columns = if (windowWidth >= 720.dp) 2 else 1
+            val docRow: @Composable (HomeItem) -> Unit = { f ->
+                DocumentRow(
+                    file = f,
+                    chosen = chosen.any { it.uri == f.uri },
+                    onOpen = {
+                        if (chosen.isNotEmpty()) {
+                            // Choosing: a tap adds or removes the row.
+                            chosen = if (chosen.any { it.uri == f.uri }) chosen.filter { it.uri != f.uri } else chosen + f
+                        } else {
+                            FileInfo.rememberName(f.uri, f.name)
+                            onOpen(f.uri)
+                        }
+                    },
+                    onHold = { if (chosen.none { it.uri == f.uri }) chosen = chosen + f },
+                    onShare = {
+                        val send = Intent(Intent.ACTION_SEND)
+                            .setType(context.contentResolver.getType(f.uri) ?: "*/*")
+                            .putExtra(Intent.EXTRA_STREAM, shareable(context, f.uri))
+                            .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                        context.startActivity(Intent.createChooser(send, f.name))
+                    },
+                    onForget = if (source == 1 || !listsDevice) {
+                        {
+                            recents.forget(f.uri)
+                            files = recents.all()
+                        }
+                    } else {
+                        null
+                    },
+                )
+            }
             LazyColumn(Modifier.fillMaxSize(), state = listState, contentPadding = PaddingValues(bottom = 96.dp)) {
                 item(key = "header") {
                     Column {
@@ -526,41 +559,25 @@ fun HomeScreen(onOpen: (Uri) -> Unit, onNewSheet: () -> Unit, onDiagnostics: () 
                         }
                     }
                 }
-                itemsIndexed(shown, key = { _, f -> f.uri.toString() }) { i, f ->
-                    // One white rounded group, as iPhone lists: the first and last rows round it off.
-                    val r = 16.dp
-                    val shape = RoundedCornerShape(topStart = if (i == 0) r else 0.dp, topEnd = if (i == 0) r else 0.dp, bottomStart = if (i == shown.lastIndex) r else 0.dp, bottomEnd = if (i == shown.lastIndex) r else 0.dp)
-                    Column(Modifier.padding(horizontal = 16.dp).clip(shape).background(MaterialTheme.colorScheme.surfaceContainerLow)) {
-                        DocumentRow(
-                            file = f,
-                            chosen = chosen.any { it.uri == f.uri },
-                            onOpen = {
-                                if (chosen.isNotEmpty()) {
-                                    // Choosing: a tap adds or removes the row.
-                                    chosen = if (chosen.any { it.uri == f.uri }) chosen.filter { it.uri != f.uri } else chosen + f
-                                } else {
-                                    FileInfo.rememberName(f.uri, f.name)
-                                    onOpen(f.uri)
-                                }
-                            },
-                            onHold = { if (chosen.none { it.uri == f.uri }) chosen = chosen + f },
-                            onShare = {
-                                val send = Intent(Intent.ACTION_SEND)
-                                    .setType(context.contentResolver.getType(f.uri) ?: "*/*")
-                                    .putExtra(Intent.EXTRA_STREAM, shareable(context, f.uri))
-                                    .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-                                context.startActivity(Intent.createChooser(send, f.name))
-                            },
-                            onForget = if (source == 1 || !listsDevice) {
-                                {
-                                    recents.forget(f.uri)
-                                    files = recents.all()
-                                }
-                            } else {
-                                null
-                            },
-                        )
-                        if (i < shown.lastIndex) HorizontalDivider(Modifier.padding(start = 72.dp), color = MaterialTheme.colorScheme.outlineVariant)
+                // A wide screen (tablet, unfolded phone, landscape) shows the files in two columns.
+                this.items(shown.chunked(columns), key = { g -> g.first().uri.toString() }) { group ->
+                    val i = shown.indexOf(group.first())
+                    if (columns == 1) {
+                        val f = group.first()
+                        // One white rounded group, as iPhone lists: the first and last rows round it off.
+                        val r = 16.dp
+                        val shape = RoundedCornerShape(topStart = if (i == 0) r else 0.dp, topEnd = if (i == 0) r else 0.dp, bottomStart = if (i == shown.lastIndex) r else 0.dp, bottomEnd = if (i == shown.lastIndex) r else 0.dp)
+                        Column(Modifier.padding(horizontal = 16.dp).clip(shape).background(MaterialTheme.colorScheme.surfaceContainerLow)) {
+                            docRow(f)
+                            if (i < shown.lastIndex) HorizontalDivider(Modifier.padding(start = 72.dp), color = MaterialTheme.colorScheme.outlineVariant)
+                        }
+                    } else {
+                        Row(Modifier.padding(horizontal = 16.dp, vertical = 4.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            for (f in group) {
+                                Box(Modifier.weight(1f).clip(RoundedCornerShape(16.dp)).background(MaterialTheme.colorScheme.surfaceContainerLow)) { docRow(f) }
+                            }
+                            if (group.size < columns) Spacer(Modifier.weight(1f))
+                        }
                     }
                 }
                 item(key = "support") { SupportCard(Modifier.padding(horizontal = 16.dp, vertical = 16.dp)) }

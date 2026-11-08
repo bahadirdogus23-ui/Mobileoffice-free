@@ -94,7 +94,24 @@ class MainActivity : ComponentActivity() {
     /** Set while a viewer turns pages with the volume keys; called with +1 (next) or -1 (previous). */
     var volumeKeyHandler: ((Int) -> Unit)? = null
 
+    /** The open document's answer to keyboard shortcuts (a tablet or phone keyboard); true when handled. */
+    var shortcutHandler: ((Shortcut) -> Boolean)? = null
+
     override fun onKeyDown(keyCode: Int, event: KeyEvent): Boolean {
+        val shortcut = when {
+            event.isCtrlPressed && keyCode == KeyEvent.KEYCODE_S -> Shortcut.SAVE
+            event.isCtrlPressed && keyCode == KeyEvent.KEYCODE_F -> Shortcut.FIND
+            event.isCtrlPressed && keyCode == KeyEvent.KEYCODE_Z && event.isShiftPressed -> Shortcut.REDO
+            event.isCtrlPressed && keyCode == KeyEvent.KEYCODE_Z -> Shortcut.UNDO
+            event.isCtrlPressed && keyCode == KeyEvent.KEYCODE_Y -> Shortcut.REDO
+            event.isCtrlPressed && keyCode == KeyEvent.KEYCODE_P -> Shortcut.PRINT
+            keyCode == KeyEvent.KEYCODE_PAGE_DOWN -> Shortcut.NEXT_PAGE
+            keyCode == KeyEvent.KEYCODE_PAGE_UP -> Shortcut.PREVIOUS_PAGE
+            event.isCtrlPressed && keyCode == KeyEvent.KEYCODE_MOVE_HOME -> Shortcut.FIRST_PAGE
+            event.isCtrlPressed && keyCode == KeyEvent.KEYCODE_MOVE_END -> Shortcut.LAST_PAGE
+            else -> null
+        }
+        if (shortcut != null && shortcutHandler?.invoke(shortcut) == true) return true
         val handler = volumeKeyHandler
         val step = volumeStep(keyCode)
         if (handler == null || step == 0) return super.onKeyDown(keyCode, event)
@@ -141,3 +158,6 @@ private fun LockScreen(onUnlock: () -> Unit) {
         }
     }
 }
+
+/** Keyboard shortcuts the open document can answer (Ctrl+S, Ctrl+F, Ctrl+Z/Y, Ctrl+P, Page Up/Down…). */
+enum class Shortcut { SAVE, FIND, UNDO, REDO, PRINT, NEXT_PAGE, PREVIOUS_PAGE, FIRST_PAGE, LAST_PAGE }

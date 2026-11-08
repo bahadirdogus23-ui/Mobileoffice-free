@@ -117,6 +117,24 @@ internal fun SheetScreen(vm: SheetViewModel, state: SheetUiState) {
     var pdfSetup by remember { mutableStateOf(PdfSetup()) }
     var finding by remember { mutableStateOf(false) }
     var showPdf by remember { mutableStateOf(false) }
+    // A keyboard: Ctrl+S saves, Ctrl+F finds, Ctrl+Z/Y undo and redo, Ctrl+P makes the PDF.
+    val activity = androidx.activity.compose.LocalActivity.current as? MainActivity
+    androidx.compose.runtime.DisposableEffect(activity, state.fileName) {
+        activity?.shortcutHandler = { key ->
+            when (key) {
+                Shortcut.SAVE -> {
+                    if (vm.canSaveInPlace) vm.saveInPlace() else saveAs.launch(saveName(state.fileName))
+                    true
+                }
+                Shortcut.FIND -> { finding = true; true }
+                Shortcut.UNDO -> { vm.undo(); true }
+                Shortcut.REDO -> { vm.redo(); true }
+                Shortcut.PRINT -> { showPdf = true; true }
+                else -> false
+            }
+        }
+        onDispose { activity?.shortcutHandler = null }
+    }
     var sheetMenu by remember { mutableStateOf(false) }
     var renaming by remember { mutableStateOf<String?>(null) }
     var confirmDelete by remember { mutableStateOf(false) }

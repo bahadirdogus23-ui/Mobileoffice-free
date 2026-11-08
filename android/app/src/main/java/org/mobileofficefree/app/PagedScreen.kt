@@ -305,6 +305,38 @@ fun PagedScreen(vm: PagedViewModel, state: PagedUiState, reading: ReadingSetting
         onDispose { activity?.volumeKeyHandler = null }
     }
 
+    // A keyboard (tablet or phone): save, find, undo, print and turn pages without touching the screen.
+    DisposableEffect(activity, state.uri) {
+        activity?.shortcutHandler = { key ->
+            val go = { target: Int -> scope.launch { list.animateScrollToItem(target.coerceIn(0, state.pages.lastIndex)) } }
+            when (key) {
+                Shortcut.SAVE -> when {
+                    word != null && word.editing -> { startWordSave(false); true }
+                    slides != null && slides.dirty -> { startSlidesSave(false); true }
+                    pdf != null && vm.hasUnsavedChanges -> { startSave(); true }
+                    else -> false
+                }
+                Shortcut.FIND -> { showSearch = true; true }
+                Shortcut.UNDO -> when {
+                    word != null && word.editing -> { word.command("edit.undo"); true }
+                    slides != null && slides.editing -> { slides.undo(); true }
+                    else -> false
+                }
+                Shortcut.REDO -> when {
+                    word != null && word.editing -> { word.command("edit.redo"); true }
+                    slides != null && slides.editing -> { slides.redo(); true }
+                    else -> false
+                }
+                Shortcut.PRINT -> { DocumentPrinter.print(context, vm, state); true }
+                Shortcut.NEXT_PAGE -> { go(list.firstVisibleItemIndex + 1); true }
+                Shortcut.PREVIOUS_PAGE -> { go(if (list.firstVisibleItemScrollOffset > 0) list.firstVisibleItemIndex else list.firstVisibleItemIndex - 1); true }
+                Shortcut.FIRST_PAGE -> { go(0); true }
+                Shortcut.LAST_PAGE -> { go(state.pages.lastIndex); true }
+            }
+        }
+        onDispose { activity?.shortcutHandler = null }
+    }
+
     reflowFrom?.let { from ->
         ReflowScreen(vm, state.fileName.substringBeforeLast('.'), from, reading, onClose = { reflowFrom = null })
         return
