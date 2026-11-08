@@ -134,6 +134,65 @@ pub fn blank_document(ext: String) -> Result<Vec<u8>, MoError> {
     })
 }
 
+/// The words of a document (`name` says its kind), for searching inside files: at most
+/// `max_chars` characters, read with the engine that opens it. Opening never writes.
+#[uniffi::export]
+pub fn document_text(name: String, bytes: Vec<u8>, max_chars: u32) -> Result<String, MoError> {
+    let max = max_chars as usize;
+    let ext = name.rsplit('.').next().unwrap_or("").to_ascii_lowercase();
+    let mut out = String::new();
+    let mut push = |s: &str| {
+        if out.len() < max {
+            out.push_str(s);
+            out.push('\n');
+        }
+    };
+    match ext.as_str() {
+        "pdf" => {
+            let mut doc = PdfDoc::open(bytes, None)?;
+            for p in 0..doc.page_count()?.min(500) {
+                push(&doc.page_text(p)?);
+            }
+        }
+        "xlsx" | "xlsm" | "xltx" | "xltm" | "xls" | "xlsb" | "ods" | "csv" | "tsv" => {
+            let doc = GridDoc::open(&name, &bytes, None)?;
+            for (i, sheet) in doc.sheet_names().iter().enumerate() {
+                push(sheet);
+                let size = doc.used_size(i as u32)?;
+                let rows = size.rows.min(200_000 / size.cols.max(1));
+                for t in doc.cell_texts(i as u32, 0, 0, rows, size.cols)? {
+                    if !t.is_empty() {
+                        push(&t);
+                    }
+                }
+            }
+        }
+        "pptx" | "ppsx" | "potx" | "ppt" | "pps" | "odp" => {
+            let doc = DeckDoc::open(&bytes)?;
+            for s in 0..doc.slide_count() {
+                for t in doc.text_shapes(s)? {
+                    push(&t.text);
+                }
+            }
+        }
+        "txt" | "log" | "json" | "xml" | "ini" | "md" | "srt" | "vtt" | "yaml" | "yml" | "sql" => push(&String::from_utf8_lossy(&bytes)),
+        _ => {
+            let doc = WordDoc::open(&name, &bytes, None)?;
+            for t in doc.page_texts() {
+                push(&t);
+            }
+        }
+    }
+    if out.len() > max {
+        let mut cut = max;
+        while !out.is_char_boundary(cut) {
+            cut -= 1;
+        }
+        out.truncate(cut);
+    }
+    Ok(out)
+}
+
 /// One file or folder inside a 7z archive.
 #[derive(uniffi::Record)]
 pub struct ArchiveItem {

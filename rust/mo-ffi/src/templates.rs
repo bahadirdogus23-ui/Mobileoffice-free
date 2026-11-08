@@ -422,4 +422,18 @@ mod tests {
         assert!(xml.contains(r#"w:w="11906""#) || xml.contains(r#"w:w="11905""#), "A4 width");
         assert!(xml.contains("MÜDÜRLÜĞÜNE"));
     }
+
+    #[test]
+    fn document_text_reads_every_kind_for_searching() {
+        let docx = template_document("dilekce".into()).unwrap();
+        assert!(crate::document_text("a.docx".into(), docx, 100_000).unwrap().contains("arz ederim"));
+        let xlsx = template_document("butce".into()).unwrap();
+        let t = crate::document_text("b.xlsx".into(), xlsx, 100_000).unwrap();
+        assert!(t.contains("Market"), "{t}");
+        let vcf = b"BEGIN:VCARD\nFN:Zeynep Kaya\nEND:VCARD\n".to_vec();
+        assert!(crate::document_text("k.vcf".into(), vcf, 100_000).unwrap().contains("Zeynep Kaya"));
+        // Cut at the limit, on a character boundary.
+        let long = "ğ".repeat(100).into_bytes();
+        assert!(crate::document_text("x.txt".into(), long, 11).unwrap().len() <= 11);
+    }
 }

@@ -368,6 +368,30 @@ fun HomeScreen(onOpen: (Uri) -> Unit, onNewSheet: () -> Unit, onDiagnostics: () 
             }
             // Search, as a soft pill.
             SearchPill(query, onChange = { query = it }, modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp))
+            // Searching inside the files: started on purpose (it reads them), answered as it goes.
+            var contentHits by remember(query, tab) { mutableStateOf<List<ContentSearch.Hit>?>(null) }
+            var contentProgress by remember(query, tab) { mutableStateOf<Pair<Int, Int>?>(null) }
+            var contentRun by remember(query, tab) { mutableIntStateOf(0) }
+            LaunchedEffect(contentRun) {
+                if (contentRun == 0) return@LaunchedEffect
+                val searchable = setOf(DocumentKind.WORD, DocumentKind.SHEET, DocumentKind.SLIDES, DocumentKind.PDF, DocumentKind.TEXT)
+                val docs = items.filter { (current.kind == null || it.kind == current.kind) && it.kind in searchable }
+                    .map { ContentSearch.Doc(it.uri, it.name, it.size, it.date) }
+                contentHits = ContentSearch.search(context, docs, query) { at, of -> contentProgress = at to of }
+                contentProgress = null
+            }
+            if (needle.length >= 2) {
+                Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp), verticalAlignment = Alignment.CenterVertically) {
+                    val p = contentProgress
+                    if (p != null) {
+                        androidx.compose.material3.LinearProgressIndicator(progress = { p.first.toFloat() / p.second.coerceAtLeast(1) }, modifier = Modifier.weight(1f))
+                        Spacer(Modifier.width(8.dp))
+                        Text(stringResource(R.string.search_contents_progress, p.first, p.second), style = MaterialTheme.typography.labelSmall)
+                    } else {
+                        TextButton(onClick = { contentRun++ }) { Text("🔍 " + stringResource(R.string.search_contents)) }
+                    }
+                }
+            }
             // Everything below the search scrolls together, so the list gets the screen; a new tab,
             // source, filter or sort starts at its top.
             val listState = remember(tab, source, extraName, sort) { LazyListState() }
@@ -463,6 +487,27 @@ fun HomeScreen(onOpen: (Uri) -> Unit, onNewSheet: () -> Unit, onDiagnostics: () 
                         if (current.kind == DocumentKind.SHEET) {
                             OutlinedButton(onClick = onNewSheet, Modifier.padding(horizontal = 20.dp, vertical = 8.dp)) {
                                 Text(stringResource(R.string.new_spreadsheet))
+                            }
+                        }
+                    }
+                }
+                contentHits?.let { hits ->
+                    item(key = "content-hits") {
+                        Column(Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
+                            Text(
+                                if (hits.isEmpty()) stringResource(R.string.search_contents_none) else stringResource(R.string.search_contents_found, hits.size),
+                                style = MaterialTheme.typography.titleSmall,
+                            )
+                            for (h in hits) {
+                                Column(
+                                    Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).clickable {
+                                        FileInfo.rememberName(h.uri, h.name)
+                                        onOpen(h.uri)
+                                    }.padding(vertical = 8.dp, horizontal = 4.dp),
+                                ) {
+                                    Text(h.name, style = MaterialTheme.typography.bodyLarge, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                                    Text(h.snippet, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                                }
                             }
                         }
                     }

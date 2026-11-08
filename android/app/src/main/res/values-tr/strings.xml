@@ -644,4 +644,8 @@
     <string name="ocr_nothing">Tüm sayfalarda zaten metin var; okunacak bir şey yok.</string>
     <string name="attachments">Ekler</string>
     <string name="attachment_open">Aç</string>
+    <string name="search_contents">İçerikte ara</string>
+    <string name="search_contents_progress">Dosyalar okunuyor: %1$d / %2$d</string>
+    <string name="search_contents_found">İçinde geçenler (%1$d)</string>
+    <string name="search_contents_none">Dosyaların içinde bulunamadı.</string>
 </resources>

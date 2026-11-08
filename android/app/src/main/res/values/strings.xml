@@ -645,4 +645,8 @@
     <string name="ocr_nothing">Every page already has text; nothing to read.</string>
     <string name="attachments">Attachments</string>
     <string name="attachment_open">Open</string>
+    <string name="search_contents">Search inside files</string>
+    <string name="search_contents_progress">Reading files: %1$d / %2$d</string>
+    <string name="search_contents_found">Found inside (%1$d)</string>
+    <string name="search_contents_none">Not found inside the files.</string>
 </resources>
