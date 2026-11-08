@@ -830,12 +830,12 @@ Geliştirme planın sırasından hızlı ilerledi; Faz 3 ve 4'ün bazı işleri 
 
 | Faz | Durum | Kalan |
 |---|---|---|
-| 0 | Büyük ölçüde tamam | Düşük/orta segment telefonda ölçüm, PDF motoru hız karşılaştırması, Türkçe IME testi (üçü cihazda); lisans kararı |
+| 0 | Büyük ölçüde tamam | Düşük/orta segment telefonda ölçüm, PDF motoru hız karşılaştırması, Türkçe IME testi (üçü cihazda); lisans: MIT veya Apache-2.0 (8.11.2026) |
 | 1 | Tamam | 40+ uzantının listesi ve korpus testi; Play dahili test kanalı (hesap kararı bekliyor) |
 | 2 | Büyük ölçüde tamam | Türkçe OCR tamam (resim, PDF sayfası, taranmış PDF’i aranabilir yapma; ADR-0006); RAR (açık kaynak okuyucu yok; 7z tamam); Play kapalı testi |
 | 3 | Sürüyor | Kayıpsız kaydetmenin korpusla sistemli testi (otomatik kurtarma ve 8 Türkçe şablon eklendi: dilekçe, özgeçmiş, resmî yazı, tutanak, ders planı, bütçe, proforma, teklif) |
 | 4 | Tamam | EPUB, EML/MSG, VCF/ICS okunur (mo-convert, ekler açılır); belgelerin içinde arama, geniş ekranda iki sütun ve klavye kısayolları tamam (XLS biçimleri tamam; ODP içe aktarma tamam, PPT yalnız metinleriyle) |
-| 5 | Başladı | Erişilebilirlik: simge düğmelerine ekran okuyucu adları; mağaza ve F-Droid metinleri (fastlane/metadata); kalan: ekran görüntüleri, performans ölçümü (Ölçümler raporlarıyla), lisans kararı |
+| 5 | Başladı | Erişilebilirlik: simge düğmelerine ekran okuyucu adları; mağaza ve F-Droid metinleri (fastlane/metadata); kalan: ekran görüntüleri, performans ölçümü (Ölçümler raporlarıyla) |
 
 ### 13.3 Faz kabul testlerine örnekler
 
@@ -913,7 +913,7 @@ Geliştirme planın sırasından hızlı ilerledi; Faz 3 ve 4'ün bazı işleri 
 | # | Konu | Seçenekler | Öneri |
 |---|---|---|---|
 | 1 | **Uygulama adı ve logo** | Ör. *Kâtip*, *Evrak*, *Belgem*, *Dosyam*… | Kısa, Türkçe kökenli ama uluslararası söylenebilir bir isim; TÜRKPATENT ve Play taraması; adda "Office"/"Craft" kullanmamak |
-| 2 | **Lisans** | (a) Uygulama GPL-3.0-or-later + Rust tarafı MIT/Apache; (b) her şey MIT/Apache | Ücretsiz ve açık kalmayı güvenceye almak için (a). ArtCraft ile ortak bir mobil arayüz hedeflenirse (b) |
+| 2 | **Lisans** | (a) Uygulama GPL-3.0-or-later + Rust tarafı MIT/Apache; (b) her şey MIT/Apache | **Karar verildi (8.11.2026): (b)**, her şey MIT veya Apache-2.0 (`LICENSE-MIT`, `LICENSE-APACHE`) |
 | 3 | **ArtCraft ile işbirliği** | Bağımsız çalışmak / iletişim kurup katkı vermek | Faz 0'da Discord'da tanışma; yamaları upstream'e gönderme |
 | 4 | **Minimum Android sürümü** | API 23 (AndroidX varsayılanı, kullanıcıların ~%99'u) / API 26 (Android 8.0) | API 26; Faz 0'da cihaz dağılımına bakıp gerekirse 23'e inme |
 | 5 | **"Tüm dosyalara erişim" izni** | İstemek / istememek | **Karar verildi (28.10.2026): istenir**, Play'de "belge yönetimi" beyanıyla. İzinsiz de her şey çalışır. Bkz. [ADR-0002](adr/0002-tum-dosyalara-erisim.md) |

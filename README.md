@@ -51,4 +51,4 @@ Katkı kuralları: [AGENTS.md](AGENTS.md).
 
 ## Lisans
 
-Karar aşamasında (raporun 16. bölümü).
+MobileOffice'in kendi kodu, seçiminize göre [MIT](LICENSE-MIT) **veya** [Apache 2.0](LICENSE-APACHE) lisanslıdır (8 Kasım 2026 kararı). Kullanılan motorlar ve kitaplıklar kendi lisanslarıyla gelir: ArtCraft motorları MIT/Apache-2.0, Tesseract ve Türkçe modeli Apache-2.0, `acadrust` MPL-2.0. "ArtCraft" adı ve logoları uygulamada kullanılmaz.
