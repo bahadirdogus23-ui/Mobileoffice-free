@@ -109,7 +109,7 @@ pub(crate) fn read_msg(bytes: &[u8]) -> Result<Converted, String> {
         Some(out)
     };
     let utf16 = |b: Vec<u8>| -> String {
-        let units: Vec<u16> = b.chunks_exact(2).map(|c| u16::from_le_bytes([c[0], c[1]])).collect();
+        let units: Vec<u16> = b.as_chunks::<2>().0.iter().map(|c| u16::from_le_bytes(*c)).collect();
         String::from_utf16_lossy(&units).trim_end_matches('\0').to_string()
     };
     // A string property: Unicode (001F) or 8-bit (001E, Windows Turkish).
@@ -170,7 +170,7 @@ pub(crate) fn read_msg(bytes: &[u8]) -> Result<Converted, String> {
 /// The message's submit time (PR_CLIENT_SUBMIT_TIME, 0x0039, a FILETIME) from the top-level
 /// property stream (a 32-byte header, then 16-byte entries).
 fn submit_time(p: &[u8]) -> Option<String> {
-    for entry in p.get(32..)?.chunks_exact(16) {
+    for entry in p.get(32..)?.as_chunks::<16>().0 {
         let tag = u32::from_le_bytes(entry[0..4].try_into().ok()?);
         if tag == 0x0039_0040 || tag == 0x0E06_0040 {
             let ft = u64::from_le_bytes(entry[8..16].try_into().ok()?);
