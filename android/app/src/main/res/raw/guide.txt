@@ -1,37 +1,46 @@
 # What is MobileOffice?
-A free office app that opens, edits and converts Word, Excel, PowerPoint, PDF, UYAP (UDF), e-invoice and drawing (DWG/DXF) files on your phone.
-- No ads, no account, no internet permission: your files never leave the phone.
-- Made for Turkish: Turkish letters, Turkish formulas, sorting by the Turkish alphabet, UYAP and e-invoices.
-# Opening files
-- The home screen lists the documents on the phone. Allow "All files access" or pick a folder the first time.
-- Search ignores case and the dotted/dotless i.
-- Sort by date, name, size or type with "Sort" at the top right.
-- The thin bar under a file shows how far you read it.
+A free office app that opens, edits and converts Word, Excel, PowerPoint, PDF, UYAP (UDF), e-invoice, drawing (DWG/DXF), e-book, e-mail, contact and calendar files on your phone.
+- No ads, no account, no internet permission: your files never leave your phone.
+- Made for Turkish: Turkish letters, Turkish formulas (TOPLA, EĞER…), Turkish alphabetical sorting, Turkish text recognition, UYAP and e-invoices.
+# Opening and finding files
+- Home lists the documents on your phone. Allow "All files access" on first start, or pick a folder.
+- The search box matches file names and ignores case and the Turkish İ/ı difference.
+- "Search inside files" looks inside documents. Each file's words are kept on the phone after the first read, so later searches are quick.
+- Hold a file to start choosing; choose several PDFs to combine them.
+- New opens a blank document, spreadsheet or presentation; "From a template…" offers ready Turkish templates such as a petition, CV or budget.
 # Word documents
-- Tap Edit, then tap where to type. If the keyboard closes, tap the page or the ⌨ Keyboard button.
-- Hold a word and drag to select; use the tool bar for bold, colour, alignment, lists and styles.
-- Insert adds pictures, tables and page breaks. Replace changes a word everywhere.
-- Save writes over DOCX/ODT/RTF files; DOC and UDF are saved as a new DOCX.
-# Spreadsheets
-- Tap a cell and type in the formula bar. Numbers are typed the Turkish way: 1.250,5.
-- While typing a formula, tapping a cell adds its address. The ƒx button lists every formula with what it does.
-- The tool bar has bold, fill, borders, currency and percent; the Sheet menu has new sheets, freezing and sorting.
-- PDF turns the sheet into a PDF with page setup.
-# Presentations
-- Present shows slides full screen: tap right to go on, left to go back; hold for a laser pointer.
-- In Edit, tap a text to change it; add, duplicate, move or delete slides.
+- Tap Edit and type where you tap. If the keyboard closes, tap the page or the ⌨ Keyboard button.
+- Hold a word and drag to select; widen the selection with the handles. Bold, colour, alignment, lists, styles and A−/A+ are on the toolbar.
+- Insert adds pictures, tables (choose their size) and page breaks. Page setup sets the paper, orientation and margins.
+- Save writes over DOCX/ODT/RTF files; DOC and UDF files are saved as a new DOCX.
+# Excel spreadsheets
+- Tap a cell and type in the formula bar. Numbers use the Turkish form: 1.250,5. While you type a formula, the cells it refers to are framed in colour.
+- Tabs: Format (bold, fill, borders, merge, currency), Insert (table, chart, note, drop-down list), Edit (copy, paste), Data (Σ, sort, filter, remove duplicates), Rows and columns.
+- Tap a column letter or row number to select it; drag a header's edge to resize.
+- Tap a chart to move it, change its type or title, or delete it. PDF turns the sheet into a PDF with its page setup.
+# PowerPoint presentations
+- Present full screen: tap right for next, left for previous; hold for a laser pointer; speaker notes are shown to the presenter.
+- In Edit, tap an object: drag a corner to resize (text grows with it), a side to widen, the top handle to rotate, the object to move.
+- The object bar has font, size, colour, alignment, fill, duplicate, bring forward/back and move to another slide. Add shapes, text boxes and pictures.
+- ODP and old PPT presentations open too.
 # PDF
-- Search, Read aloud and Text view work in Turkish.
-- Write & draw: draw, highlight, or type Text anywhere on the page.
-- Fill form fills the PDF's fields. On forms printed from a browser, empty boxes become fillable fields.
-- Pages: rotate, delete, move, add another PDF, or save chosen pages as a new PDF.
-- Black out finds ID numbers, IBANs, phone numbers and e-mails and removes them for good. Password and Compress are in this menu too.
+- Find, Read aloud and Text view work in Turkish. Hold and drag to select text; highlight, underline or strike it out.
+- Sign: draw your signature and tap the page. Write & draw: draw, highlight, or type text anywhere on the page.
+- Fill form, Pages (rotate, delete, move, add PDF), Redact (ID, IBAN, phone), Password and Compress are in the menu.
+- Recognise text reads the page (scanned pages too) on the phone and turns it into text. Make searchable reads every page of a scanned PDF so it can be searched and copied.
 # Scanning and pictures to PDF
-- Scan photographs a page; its corners are found for you, drag them if needed. The Document look removes shadows; adjust contrast and brightness.
-- Pictures to PDF: pick photos and hold a page to drag it into order.
-# UYAP, e-invoices and drawings
-- UDF documents open as they look in UYAP and convert to PDF or DOCX.
-- e-Invoice XML files show the seller's design as an A4 page, with a summary of amounts and parties.
-- DWG and DXF drawings open with their layers; pinch to zoom.
-# Privacy
-- In Settings you can lock the app, block screenshots, turn on incognito and clear the recent list.
+- Scan photographs paper; the corners are found for you, drag them if needed. The document look removes shadows.
+- Pictures to PDF puts several photos in order into one PDF. Combine joins several PDFs into one.
+- In the picture viewer, Recognise text turns the Turkish text in a photo into text.
+# Other files
+- UDF documents open as UYAP shows them; e-invoices show in their own design.
+- Measure DWG and DXF drawings: hold and slide to snap to ends, midpoints and centres. Save the whole drawing or the area on screen as PDF.
+- EPUB e-books, EML/MSG e-mails (with attachments), VCF contacts and ICS calendars open as documents.
+- Files inside ZIP and 7z archives open directly.
+# Keyboard and tablet
+- Ctrl+S save, Ctrl+F find, Ctrl+Z / Ctrl+Y undo / redo, Ctrl+P print, Page Up / Page Down turn pages.
+- On a wide screen the file list shows two columns.
+# Safety and privacy
+- The document you edit is backed up every few seconds; if the app closes, you are offered the copy when you open it again.
+- Settings can lock the app, block screenshots, turn on private mode and clear recent files.
+- The name in My details signs the notes you add. Measurements keep speed and stutter records on the phone until you send them.
