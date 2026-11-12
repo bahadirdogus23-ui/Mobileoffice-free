@@ -22,7 +22,9 @@ android {
     // (the universal APK carries three and is about three times larger).
     splits {
         abi {
-            isEnable = true
+            // Not for the Play bundle: Play splits it per processor itself, and a bundle build
+            // with ABI splits on fails (issuetracker 402800800).
+            isEnable = gradle.startParameter.taskNames.none { it.contains("bundle", ignoreCase = true) }
             reset()
             include("arm64-v8a", "armeabi-v7a", "x86_64")
             isUniversalApk = true

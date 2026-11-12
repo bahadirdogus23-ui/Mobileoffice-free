@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="app_name" translatable="false">MobileOffice</string>
+    <string name="app_name" translatable="false">BadoOffice</string>
     <string name="home_tagline">Open, edit and share your documents. Free, no ads, no account, no internet.</string>
     <string name="new_spreadsheet">New spreadsheet</string>
     <string name="privacy_note">This app has no internet permission: your files never leave your device.</string>
@@ -352,7 +352,7 @@
     <string name="buy_coffee">Buy me a coffee</string>
     <string name="buy_coffee_hint">Bana Bi Coffee for Turkey, Buy Me a Coffee from abroad.</string>
     <string name="support_share_app">Tell a friend</string>
-    <string name="support_share_text">MobileOffice: a free office app with no ads and no internet. %1$s</string>
+    <string name="support_share_text">BadoOffice: a free office app with no ads and no internet. %1$s</string>
     <string name="support_star">Star the project</string>
     <string name="support_report">Report a problem or idea</string>
     <string name="support_thanks">Thank you! Every bit of support helps the app stay free.</string>
@@ -404,10 +404,10 @@
     <string name="about_developer">Developer</string>
     <string name="about_contact">Contact</string>
     <string name="about_purpose">Why this app</string>
-    <string name="about_purpose_text">MobileOffice was made to be free, safe and at no cost. Your documents are yours alone: the app has no internet permission, shows no ads, asks for no account and collects nothing. It opens, edits and converts Word, Excel, PowerPoint, PDF, UYAP and e-invoice files with care for Turkish, so that everyone can have a capable office tool without paying and without giving up their privacy.</string>
+    <string name="about_purpose_text">BadoOffice was made to be free, safe and at no cost. Your documents are yours alone: the app has no internet permission, shows no ads, asks for no account and collects nothing. It opens, edits and converts Word, Excel, PowerPoint, PDF, UYAP and e-invoice files with care for Turkish, so that everyone can have a capable office tool without paying and without giving up their privacy.</string>
     <string name="home_title">Documents</string>
     <string name="open_short">Open</string>
-    <string name="coffee_pitch">MobileOffice is made independently, with no ads, no selling of data and no paid version — and it should stay that way. The price of a coffee goes straight into new features, fixes and keeping the app free for everyone. If it made your work easier today, how about thanking it with a coffee? ☕</string>
+    <string name="coffee_pitch">BadoOffice is made independently, with no ads, no selling of data and no paid version — and it should stay that way. The price of a coffee goes straight into new features, fixes and keeping the app free for everyone. If it made your work easier today, how about thanking it with a coffee? ☕</string>
     <string name="coffee_tr">Bana Bi Coffee — from Turkey, in lira</string>
     <string name="coffee_tr_hint">Card or bank transfer in Turkish lira</string>
     <string name="coffee_global">Buy Me a Coffee — from abroad</string>

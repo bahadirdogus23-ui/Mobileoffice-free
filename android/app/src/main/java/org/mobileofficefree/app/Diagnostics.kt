@@ -195,7 +195,7 @@ object Diagnostics {
                 runCatching { androidx.core.content.FileProvider.getUriForFile(context, "${context.packageName}.files", f) }.getOrNull()
             },
         )
-        val subject = "MobileOffice hata bildirimi · ${appVersion(context)} · ${Build.MODEL}"
+        val subject = "BadoOffice hata bildirimi · ${appVersion(context)} · ${Build.MODEL}"
         val send = Intent(if (uris.size > 1) Intent.ACTION_SEND_MULTIPLE else Intent.ACTION_SEND)
             .setType(if (uris.isEmpty()) "text/plain" else "image/png")
             .putExtra(Intent.EXTRA_EMAIL, arrayOf(REPORT_EMAIL))

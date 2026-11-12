@@ -4,7 +4,7 @@
 
 ## Türkçe
 
-Bu uygulama (MobileOffice) **hiçbir kişisel veri toplamaz, saklamaz ya da paylaşmaz.**
+Bu uygulama (BadoOffice) **hiçbir kişisel veri toplamaz, saklamaz ya da paylaşmaz.**
 
 - **İnternet izni yoktur.** Uygulama internete bağlanamaz; belgeleriniz, fotoğraflarınız ve yazdıklarınız telefonunuzdan çıkmaz.
 - **Analitik, reklam, izleme ya da hesap yoktur.** Google Play hizmetleri ve üçüncü taraf takip kitaplıkları kullanılmaz.
@@ -18,7 +18,7 @@ Sorularınız için: bahadirdogus23@gmail.com
 
 ## English
 
-This app (MobileOffice) **does not collect, store or share any personal data.**
+This app (BadoOffice) **does not collect, store or share any personal data.**
 
 - **No internet permission.** The app cannot go online; your documents, photos and text never leave your phone.
 - **No analytics, ads, tracking or accounts.** Google Play services and third-party tracking libraries are not used.

@@ -87,7 +87,9 @@ jobs:
             export MO_UPLOAD_STORE_FILE="$RUNNER_TEMP/upload.jks"
             echo "Signed with the Play upload key" >> "$GITHUB_STEP_SUMMARY"
           fi
-          ./gradlew assembleRelease bundleRelease --console=plain
+          # Separately: the bundle is built without the per-processor APK splits.
+          ./gradlew assembleRelease --console=plain
+          ./gradlew bundleRelease --console=plain
           rm -f "$RUNNER_TEMP/upload.jks"
           ls -l app/build/outputs/apk/release/ app/build/outputs/bundle/release/
       - uses: actions/upload-artifact@v4

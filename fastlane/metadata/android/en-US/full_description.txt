@@ -1,4 +1,4 @@
-MobileOffice is a free office app that opens, edits and converts your documents on your phone. No ads, no account, no internet permission: your files never leave your phone.
+BadoOffice is a free office app that opens, edits and converts your documents on your phone. No ads, no account, no internet permission: your files never leave your phone.
 
 <b>Documents</b>
 • Word (DOCX, DOC, ODT, RTF): type, format, add pictures and tables, convert to PDF.
