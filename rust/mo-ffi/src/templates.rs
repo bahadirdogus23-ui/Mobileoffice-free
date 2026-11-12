@@ -436,4 +436,25 @@ mod tests {
         let long = "ğ".repeat(100).into_bytes();
         assert!(crate::document_text("x.txt".into(), long, 11).unwrap().len() <= 11);
     }
+
+    /// Saving must not lose what was opened: every template's words survive open → save → open,
+    /// twice over (the plan's "lossless save" check, on the files the app itself makes).
+    #[test]
+    fn saving_twice_keeps_every_word() {
+        for t in document_templates() {
+            let first = template_document(t.id.clone()).unwrap();
+            let name = format!("a.{}", t.ext);
+            let words = |bytes: &[u8]| crate::document_text(name.clone(), bytes.to_vec(), 1_000_000).unwrap();
+            let before = words(&first);
+            let mut bytes = first;
+            for _ in 0..2 {
+                bytes = if t.ext == "docx" {
+                    WordDoc::open(&name, &bytes, None).unwrap().export(&name).unwrap()
+                } else {
+                    GridDoc::open(&name, &bytes, None).unwrap().save(&name).unwrap()
+                };
+            }
+            assert_eq!(words(&bytes), before, "{}", t.id);
+        }
+    }
 }
