@@ -1,4 +1,4 @@
-MobileOffice, belgelerinizi telefonda açan, düzenleyen ve dönüştüren ücretsiz bir ofis uygulamasıdır. Reklam yok, hesap yok, internet izni yok: dosyalarınız telefonunuzdan çıkmaz.
+BadoOffice, belgelerinizi telefonda açan, düzenleyen ve dönüştüren ücretsiz bir ofis uygulamasıdır. Reklam yok, hesap yok, internet izni yok: dosyalarınız telefonunuzdan çıkmaz.
 
 <b>Belgeler</b>
 • Word (DOCX, DOC, ODT, RTF): yazın, biçimlendirin, resim ve tablo ekleyin, PDF'e dönüştürün.

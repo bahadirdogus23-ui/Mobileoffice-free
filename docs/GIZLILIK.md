@@ -4,7 +4,7 @@
 
 ## Türkçe
 
-Bu uygulama (MobileOffice) **kişisel verilerinizi sunuculara toplamaz veya otomatik olarak paylaşmaz.**
+Bu uygulama (BadoOffice) **kişisel verilerinizi sunuculara toplamaz veya otomatik olarak paylaşmaz.**
 Belgeleri cihazınızda işler; aşağıda belirtilen ayarlar, önbellekler ve kurtarma kopyaları cihazda saklanır.
 
 - **İnternet izni yoktur.** Uygulama internete bağlanamaz; belgeleriniz, fotoğraflarınız ve yazdıklarınız telefonunuzdan çıkmaz.
@@ -19,7 +19,7 @@ Sorularınız için: bahadirdogus23@gmail.com
 
 ## English
 
-This app (MobileOffice) **does not collect your personal data on servers or automatically share it.**
+This app (BadoOffice) **does not collect your personal data on servers or automatically share it.**
 It processes documents on your device; the settings, caches and recovery copies described below are stored locally.
 
 - **No internet permission.** The app cannot go online; your documents, photos and text never leave your phone.

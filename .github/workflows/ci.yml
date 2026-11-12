@@ -181,7 +181,7 @@ jobs:
   release:
     name: Publish test build
     needs: [rust, android]
-    if: github.event_name == 'push'
+    if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     permissions:
       contents: write

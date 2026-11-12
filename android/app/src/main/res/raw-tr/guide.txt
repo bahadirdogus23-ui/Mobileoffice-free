@@ -1,4 +1,4 @@
-# MobileOffice nedir?
+# BadoOffice nedir?
 Word, Excel, PowerPoint, PDF, UYAP (UDF), e-Fatura, çizim (DWG/DXF), e-kitap, e-posta, kişi ve takvim dosyalarını telefonda açan, düzenleyen ve dönüştüren ücretsiz bir ofis uygulaması.
 - Reklam yok, hesap yok, internet izni yok: dosyalarınız telefonunuzdan çıkmaz.
 - Türkçe için yapıldı: Türkçe harfler, Türkçe formüller (TOPLA, EĞER…), Türk alfabesine göre sıralama, Türkçe metin tanıma, UYAP ve e-Fatura.

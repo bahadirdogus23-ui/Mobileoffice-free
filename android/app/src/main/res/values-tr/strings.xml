@@ -352,7 +352,7 @@
     <string name="buy_coffee">Bana bir kahve al</string>
     <string name="buy_coffee_hint">Türkiye için Bana Bi Coffee, yurt dışı için Buy Me a Coffee.</string>
     <string name="support_share_app">Arkadaşına öner</string>
-    <string name="support_share_text">MobileOffice: reklamsız, internetsiz, ücretsiz ofis uygulaması. %1$s</string>
+    <string name="support_share_text">BadoOffice: reklamsız, internetsiz, ücretsiz ofis uygulaması. %1$s</string>
     <string name="support_star">Projeye yıldız ver</string>
     <string name="support_report">Hata ya da öneri bildir</string>
     <string name="support_thanks">Teşekkürler! Her destek uygulamanın ücretsiz kalmasına yardım eder.</string>
@@ -404,10 +404,10 @@
     <string name="about_developer">Geliştirici</string>
     <string name="about_contact">İletişim</string>
     <string name="about_purpose">Uygulamanın amacı</string>
-    <string name="about_purpose_text">MobileOffice özgür, güvenli ve ücretsiz olsun diye yapıldı. Belgeleriniz yalnızca sizindir: uygulamanın internet izni yoktur, reklam göstermez, hesap istemez ve hiçbir veri toplamaz. Word, Excel, PowerPoint, PDF, UYAP ve e-Fatura dosyalarınızı Türkçeye özen göstererek açar, düzenler ve dönüştürür. Amacı, herkesin para ödemeden ve gizliliğinden ödün vermeden güçlü bir ofis aracına sahip olmasıdır.</string>
+    <string name="about_purpose_text">BadoOffice özgür, güvenli ve ücretsiz olsun diye yapıldı. Belgeleriniz yalnızca sizindir: uygulamanın internet izni yoktur, reklam göstermez, hesap istemez ve hiçbir veri toplamaz. Word, Excel, PowerPoint, PDF, UYAP ve e-Fatura dosyalarınızı Türkçeye özen göstererek açar, düzenler ve dönüştürür. Amacı, herkesin para ödemeden ve gizliliğinden ödün vermeden güçlü bir ofis aracına sahip olmasıdır.</string>
     <string name="home_title">Belgeler</string>
     <string name="open_short">Aç</string>
-    <string name="coffee_pitch">MobileOffice bağımsız olarak geliştiriliyor: reklam yok, veri satışı yok, ücretli sürüm yok ve hep böyle kalsın istiyoruz. Bir kahve parası; yeni özelliklere, hata düzeltmelerine ve uygulamanın herkes için ücretsiz kalmasına doğrudan destek demek. Bugün işinizi kolaylaştırdıysa, bir kahveyle teşekkür etmeye ne dersiniz? ☕</string>
+    <string name="coffee_pitch">BadoOffice bağımsız olarak geliştiriliyor: reklam yok, veri satışı yok, ücretli sürüm yok ve hep böyle kalsın istiyoruz. Bir kahve parası; yeni özelliklere, hata düzeltmelerine ve uygulamanın herkes için ücretsiz kalmasına doğrudan destek demek. Bugün işinizi kolaylaştırdıysa, bir kahveyle teşekkür etmeye ne dersiniz? ☕</string>
     <string name="coffee_tr">Bana Bi Coffee — Türkiye\'den, TL ile</string>
     <string name="coffee_tr_hint">Banka kartı ya da havale ile, Türk lirası</string>
     <string name="coffee_global">Buy Me a Coffee — yurt dışından</string>

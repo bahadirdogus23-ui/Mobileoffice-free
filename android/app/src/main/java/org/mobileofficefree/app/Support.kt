@@ -51,7 +51,7 @@ object Support {
     /** A new e-mail to the developer in the person's mail app. */
     fun mail(context: Context) {
         val intent = Intent(Intent.ACTION_SENDTO, "mailto:$EMAIL".toUri())
-            .putExtra(Intent.EXTRA_SUBJECT, "MobileOffice")
+            .putExtra(Intent.EXTRA_SUBJECT, "BadoOffice")
             .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
         try {
             context.startActivity(intent)
