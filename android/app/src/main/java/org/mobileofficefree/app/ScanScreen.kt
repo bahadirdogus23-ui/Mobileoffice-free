@@ -31,6 +31,7 @@ import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.material3.Button
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
@@ -131,8 +132,10 @@ private fun ScanDialog(onClose: () -> Unit, onOpen: (Uri) -> Unit) {
     var working by remember { mutableStateOf(false) }
     var shot by remember { mutableStateOf<File?>(null) }
     val close = {
-        dir.listFiles()?.forEach { it.delete() }
-        onClose()
+        if (!working) {
+            dir.listFiles()?.forEach { it.delete() }
+            onClose()
+        }
     }
 
     val camera = rememberLauncherForActivityResult(ActivityResultContracts.TakePicture()) { ok ->
@@ -192,7 +195,7 @@ private fun ScanDialog(onClose: () -> Unit, onOpen: (Uri) -> Unit) {
         Surface(Modifier.fillMaxSize(), color = Color(0xFF202020)) {
             Column(Modifier.fillMaxSize().statusBarsPadding().navigationBarsPadding()) {
                 Row(Modifier.fillMaxWidth().padding(horizontal = 8.dp), verticalAlignment = Alignment.CenterVertically) {
-                    TextButton(onClick = close) { Text(stringResource(R.string.close), color = Color.White) }
+                    TextButton(onClick = close, enabled = !working) { Text(stringResource(R.string.close), color = Color.White) }
                     Text(
                         if (pages.isEmpty()) stringResource(R.string.scan_title) else stringResource(R.string.page_counter, current + 1, pages.size),
                         color = Color.White,
@@ -283,6 +286,19 @@ private fun ScanDialog(onClose: () -> Unit, onOpen: (Uri) -> Unit) {
             }
         }
     }
+    if (working) {
+        // Keep source photos and the exported settings stable until the write finishes.
+        AlertDialog(
+            onDismissRequest = {},
+            confirmButton = {},
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Text(stringResource(R.string.scan_saving))
+                    LinearProgressIndicator(Modifier.fillMaxWidth())
+                }
+            },
+        )
+    }
 }
 
 /** The page's photo with its corners as handles to drag onto the paper's corners. */
@@ -318,7 +334,8 @@ private fun CornerEditor(page: ScanPage, onCorners: (List<Pair<Float, Float>>) -
                         val i = dragging ?: return@detectDragGestures
                         change.consume()
                         val p = change.position
-                        update(corners.toMutableList().also { it[i] = (p.x / size.width).coerceIn(0f, 1f) to (p.y / size.height).coerceIn(0f, 1f) })
+                        val next = corners.toMutableList().also { it[i] = (p.x / size.width).coerceIn(0f, 1f) to (p.y / size.height).coerceIn(0f, 1f) }
+                        if (ScanImage.validCorners(next)) update(next)
                     }
                 },
             ) {
@@ -368,8 +385,12 @@ private fun load(file: File, maxSide: Int): Bitmap? {
         }
     }.getOrDefault(0f)
     val upright = if (degrees == 0f) bmp else Bitmap.createBitmap(bmp, 0, 0, bmp.width, bmp.height, Matrix().apply { postRotate(degrees) }, true)
+    if (upright !== bmp) bmp.recycle()
     val k = maxSide / maxOf(upright.width, upright.height).toFloat()
-    return if (k >= 1f) upright else Bitmap.createScaledBitmap(upright, (upright.width * k).toInt().coerceAtLeast(1), (upright.height * k).toInt().coerceAtLeast(1), true)
+    if (k >= 1f) return upright
+    val scaled = Bitmap.createScaledBitmap(upright, (upright.width * k).toInt().coerceAtLeast(1), (upright.height * k).toInt().coerceAtLeast(1), true)
+    if (scaled !== upright) upright.recycle()
+    return scaled
 }
 
 private fun preview(file: File): Bitmap? = load(file, PREVIEW_SIDE)
@@ -394,18 +415,26 @@ private fun newPage(file: File): ScanPage? {
 
 /** The page straightened, cleaned up and compressed as a JPEG for the PDF. */
 private fun finished(page: ScanPage): ByteArray {
-    val photo = rotated(load(page.file, PAGE_SIDE) ?: error("the photo could not be read"), page.turns)
+    require(ScanImage.validCorners(page.corners)) { "Kâğıdın köşeleri geçerli bir dörtgen oluşturmalı." }
+    val loaded = load(page.file, PAGE_SIDE) ?: error("the photo could not be read")
+    val photo = rotated(loaded, page.turns)
+    if (photo !== loaded) loaded.recycle()
     val pts = page.corners.map { (x, y) -> x * photo.width to y * photo.height }
     val (w, h) = ScanImage.outputSize(pts)
     val out = createBitmap(w, h)
     val m = Matrix()
-    m.setPolyToPoly(
+    val mapped = m.setPolyToPoly(
         floatArrayOf(pts[0].first, pts[0].second, pts[1].first, pts[1].second, pts[2].first, pts[2].second, pts[3].first, pts[3].second),
         0,
         floatArrayOf(0f, 0f, w.toFloat(), 0f, w.toFloat(), h.toFloat(), 0f, h.toFloat()),
         0,
         4,
     )
+    if (!mapped) {
+        photo.recycle()
+        out.recycle()
+        error("Kâğıdın köşeleri düzeltilemedi. Köşeleri yeniden ayarlayın.")
+    }
     AndroidCanvas(out).apply {
         drawColor(android.graphics.Color.WHITE)
         drawBitmap(

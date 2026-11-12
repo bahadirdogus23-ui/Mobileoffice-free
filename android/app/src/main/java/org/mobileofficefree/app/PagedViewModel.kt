@@ -45,6 +45,10 @@ abstract class PagedViewModel(app: Application, private val kind: DocumentKind) 
 
     private val recents = RecentFiles(app)
 
+    /** Stable across edits, different even when the same URI is closed and reopened. */
+    @Volatile protected var documentSession = 0L
+        private set
+
     var state by mutableStateOf<PagedUiState?>(null)
         private set
     var loading by mutableStateOf(false)
@@ -109,10 +113,22 @@ abstract class PagedViewModel(app: Application, private val kind: DocumentKind) 
     private var lastCopyAt = 0L
 
     private suspend fun copyForRecovery() {
-        val uri = state?.uri ?: return
-        if (!hasUnsavedChanges) return
-        lastCopyAt = System.currentTimeMillis()
-        withContext(engine) { runCatching { Measurements.time("${kind.label()}: kurtarma kopyası") { recoveryBytes()?.let { (name, bytes) -> recovery.write(uri, name, bytes) } } } }
+        val opened = state ?: return
+        val uri = opened.uri
+        if (loading || !hasUnsavedChanges) return
+        val copied = withContext(engine) {
+            // A load/save/close may have completed while this job waited for the engine.
+            if (loading || state !== opened || !hasUnsavedChanges) return@withContext false
+            runCatching {
+                Measurements.time("${kind.label()}: kurtarma kopyası") {
+                    val copy = recoveryBytes() ?: return@time false
+                    if (loading || state !== opened || !hasUnsavedChanges) return@time false
+                    recovery.write(uri, copy.first, copy.second)
+                    true
+                }
+            }.getOrDefault(false)
+        }
+        if (copied && state === opened) lastCopyAt = System.currentTimeMillis()
     }
 
     private val copyNow: () -> Unit = { viewModelScope.launch { copyForRecovery() } }
@@ -350,11 +366,14 @@ abstract class PagedViewModel(app: Application, private val kind: DocumentKind) 
     protected abstract fun release()
 
     fun open(uri: Uri) {
+        val session = ++documentSession
+        lastCopyAt = 0L
         val resolver = getApplication<Application>().contentResolver
         loading = true
         val started = SystemClock.elapsedRealtime()
         viewModelScope.launch {
             val result = withContext(engine) {
+                if (session != documentSession) return@withContext null
                 runCatching {
                     release()
                     val info = FileInfo.of(resolver, uri)
@@ -365,10 +384,12 @@ abstract class PagedViewModel(app: Application, private val kind: DocumentKind) 
                     PagedUiState(uri, info.name, pages) to openedNotice()
                 }
             }
+            if (session != documentSession) return@launch
+            val completed = result ?: return@launch
             loading = false
             clearPages()
             clearSearch()
-            result.fold(
+            completed.fold(
                 onSuccess = { (opened, note) ->
                     state = opened
                     notice = note
@@ -383,6 +404,9 @@ abstract class PagedViewModel(app: Application, private val kind: DocumentKind) 
     protected open fun openFailed(uri: Uri, e: Throwable): Boolean = false
 
     fun close() {
+        documentSession++
+        loading = false
+        lastCopyAt = 0L
         stopReading()
         state = null
         clearSearch()

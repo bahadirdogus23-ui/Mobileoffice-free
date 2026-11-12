@@ -22,7 +22,8 @@ android {
     // (the universal APK carries three and is about three times larger).
     splits {
         abi {
-            isEnable = true
+            // App bundles must be built separately with -Pmo.abiSplits=false.
+            isEnable = providers.gradleProperty("mo.abiSplits").map(String::toBooleanStrict).getOrElse(true)
             reset()
             include("arm64-v8a", "armeabi-v7a", "x86_64")
             isUniversalApk = true

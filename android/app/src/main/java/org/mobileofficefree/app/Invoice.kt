@@ -132,7 +132,7 @@ object Invoices {
         summary.xslt?.let { xslt ->
             runCatching { transform(bytes, xslt) }.getOrNull()?.takeIf { it.isNotBlank() }?.let { return asPaper(it) to true }
         }
-        return plainHtml(summary) to false
+        return asPaper(plainHtml(summary)) to false
     }
 
     /**
@@ -142,13 +142,22 @@ object Invoices {
      * design sets is replaced.
      */
     fun asPaper(html: String): String {
-        val head = "<meta name=\"viewport\" content=\"width=$PAPER_VIEWPORT\">" +
-            "<style>html{background:#d6d9dc}body{width:${A4_CSS_PX}px;min-height:${A4_CSS_HEIGHT_PX}px;margin:12px auto !important;" +
-            "background:#fff;box-shadow:0 1px 4px rgba(0,0,0,.25);box-sizing:border-box}</style>"
+        val viewport = "<meta name=\"viewport\" content=\"width=$PAPER_VIEWPORT\">"
+        // The desk is only for the screen. Printing keeps the seller's page dimensions,
+        // margins and page-break rules instead of printing the screen's shadow and margins.
+        val style = "<style>@media screen{html{background:#d6d9dc;-webkit-text-size-adjust:100%;text-size-adjust:100%}" +
+            "body{width:${A4_CSS_PX}px !important;min-height:${A4_CSS_HEIGHT_PX}px;margin:12px auto !important;" +
+            "background:#fff;box-shadow:0 1px 4px rgba(0,0,0,.25);box-sizing:border-box}}</style>"
+        val head = viewport + style
         val withoutViewport = html.replace(Regex("<meta[^>]*name\\s*=\\s*[\"']?viewport[^>]*>", RegexOption.IGNORE_CASE), "")
         val at = Regex("<head(\\s[^>]*)?>", RegexOption.IGNORE_CASE).find(withoutViewport)
         return when {
-            at != null -> withoutViewport.substring(0, at.range.last + 1) + head + withoutViewport.substring(at.range.last + 1)
+            at != null -> {
+                val withViewport = withoutViewport.substring(0, at.range.last + 1) + viewport + withoutViewport.substring(at.range.last + 1)
+                val end = Regex("</head\\s*>", RegexOption.IGNORE_CASE).find(withViewport)
+                if (end != null) withViewport.substring(0, end.range.first) + style + withViewport.substring(end.range.first)
+                else withoutViewport.substring(0, at.range.last + 1) + head + withoutViewport.substring(at.range.last + 1)
+            }
             else -> {
                 val html0 = Regex("<html[^>]*>", RegexOption.IGNORE_CASE).find(withoutViewport)
                 if (html0 != null) withoutViewport.substring(0, html0.range.last + 1) + "<head>$head</head>" + withoutViewport.substring(html0.range.last + 1)

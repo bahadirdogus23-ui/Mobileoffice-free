@@ -41,11 +41,23 @@ ile dört gizli değer ekleyin:
 `upload.jks` dosyasını ve parolaları güvenli bir yerde yedekleyin (kaybolursa Play'den yeni
 yükleme anahtarı istenebilir ama zahmetlidir).
 
-## 3. Derleme (depoda hazır)
+## 3. Derleme ve doğrulama
 
-- Her başarılı derlemede CI, Play'in istediği **AAB** paketini (`app-release.aab`) üretir ve
+- CI, Play'in istediği **AAB** paketini (`app-release.aab`) üretmek üzere yapılandırılmıştır ve
   derlemenin “Artifacts” bölümüne `mobileoffice-release` olarak koyar. Gizli değerler
   eklendiyse yükleme anahtarıyla imzalıdır; eklenmediyse yalnızca deneme içindir.
+- APK ve AAB ayrı Gradle çağrılarıyla oluşturulur: önce `./gradlew assembleRelease`,
+  ardından `./gradlew clean bundleRelease -Pmo.abiSplits=false`. CI temizleme öncesinde
+  debug/release APK'larını ve lint raporlarını geçici dizine alır, sonrasında geri yükler.
+  Yerelde `clean` önceki derleme çıktılarını siler; gerekli dosyaları önceden kopyalayın.
+- **Doğrulama durumu (9 Kasım 2026):** önceki CI'da AAB/ABI split çakışması bildirilmiştir.
+  Ayrılmış akışın başarılı CI çalışması, gerçek APK/AAB çıktıları ve Play imzası ayrıca
+  doğrulanmalıdır. Yerel bulut ortamında OCR bağımlılığının `jitpack.io` erişimi 403 ile
+  engellidir; burada tam Android derlemesi henüz doğrulanmamıştır.
+- **Güncelleme (10 Kasım):** ağ engeli kalktı. Yerelde debug derlemesi, 48 Android
+  birim testi, lint, release APK ve ayrı AAB derlemesi başarılı. Ancak yalnız ARM64
+  yerel motoru hazır; test anahtarı kullanılıyor. Tüm ABI'ler, optimize yerel motor,
+  Play yükleme sertifikası ve cihaz testi doğrulanmadan mağaza yayınına hazır değildir.
 - Aynı küçültülmüş (R8) sürüm, test sayfasında `MobileOffice-Free-yayin-denemesi.apk` adıyla
   yayımlanır: **Play'e yüklemeden önce bunu telefonda deneyin** (geliştirme sürümünden farklı
   olarak kod küçültülmüştür).

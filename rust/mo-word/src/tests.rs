@@ -113,6 +113,9 @@ fn exports_pdf_and_other_word_formats() {
     let md = String::from_utf8(doc.export("a.md").unwrap()).unwrap();
     assert!(md.contains("# Başlık"), "{md}");
     assert!(doc.export("a.odt").unwrap().starts_with(b"PK"));
+    if let Ok(dir) = std::env::var("MO_INTEROP_DIR") {
+        std::fs::write(std::path::Path::new(&dir).join("word.docx"), doc.export("a.docx").unwrap()).unwrap();
+    }
 }
 
 #[test]
@@ -208,6 +211,9 @@ fn reads_uyap_udf_documents() {
     let (w, h) = doc.page_size(0).unwrap();
     assert!((w - 595.3).abs() < 1.0 && (h - 841.9).abs() < 1.0, "{w}×{h}");
     let docx = doc.export("karar.docx").unwrap();
+    if let Ok(dir) = std::env::var("MO_INTEROP_DIR") {
+        std::fs::write(std::path::Path::new(&dir).join("udf.docx"), &docx).unwrap();
+    }
     let body = zip_entry(&docx, "word/document.xml");
     assert!(body.contains("<w:b/>") || body.contains("<w:b "), "bold kept");
     assert!(body.contains("<w:tbl>"), "table kept");

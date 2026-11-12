@@ -50,16 +50,14 @@ object Measurements {
         runCatching {
             if (!f.exists()) return
             f.forEachLine { line ->
-                val p = line.split('\t')
-                when {
-                    p.size == 7 && p[0] == "S" -> synchronized(stats) {
-                        stats[p[1]] = Stat(p[2].toLong(), p[3].toLong(), p[4].toLong(), p[5].toLong(), p[6].toLong(), 0)
+                val record = parseMeasurementRecord(line) ?: return@forEachLine
+                val v = record.values
+                when (record.kind) {
+                    "S" -> synchronized(stats) {
+                        stats[record.name] = Stat(v[0], v[1], v[2], v[3], v[4], v.getOrElse(5) { 0 })
                     }
-                    p.size == 8 && p[0] == "S" -> synchronized(stats) {
-                        stats[p[1]] = Stat(p[2].toLong(), p[3].toLong(), p[4].toLong(), p[5].toLong(), p[6].toLong(), p[7].toLong())
-                    }
-                    p.size == 6 && p[0] == "J" -> synchronized(stutters) {
-                        stutters[p[1]] = longArrayOf(p[2].toLong(), p[3].toLong(), p[4].toLong(), p[5].toLong())
+                    "J" -> synchronized(stutters) {
+                        stutters[record.name] = v.toLongArray()
                     }
                 }
             }
@@ -91,14 +89,14 @@ object Measurements {
         }
     }
 
-    fun clear() {
+    @Synchronized fun clear() {
         synchronized(stats) { stats.clear() }
         synchronized(stutters) { stutters.clear() }
         dirty = true
         flush()
     }
 
-    private fun markDirty() {
+    @Synchronized private fun markDirty() {
         // Written at most every few seconds, off the main thread.
         if (dirty) return
         dirty = true
@@ -106,7 +104,7 @@ object Measurements {
     }
 
     /** Writes the durations and stutters out now (also when the app leaves the screen). */
-    fun flush() {
+    @Synchronized fun flush() {
         val f = file ?: return
         if (!dirty) return
         dirty = false
@@ -116,10 +114,8 @@ object Measurements {
         }
         writer.execute {
             runCatching {
-                val tmp = File(f.parentFile, "$FILE.tmp")
-                tmp.writeText(lines.joinToString("\n"))
-                tmp.renameTo(f)
-            }
+                writeMeasurementSnapshot(f, lines.joinToString("\n"))
+            }.onFailure { handler.post { markDirty() } }
         }
     }
 
@@ -249,7 +245,7 @@ object Measurements {
         appendLine("Önbellek: ${dirSize(context.cacheDir) / MB} MB · kurtarma kopyaları: ${dirSize(File(context.filesDir, "recovery")) / 1024} KB · uygulama verisi: ${dirSize(context.filesDir) / 1024} KB")
         appendLine()
         appendLine("── Süreler (ms; adet · ortalama · en hızlı · en yavaş · son · yavaş >${SLOW_MS}) ──")
-        val rows = synchronized(stats) { stats.entries.map { it.key to it.value } }
+        val rows = synchronized(stats) { stats.entries.map { (name, s) -> name to Stat(s.count, s.total, s.min, s.max, s.last, s.slow) } }
         if (rows.isEmpty()) appendLine("  —")
         for ((name, s) in rows.sortedBy { it.first }) {
             val avg = if (s.count > 0) s.total / s.count else 0

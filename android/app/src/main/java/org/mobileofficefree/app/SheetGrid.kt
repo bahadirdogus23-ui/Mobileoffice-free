@@ -127,8 +127,10 @@ fun SheetGrid(
     var offsetY by remember(sheet) { mutableFloatStateOf(0f) }
 
     // Room to scroll a little past the data, as spreadsheets do.
-    val rows = min(MAX_ROWS, max(usedRows + 50, 100))
-    val cols = min(MAX_COLS, max(usedCols + 10, 26))
+    val rows = min(MAX_ROWS, max(max(usedRows + 50, max(selectedRow, endRow) + 51), 100))
+    val cols = min(MAX_COLS, max(max(usedCols + 10, max(selectedCol, endCol) + 11), 26))
+    val rowsNow by rememberUpdatedState(rows)
+    val colsNow by rememberUpdatedState(cols)
     val fr = frozenRows.coerceIn(0, rows - 1)
     val fc = frozenCols.coerceIn(0, cols - 1)
 
@@ -184,6 +186,10 @@ fun SheetGrid(
     LaunchedEffect(dragPoint != null) {
         while (true) {
             val p = dragPoint ?: break
+            if (viewSize.width <= rowHeader + 1f || viewSize.height <= colHeader + 1f) {
+                kotlinx.coroutines.delay(16)
+                continue
+            }
             val zone = with(density) { 40.dp.toPx() }
             fun speed(depth: Float) = (depth / zone).coerceIn(0f, 1f) * with(density) { 14.dp.toPx() }
             val vx = speed(p.x - (viewSize.width - zone)) - speed(rowHeader + zone - p.x)
@@ -192,8 +198,8 @@ fun SheetGrid(
                 val k = unit * scale
                 val frozenW = columnAxis.start(fc) * k
                 val frozenH = rowAxis.start(fr) * k
-                offsetX = (offsetX + vx).coerceIn(0f, max(0f, (columnAxis.start(cols) - columnAxis.start(fc)) * k - (viewSize.width - rowHeader - frozenW)))
-                offsetY = (offsetY + vy).coerceIn(0f, max(0f, (rowAxis.start(rows) - rowAxis.start(fr)) * k - (viewSize.height - colHeader - frozenH)))
+                offsetX = (offsetX + vx).coerceIn(0f, max(0f, (columnAxis.start(colsNow) - columnAxis.start(fc)) * k - (viewSize.width - rowHeader - frozenW)))
+                offsetY = (offsetY + vy).coerceIn(0f, max(0f, (rowAxis.start(rowsNow) - rowAxis.start(fr)) * k - (viewSize.height - colHeader - frozenH)))
                 val inside = Offset(p.x.coerceIn(rowHeader + 1f, viewSize.width - 1f), p.y.coerceIn(colHeader + 1f, viewSize.height - 1f))
                 cellAt(inside).let { (r, c) -> extend(r, c) }
             }
@@ -351,14 +357,13 @@ fun SheetGrid(
                     else -> cellStyle.color
                 },
             )
-            val numeric = text.first().isDigit() || text.first() == '-' || text.first() == '₺'
             val align = look?.align?.toInt() ?: 0
             // Text that wraps (or has its own line breaks) stays inside its cell, line by line;
             // other text is one line that may run on over empty cells.
             val wraps = look?.wrap == true || '\n' in text
             val lineAlign = when {
                 align == 2 -> TextAlign.Center
-                align == 3 || (align == 0 && numeric) -> TextAlign.End
+                align == 3 -> TextAlign.End
                 else -> TextAlign.Start
             }
             val box = max(1, ((if (wraps) w else room) - 2 * pad).toInt())
@@ -373,7 +378,7 @@ fun SheetGrid(
             val tx = when {
                 wraps -> x + pad
                 align == 2 -> x + (w - layout.size.width) / 2
-                align == 3 || (align == 0 && numeric) -> x + w - pad - layout.size.width
+                align == 3 -> x + w - pad - layout.size.width
                 else -> x + pad
             }
             // Excel puts text at the bottom unless the cell says centre or top.
@@ -487,11 +492,10 @@ fun SheetGrid(
                         val text = cellText(sheet, r, c)
                         if (text.isNullOrEmpty()) continue
                         val look = cellLook(sheet, r, c)
-                        val numeric = text.first().isDigit() || text.first() == '-' || text.first() == '₺'
                         val align = look?.align?.toInt() ?: 0
                         // Room to the right: the cell, and the empty cells after it for left-aligned text.
                         var room = cw
-                        if (align == 1 || (align == 0 && !numeric)) {
+                        if (align == 1 || align == 0) {
                             var n = i + 1
                             while (n < colList.size && cellText(sheet, r, colList[n]) == "" && shown.none { m -> r in m[0]..m[2] && colList[n] in m[1]..m[3] }) {
                                 room += columnAxis.size(colList[n]) * k
@@ -670,7 +674,8 @@ private val REFERENCE_COLORS = listOf(
     Color(0xFF4472C4), Color(0xFFC0504D), Color(0xFF8064A2), Color(0xFF4BACC6), Color(0xFF9BBB59), Color(0xFFF79646),
 )
 
-private val REFERENCE = Regex("""(?<![A-Za-z0-9_.!'"])\$?([A-Za-z]{1,3})\$?([0-9]{1,7})(?::\$?([A-Za-z]{1,3})\$?([0-9]{1,7}))?(?![A-Za-z0-9_(])""")
+// Consume a qualified range as one token, so its final cell cannot become a local reference.
+private val REFERENCE = Regex("""(?<![\p{L}\p{N}_.!'"\]])((?:'(?:[^']|'')+'|(?:\[[^\]]+\])?[\p{L}\p{N}_.]+)!)?\$?([A-Za-z]{1,3})\$?([0-9]{1,7})(?::\$?([A-Za-z]{1,3})\$?([0-9]{1,7}))?(?![\p{L}\p{N}_(!.])""")
 
 /**
  * The cell ranges a formula refers to on its own sheet ("=TOPLA(A1:B3;C5)" → A1:B3, C5), as
@@ -682,10 +687,11 @@ fun formulaReferences(formula: String): List<IntArray> {
     val plain = Regex(""""[^"]*"?""").replace(formula) { " ".repeat(it.value.length) }
     fun col(letters: String): Int = letters.uppercase(java.util.Locale.ROOT).fold(0) { n, ch -> n * 26 + (ch - 'A' + 1) } - 1
     return REFERENCE.findAll(plain).mapNotNull { m ->
-        val (c1, r1, c2, r2) = m.destructured
+        val (sheet, c1, r1, c2, r2) = m.destructured
+        if (sheet.isNotEmpty()) return@mapNotNull null
         val a = intArrayOf(r1.toInt() - 1, col(c1))
         val b = if (c2.isEmpty()) a else intArrayOf(r2.toInt() - 1, col(c2))
-        if (a[0] < 0 || b[0] < 0 || a[1] > 16383 || b[1] > 16383) null
+        if (a[0] !in 0 until MAX_ROWS || b[0] !in 0 until MAX_ROWS || a[1] !in 0 until MAX_COLS || b[1] !in 0 until MAX_COLS) null
         else intArrayOf(minOf(a[0], b[0]), minOf(a[1], b[1]), maxOf(a[0], b[0]), maxOf(a[1], b[1]))
     }.distinctBy { it.toList() }.take(12).toList()
 }

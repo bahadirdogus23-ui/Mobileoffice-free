@@ -46,8 +46,12 @@ fun rememberPdfMerge(onOpen: (Uri) -> Unit): PdfMergeAction {
     var working by remember { mutableStateOf(false) }
     val save = rememberLauncherForActivityResult(CreateFile()) { dest ->
         val files = picked
-        picked = emptyList()
-        if (dest == null || files.size < 2) return@rememberLauncherForActivityResult
+        if (dest == null) {
+            // Cancelling the destination picker returns to the ordered list, preserving edits.
+            choosing = files.isNotEmpty()
+            return@rememberLauncherForActivityResult
+        }
+        if (files.size < 2) return@rememberLauncherForActivityResult
         working = true
         scope.launch {
             val result = withContext(Dispatchers.IO) {
@@ -71,8 +75,14 @@ fun rememberPdfMerge(onOpen: (Uri) -> Unit): PdfMergeAction {
             }
             working = false
             result.fold(
-                onSuccess = { onOpen(dest) },
-                onFailure = { Toast.makeText(context, it.message ?: resources.getString(R.string.save_failed, ""), Toast.LENGTH_LONG).show() },
+                onSuccess = {
+                    picked = emptyList()
+                    onOpen(dest)
+                },
+                onFailure = {
+                    choosing = true
+                    Toast.makeText(context, it.message ?: resources.getString(R.string.save_failed, ""), Toast.LENGTH_LONG).show()
+                },
             )
         }
     }

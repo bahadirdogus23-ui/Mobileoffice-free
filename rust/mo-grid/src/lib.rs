@@ -151,7 +151,8 @@ pub struct Sizes {
 }
 
 /// How a cell looks in the grid. Colours are 0xAARRGGBB; 0 means the default (black text, no
-/// fill). `align`: 0 general (numbers right, text left), 1 left, 2 centre, 3 right.
+/// fill). `align`: 0 default text, 1 left, 2 centre, 3 right. General alignment is resolved
+/// from the cell value (numbers right, booleans/errors centred), not the displayed characters.
 #[derive(Debug, Clone, Default, PartialEq)]
 pub struct CellLook {
     pub bold: bool,
@@ -392,6 +393,12 @@ impl GridDoc {
                         HAlign::Left => 1,
                         HAlign::Center | HAlign::CenterAcross => 2,
                         HAlign::Right => 3,
+                        HAlign::General if sh.show_formulas && sh.cell(at).is_some_and(|cell| cell.formula.is_some()) => 0,
+                        HAlign::General => match sh.value(at) {
+                            gridcraft_engine::core::Value::Number(_) => 3,
+                            gridcraft_engine::core::Value::Bool(_) | gridcraft_engine::core::Value::Error(_) => 2,
+                            _ => 0,
+                        },
                         _ => 0,
                     },
                 });

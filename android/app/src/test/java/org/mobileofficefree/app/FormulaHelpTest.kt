@@ -49,4 +49,22 @@ class FormulaHelpTest {
         assertEquals(null, functionAtCursor(at("=A1+2")))
         assertEquals("EĞER", functionAtCursor(at("=EĞER(A1=\"(\";")))
     }
+
+    @Test
+    fun quotedTextNeverOffersFunctionsOrInsertsCellReferences() {
+        for (text in listOf("=\"bu top", "=EĞER(A1;\"bu top", "=\"bir \"\"alıntı\"\" top")) {
+            assertEquals(text, emptyList<String>(), suggestions(at(text), names))
+            assertEquals(text, false, pointing(at(text)))
+            assertEquals(text, at(text), applySuggestion(at(text), "TOPLA"))
+        }
+        assertEquals(listOf("TOPLA", "TOPLAÇARPIM"), suggestions(at("=\"metin\"&top"), names))
+        assertEquals(true, pointing(at("=\"metin\"&")))
+    }
+
+    @Test
+    fun quotedSheetNamesAreNotFunctionNamesOrPointingLocations() {
+        assertEquals(emptyList<String>(), suggestions(at("='Bütçe top"), names))
+        assertEquals(false, pointing(at("='Ali''nin sayfası")))
+        assertEquals(true, pointing(at("='Ali''nin sayfası'!")))
+    }
 }

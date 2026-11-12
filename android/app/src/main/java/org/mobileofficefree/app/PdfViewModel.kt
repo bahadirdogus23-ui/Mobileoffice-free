@@ -188,9 +188,11 @@ class PdfViewModel(app: Application) : PagedViewModel(app, DocumentKind.PDF) {
     var textSelection by mutableStateOf<Pair<Int, TextSelection>?>(null)
         private set
     private var selectFrom: Pair<Int, Pair<Float, Float>>? = null
+    @Volatile private var selectionRequest = 0L
 
     /** A long press at ([x], [y]) on [page] (fractions) starts a selection there. */
     fun startSelection(page: Int, x: Float, y: Float) {
+        textSelection = null
         selectFrom = page to (x to y)
         selectTo(page, x, y)
     }
@@ -199,11 +201,15 @@ class PdfViewModel(app: Application) : PagedViewModel(app, DocumentKind.PDF) {
     fun selectTo(page: Int, x: Float, y: Float) {
         val (p, from) = selectFrom ?: return
         if (p != page) return
+        val opened = state ?: return
+        val request = ++selectionRequest
         viewModelScope.launch {
             val sel = withContext(engine) {
+                // Skip superseded pointer events instead of computing every queued position.
+                if (request != selectionRequest) return@withContext null
                 runCatching { editor().textBetween(page.toUInt(), from.first.toDouble(), from.second.toDouble(), x.toDouble(), y.toDouble()) }.getOrNull()
             }
-            if (sel != null && selectFrom?.first == page) textSelection = page to sel
+            if (sel != null && request == selectionRequest && state === opened && selectFrom?.first == page) textSelection = page to sel
         }
     }
 
@@ -214,6 +220,7 @@ class PdfViewModel(app: Application) : PagedViewModel(app, DocumentKind.PDF) {
     }
 
     fun clearSelection() {
+        selectionRequest++
         selectFrom = null
         textSelection = null
     }
@@ -221,21 +228,27 @@ class PdfViewModel(app: Application) : PagedViewModel(app, DocumentKind.PDF) {
     /** A typed text picked for moving and restyling: its page and where and how it is. */
     var pickedText by mutableStateOf<Pair<Int, TypedText>?>(null)
         private set
+    private var pickRequest = 0L
 
     /** Picks the typed text under ([x], [y]) on [page] (fractions); [onNone] when there is none. */
     fun pickTextAt(page: Int, x: Float, y: Float, onNone: () -> Unit) {
+        val opened = state ?: return
+        if (loading) return
+        val request = ++pickRequest
         viewModelScope.launch {
             val hit = withContext(engine) {
                 runCatching { editor().typedTexts(page.toUInt()) }.getOrDefault(emptyList())
                     .filter { x >= it.left && x <= it.right && y >= it.top && y <= it.bottom }
                     .minByOrNull { (it.right - it.left) * (it.bottom - it.top) }
             }
+            if (request != pickRequest || state !== opened || loading) return@launch
             pickedText = hit?.let { page to it }
             if (hit == null) onNone()
         }
     }
 
     fun dropPick() {
+        pickRequest++
         pickedText = null
     }
 
@@ -408,7 +421,17 @@ class PdfViewModel(app: Application) : PagedViewModel(app, DocumentKind.PDF) {
     }
 
     /** Writes the edited document into the new file [dest]. */
-    fun saveTo(dest: Uri) = write(dest, done = { edited = false }) { it.save() }
+    fun saveTo(dest: Uri) {
+        val opened = state ?: return
+        val session = documentSession
+        write(dest, done = {
+            // Saving an older revision must not mark later edits (or another document) clean.
+            if (session == documentSession && state === opened) {
+                edited = false
+                savedCleanly()
+            }
+        }) { it.save() }
+    }
 
     private fun editor(): PdfDocument = editor ?: run {
         val uri = source ?: error("no document")
@@ -422,12 +445,18 @@ class PdfViewModel(app: Application) : PagedViewModel(app, DocumentKind.PDF) {
 
     private fun edit(after: () -> Unit = {}, op: (PdfDocument) -> Unit) {
         val app = getApplication<Application>()
+        val opened = state ?: return
+        if (loading) return
+        val session = documentSession
+        var applied = false
         busy = true
         viewModelScope.launch {
             val result = withContext(engine) {
+                if (session != documentSession) return@withContext null
                 runCatching {
                     val doc = editor()
                     Measurements.time("PDF: düzenleme") { op(doc) }
+                    applied = true
                     // A new cache file per edit: the renderer still has the previous one open.
                     val dir = File(app.cacheDir, "pdf-edit").apply { mkdirs() }
                     val file = File(dir, "edit-${++editCount}.pdf")
@@ -437,8 +466,13 @@ class PdfViewModel(app: Application) : PagedViewModel(app, DocumentKind.PDF) {
                     openRenderer(ParcelFileDescriptor.open(file, ParcelFileDescriptor.MODE_READ_ONLY))
                 }
             }
+            if (session != documentSession) return@launch
             busy = false
-            result.fold(
+            if (state?.uri != opened.uri || loading) return@launch
+            val completed = result ?: return@launch
+            // The engine's edit is still unsaved if rebuilding its preview fails.
+            if (applied) edited = true
+            completed.fold(
                 onSuccess = {
                     edited = true
                     // Same pages (a note, a signature, text added): each keeps its old picture until
@@ -639,10 +673,17 @@ class PdfViewModel(app: Application) : PagedViewModel(app, DocumentKind.PDF) {
         editor = null
         source = null
         File(getApplication<Application>().cacheDir, "pdf-edit").deleteRecursively()
+        val session = documentSession
         viewModelScope.launch {
+            if (session != documentSession) return@launch
             edited = false
+            busy = false
             added = 0
             redactionMarks = 0
+            dropPick()
+            clearSelection()
+            formFields = null
+            compressed = null
         }
     }
 }

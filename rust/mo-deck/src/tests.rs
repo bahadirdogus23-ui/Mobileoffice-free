@@ -75,6 +75,9 @@ fn edits_text_and_slides_and_saves_pptx() {
     doc.delete_slide(0).unwrap();
     assert_eq!(doc.slide_count(), n + 1);
     let saved = doc.save("a.pptx").unwrap();
+    if let Ok(dir) = std::env::var("MO_INTEROP_DIR") {
+        std::fs::write(std::path::Path::new(&dir).join("deck.pptx"), &saved).unwrap();
+    }
     assert!(!doc.is_dirty());
     // Read back: the new text on the first two slides (original and copy), ids not clashing.
     let back = DeckDoc::open(&saved).unwrap();

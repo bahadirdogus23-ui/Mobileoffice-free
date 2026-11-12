@@ -37,15 +37,11 @@ class SlidesViewModel(app: Application) : PagedViewModel(app, DocumentKind.SLIDE
     val savesInPlace: Boolean get() = fileName.substringAfterLast('.', "").lowercase(Locale.ROOT) in setOf("pptx", "ppsx", "potx")
 
     /** The text shape at (`x`, `y`) points on [slide], front-most first, offered for editing. */
-    fun tapText(slide: Int, x: Float, y: Float) {
+    fun tapText(slide: Int, x: Float, y: Float, objectId: UInt? = null) {
         val d = doc ?: return
         viewModelScope.launch {
             val hit = withContext(engine) {
-                runCatching { d.textShapes(slide.toUInt()) }.getOrDefault(emptyList())
-                    .filter { x >= it.x && x <= it.x + it.width && y >= it.y && y <= it.y + it.height }
-                    // The smallest box under the finger: a big text box behind (or over) a
-                    // smaller one must not swallow the tap.
-                    .minByOrNull { it.width * it.height }
+                slideTextAt(runCatching { d.textShapes(slide.toUInt()) }.getOrDefault(emptyList()), x, y, objectId)
             }
             editingText = hit?.let { slide to it }
             if (hit == null) tell(getApplication<Application>().getString(R.string.slide_no_text_here))
@@ -129,7 +125,7 @@ class SlidesViewModel(app: Application) : PagedViewModel(app, DocumentKind.SLIDE
         val (slide, o) = picked ?: return
         val (x, y) = pickedAt
         // Tapped before a move: aim at the same spot of the object where it is now.
-        tapText(slide, x.coerceIn(o.x, o.x + o.width), y.coerceIn(o.y, o.y + o.height))
+        tapText(slide, x.coerceIn(o.x, o.x + o.width), y.coerceIn(o.y, o.y + o.height), o.id)
     }
 
     /**

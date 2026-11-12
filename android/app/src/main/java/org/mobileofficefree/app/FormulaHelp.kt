@@ -7,10 +7,27 @@ import java.util.Locale
 /** Turkish upper case (i → İ, ı → I), as function names are written. */
 private fun upperTr(s: String): String = s.uppercase(Locale.forLanguageTag("tr"))
 
+/** Whether the cursor is inside a string or a quoted sheet name (doubled quotes escape). */
+private fun insideFormulaQuote(value: TextFieldValue): Boolean {
+    val end = value.selection.start.coerceIn(0, value.text.length)
+    var quote: Char? = null
+    var i = 0
+    while (i < end) {
+        val c = value.text[i]
+        if (quote == null) {
+            if (c == '"' || c == '\'') quote = c
+        } else if (c == quote) {
+            if (i + 1 < end && value.text[i + 1] == quote) i++ else quote = null
+        }
+        i++
+    }
+    return quote != null
+}
+
 /** The function name being typed just before the cursor in a formula, or null. */
 fun nameBeforeCursor(value: TextFieldValue): String? {
     val text = value.text
-    if (!text.startsWith("=")) return null
+    if (!text.startsWith("=") || insideFormulaQuote(value)) return null
     val end = value.selection.start.coerceIn(0, text.length)
     var start = end
     while (start > 0 && (text[start - 1].isLetter() || text[start - 1] == '_')) start--
@@ -44,7 +61,7 @@ fun typeAt(value: TextFieldValue, piece: String): TextFieldValue {
 }
 
 /** Whether a tap on a cell now puts its reference into the formula (Excel's "point" mode). */
-fun pointing(value: TextFieldValue): Boolean = value.text.startsWith("=")
+fun pointing(value: TextFieldValue): Boolean = value.text.startsWith("=") && !insideFormulaQuote(value)
 
 /**
  * [value] with the reference [ref] put at the cursor. A reference just put there by the previous

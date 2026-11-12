@@ -3,6 +3,7 @@ package org.mobileofficefree.app
 import android.content.Context
 import android.net.Uri
 import java.io.File
+import java.io.IOException
 import java.security.MessageDigest
 
 /**
@@ -25,7 +26,7 @@ class RecoveryStore(context: Context) {
         // Written beside, then moved over: a copy is never left half written.
         val tmp = File(dir, "$k.tmp")
         tmp.writeBytes(bytes)
-        tmp.renameTo(File(dir, "$k.bin"))
+        replaceRecoveryCopy(tmp, File(dir, "$k.bin"))
         File(dir, "$k.name").writeText(name)
     }
 
@@ -42,6 +43,13 @@ class RecoveryStore(context: Context) {
     fun clear(uri: Uri) {
         val k = key(uri)
         listOf("bin", "name", "tmp").forEach { File(dir, "$k.$it").delete() }
+    }
+}
+
+/** Report failed replacement instead of treating an old or missing copy as newly saved. */
+internal fun replaceRecoveryCopy(temporary: File, destination: File) {
+    if (!temporary.renameTo(destination)) {
+        throw IOException("Could not replace the recovery copy")
     }
 }
 

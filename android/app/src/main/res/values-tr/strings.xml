@@ -227,6 +227,7 @@
     <string name="scan_take">Fotoğraf çek</string>
     <string name="scan_from_gallery">Galeriden</string>
     <string name="scan_make_pdf">PDF yap</string>
+    <string name="scan_saving">PDF oluşturuluyor ve kaydediliyor…</string>
     <string name="scan_no_camera">Bu telefonda kamera uygulaması bulunamadı.</string>
     <string name="scan_color">Renkli</string>
     <string name="scan_document">Belge</string>

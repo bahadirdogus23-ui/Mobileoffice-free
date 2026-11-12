@@ -1327,8 +1327,8 @@ pub struct SheetSizes {
     pub frozen_cols: u32,
 }
 
-/// How a cell looks in the grid: colours 0xAARRGGBB (0 = default), `align` 0 general, 1 left,
-/// 2 centre, 3 right.
+/// How a cell looks in the grid: colours 0xAARRGGBB (0 = default), `align` 0 default text,
+/// 1 left, 2 centre, 3 right. General alignment is resolved by the engine from the cell value.
 #[derive(uniffi::Record)]
 pub struct CellLook {
     pub bold: bool,

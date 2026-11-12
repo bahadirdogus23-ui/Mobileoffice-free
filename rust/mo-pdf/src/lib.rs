@@ -268,11 +268,15 @@ impl PdfDoc {
         if !stamp::typed_on(&self.doc, page_i).iter().any(|t| t.index == index) {
             return Err(PdfError::Edit("that is not a text typed here".into()));
         }
-        self.text = None;
         let [x, y] = self.user_strokes(page, &[vec![at]])?[0][0];
-        annot::delete_annotation(&mut self.doc, page_i, index).map_err(edit)?;
+        // Building an appearance can fail (for example for empty text). Keep both the
+        // original annotation and undo entries intact until the replacement is complete.
+        let mut next = self.doc.clone();
+        annot::delete_annotation(&mut next, page_i, index).map_err(edit)?;
+        let new = stamp::add_text(&mut next, page_i, [x, y], text, size, font, color)?;
+        self.doc = next;
+        self.text = None;
         self.forget_added(page_i, index);
-        let new = stamp::add_text(&mut self.doc, page_i, [x, y], text, size, font, color)?;
         self.added.push((page_i, new));
         Ok(())
     }
@@ -526,16 +530,19 @@ impl PdfDoc {
         form::fields(&self.doc)
     }
 
-    /// [`Self::fields`], where a field with neither a tooltip nor a telling name ("text_1",
+    /// [`Self::fields`], where a field with neither a telling tooltip nor a telling name ("text_1",
     /// "Text2", "undefined") is labelled with the words printed beside or above it.
     pub fn labelled_fields(&mut self) -> Vec<FormField> {
         let mut fields = self.fields();
-        if !fields.iter().any(|f| f.label == f.name && needs_label(&f.name)) {
+        for f in fields.iter_mut().filter(|f| needs_label(&f.label) && !needs_label(&f.name)) {
+            f.label = f.name.clone();
+        }
+        if !fields.iter().any(|f| needs_label(&f.label)) {
             return fields;
         }
         let raw = pdfcraft_forms::fields(&self.doc);
         let mut words: std::collections::HashMap<usize, Vec<pdfcraft_forms::detect::Word>> = std::collections::HashMap::new();
-        for f in fields.iter_mut().filter(|f| f.label == f.name && needs_label(&f.name)) {
+        for f in fields.iter_mut().filter(|f| needs_label(&f.label)) {
             let Some(widget) = raw.iter().find(|r| r.name == f.name).and_then(|r| r.widgets.iter().find(|w| w.page.is_some())) else {
                 continue;
             };

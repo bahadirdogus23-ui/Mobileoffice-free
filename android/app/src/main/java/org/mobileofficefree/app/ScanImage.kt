@@ -17,6 +17,17 @@ object ScanImage {
     /** Corners a little inside the picture: where the page starts before the person moves them. */
     val defaultCorners = listOf(0.04f to 0.04f, 0.96f to 0.04f, 0.96f to 0.96f, 0.04f to 0.96f)
 
+    /** A convex, clockwise page in image coordinates; crossing or collapsed edges cannot be warped. */
+    fun validCorners(corners: List<Pair<Float, Float>>): Boolean {
+        if (corners.size != 4 || corners.any { (x, y) -> !x.isFinite() || !y.isFinite() || x !in 0f..1f || y !in 0f..1f }) return false
+        return corners.indices.all { i ->
+            val a = corners[i]
+            val b = corners[(i + 1) % 4]
+            val c = corners[(i + 2) % 4]
+            (b.first - a.first) * (c.second - b.second) - (b.second - a.second) * (c.first - b.first) > 0.000001f
+        }
+    }
+
     /**
      * The straightened page's size in pixels for `corners` (top-left, top-right, bottom-right,
      * bottom-left, in pixels): the longer of each pair of opposite edges.
@@ -102,6 +113,7 @@ object ScanImage {
             if (x - y < minDiff) { minDiff = x - y; bl = i }
         }
         val corners = listOf(tl, tr, br, bl).map { i -> (i % w + 0.5f) / w to (i / w + 0.5f) / h }
+        if (!validCorners(corners)) return null
         // A sliver is not a page: each side at least a fifth of the picture's.
         val (pw, ph) = outputSize(corners.map { (x, y) -> x * 1000 to y * 1000 })
         if (pw < 200 || ph < 200) return null

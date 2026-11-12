@@ -261,7 +261,7 @@ fun HomeScreen(onOpen: (Uri) -> Unit, onNewSheet: () -> Unit, onDiagnostics: () 
     val listsDevice = access || folders.isNotEmpty()
     LaunchedEffect(access, folders, refresh) {
         device = when {
-            access -> withContext(Dispatchers.IO) { runCatching { DeviceFiles.scan(context) }.getOrNull() }
+            access -> withContext(Dispatchers.IO) { runCatching { DeviceFiles.scan(context, refreshFolders = true) }.getOrNull() }
             folders.isNotEmpty() -> withContext(Dispatchers.IO) { runCatching { folderAccess.scan() }.getOrNull() }
             else -> null
         }
