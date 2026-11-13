@@ -134,6 +134,10 @@ pub struct FilterValue {
 pub struct GridDoc {
     session: Session,
     warnings: Vec<String>,
+    /// Sheets the engine stopped reading part-way (see [`Truncation`]).
+    truncated: Vec<Truncation>,
+    /// The shared strings the engine kept when it stopped reading that list part-way.
+    strings_kept: Option<u64>,
     /// Numbers and formulas typed and shown the Turkish way (see `turkish.rs`).
     turkish: bool,
 }
@@ -180,6 +184,39 @@ pub struct CellLook {
     pub icon_count: u8,
 }
 
+/// A sheet the engine stopped reading part-way: what follows its last kept row is not in the
+/// workbook, so saving it over the original file would drop those rows for good.
+///
+/// GridCraft reports this only as a warning (`sheet "X" is damaged (...); kept N rows`), e.g.
+/// when a large worksheet passes its XML element limit (docs/upstream-notlar/gridcraft-satir-siniri.md).
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct Truncation {
+    pub sheet: String,
+    /// Index of the sheet in the workbook.
+    pub index: u32,
+    /// `<row>` elements the engine read before it stopped.
+    pub rows_kept: u64,
+    /// The last row (1-based, as shown in the grid) the sheet now holds; 0 when it is empty.
+    pub last_row: u32,
+}
+
+/// The sheet name and kept-row count of GridCraft's "sheet is damaged" warning, if `w` is one.
+fn parse_truncation(w: &str) -> Option<(&str, u64)> {
+    let rest = w.strip_prefix("sheet \"")?;
+    let (name, _) = rest.rsplit_once("\" is damaged (")?;
+    let (_, tail) = rest.rsplit_once("; kept ")?;
+    let rows = tail.strip_suffix(" rows")?.parse().ok()?;
+    Some((name, rows))
+}
+
+/// The kept-string count of GridCraft's "shared strings are damaged" warning, if `w` is one.
+/// Cells that refer to a string after the cut are read as empty.
+fn parse_strings_cut(w: &str) -> Option<u64> {
+    let rest = w.strip_prefix("shared strings are damaged (")?;
+    let (_, tail) = rest.rsplit_once("; kept ")?;
+    tail.strip_suffix(" strings")?.parse().ok()
+}
+
 /// The rectangle from A1 to the last used cell, as counts.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct UsedSize {
@@ -192,7 +229,7 @@ impl GridDoc {
     pub fn blank() -> GridDoc {
         let mut session = Session::new();
         session.new_workbook();
-        GridDoc { session, warnings: Vec::new(), turkish: false }
+        GridDoc { session, warnings: Vec::new(), truncated: Vec::new(), strings_kept: None, turkish: false }
     }
 
     /// Opens an XLSX/XLSM/XLS/XLSB/ODS/CSV/TSV file from its bytes. `name` is the file name; its
@@ -215,12 +252,48 @@ impl GridDoc {
         let title = std::path::Path::new(name).file_name().and_then(|n| n.to_str()).unwrap_or("Book").to_string();
         let mut session = Session::new();
         session.add_document(DocState::new(wb, None, title, Trust::FromFile));
-        Ok(GridDoc { session, warnings, turkish: false })
+        let strings_kept = warnings.iter().find_map(|w| parse_strings_cut(w));
+        let mut doc = GridDoc { session, warnings, truncated: Vec::new(), strings_kept, turkish: false };
+        doc.truncated = doc.find_truncations();
+        Ok(doc)
+    }
+
+    fn find_truncations(&self) -> Vec<Truncation> {
+        let names = self.sheet_names();
+        let mut out: Vec<Truncation> = Vec::new();
+        for (name, rows_kept) in self.warnings.iter().filter_map(|w| parse_truncation(w)) {
+            let Some(index) = names.iter().position(|n| n == name) else { continue };
+            if out.iter().any(|t| t.index as usize == index) {
+                continue;
+            }
+            let last_row = self.used_size(index as u32).map(|u| u.rows).unwrap_or(0);
+            out.push(Truncation { sheet: name.to_string(), index: index as u32, rows_kept, last_row });
+        }
+        out
     }
 
     /// What the import could not keep (shown to the person before they edit).
     pub fn warnings(&self) -> &[String] {
         &self.warnings
+    }
+
+    /// Sheets that were cut short on opening. When not empty, the workbook must not be saved over
+    /// the file it came from: the rows after each cut would be lost (AGENTS.md invariant 4).
+    pub fn truncated(&self) -> &[Truncation] {
+        &self.truncated
+    }
+
+    /// When the engine stopped reading the shared-string list part-way: how many strings it kept.
+    /// Cells holding a later string open empty, so, as with [`GridDoc::truncated`], the workbook
+    /// must not be saved over the file it came from.
+    pub fn strings_kept(&self) -> Option<u64> {
+        self.strings_kept
+    }
+
+    /// Whether opening lost data the file holds (a cut sheet or string list): saving over the
+    /// original would make that loss permanent.
+    pub fn opened_incomplete(&self) -> bool {
+        !self.truncated.is_empty() || self.strings_kept.is_some()
     }
 
     fn wb(&self) -> &Arc<Workbook> {

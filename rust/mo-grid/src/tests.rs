@@ -571,3 +571,55 @@ fn corpus_round_trip() {
     }
     assert!(seen > 0, "no .xlsx in {dir}");
 }
+
+#[test]
+fn reads_the_engines_damaged_sheet_warning() {
+    assert_eq!(
+        parse_truncation("sheet \"Satışlar\" is damaged (the part holds more than 1000000 elements); kept 49995 rows"),
+        Some(("Satışlar", 49995))
+    );
+    assert_eq!(
+        parse_truncation("sheet \"a \"b\" is damaged (x; kept 3 rows) y\" is damaged (z); kept 7 rows"),
+        Some(("a \"b\" is damaged (x; kept 3 rows) y", 7))
+    );
+    assert_eq!(parse_truncation("sheet \"A\": 3 cells or rows outside the 1,048,576 × 16,384 grid were dropped"), None);
+    assert_eq!(parse_truncation("shared strings are damaged (x); kept 5 strings"), None);
+    assert_eq!(parse_strings_cut("shared strings are damaged (the part holds more than 1000000 elements); kept 999999 strings"), Some(999_999));
+    assert_eq!(parse_strings_cut("shared strings: 2 phonetic runs were dropped (bad sb/eb or no reading)"), None);
+}
+
+/// GridCraft's XLSX reader stops after 1,000,000 XML elements in one sheet, counting the cells of
+/// rows it already streamed (docs/upstream-notlar/gridcraft-satir-siniri.md): a plain 60,000 × 10
+/// sheet is cut near row 50,000. The cut must be reported so the app never saves over the original.
+#[test]
+fn a_sheet_cut_by_the_engine_is_reported_as_truncated() {
+    const ROWS: usize = 60_000;
+    let mut csv = String::with_capacity(ROWS * 60);
+    csv.push_str("A,B,C,D,E,F,G,H,I,J\n");
+    for r in 1..ROWS {
+        for c in 0..10 {
+            if c > 0 {
+                csv.push(',');
+            }
+            csv.push_str(&(r * 10 + c).to_string());
+        }
+        csv.push('\n');
+    }
+    let xlsx = GridDoc::open("liste.csv", csv.as_bytes(), None).unwrap().save("liste.xlsx").unwrap();
+
+    let doc = GridDoc::open("liste.xlsx", &xlsx, None).unwrap();
+    let cut = doc.truncated();
+    assert_eq!(cut.len(), 1, "warnings: {:?}", doc.warnings());
+    assert_eq!(cut[0].sheet, doc.sheet_names()[0]);
+    assert_eq!(cut[0].index, 0);
+    assert!(cut[0].last_row > 0 && (cut[0].last_row as usize) < ROWS, "{:?}", cut[0]);
+    assert_eq!(cut[0].last_row, doc.used_size(0).unwrap().rows);
+    assert_eq!(cut[0].rows_kept, u64::from(cut[0].last_row));
+    assert!(doc.opened_incomplete());
+    assert_eq!(doc.strings_kept(), None);
+
+    // A file the engine reads whole is not flagged.
+    let small = GridDoc::open("liste.csv", "a,b\n1,2\n".as_bytes(), None).unwrap().save("k.xlsx").unwrap();
+    assert!(!GridDoc::open("k.xlsx", &small, None).unwrap().opened_incomplete());
+    assert!(!GridDoc::blank().opened_incomplete());
+}

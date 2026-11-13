@@ -264,6 +264,28 @@ impl SheetDocument {
         self.doc().warnings().to_vec()
     }
 
+    /// Sheets cut short on opening. When not empty, saving over the opened file would lose the
+    /// rows after each cut: the app must only offer "Save as" to a new file.
+    pub fn truncated_sheets(&self) -> Vec<SheetTruncation> {
+        self.doc()
+            .truncated()
+            .iter()
+            .map(|t| SheetTruncation { sheet: t.sheet.clone(), index: t.index, rows_kept: t.rows_kept, last_row: t.last_row })
+            .collect()
+    }
+
+    /// When the engine stopped reading the shared-string list part-way, the strings it kept
+    /// (cells holding a later string opened empty).
+    pub fn shared_strings_kept(&self) -> Option<u64> {
+        self.doc().strings_kept()
+    }
+
+    /// Whether opening lost data the file holds (see [`SheetDocument::truncated_sheets`] and
+    /// [`SheetDocument::shared_strings_kept`]): the app must then never save over the opened file.
+    pub fn opened_incomplete(&self) -> bool {
+        self.doc().opened_incomplete()
+    }
+
     pub fn sheet_names(&self) -> Vec<String> {
         self.doc().sheet_names()
     }
@@ -735,6 +757,17 @@ pub struct SheetNote {
     pub col: u32,
     pub author: String,
     pub text: String,
+}
+
+/// A sheet the engine stopped reading part-way on opening (see [`SheetDocument::truncated_sheets`]).
+#[derive(uniffi::Record)]
+pub struct SheetTruncation {
+    pub sheet: String,
+    pub index: u32,
+    /// Rows the engine read before it stopped.
+    pub rows_kept: u64,
+    /// The last row (1-based) the sheet now holds: everything after it in the file is missing.
+    pub last_row: u32,
 }
 
 /// A cell [`SheetDocument::find_cells`] found.

@@ -124,6 +124,11 @@ class SheetViewModel(app: Application) : AndroidViewModel(app) {
 
     /** The opened file, saved over by "Save" when it is an XLSX. */
     private var source: Uri? = null
+    /**
+     * The engine stopped reading the opened file part-way (a sheet or its shared strings): saving
+     * over [source] would delete what it did not read, so only "Save as" to another file is offered.
+     */
+    @Volatile private var truncated = false
     var canSaveInPlace by mutableStateOf(false)
         private set
     var hasUnsaved by mutableStateOf(false)
@@ -258,7 +263,8 @@ class SheetViewModel(app: Application) : AndroidViewModel(app) {
                         ?: error("no data")
                     val state = replaceDocument(SheetDocument.open(name, bytes, null))
                     source = uri
-                    canSaveInPlace = name.endsWith(".xlsx", ignoreCase = true)
+                    truncated = doc?.openedIncomplete() == true
+                    canSaveInPlace = name.endsWith(".xlsx", ignoreCase = true) && !truncated
                     Diagnostics.record("SHEET ${name.substringAfterLast('.')} açma (${sizeLabel(info.size)})", started)
                     RecentFiles(getApplication()).remember(uri, info.name, DocumentKind.SHEET, info.size)
                     state to name
@@ -267,7 +273,13 @@ class SheetViewModel(app: Application) : AndroidViewModel(app) {
             result.fold(
                 onSuccess = { (state, name) ->
                     screen = Screen.Sheet(state.copy(fileName = name))
-                    importNotes = withContext(engine) { doc?.warnings().orEmpty() }
+                    importNotes = withContext(engine) {
+                        val d = doc
+                        // A cut sheet comes first, in the person's language: it decides how to save.
+                        val cuts = d?.truncatedSheets().orEmpty().map { text(R.string.sheet_truncated, it.sheet, it.lastRow.toInt()) }
+                        val strings = d?.sharedStringsKept()?.let { listOf(text(R.string.strings_truncated, it.toLong())) }.orEmpty()
+                        cuts + strings + d?.warnings().orEmpty()
+                    }
                     recoveryOffer = recovery.find(uri)
                 },
                 onFailure = {
@@ -286,6 +298,7 @@ class SheetViewModel(app: Application) : AndroidViewModel(app) {
         viewModelScope.launch {
             val name = text(R.string.new_workbook_name)
             source = null
+            truncated = false
             canSaveInPlace = false
             screen = Screen.Sheet(withContext(engine) { replaceDocument(SheetDocument.blank()) }.copy(fileName = name))
         }
@@ -860,6 +873,13 @@ class SheetViewModel(app: Application) : AndroidViewModel(app) {
     fun saveTo(uri: Uri) {
         val resolver = getApplication<Application>().contentResolver
         val owner = doc ?: return
+        if (truncated && uri == source) {
+            // Never over the file a sheet was cut from: the rows after the cut would be lost.
+            closeAfterSave = false
+            message = text(R.string.save_over_truncated)
+            return
+        }
+        val wasTruncated = truncated
         val revision = editRevision
         val shouldClose = closeAfterSave
         viewModelScope.launch {
@@ -877,7 +897,7 @@ class SheetViewModel(app: Application) : AndroidViewModel(app) {
             if (doc !== owner) return@launch
             val completed = result ?: return@launch
             message = completed.fold(
-                onSuccess = { text(R.string.saved) },
+                onSuccess = { text(if (wasTruncated) R.string.saved_truncated else R.string.saved) },
                 onFailure = { text(R.string.save_failed, it.message ?: "") },
             )
             if (completed.isSuccess && revision == editRevision) {

@@ -21,6 +21,10 @@ class SheetDocumentTest {
             SheetDocument.open("butce.xlsx", bytes, null).use { back ->
                 assertEquals(2u, back.usedSize(0u).rows)
                 assertEquals("3000", back.cellTexts(0u, 1u, 1u, 1u, 1u).single())
+                // Read whole: nothing cut, so saving over the file is allowed.
+                assertTrue(back.truncatedSheets().isEmpty())
+                assertEquals(null, back.sharedStringsKept())
+                assertTrue(!back.openedIncomplete())
             }
         }
     }

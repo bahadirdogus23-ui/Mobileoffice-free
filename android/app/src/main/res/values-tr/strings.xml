@@ -13,6 +13,10 @@
     <string name="formula_hint">Değer veya formül</string>
     <string name="cell_update_failed">Hücre değiştirilemedi: %1$s</string>
     <string name="import_notes">İçe aktarma notları</string>
+    <string name="sheet_truncated">“%1$s” sayfası %2$d. satırda kesildi: dosyada bu uygulamanın bir sayfada okuyabileceğinden fazla veri var. Asıl dosyanın üzerine kaydetme kapatıldı, çünkü %2$d. satırdan sonraki satırlar silinirdi. Görünenleri yeni bir dosyada saklamak için “Farklı kaydet”i kullanın.</string>
+    <string name="strings_truncated">Dosyada bu uygulamanın okuyabileceğinden fazla metin var: yalnızca ilk %1$d metin okundu, sonraki metinleri içeren hücreler boş görünüyor. Asıl dosyanın üzerine kaydetme kapatıldı, çünkü bu metinler silinirdi. Görünenleri yeni bir dosyada saklamak için “Farklı kaydet”i kullanın.</string>
+    <string name="saved_truncated">Kaydedildi. Açılırken kesilen sayfalarda yalnızca okunabilen satırlar var.</string>
+    <string name="save_over_truncated">Kaydedilmedi: bu çalışma kitabı açılırken kesildi ve asıl dosyanın üzerine kaydetmek satırları silerdi. Yeni bir dosya adı seçin.</string>
     <string name="ok">Tamam</string>
     <string name="new_workbook_name">Kitap1.xlsx</string>
     <string name="tab_home">Ev</string>

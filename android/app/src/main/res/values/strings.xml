@@ -14,6 +14,10 @@
     <string name="formula_hint">Value or formula</string>
     <string name="cell_update_failed">Could not change the cell: %1$s</string>
     <string name="import_notes">Import notes</string>
+    <string name="sheet_truncated">The sheet “%1$s” was cut at row %2$d: the file has more data than this app can read in one sheet. Saving over the original file is turned off, because it would delete the rows after %2$d. Use “Save as” to keep what is shown in a new file.</string>
+    <string name="strings_truncated">The file holds more texts than this app can read: only the first %1$d were read, and cells with later texts are shown empty. Saving over the original file is turned off, because it would delete those texts. Use “Save as” to keep what is shown in a new file.</string>
+    <string name="saved_truncated">Saved. Sheets that were cut on opening hold only the rows that were read.</string>
+    <string name="save_over_truncated">Not saved: this workbook was cut on opening, and saving over the original would delete rows. Choose a new file name.</string>
     <string name="ok">OK</string>
     <string name="new_workbook_name">Book1.xlsx</string>
     <string name="tab_home">Home</string>
