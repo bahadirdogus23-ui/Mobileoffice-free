@@ -31,7 +31,6 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
-import java.util.Locale
 
 /** Routes between the home screen and the open document, and shows one-shot messages. */
 @Composable
@@ -66,12 +65,8 @@ fun AppRoot(sheet: SheetViewModel, word: WordViewModel, pdf: PdfViewModel, slide
             DocumentKind.TEXT -> text.open(uri)
             DocumentKind.ARCHIVE -> archive.open(uri)
             DocumentKind.INVOICE -> invoice.open(uri)
-            // DeckCraft reads PPTX/PPSX/POTX; legacy .ppt and .odp come with phase 4 (plan §6).
-            DocumentKind.SLIDES -> if (info.typedName.substringAfterLast('.').lowercase(Locale.ROOT) in setOf("pptx", "ppsx", "potx")) {
-                slides.open(uri)
-            } else {
-                notice = resources.getString(R.string.coming_soon, info.name)
-            }
+            // PPTX/PPSX/POTX natively; legacy .ppt and .odp are imported (saved as .pptx).
+            DocumentKind.SLIDES -> slides.open(uri)
             else -> notice = resources.getString(R.string.unsupported_file)
         }
     }

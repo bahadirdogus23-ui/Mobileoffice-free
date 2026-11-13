@@ -21,7 +21,6 @@
     <string name="tab_powerpoint">PowerPoint</string>
     <string name="tab_pdf">PDF</string>
     <string name="open_file">Dosya aç</string>
-    <string name="coming_soon">%1$s: bu biçim yakında gelecek sürümde açılacak.</string>
     <string name="unsupported_file">Bu dosya türü henüz desteklenmiyor.</string>
     <string name="share">Paylaş</string>
     <string name="remove_from_list">Listeden kaldır</string>

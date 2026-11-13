@@ -422,10 +422,9 @@ def main(out):
         REPO / "rust/mo-deck/testdata/grouped-text.pptx",
         p(sample("mo-smoke-pptx.pptx", "application/vnd.openxmlformats-officedocument.presentationml.presentation")),
     )
-    # ODP is announced as "upcoming" today (AppRoot); a viewer is accepted too once it lands.
     shutil.copyfile(
         REPO / "rust/mo-deck/testdata/sample.odp",
-        p(sample("mo-smoke-odp.odp", "application/vnd.oasis.opendocument.presentation", "explicit", "viewer-or-notice")),
+        p(sample("mo-smoke-odp.odp", "application/vnd.oasis.opendocument.presentation")),
     )
     make_pdf(p(sample("mo-smoke-pdf.pdf", "application/pdf")))
     shutil.copyfile(REPO / "rust/mo-pdf/testdata/jspdf-form.pdf", p(sample("mo-smoke-pdfform.pdf", "application/pdf")))

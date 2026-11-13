@@ -22,7 +22,6 @@
     <string name="tab_powerpoint">PowerPoint</string>
     <string name="tab_pdf">PDF</string>
     <string name="open_file">Open file</string>
-    <string name="coming_soon">%1$s: this format opens in an upcoming version.</string>
     <string name="unsupported_file">This file type is not supported yet.</string>
     <string name="share">Share</string>
     <string name="remove_from_list">Remove from list</string>
