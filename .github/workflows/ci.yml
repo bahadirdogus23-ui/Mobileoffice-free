@@ -176,6 +176,45 @@ jobs:
           path: android/app/build/reports/lint-results-debug.html
           if-no-files-found: ignore
 
+  # The minified release build on an emulator: R8 can strip what only reflection or JNI reaches
+  # (JNA/UniFFI, Tesseract), which no unit test notices. Opens one sample of every format through
+  # "Open with" and fails on any crash (scripts/emulator-smoke.sh). Logs and screenshots are kept.
+  emulator-smoke:
+    name: Release APK on an emulator
+    needs: android
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: mobileoffice-release
+          path: release
+      - name: Make sample documents
+        run: python3 scripts/make_smoke_samples.py build/smoke-samples
+      - name: Enable KVM
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+      - name: Open every format in the release APK
+        uses: reactivecircus/android-emulator-runner@v2.38.0
+        with:
+          api-level: 34
+          target: google_apis
+          arch: x86_64
+          ram-size: 4096M
+          disk-size: 6G
+          emulator-boot-timeout: 900
+          # The action runs each line of `script` separately: keep it to one command.
+          script: bash scripts/emulator-smoke.sh release/apk/release/app-x86_64-release.apk build/smoke-samples build/smoke-out
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: emulator-smoke-logs
+          path: build/smoke-out
+          if-no-files-found: ignore
+
   # Every green push replaces the APK on the "gelistirme" pre-release, so there is one fixed link:
   # https://github.com/<owner>/<repo>/releases/download/gelistirme/MobileOffice-Free.apk
   release:
