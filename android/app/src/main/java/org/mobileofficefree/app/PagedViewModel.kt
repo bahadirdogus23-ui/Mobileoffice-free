@@ -131,7 +131,7 @@ abstract class PagedViewModel(app: Application, private val kind: DocumentKind) 
         if (copied && state === opened) lastCopyAt = System.currentTimeMillis()
     }
 
-    private val copyNow: () -> Unit = { viewModelScope.launch { copyForRecovery() } }
+    private val copyNow: () -> kotlinx.coroutines.Job = { viewModelScope.launch { copyForRecovery() } }
 
     init {
         RecoveryHub.register(copyNow)

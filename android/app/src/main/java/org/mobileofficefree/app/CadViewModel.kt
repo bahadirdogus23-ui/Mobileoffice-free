@@ -1,5 +1,6 @@
 package org.mobileofficefree.app
 
+import android.app.ActivityManager
 import android.app.Application
 import android.graphics.Bitmap
 import android.net.Uri
@@ -11,6 +12,7 @@ import androidx.core.graphics.createBitmap
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import java.nio.ByteBuffer
+import java.util.Locale
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -36,6 +38,9 @@ data class CadView(val centerX: Double, val centerY: Double, val scale: Double)
 
 /** A drawn view and the view it was drawn for (gestures move it until the next one is ready). */
 class CadFrame(val bitmap: Bitmap, val view: CadView)
+
+/** A drawing that probably needs more memory to open ([estimate]) than is free ([available]), in bytes. */
+class CadMemoryWarning(val fileName: String, val estimate: Long, val available: Long)
 
 /** DWG/DXF viewing through the CADCraft engine (view only, by design: plan §7.6). */
 class CadViewModel(app: Application) : AndroidViewModel(app) {
@@ -72,32 +77,124 @@ class CadViewModel(app: Application) : AndroidViewModel(app) {
     /** Bumped when a document opens or closes: a render of the previous one is then dropped. */
     private var generation = 0
 
+    /** A drawing held back because opening it probably needs more memory than is free; the person decides. */
+    var memoryWarning by mutableStateOf<CadMemoryWarning?>(null)
+        private set
+
+    /** The file read for [memoryWarning]: opened as it is on "Open anyway", so it is not read twice. */
+    private var held: HeldOpen? = null
+
+    private class HeldOpen(val uri: Uri, val info: FileInfo, val bytes: ByteArray, val note: String)
+
+    /** What reading a file before opening it led to. */
+    private sealed interface Checked
+    private class Opened(val state: CadUiState) : Checked
+    private class Held(val file: HeldOpen, val warning: CadMemoryWarning) : Checked
+
     fun open(uri: Uri) {
-        val resolver = getApplication<Application>().contentResolver
+        val app = getApplication<Application>()
+        val resolver = app.contentResolver
         loading = true
         generation++
+        held = null
+        memoryWarning = null
+        val gen = generation
         val started = SystemClock.elapsedRealtime()
         viewModelScope.launch {
-            val result = withContext(engine) {
+            val result: Result<Checked> = withContext(engine) {
                 runCatching {
                     doc?.close()
                     doc = null
                     val info = FileInfo.of(resolver, uri)
-                    // The file's bytes live only for this call: the engine keeps the drawing it
-                    // reads, not the file (a large DWG is tens of MB on top of the drawing).
-                    val next = CadDocument.open(info.typedName, readAll(resolver, uri, info.size))
-                    Diagnostics.record("CAD ${info.typedName.substringAfterLast('.')} açma (${sizeLabel(info.size)})", started)
-                    doc = next
-                    recents.remember(uri, info.name, DocumentKind.CAD, info.size)
-                    CadUiState(uri, info.name, next.spaceNames(), 0, next.layers(), dark = true, notes = next.notes())
+                    val bytes = readAll(resolver, uri, info.size)
+                    // Checked before the engine sees the bytes: its peak while opening is many
+                    // times the file, all native memory, and running out ends the whole app.
+                    val format = CadMemory.format(bytes)
+                    val estimate = CadMemory.estimate(format, bytes.size.toLong())
+                    val memory = ActivityManager.MemoryInfo()
+                    app.getSystemService(ActivityManager::class.java)?.getMemoryInfo(memory)
+                    val budget = CadMemory.budget(memory.availMem, memory.threshold)
+                    val note = "CAD bellek tahmini: ${format.label} ${sizeLabel(bytes.size.toLong())} → ${CadMemory.label(estimate, Locale.ROOT)}, " +
+                        "boş ${CadMemory.label(memory.availMem, Locale.ROOT)} (eşik ${CadMemory.label(memory.threshold, Locale.ROOT)}" +
+                        (if (memory.lowMemory) ", bellek az" else "") + ")"
+                    // availMem is 0 only when the system could not be asked: then open as before.
+                    if (memory.availMem > 0 && CadMemory.tooLarge(estimate, budget)) {
+                        Diagnostics.event("$note → soruldu")
+                        Held(HeldOpen(uri, info, bytes, note),CadMemoryWarning(info.name, estimate, memory.availMem))
+                    } else {
+                        Diagnostics.event("$note → açıldı")
+                        Opened(openOnEngine(uri, info, bytes, started))
+                    }
                 }
             }
-            loading = false
-            frame = null
-            spare = null
-            view = null
-            result.fold(onSuccess = { state = it; fit() }, onFailure = { error = it.message ?: it.javaClass.simpleName })
+            if (gen != generation) return@launch
+            val checked = result.getOrNull()
+            if (checked is Held) {
+                // The question is asked over the home screen; nothing has reached the engine yet.
+                loading = false
+                held = checked.file
+                memoryWarning = checked.warning
+                return@launch
+            }
+            shown(result.map { (it as Opened).state })
         }
+    }
+
+    /** "Open anyway": other documents' unsaved edits are copied for recovery first, then the held file opens. */
+    fun openAnyway() {
+        val h = held ?: return
+        held = null
+        memoryWarning = null
+        loading = true
+        generation++
+        val gen = generation
+        viewModelScope.launch {
+            // Should Android end the app while the drawing opens, the other documents lose
+            // nothing since this copy (a busy engine is waited for a few seconds at most).
+            val copied = RecoveryHub.copyAllAndWait(RECOVERY_WAIT_MS)
+            Diagnostics.event("${h.note} → yine de açıldı" + if (copied) "" else " (kurtarma kopyası zamanında bitmedi)")
+            // Timed from here: the time the question was on screen is not the engine's.
+            val started = SystemClock.elapsedRealtime()
+            val result = withContext(engine) { runCatching { openOnEngine(h.uri, h.info, h.bytes, started) } }
+            if (gen == generation) shown(result)
+        }
+    }
+
+    /** "Cancel": the held file is let go and the drawing is not opened. */
+    fun cancelOpen() {
+        val h = held ?: return
+        held = null
+        memoryWarning = null
+        Diagnostics.event("${h.note} → vazgeçildi")
+        close()
+    }
+
+    /** Opens [bytes] in the engine; on the engine thread. */
+    private fun openOnEngine(uri: Uri, info: FileInfo, bytes: ByteArray, started: Long): CadUiState {
+        doc?.close()
+        doc = null
+        // The file's bytes are not kept: the engine keeps the drawing it reads, not the file
+        // (a large DWG is tens of MB on top of the drawing).
+        val peakBefore = CadMemory.peakResident()
+        val next = CadDocument.open(info.typedName, bytes)
+        Diagnostics.record("CAD ${info.typedName.substringAfterLast('.')} açma (${sizeLabel(info.size)})", started)
+        // The process's real peak so far, to check the estimate against on this phone.
+        val peakAfter = CadMemory.peakResident()
+        if (peakBefore > 0 && peakAfter > 0) {
+            Diagnostics.event("CAD açıldı: süreç tepe belleği (VmHWM) ${CadMemory.label(peakBefore, Locale.ROOT)} → ${CadMemory.label(peakAfter, Locale.ROOT)}")
+        }
+        doc = next
+        recents.remember(uri, info.name, DocumentKind.CAD, info.size)
+        return CadUiState(uri, info.name, next.spaceNames(), 0, next.layers(), dark = true, notes = next.notes())
+    }
+
+    /** Puts the outcome of an open on screen. */
+    private fun shown(result: Result<CadUiState>) {
+        loading = false
+        frame = null
+        spare = null
+        view = null
+        result.fold(onSuccess = { state = it; fit() }, onFailure = { error = it.message ?: it.javaClass.simpleName })
     }
 
     fun close() {
@@ -392,6 +489,11 @@ class CadViewModel(app: Application) : AndroidViewModel(app) {
             stream.copyTo(all)
             all.toByteArray()
         }
+    }
+
+    private companion object {
+        /** How long "Open anyway" waits for the other documents' recovery copies. */
+        const val RECOVERY_WAIT_MS = 5_000L
     }
 
     override fun onCleared() {

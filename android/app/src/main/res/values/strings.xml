@@ -691,4 +691,9 @@
     <string name="a11y_scan_photo">Page photo: drag its corners onto the paper\'s corners</string>
     <string name="a11y_signature_n">Saved signature %1$d</string>
     <string name="a11y_signature_pad">Signature area: draw with your finger</string>
+    <string name="cad_memory_title">Drawing may be too large</string>
+    <string name="cad_memory_body">“%1$s” is probably too large for this phone\'s free memory. Opening it may need about %2$s; about %3$s is free now. If memory runs out, Android closes the app while the drawing opens.</string>
+    <string name="cad_memory_recovery">Before opening, a recovery copy of your other open documents\' unsaved changes is made.</string>
+    <string name="cad_memory_open_anyway">Open anyway</string>
+    <string name="cad_memory_cancel">Cancel</string>
 </resources>

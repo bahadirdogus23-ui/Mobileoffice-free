@@ -690,4 +690,9 @@
     <string name="a11y_scan_photo">Sayfa fotoğrafı: köşelerini kâğıdın köşelerine sürükleyin</string>
     <string name="a11y_signature_n">Kayıtlı imza %1$d</string>
     <string name="a11y_signature_pad">İmza alanı: parmağınızla çizin</string>
+    <string name="cad_memory_title">Çizim çok büyük olabilir</string>
+    <string name="cad_memory_body">“%1$s” bu telefonun boş belleği için büyük olasılıkla çok büyük. Açmak yaklaşık %2$s bellek gerektirebilir; şu anda yaklaşık %3$s boş. Bellek yetmezse Android, çizim açılırken uygulamayı kapatır.</string>
+    <string name="cad_memory_recovery">Açmadan önce diğer açık belgelerinizdeki kaydedilmemiş değişikliklerin kurtarma kopyası alınır.</string>
+    <string name="cad_memory_open_anyway">Yine de aç</string>
+    <string name="cad_memory_cancel">Vazgeç</string>
 </resources>

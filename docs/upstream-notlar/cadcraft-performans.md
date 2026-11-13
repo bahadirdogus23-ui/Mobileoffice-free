@@ -89,3 +89,23 @@ dosyanın baytlarını yalnızca birer kez kopyalıyor (≈ 18 MB) ve onları a�
 | Görüntüleme listesi | ≈ 288 MB | ≈ 208 MB |
 
 Açılıştaki 3,36 GB tepe (sahadaki 1845 MB) yukarıdaki 1. ve 2. maddeler düzelmeden düşmez.
+
+## Açmadan önce bellek denetimi (uygulamada)
+
+Motor düzelene kadar tepe bellek düşmediği için `CadViewModel` çizimi motora vermeden önce
+tepeyi tahmin ediyor (`CadMemory.kt`) ve `ActivityManager.getMemoryInfo()` ile karşılaştırıyor.
+Ölçüm (masaüstü, release, motorun kendi yazdığı sentetik planlar; dosya başına ayrı süreç, VmHWM):
+
+| Biçim | Dosya → tepe | Dosya baytı başına |
+|---|---|---|
+| DWG | 1,0 MB → 185 MB · 2,5 MB → 465 MB · 4,8 MB → 888 MB · 14,9 MB → 2,7 GB · 18,2 MB → 3,5 GB | 194–201× |
+| ASCII DXF | 6 MB → 142 MB · 16 MB → 363 MB · 31 MB → 691 MB · 96 MB → 2,1 GB · 118 MB → 2,6 GB | 23–25× |
+| İkili DXF | 4,5 MB → 140 MB · 23 MB → 684 MB · 71 MB → 2,1 GB | 31–33× |
+
+Tepe dosya boyutuyla doğrusal. Tahmin = 32 MB + dosya × (DWG 200, DXF 24, ikili DXF 32);
+bütçe = `availMem` − en az 256 MB ya da Android'in `threshold` değeri (hangisi büyükse).
+Tahmin bütçeyi aşarsa kişiye sorulur ("Yine de aç" / "Vazgeç"); "Yine de aç"tan önce diğer
+açık belgelerin kurtarma kopyası alınır (`RecoveryHub.copyAllAndWait`, en çok 5 sn).
+Karar, tahmin ve açılıştan sonraki gerçek VmHWM ölçüm raporuna olay olarak yazılır
+("CAD bellek tahmini: DWG 17.4 MB → 3.4 GB, boş 2.9 GB (eşik 216 MB) → soruldu"); gerçek
+telefonlardaki oranlar bu olaylardan izlenip katsayılar gerekirse düzeltilir.

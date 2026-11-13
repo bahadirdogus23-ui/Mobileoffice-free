@@ -198,7 +198,7 @@ class SheetViewModel(app: Application) : AndroidViewModel(app) {
         if (copied && source == uri && doc === d) lastCopyAt = System.currentTimeMillis()
     }
 
-    private val copyNow: () -> Unit = { viewModelScope.launch { copyForRecovery() } }
+    private val copyNow: () -> kotlinx.coroutines.Job = { viewModelScope.launch { copyForRecovery() } }
 
     init {
         RecoveryHub.register(copyNow)

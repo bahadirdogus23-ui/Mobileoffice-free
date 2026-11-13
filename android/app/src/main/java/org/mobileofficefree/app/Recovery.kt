@@ -5,6 +5,9 @@ import android.net.Uri
 import java.io.File
 import java.io.IOException
 import java.security.MessageDigest
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.joinAll
+import kotlinx.coroutines.withTimeoutOrNull
 
 /**
  * Auto-recovery, as Office keeps it: unsaved edits are copied every so often into the app's own
@@ -64,18 +67,28 @@ const val RECOVERY_FIRST_MS = 5_000L
  * end it, or the person swipes it away), every document with unsaved edits is copied at once.
  */
 object RecoveryHub {
-    private val hooks = java.util.concurrent.CopyOnWriteArraySet<() -> Unit>()
+    /** Each hook starts its document's copy and returns the job doing it. */
+    private val hooks = java.util.concurrent.CopyOnWriteArraySet<() -> Job>()
 
-    fun register(hook: () -> Unit) {
+    fun register(hook: () -> Job) {
         hooks.add(hook)
     }
 
-    fun unregister(hook: () -> Unit) {
+    fun unregister(hook: () -> Job) {
         hooks.remove(hook)
     }
 
     /** Called when the app leaves the screen. */
     fun copyAll() {
         hooks.forEach { runCatching { it() } }
+    }
+
+    /**
+     * Copies every document with unsaved edits and waits (at most [timeoutMs]) until the copies
+     * are written: before something that may get the app killed. Whether all finished in time.
+     */
+    suspend fun copyAllAndWait(timeoutMs: Long): Boolean {
+        val jobs = hooks.mapNotNull { runCatching { it() }.getOrNull() }
+        return withTimeoutOrNull(timeoutMs) { jobs.joinAll() } != null
     }
 }

@@ -27,6 +27,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.res.stringResource
@@ -197,6 +198,22 @@ fun AppRoot(sheet: SheetViewModel, word: WordViewModel, pdf: PdfViewModel, slide
             confirmButton = { TextButton(onClick = { cadNotesSeen = true }) { Text(stringResource(R.string.ok)) } },
             title = { Text(stringResource(R.string.import_notes)) },
             text = { Text(notes.take(5).joinToString("\n\n")) },
+        )
+    }
+    cad.memoryWarning?.let { warning ->
+        val locale = LocalConfiguration.current.locales[0]
+        AlertDialog(
+            onDismissRequest = cad::cancelOpen,
+            title = { Text(stringResource(R.string.cad_memory_title)) },
+            text = {
+                Column {
+                    Text(stringResource(R.string.cad_memory_body, warning.fileName, CadMemory.label(warning.estimate, locale), CadMemory.label(warning.available, locale)))
+                    Spacer(Modifier.height(8.dp))
+                    Text(stringResource(R.string.cad_memory_recovery))
+                }
+            },
+            confirmButton = { TextButton(onClick = cad::openAnyway) { Text(stringResource(R.string.cad_memory_open_anyway)) } },
+            dismissButton = { TextButton(onClick = cad::cancelOpen) { Text(stringResource(R.string.cad_memory_cancel)) } },
         )
     }
     pdf.locked?.let {
