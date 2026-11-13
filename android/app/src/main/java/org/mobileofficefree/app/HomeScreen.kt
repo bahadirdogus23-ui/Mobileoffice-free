@@ -65,7 +65,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
@@ -150,7 +150,8 @@ internal enum class HomeSort(val label: Int) {
 }
 
 private fun List<HomeItem>.sortedBy(sort: HomeSort): List<HomeItem> {
-    val collator = Collator.getInstance(Locale.forLanguageTag("tr")).apply { strength = Collator.SECONDARY }
+    // Made only for the orders that compare names (loading a collator is not free).
+    val collator by lazy(LazyThreadSafetyMode.NONE) { Collator.getInstance(Locale.forLanguageTag("tr")).apply { strength = Collator.SECONDARY } }
     val byName = Comparator<HomeItem> { a, b -> collator.compare(a.name, b.name) }
     return when (sort) {
         HomeSort.NEWEST -> sortedByDescending { it.date }
@@ -171,14 +172,22 @@ private data class HomeItem(
     val size: Long,
     val date: Long,
     val progress: Int,
-)
+) {
+    /** The name folded for search, worked out once per row rather than on every keystroke. */
+    val foldedName: String by lazy(LazyThreadSafetyMode.NONE) { name.searchFold() }
+}
 
 @Composable
-fun HomeScreen(onOpen: (Uri) -> Unit, onNewSheet: () -> Unit, onDiagnostics: () -> Unit, engineVersion: String, reading: ReadingSettings) {
+fun HomeScreen(onOpen: (Uri) -> Unit, onNewSheet: () -> Unit, onDiagnostics: () -> Unit, engineVersion: String, onNeedEngineVersion: () -> Unit, reading: ReadingSettings) {
     val context = LocalContext.current
     val recents = remember { RecentFiles(context) }
     // Re-read whenever the home screen comes back (it leaves composition while a document is open).
-    var files by remember { mutableStateOf(recents.all()) }
+    // Read off the main thread (preferences and JSON); null until the first read is done.
+    var files by remember { mutableStateOf<List<RecentFile>?>(null) }
+    val homeScope = rememberCoroutineScope()
+    val reloadRecents: () -> Unit = {
+        homeScope.launch { files = withContext(Dispatchers.IO) { recents.all() } }
+    }
     var access by remember { mutableStateOf(DeviceFiles.hasAccess(context)) }
     var device by remember { mutableStateOf<List<DeviceFile>?>(null) }
     var refresh by remember { mutableIntStateOf(0) }
@@ -205,12 +214,13 @@ fun HomeScreen(onOpen: (Uri) -> Unit, onNewSheet: () -> Unit, onDiagnostics: () 
     var chosen by remember { mutableStateOf<List<HomeItem>>(emptyList()) }
     var showSettings by remember { mutableStateOf(false) }
     if (showSettings) {
+        LaunchedEffect(Unit) { onNeedEngineVersion() }
         SettingsSheet(
             reading = reading,
             engineVersion = engineVersion,
             onDiagnostics = onDiagnostics,
             onDismiss = { showSettings = false },
-            onRecentsCleared = { files = recents.all() },
+            onRecentsCleared = reloadRecents,
         )
     }
     val scan = rememberScanner(onOpen)
@@ -253,11 +263,13 @@ fun HomeScreen(onOpen: (Uri) -> Unit, onNewSheet: () -> Unit, onDiagnostics: () 
             askLegacy.launch(Manifest.permission.READ_EXTERNAL_STORAGE)
         }
     }
-    // Coming back from Settings or from a document: re-check access and refresh both lists.
+    // Coming back from Settings or from a document: re-check access and refresh both lists. The
+    // first resume arrives with the screen itself, whose scan has just started: only later ones rescan.
+    val firstResume = remember { booleanArrayOf(true) }
     LifecycleResumeEffect(Unit) {
         access = DeviceFiles.hasAccess(context)
-        files = recents.all()
-        refresh++
+        reloadRecents()
+        if (firstResume[0]) firstResume[0] = false else refresh++
         onPauseOrDispose { }
     }
     // With "All files access" the whole device is listed; without it, the folders the person picked.
@@ -271,23 +283,34 @@ fun HomeScreen(onOpen: (Uri) -> Unit, onNewSheet: () -> Unit, onDiagnostics: () 
     }
 
     val current = HomeTab.entries[tab]
-    val progressOf = files.associate { it.uri to it.progress }
-    val items = if (source == 0 && listsDevice) {
-        device.orEmpty().map { HomeItem(it.uri, it.name, it.kind, it.size, it.modifiedAt, progressOf[it.uri] ?: 0) }
-    } else {
-        files.map { HomeItem(it.uri, it.name, it.kind, it.size, it.openedAt, it.progress) }
+    // Built again only when a list changes, not on every recomposition (choosing rows, menus,
+    // search progress): the device list can hold thousands of files.
+    val listsDeviceNow = source == 0 && listsDevice
+    val items = remember(files, device, listsDeviceNow) {
+        val recent = files.orEmpty()
+        if (listsDeviceNow) {
+            val progressOf = recent.associate { it.uri to it.progress }
+            device.orEmpty().map { HomeItem(it.uri, it.name, it.kind, it.size, it.modifiedAt, progressOf[it.uri] ?: 0) }
+        } else {
+            recent.map { HomeItem(it.uri, it.name, it.kind, it.size, it.openedAt, it.progress) }
+        }
     }
-    val needle = query.trim().searchFold()
+    val needle = remember(query) { query.trim().searchFold() }
     val prefs = remember { context.getSharedPreferences("home", android.content.Context.MODE_PRIVATE) }
     var sort by remember {
         mutableStateOf(HomeSort.entries.firstOrNull { it.name == prefs.getString("sort", null) } ?: HomeSort.NEWEST)
     }
     var sortMenu by remember { mutableStateOf(false) }
-    val shown = items.filter {
-        (current.kind == null || it.kind == current.kind) &&
-            (current.kind != null || extra == null || extra.matches(it)) &&
-            (needle.isEmpty() || needle in it.name.searchFold())
-    }.sortedBy(sort)
+    val shown = remember(items, current, extra, needle, sort) {
+        items.filter {
+            (current.kind == null || it.kind == current.kind) &&
+                (current.kind != null || extra == null || extra.matches(it)) &&
+                (needle.isEmpty() || needle in it.foldedName)
+        }.sortedBy(sort)
+    }
+    // One date format for every row (made again when the configuration, and so the language, changes).
+    val configuration = androidx.compose.ui.platform.LocalConfiguration.current
+    val shortDate = remember(configuration) { DateFormat.getDateInstance(DateFormat.SHORT) }
 
     if (templatePicker) {
         TemplatePicker(onDismiss = { templatePicker = false }) { t ->
@@ -404,6 +427,7 @@ fun HomeScreen(onOpen: (Uri) -> Unit, onNewSheet: () -> Unit, onDiagnostics: () 
             val docRow: @Composable (HomeItem) -> Unit = { f ->
                 DocumentRow(
                     file = f,
+                    dateFormat = shortDate,
                     chosen = chosen.any { it.uri == f.uri },
                     onOpen = {
                         if (chosen.isNotEmpty()) {
@@ -425,7 +449,7 @@ fun HomeScreen(onOpen: (Uri) -> Unit, onNewSheet: () -> Unit, onDiagnostics: () 
                     onForget = if (source == 1 || !listsDevice) {
                         {
                             recents.forget(f.uri)
-                            files = recents.all()
+                            reloadRecents()
                         }
                     } else {
                         null
@@ -558,14 +582,16 @@ fun HomeScreen(onOpen: (Uri) -> Unit, onNewSheet: () -> Unit, onDiagnostics: () 
                                 textAlign = TextAlign.Center,
                                 modifier = Modifier.fillMaxWidth().padding(32.dp),
                             )
-                        } else if (shown.isEmpty() && !(source == 0 && listsDevice && device == null)) {
+                        } else if (shown.isEmpty() && files != null && !(source == 0 && listsDevice && device == null)) {
+                            LaunchedEffect(Unit) { onNeedEngineVersion() }
                             EmptyState(engineVersion)
                         }
                     }
                 }
                 // A wide screen (tablet, unfolded phone, landscape) shows the files in two columns.
-                this.items(shown.chunked(columns), key = { g -> g.first().uri.toString() }) { group ->
-                    val i = shown.indexOf(group.first())
+                this.itemsIndexed(shown.chunked(columns), key = { _, g -> g.first().uri.toString() }) { chunk, group ->
+                    // The row's place in the list (rows are chunked by the column count).
+                    val i = chunk * columns
                     if (columns == 1) {
                         val f = group.first()
                         // One white rounded group, as iPhone lists: the first and last rows round it off.
@@ -592,12 +618,15 @@ fun HomeScreen(onOpen: (Uri) -> Unit, onNewSheet: () -> Unit, onDiagnostics: () 
 
 @Composable
 @OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
-private fun DocumentRow(file: HomeItem, onOpen: () -> Unit, onShare: () -> Unit, onForget: (() -> Unit)?, chosen: Boolean = false, onHold: () -> Unit = {}) {
+private fun DocumentRow(file: HomeItem, dateFormat: DateFormat, onOpen: () -> Unit, onShare: () -> Unit, onForget: (() -> Unit)?, chosen: Boolean = false, onHold: () -> Unit = {}) {
     val context = LocalContext.current
     var menu by remember { mutableStateOf(false) }
-    val ext = file.name.substringAfterLast('.', "").uppercase(Locale.ROOT)
-    val size = if (file.size >= 0) Formatter.formatShortFileSize(context, file.size) else null
-    val date = DateFormat.getDateInstance(DateFormat.SHORT).format(Date(file.date))
+    val ext = remember(file.name) { file.name.substringAfterLast('.', "").uppercase(Locale.ROOT) }
+    // Formatted once per row, not on every recomposition while the list scrolls.
+    val details = remember(ext, file.size, file.date, dateFormat) {
+        val size = if (file.size >= 0) Formatter.formatShortFileSize(context, file.size) else null
+        listOfNotNull(ext, size, dateFormat.format(Date(file.date))).joinToString(" · ")
+    }
     Row(
         Modifier.fillMaxWidth()
             .background(if (chosen) MaterialTheme.colorScheme.secondaryContainer else Color.Transparent)
@@ -612,7 +641,7 @@ private fun DocumentRow(file: HomeItem, onOpen: () -> Unit, onShare: () -> Unit,
             Text(file.name.substringBeforeLast('.'), maxLines = 1, overflow = TextOverflow.Ellipsis, style = MaterialTheme.typography.titleMedium)
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(
-                    listOfNotNull(ext, size, date).joinToString(" · "),
+                    details,
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
@@ -717,7 +746,10 @@ private fun SearchPill(query: String, onChange: (String) -> Unit, modifier: Modi
 /** The Turkish starting documents (petition, CV, budget…) to make a new file from. */
 @Composable
 private fun TemplatePicker(onDismiss: () -> Unit, onPick: (org.mobileofficefree.engine.DocTemplate) -> Unit) {
-    val templates = remember { runCatching { org.mobileofficefree.engine.documentTemplates() }.getOrDefault(emptyList()) }
+    // Read off the main thread: the first engine call loads the native library.
+    val templates by androidx.compose.runtime.produceState(emptyList<org.mobileofficefree.engine.DocTemplate>()) {
+        value = withContext(Dispatchers.IO) { runCatching { org.mobileofficefree.engine.documentTemplates() }.getOrDefault(emptyList()) }
+    }
     val turkish = androidx.compose.ui.platform.LocalConfiguration.current.locales[0].language == "tr"
     androidx.compose.material3.AlertDialog(
         onDismissRequest = onDismiss,

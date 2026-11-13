@@ -21,6 +21,13 @@ import java.util.zip.ZipFile
 class MobileOfficeApp : Application() {
     override fun onCreate() {
         super.onCreate()
+        // The settings the first screen reads, opened early on a thread of their own: their files
+        // are then loaded before the screen asks, instead of while it draws its first frames.
+        Thread({
+            for (name in listOf("privacy", "theme", "reading", "recent_files", "folders", "home", "reports", "profile")) {
+                runCatching { getSharedPreferences(name, Context.MODE_PRIVATE).all }
+            }
+        }, "prefs-warmup").start()
         Diagnostics.installCrashRecorder(this)
         Measurements.load(this)
         registerComponentCallbacks(object : android.content.ComponentCallbacks2 {

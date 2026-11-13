@@ -63,13 +63,16 @@ object ContentSearch {
             progress(i + 1, docs.size)
             yield()
             val text = textOf(context, d) ?: continue
-            val folded = text.searchFold()
-            val at = folded.indexOf(needle)
-            if (at < 0) continue
-            // Folding keeps lengths for Turkish text, so the place maps back to the original.
-            val from = (at - 40).coerceAtLeast(0)
-            val to = (at + needle.length + 60).coerceAtMost(text.length)
-            val snippet = (if (from > 0) "…" else "") + text.substring(from, to).replace('\n', ' ').trim() + (if (to < text.length) "…" else "")
+            // Folding up to MAX_CHARS of text is real work: never on the screen's thread.
+            val snippet = withContext(Dispatchers.Default) {
+                val folded = text.searchFold()
+                val at = folded.indexOf(needle)
+                if (at < 0) return@withContext null
+                // Folding keeps lengths for Turkish text, so the place maps back to the original.
+                val from = (at - 40).coerceAtLeast(0)
+                val to = (at + needle.length + 60).coerceAtMost(text.length)
+                (if (from > 0) "…" else "") + text.substring(from, to).replace('\n', ' ').trim() + (if (to < text.length) "…" else "")
+            } ?: continue
             hits += Hit(d.uri, d.name, snippet)
             if (hits.size >= limit) break
         }

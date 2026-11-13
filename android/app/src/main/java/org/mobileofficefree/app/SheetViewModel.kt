@@ -134,7 +134,23 @@ class SheetViewModel(app: Application) : AndroidViewModel(app) {
     var hasUnsaved by mutableStateOf(false)
         private set
 
-    val engineVersion: String by lazy { runCatching { nativeVersion() }.getOrDefault("?") }
+    /**
+     * The engines' version, read the first time a screen shows it ([loadEngineVersion]). Reading it
+     * loads the native library (tens of MB), so it is done on the engine thread, never while the
+     * home screen draws its first frames.
+     */
+    var engineVersion by mutableStateOf("…")
+        private set
+    private var engineVersionAsked = false
+
+    /** Reads [engineVersion] once, off the main thread. Call from the main thread. */
+    fun loadEngineVersion() {
+        if (engineVersionAsked) return
+        engineVersionAsked = true
+        viewModelScope.launch {
+            engineVersion = withContext(engine) { runCatching { nativeVersion() }.getOrDefault("?") }
+        }
+    }
 
     fun consumeMessage() {
         message = null
