@@ -7,6 +7,12 @@ android {
     namespace = "org.mobileofficefree.app"
     compileSdk = 37
 
+    // The OCR model is read through AssetManager.openFd(), which only works on stored (uncompressed)
+    // assets; storing it uncompressed also spares inflating 4.5 MB on first use.
+    androidResources {
+        noCompress += "traineddata"
+    }
+
     defaultConfig {
         // Working id; it can still change before the first store release (docs/RAPOR-VE-PLAN.md §16).
         applicationId = "org.mobileofficefree.app"
