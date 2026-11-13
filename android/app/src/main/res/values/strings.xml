@@ -654,4 +654,22 @@
     <string name="a11y_move_down">Move down</string>
     <string name="a11y_remove">Remove</string>
     <string name="a11y_find">Find</string>
+    <string name="a11y_clear_search">Clear search</string>
+    <string name="a11y_size_down">Decrease size</string>
+    <string name="a11y_size_up">Increase size</string>
+    <string name="a11y_text_smaller">Smaller text</string>
+    <string name="a11y_text_larger">Larger text</string>
+    <string name="a11y_previous_match">Previous match</string>
+    <string name="a11y_next_match">Next match</string>
+    <string name="a11y_previous">Previous</string>
+    <string name="a11y_next">Next</string>
+    <string name="a11y_color_n">Colour %1$d</string>
+    <string name="a11y_table_style_n">Table style %1$d</string>
+    <string name="a11y_page_of">Page %1$d of %2$d</string>
+    <string name="a11y_slide_of">Slide %1$d of %2$d</string>
+    <string name="a11y_sheet_grid">Spreadsheet, cell %1$s: %2$s</string>
+    <string name="a11y_cad_drawing">Drawing: %1$s</string>
+    <string name="a11y_scan_photo">Page photo: drag its corners onto the paper\'s corners</string>
+    <string name="a11y_signature_n">Saved signature %1$d</string>
+    <string name="a11y_signature_pad">Signature area: draw with your finger</string>
 </resources>

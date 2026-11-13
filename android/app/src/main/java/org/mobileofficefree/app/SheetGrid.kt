@@ -20,6 +20,9 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
@@ -207,10 +210,17 @@ fun SheetGrid(
         }
     }
 
+    // A screen reader cannot see the drawn cells: name the grid and the selected cell with its text.
+    val gridLabel = stringResource(
+        R.string.a11y_sheet_grid,
+        columnName(selectedCol) + (selectedRow + 1),
+        cellText(sheet, selectedRow, selectedCol).orEmpty(),
+    )
     Box(modifier.fillMaxSize().onSizeChanged { viewSize = it }) {
     Canvas(
         Modifier
             .fillMaxSize()
+            .semantics { contentDescription = gridLabel }
             .pointerInput(sheet, fr, fc) {
                 // Dragging the edge between two column letters (or row numbers) sizes that column (row).
                 val edge = 14.dp.toPx()

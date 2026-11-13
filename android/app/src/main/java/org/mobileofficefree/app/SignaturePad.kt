@@ -4,6 +4,8 @@ import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.selection.toggleable
+import androidx.compose.ui.semantics.Role
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.width
@@ -63,7 +65,11 @@ fun SignaturePad(store: SavedSignatures, onDismiss: () -> Unit, onDone: (Signatu
                     Row(Modifier.horizontalScroll(rememberScrollState()).padding(vertical = 8.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         saved.forEachIndexed { i, sig ->
                             Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                SignaturePreview(sig, Modifier.width(120.dp).height(56.dp).clickable { onDone(sig) })
+                                SignaturePreview(
+                                    sig,
+                                    Modifier.width(120.dp).height(56.dp).clickable(role = Role.Button) { onDone(sig) }
+                                        .described(stringResource(R.string.a11y_signature_n, i + 1)),
+                                )
                                 TextButton(onClick = {
                                     store.remove(i)
                                     saved.removeAt(i)
@@ -80,6 +86,7 @@ fun SignaturePad(store: SavedSignatures, onDismiss: () -> Unit, onDone: (Signatu
                         .aspectRatio(PAD_ASPECT)
                         .background(Color.White)
                         .border(1.dp, Color(0x33000000))
+                        .described(stringResource(R.string.a11y_signature_pad))
                         .pointerInput(Unit) {
                             awaitEachGesture {
                                 val down = awaitFirstDown()
@@ -111,8 +118,8 @@ fun SignaturePad(store: SavedSignatures, onDismiss: () -> Unit, onDone: (Signatu
                         drawPath(path, Color.Black, style = ink)
                     }
                 }
-                Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.clickable { keep = !keep }) {
-                    Checkbox(checked = keep, onCheckedChange = { keep = it })
+                Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.toggleable(value = keep, role = Role.Checkbox) { keep = it }) {
+                    Checkbox(checked = keep, onCheckedChange = null)
                     Text(stringResource(R.string.signature_keep))
                 }
                 Row(horizontalArrangement = Arrangement.End, modifier = Modifier.fillMaxWidth()) {

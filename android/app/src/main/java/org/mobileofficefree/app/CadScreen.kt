@@ -7,6 +7,11 @@ import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.selection.toggleable
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.gestures.detectTapGestures
@@ -68,7 +73,7 @@ fun CadScreen(vm: CadViewModel, state: CadUiState) {
 
     Column(Modifier.fillMaxSize().navigationBarsPadding()) {
         TopAppBar(
-            title = { Text(state.fileName.substringBeforeLast('.'), maxLines = 1) },
+            title = { Text(state.fileName.substringBeforeLast('.'), maxLines = 1, overflow = TextOverflow.Ellipsis) },
             navigationIcon = {
                 IconButton(onClick = vm::close) {
                     Icon(painterResource(R.drawable.ic_arrow_back), contentDescription = stringResource(R.string.back))
@@ -118,7 +123,8 @@ fun CadScreen(vm: CadViewModel, state: CadUiState) {
         ) {
             val frame = vm.frame
             val view = vm.view
-            Canvas(Modifier.fillMaxSize()) {
+            val drawingLabel = stringResource(R.string.a11y_cad_drawing, state.fileName.substringBeforeLast('.'))
+            Canvas(Modifier.fillMaxSize().semantics { contentDescription = drawingLabel }) {
                 if (frame == null || view == null) return@Canvas
                 // Map the drawn frame onto the current view: scale k about the centre, then shift.
                 val k = (view.scale / frame.view.scale).toFloat()
@@ -195,8 +201,11 @@ fun CadScreen(vm: CadViewModel, state: CadUiState) {
             )
             LazyColumn {
                 items(state.layers, key = { it.name }) { layer ->
-                    Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp), verticalAlignment = Alignment.CenterVertically) {
-                        Checkbox(checked = layer.visible, onCheckedChange = { vm.setLayerVisible(layer.name, it) })
+                    Row(
+                        Modifier.fillMaxWidth().toggleable(value = layer.visible, role = Role.Checkbox) { vm.setLayerVisible(layer.name, it) }.padding(horizontal = 16.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Checkbox(checked = layer.visible, onCheckedChange = null)
                         Box(Modifier.size(14.dp).background(Color(0xFF000000 or layer.color.toLong()), CircleShape))
                         Spacer(Modifier.width(12.dp))
                         Text(layer.name)

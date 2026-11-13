@@ -13,7 +13,8 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
+import androidx.compose.foundation.selection.selectable
+import androidx.compose.ui.semantics.Role
 import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
@@ -228,11 +229,11 @@ private fun ScanDialog(onClose: () -> Unit, onOpen: (Uri) -> Unit) {
                                 modifier = Modifier.padding(bottom = 6.dp),
                             )
                             Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f)) {
-                                TextButton(onClick = { current-- }, enabled = current > 0) { Text("‹", color = Color.White, fontSize = 28.sp) }
+                                TextButton(onClick = { current-- }, enabled = current > 0, modifier = Modifier.described(stringResource(R.string.a11y_previous))) { Text("‹", color = Color.White, fontSize = 28.sp) }
                                 Box(Modifier.weight(1f), contentAlignment = Alignment.Center) {
                                     CornerEditor(page) { corners -> pages[current] = page.copy(corners = corners) }
                                 }
-                                TextButton(onClick = { current++ }, enabled = current < pages.lastIndex) { Text("›", color = Color.White, fontSize = 28.sp) }
+                                TextButton(onClick = { current++ }, enabled = current < pages.lastIndex, modifier = Modifier.described(stringResource(R.string.a11y_next))) { Text("›", color = Color.White, fontSize = 28.sp) }
                             }
                         }
                     }
@@ -271,12 +272,12 @@ private fun ScanDialog(onClose: () -> Unit, onOpen: (Uri) -> Unit) {
                         pages.forEachIndexed { i, p ->
                             Image(
                                 p.preview.asImageBitmap(),
-                                contentDescription = stringResource(R.string.page_counter, i + 1, pages.size),
+                                contentDescription = stringResource(R.string.a11y_page_of, i + 1, pages.size),
                                 contentScale = ContentScale.Crop,
                                 modifier = Modifier
                                     .size(48.dp, 64.dp)
                                     .border(if (i == current) 3.dp else 1.dp, if (i == current) MaterialTheme.colorScheme.primary else Color.Gray)
-                                    .clickable { current = i },
+                                    .selectable(selected = i == current, role = Role.Tab) { current = i },
                             )
                         }
                         Button(onClick = takePhoto) { Text("+ " + stringResource(R.string.scan_take)) }
@@ -314,7 +315,7 @@ private fun CornerEditor(page: ScanPage, onCorners: (List<Pair<Float, Float>>) -
         Box(Modifier.width(with(density) { w.toDp() }).height(with(density) { h.toDp() })) {
             Image(
                 bmp.asImageBitmap(),
-                contentDescription = null,
+                contentDescription = stringResource(R.string.a11y_scan_photo),
                 colorFilter = if (page.contrast != 1f || page.brightness != 0f) ColorFilter.colorMatrix(ColorMatrix(toneMatrix(page.contrast, page.brightness))) else null,
                 modifier = Modifier.fillMaxSize(),
             )

@@ -41,7 +41,8 @@ import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
+import androidx.compose.foundation.selection.selectable
+import androidx.compose.ui.semantics.Role
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -237,8 +238,8 @@ fun TextStampDialog(onDismiss: () -> Unit, initialText: String = "", initialLook
                 // Size: steps, a few common sizes, Office's range.
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text(stringResource(R.string.text_point_size, memory.size.roundToInt()), style = MaterialTheme.typography.labelLarge, modifier = Modifier.weight(1f))
-                    androidx.compose.material3.FilledTonalIconButton(onClick = { memory.size = stepSize(memory.size, -1) }) { Text("−") }
-                    androidx.compose.material3.FilledTonalIconButton(onClick = { memory.size = stepSize(memory.size, 1) }) { Text("+") }
+                    androidx.compose.material3.FilledTonalIconButton(onClick = { memory.size = stepSize(memory.size, -1) }, modifier = Modifier.described(stringResource(R.string.a11y_size_down))) { Text("−") }
+                    androidx.compose.material3.FilledTonalIconButton(onClick = { memory.size = stepSize(memory.size, 1) }, modifier = Modifier.described(stringResource(R.string.a11y_size_up))) { Text("+") }
                 }
                 FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                     for (pt in COMMON_SIZES) {
@@ -259,7 +260,8 @@ fun TextStampDialog(onDismiss: () -> Unit, initialText: String = "", initialLook
                                 .clip(CircleShape)
                                 .background(c)
                                 .border(if (memory.color == i) 3.dp else 1.dp, MaterialTheme.colorScheme.primary, CircleShape)
-                                .clickable { memory.color = i },
+                                .selectable(selected = memory.color == i, role = Role.RadioButton) { memory.color = i }
+                                .described(stringResource(R.string.a11y_color_n, i + 1)),
                         )
                     }
                 }

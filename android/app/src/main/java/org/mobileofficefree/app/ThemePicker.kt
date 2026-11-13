@@ -4,7 +4,10 @@ import android.os.Build
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
+import androidx.compose.foundation.selection.selectable
+import androidx.compose.foundation.selection.toggleable
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -50,10 +53,10 @@ fun Segmented(options: List<String>, selected: Int, onSelect: (Int) -> Unit, mod
         options.forEachIndexed { i, label ->
             val bg by animateColorAsState(if (i == selected) colors.surfaceContainerHigh else Color.Transparent, label = "segment")
             Box(
-                Modifier.weight(1f).clip(RoundedCornerShape(8.dp)).background(bg).clickable { onSelect(i) }.padding(vertical = 7.dp),
+                Modifier.weight(1f).clip(RoundedCornerShape(8.dp)).background(bg).selectable(selected = i == selected, role = Role.Tab) { onSelect(i) }.padding(vertical = 7.dp),
                 contentAlignment = Alignment.Center,
             ) {
-                Text(label, style = MaterialTheme.typography.labelLarge, color = colors.onSurface, maxLines = 1, textAlign = TextAlign.Center)
+                Text(label, style = MaterialTheme.typography.labelLarge, color = colors.onSurface, maxLines = 1, overflow = TextOverflow.Ellipsis, textAlign = TextAlign.Center)
             }
         }
     }
@@ -110,9 +113,12 @@ fun AppearanceSettings() {
                 valueRange = 0.25f..1f,
                 colors = SliderDefaults.colors(thumbColor = Color(theme.customAccent), activeTrackColor = Color(theme.customAccent)),
             )
-            Row(verticalAlignment = Alignment.CenterVertically) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier.toggleable(value = theme.customTint != 0, role = Role.Switch) { theme.updateCustomTint(if (it) theme.customAccent else 0) },
+            ) {
                 Text(stringResource(R.string.theme_tint), style = MaterialTheme.typography.bodyLarge, modifier = Modifier.weight(1f))
-                Switch(checked = theme.customTint != 0, onCheckedChange = { theme.updateCustomTint(if (it) theme.customAccent else 0) })
+                Switch(checked = theme.customTint != 0, onCheckedChange = null)
             }
         }
 
@@ -130,11 +136,11 @@ private fun Label(text: Int) {
 @Composable
 private fun Swatch(fill: Brush, name: String, chosen: Boolean, onClick: () -> Unit) {
     val ring = MaterialTheme.colorScheme.onSurface
-    Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.width(64.dp).clickable(onClick = onClick)) {
+    Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.width(64.dp).selectable(selected = chosen, role = Role.RadioButton, onClick = onClick)) {
         Box(
             Modifier.size(46.dp).border(if (chosen) 2.5.dp else 0.dp, if (chosen) ring else Color.Transparent, CircleShape).padding(4.dp)
                 .clip(CircleShape).background(fill),
         )
-        Text(name, style = MaterialTheme.typography.labelSmall, maxLines = 1, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Text(name, style = MaterialTheme.typography.labelSmall, maxLines = 1, overflow = TextOverflow.Ellipsis, color = MaterialTheme.colorScheme.onSurfaceVariant)
     }
 }

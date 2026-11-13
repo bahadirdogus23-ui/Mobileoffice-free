@@ -13,6 +13,12 @@ import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.selection.toggleable
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.selected
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.gestures.calculateCentroid
@@ -344,7 +350,7 @@ fun PagedScreen(vm: PagedViewModel, state: PagedUiState, reading: ReadingSetting
 
     Column(Modifier.fillMaxSize().imePadding()) {
         TopAppBar(
-            title = { Text(state.fileName.substringBeforeLast('.'), maxLines = 1) },
+            title = { Text(state.fileName.substringBeforeLast('.'), maxLines = 1, overflow = TextOverflow.Ellipsis) },
             navigationIcon = {
                 IconButton(onClick = {
                     // Strokes not yet written go into the PDF first, so closing asks to save them.
@@ -405,8 +411,8 @@ fun PagedScreen(vm: PagedViewModel, state: PagedUiState, reading: ReadingSetting
                     textAlign = TextAlign.Center,
                     modifier = Modifier.widthIn(min = 56.dp).padding(horizontal = 4.dp),
                 )
-                TextButton(onClick = { vm.nextMatch(-1) }, enabled = vm.matchCount > 0) { Text("▲") }
-                TextButton(onClick = { vm.nextMatch(1) }, enabled = vm.matchCount > 0) { Text("▼") }
+                TextButton(onClick = { vm.nextMatch(-1) }, enabled = vm.matchCount > 0, modifier = Modifier.described(stringResource(R.string.a11y_previous_match))) { Text("▲") }
+                TextButton(onClick = { vm.nextMatch(1) }, enabled = vm.matchCount > 0, modifier = Modifier.described(stringResource(R.string.a11y_next_match))) { Text("▼") }
             }
         }
         pdf?.textSelection?.takeIf { it.second.text.isNotBlank() }?.let { (_, sel) ->
@@ -453,8 +459,8 @@ fun PagedScreen(vm: PagedViewModel, state: PagedUiState, reading: ReadingSetting
                         Text(stringResource(R.string.text_drag_hint), style = MaterialTheme.typography.bodySmall, modifier = Modifier.padding(start = 8.dp))
                         Row(Modifier.horizontalScroll(rememberScrollState()), verticalAlignment = Alignment.CenterVertically) {
                             Text(stringResource(R.string.text_picked) + " " + t.text.take(18), style = MaterialTheme.typography.labelLarge, modifier = Modifier.padding(horizontal = 8.dp))
-                            TextButton(onClick = { pdf.resizePicked(-1) }, enabled = !pdf.busy) { Text("A−") }
-                            TextButton(onClick = { pdf.resizePicked(1) }, enabled = !pdf.busy) { Text("A+") }
+                            TextButton(onClick = { pdf.resizePicked(-1) }, enabled = !pdf.busy, modifier = Modifier.described(stringResource(R.string.a11y_text_smaller))) { Text("A−") }
+                            TextButton(onClick = { pdf.resizePicked(1) }, enabled = !pdf.busy, modifier = Modifier.described(stringResource(R.string.a11y_text_larger))) { Text("A+") }
                             TextButton(onClick = { editingPicked = true }, enabled = !pdf.busy) { Text(stringResource(R.string.text_edit)) }
                             TextButton(onClick = pdf::deletePicked, enabled = !pdf.busy) { Text(stringResource(R.string.delete)) }
                             TextButton(onClick = pdf::dropPick) { Text(stringResource(R.string.done)) }
@@ -650,12 +656,14 @@ fun PagedScreen(vm: PagedViewModel, state: PagedUiState, reading: ReadingSetting
                         } else {
                             Modifier
                         }
-                        Box(Modifier.fillMaxWidth().aspectRatio(w / h).background(paper).then(tapToSign)) {
+                        // Named even before it is drawn, so a screen reader says which page this is.
+                        val pageLabel = stringResource(if (slides != null) R.string.a11y_slide_of else R.string.a11y_page_of, i + 1, state.pages.size)
+                        Box(Modifier.fillMaxWidth().aspectRatio(w / h).background(paper).semantics { contentDescription = pageLabel }.then(tapToSign)) {
                             val bmp = vm.page(i, renderPx, pagesDark)
                             if (bmp != null) {
                                 Image(
                                     bmp.asImageBitmap(),
-                                    contentDescription = stringResource(R.string.page_counter, i + 1, state.pages.size),
+                                    contentDescription = null,
                                     contentScale = ContentScale.FillWidth,
                                     colorFilter = if (invertOnScreen) invertColors else null,
                                     modifier = Modifier.fillMaxSize(),
@@ -769,8 +777,8 @@ fun PagedScreen(vm: PagedViewModel, state: PagedUiState, reading: ReadingSetting
                         SlideObjectBar(slides)
                     } else Row(Modifier.horizontalScroll(rememberScrollState())) {
                         val at = current - 1
-                        TextButton(onClick = slides::undo, enabled = slides.canUndo) { Text("↶") }
-                        TextButton(onClick = slides::redo, enabled = slides.canRedo) { Text("↷") }
+                        TextButton(onClick = slides::undo, enabled = slides.canUndo, modifier = Modifier.described(stringResource(R.string.undo))) { Text("↶") }
+                        TextButton(onClick = slides::redo, enabled = slides.canRedo, modifier = Modifier.described(stringResource(R.string.redo))) { Text("↷") }
                         TextButton(onClick = { notesFor = at }) { Text(stringResource(R.string.slide_notes)) }
                         TextButton(onClick = { newTextBoxOn = at }) { Text(stringResource(R.string.slide_add_text)) }
                         TextButton(onClick = {
@@ -1163,6 +1171,8 @@ fun PagedScreen(vm: PagedViewModel, state: PagedUiState, reading: ReadingSetting
             ) {
                 items(state.pages.size, key = { it }) { i ->
                     val (w, h) = state.pages[i]
+                    // Read out as "selected": the ticked pages while choosing, otherwise the page on screen.
+                    val marked = if (selecting) i in selected else i + 1 == current
                     Column(
                         horizontalAlignment = Alignment.CenterHorizontally,
                         modifier = Modifier.clickable {
@@ -1172,7 +1182,7 @@ fun PagedScreen(vm: PagedViewModel, state: PagedUiState, reading: ReadingSetting
                                 showPages = false
                                 scope.launch { list.scrollToItem(i) }
                             }
-                        },
+                        }.semantics { this.selected = marked },
                     ) {
                         Box(
                             Modifier
@@ -1263,8 +1273,8 @@ private fun SettingRow(title: String, hint: String?, checked: Boolean, onChange:
     ListItem(
         headlineContent = { Text(title) },
         supportingContent = if (hint != null) { { Text(hint) } } else null,
-        trailingContent = { Switch(checked = checked, onCheckedChange = onChange) },
-        modifier = Modifier.clickable { onChange(!checked) },
+        trailingContent = { Switch(checked = checked, onCheckedChange = null) },
+        modifier = Modifier.toggleable(value = checked, role = Role.Switch, onValueChange = onChange),
     )
 }
 

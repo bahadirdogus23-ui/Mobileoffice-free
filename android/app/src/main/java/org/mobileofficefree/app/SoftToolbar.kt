@@ -24,13 +24,14 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 
 /**
  * The tool bar under a document: soft, rounded items with a symbol over a short label, as
@@ -66,7 +67,8 @@ fun ToolItem(glyph: String, label: String, enabled: Boolean = true, onClick: () 
             Modifier.size(36.dp).clip(RoundedCornerShape(12.dp)).background(MaterialTheme.colorScheme.primary.copy(alpha = 0.12f)),
             contentAlignment = Alignment.Center,
         ) {
-            Text(glyph, fontSize = 17.sp, color = MaterialTheme.colorScheme.primary)
+            // A symbol in a fixed box: kept at its size at large font settings rather than clipped.
+            Text(glyph, fontSize = with(LocalDensity.current) { 17.dp.toSp() }, color = MaterialTheme.colorScheme.primary, modifier = Modifier.decorative())
         }
         Text(
             label,
@@ -83,3 +85,7 @@ fun ToolItem(glyph: String, label: String, enabled: Boolean = true, onClick: () 
 /** What a screen reader says for a control that shows only a sign (↶, ⋮, ✕…). */
 fun androidx.compose.ui.Modifier.described(text: String): androidx.compose.ui.Modifier =
     this.then(androidx.compose.ui.Modifier.semantics { contentDescription = text })
+
+/** Hides a symbol that only decorates a labelled control, so a screen reader says the label alone. */
+fun androidx.compose.ui.Modifier.decorative(): androidx.compose.ui.Modifier =
+    this.then(androidx.compose.ui.Modifier.clearAndSetSemantics { })

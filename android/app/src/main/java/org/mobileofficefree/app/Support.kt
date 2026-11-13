@@ -102,7 +102,7 @@ fun SupportDialog(onDismiss: () -> Unit) {
 @Composable
 private fun SupportChoice(sign: String, label: String, onClick: () -> Unit) {
     ListItem(
-        leadingContent = { Text(sign, fontSize = 20.sp) },
+        leadingContent = { Text(sign, fontSize = 20.sp, modifier = Modifier.decorative()) },
         headlineContent = { Text(label) },
         modifier = Modifier.clickable(onClick = onClick),
     )
@@ -150,12 +150,12 @@ private fun CoffeeChoice(title: String, hint: String, tint: Color, onClick: () -
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(10.dp),
     ) {
-        Text("☕", fontSize = 22.sp)
+        Text("☕", fontSize = 22.sp, modifier = Modifier.decorative())
         Column(Modifier.weight(1f)) {
             Text(title, style = MaterialTheme.typography.titleSmall)
             Text(hint, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
-        Text("›", fontSize = 22.sp, color = tint)
+        Text("›", fontSize = 22.sp, color = tint, modifier = Modifier.decorative())
     }
 }
 

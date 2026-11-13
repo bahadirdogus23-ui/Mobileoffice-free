@@ -134,8 +134,8 @@ fun TextScreen(vm: TextViewModel, state: TextUiState, reading: ReadingSettings) 
                     TextButton(onClick = { vm.save() }, enabled = vm.dirty && !vm.busy) { Text(stringResource(R.string.save)) }
                     TextButton(onClick = vm::finishEditing) { Text(stringResource(R.string.done)) }
                 } else {
-                    TextButton(onClick = { fontSize = (fontSize - 2f).coerceAtLeast(8f) }) { Text("A−") }
-                    TextButton(onClick = { fontSize = (fontSize + 2f).coerceAtMost(32f) }) { Text("A+") }
+                    TextButton(onClick = { fontSize = (fontSize - 2f).coerceAtLeast(8f) }, modifier = Modifier.described(stringResource(R.string.a11y_text_smaller))) { Text("A−") }
+                    TextButton(onClick = { fontSize = (fontSize + 2f).coerceAtMost(32f) }, modifier = Modifier.described(stringResource(R.string.a11y_text_larger))) { Text("A+") }
                     if (state.editable) TextButton(onClick = vm::startEditing) { Text(stringResource(R.string.edit)) }
                 }
             },
@@ -177,8 +177,8 @@ fun TextScreen(vm: TextViewModel, state: TextUiState, reading: ReadingSettings) 
                     textAlign = TextAlign.Center,
                     modifier = Modifier.widthIn(min = 56.dp).padding(horizontal = 4.dp),
                 )
-                TextButton(onClick = { vm.nextMatch(-1) }, enabled = vm.matches.isNotEmpty()) { Text("▲") }
-                TextButton(onClick = { vm.nextMatch(1) }, enabled = vm.matches.isNotEmpty()) { Text("▼") }
+                TextButton(onClick = { vm.nextMatch(-1) }, enabled = vm.matches.isNotEmpty(), modifier = Modifier.described(stringResource(R.string.a11y_previous_match))) { Text("▲") }
+                TextButton(onClick = { vm.nextMatch(1) }, enabled = vm.matches.isNotEmpty(), modifier = Modifier.described(stringResource(R.string.a11y_next_match))) { Text("▼") }
             }
         }
         val gutterWidth = with(LocalDensity.current) {

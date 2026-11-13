@@ -1,6 +1,7 @@
 package org.mobileofficefree.app
 
-import androidx.compose.foundation.clickable
+import androidx.compose.foundation.selection.toggleable
+import androidx.compose.ui.semantics.Role
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -65,9 +66,9 @@ fun RedactSheet(
             for ((kind, label) in KINDS) {
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
-                    modifier = Modifier.fillMaxWidth().clickable { if (kind in chosen) chosen.remove(kind) else chosen.add(kind) },
+                    modifier = Modifier.fillMaxWidth().toggleable(value = kind in chosen, role = Role.Checkbox) { if (it) chosen.add(kind) else chosen.remove(kind) },
                 ) {
-                    Checkbox(checked = kind in chosen, onCheckedChange = { if (it) chosen.add(kind) else chosen.remove(kind) })
+                    Checkbox(checked = kind in chosen, onCheckedChange = null)
                     Text(stringResource(label))
                 }
             }

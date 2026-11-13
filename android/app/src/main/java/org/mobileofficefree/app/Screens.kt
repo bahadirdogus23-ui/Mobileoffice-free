@@ -75,6 +75,8 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.selection.toggleable
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.style.TextOverflow
 import org.mobileofficefree.engine.FunctionDoc
 import androidx.compose.foundation.text.BasicTextField
@@ -158,7 +160,7 @@ internal fun SheetScreen(vm: SheetViewModel, state: SheetUiState) {
 
     Column(Modifier.fillMaxSize().navigationBarsPadding()) {
         TopAppBar(
-            title = { Text(state.fileName, maxLines = 1) },
+            title = { Text(state.fileName, maxLines = 1, overflow = TextOverflow.Ellipsis) },
             navigationIcon = {
                 IconButton(onClick = vm::requestClose) {
                     Icon(painterResource(R.drawable.ic_arrow_back), contentDescription = stringResource(R.string.back))
@@ -193,7 +195,7 @@ internal fun SheetScreen(vm: SheetViewModel, state: SheetUiState) {
                 horizontalArrangement = Arrangement.spacedBy(6.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                Text("▾", color = MaterialTheme.colorScheme.primary)
+                Text("▾", color = MaterialTheme.colorScheme.primary, modifier = Modifier.decorative())
                 for (choice in state.choices.take(100)) {
                     FilterChip(selected = choice == state.editText, onClick = { vm.commitCell(choice) }, label = { Text(choice, maxLines = 1) })
                 }
@@ -889,7 +891,11 @@ private fun PdfSetupSheet(vm: SheetViewModel, setup: PdfSetup, sheetName: String
 
 @Composable
 private fun SetupSwitch(title: String, on: Boolean, onChange: (Boolean) -> Unit) {
-    ListItem(headlineContent = { Text(title) }, trailingContent = { Switch(on, onChange) })
+    ListItem(
+        headlineContent = { Text(title) },
+        trailingContent = { Switch(on, onCheckedChange = null) },
+        modifier = Modifier.toggleable(value = on, role = Role.Switch, onValueChange = onChange),
+    )
 }
 
 @Composable
@@ -964,8 +970,8 @@ private fun CellFormatSheet(vm: SheetViewModel, look: CellLook?, onDismiss: () -
             }
             Text(stringResource(R.string.font_size_label), style = MaterialTheme.typography.labelLarge)
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
-                OutlinedButton(onClick = { vm.format("home.decreaseFontSize") }) { Text("A−") }
-                OutlinedButton(onClick = { vm.format("home.increaseFontSize") }) { Text("A+") }
+                OutlinedButton(onClick = { vm.format("home.decreaseFontSize") }, modifier = Modifier.described(stringResource(R.string.a11y_text_smaller))) { Text("A−") }
+                OutlinedButton(onClick = { vm.format("home.increaseFontSize") }, modifier = Modifier.described(stringResource(R.string.a11y_text_larger))) { Text("A+") }
                 for (size in listOf(10, 11, 12, 14, 16, 20)) {
                     TextButton(onClick = { vm.format("home.fontSize", JSONObject().put("size", size)) }, contentPadding = PaddingValues(6.dp)) { Text(size.toString()) }
                 }
@@ -976,13 +982,15 @@ private fun CellFormatSheet(vm: SheetViewModel, look: CellLook?, onDismiss: () -
                     Box(
                         Modifier.size(32.dp).clip(CircleShape).background(Color(android.graphics.Color.parseColor(hex)))
                             .border(1.dp, MaterialTheme.colorScheme.outline, CircleShape)
-                            .clickable { vm.format("home.fontColor", JSONObject().put("color", hex)) },
+                            .clickable(role = Role.Button) { vm.format("home.fontColor", JSONObject().put("color", hex)) }
+                            .described(stringResource(R.string.a11y_color_n, FONT_COLORS.indexOf(hex) + 1)),
                     )
                 }
             }
             ListItem(
                 headlineContent = { Text(stringResource(R.string.wrap_text)) },
-                trailingContent = { Switch(checked = look?.wrap == true, onCheckedChange = { vm.format("home.wrapText", JSONObject().put("on", it)) }) },
+                trailingContent = { Switch(checked = look?.wrap == true, onCheckedChange = null) },
+                modifier = Modifier.toggleable(value = look?.wrap == true, role = Role.Switch) { vm.format("home.wrapText", JSONObject().put("on", it)) },
             )
             FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                 OutlinedButton(onClick = { vm.format("home.mergeCenter") }) { Text(stringResource(R.string.merge_center)) }
@@ -996,10 +1004,11 @@ private fun CellFormatSheet(vm: SheetViewModel, look: CellLook?, onDismiss: () -
                     // A tiny table: a coloured header over banded rows.
                     Column(
                         Modifier.size(44.dp, 40.dp).clip(RoundedCornerShape(6.dp)).border(1.dp, MaterialTheme.colorScheme.outlineVariant, RoundedCornerShape(6.dp))
-                            .clickable {
+                            .clickable(role = Role.Button) {
                                 vm.format("home.formatAsTable", JSONObject().put("style", style))
                                 onDismiss()
-                            },
+                            }
+                            .described(stringResource(R.string.a11y_table_style_n, TABLE_STYLES.indexOfFirst { it.first == style } + 1)),
                     ) {
                         Box(Modifier.fillMaxWidth().weight(1f).background(color))
                         Box(Modifier.fillMaxWidth().weight(1f).background(color.copy(alpha = 0.25f)))
@@ -1037,11 +1046,11 @@ private fun FilterSheet(vm: SheetViewModel, values: List<org.mobileofficefree.en
                 LazyColumn(Modifier.heightIn(max = 360.dp)) {
                     items(shown, key = { it.value }) { v ->
                         Row(
-                            Modifier.fillMaxWidth().clickable { ticked[v.value] = !(ticked[v.value] ?: false) },
+                            Modifier.fillMaxWidth().toggleable(value = ticked[v.value] == true, role = Role.Checkbox) { ticked[v.value] = it },
                             verticalAlignment = Alignment.CenterVertically,
                         ) {
-                            Checkbox(checked = ticked[v.value] == true, onCheckedChange = { ticked[v.value] = it })
-                            Text(v.label.ifEmpty { stringResource(R.string.filter_blanks) }, modifier = Modifier.weight(1f), maxLines = 1)
+                            Checkbox(checked = ticked[v.value] == true, onCheckedChange = null)
+                            Text(v.label.ifEmpty { stringResource(R.string.filter_blanks) }, modifier = Modifier.weight(1f), maxLines = 1, overflow = TextOverflow.Ellipsis)
                             Text("${v.count}", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
                         }
                     }
@@ -1084,9 +1093,9 @@ private fun FindBar(vm: SheetViewModel, onClose: () -> Unit) {
                 style = MaterialTheme.typography.labelMedium,
                 modifier = Modifier.padding(horizontal = 6.dp),
             )
-            TextButton(onClick = { if (vm.findHits.isEmpty()) vm.find(query) else vm.nextHit(-1) }, enabled = query.isNotBlank()) { Text("▲") }
-            TextButton(onClick = { if (vm.findHits.isEmpty()) vm.find(query) else vm.nextHit(1) }, enabled = query.isNotBlank()) { Text("▼") }
-            TextButton(onClick = onClose) { Text("✕") }
+            TextButton(onClick = { if (vm.findHits.isEmpty()) vm.find(query) else vm.nextHit(-1) }, enabled = query.isNotBlank(), modifier = Modifier.described(stringResource(R.string.a11y_previous_match))) { Text("▲") }
+            TextButton(onClick = { if (vm.findHits.isEmpty()) vm.find(query) else vm.nextHit(1) }, enabled = query.isNotBlank(), modifier = Modifier.described(stringResource(R.string.a11y_next_match))) { Text("▼") }
+            TextButton(onClick = onClose, modifier = Modifier.described(stringResource(R.string.close))) { Text("✕") }
         }
         Row(verticalAlignment = Alignment.CenterVertically) {
             if (replacing) {

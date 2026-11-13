@@ -126,7 +126,7 @@ fun PresentScreen(vm: SlidesViewModel, state: PagedUiState, start: Int, onClose:
                     },
             ) {
                 vm.page(slide, widthPx, false)?.let {
-                    Image(it.asImageBitmap(), contentDescription = stringResource(R.string.page_counter, slide + 1, last + 1), contentScale = ContentScale.Fit, modifier = Modifier.fillMaxSize())
+                    Image(it.asImageBitmap(), contentDescription = stringResource(R.string.a11y_slide_of, slide + 1, last + 1), contentScale = ContentScale.Fit, modifier = Modifier.fillMaxSize())
                 }
                 pointer?.let { p ->
                     Canvas(Modifier.fillMaxSize()) {
@@ -140,9 +140,9 @@ fun PresentScreen(vm: SlidesViewModel, state: PagedUiState, start: Int, onClose:
             if (bar) {
                 Column(Modifier.align(Alignment.BottomCenter).fillMaxWidth().background(Color(0xCC000000)).padding(8.dp)) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        TextButton(onClick = { go(-1) }, enabled = slide > 0) { Text("◀", color = Color.White) }
+                        TextButton(onClick = { go(-1) }, enabled = slide > 0, modifier = Modifier.described(stringResource(R.string.a11y_previous))) { Text("◀", color = Color.White) }
                         Text(stringResource(R.string.page_counter, slide + 1, last + 1), color = Color.White)
-                        TextButton(onClick = { go(1) }, enabled = slide < last) { Text("▶", color = Color.White) }
+                        TextButton(onClick = { go(1) }, enabled = slide < last, modifier = Modifier.described(stringResource(R.string.a11y_next))) { Text("▶", color = Color.White) }
                         val secs = (now - started) / 1000
                         Text("%d:%02d".format(Locale.ROOT, secs / 60, secs % 60), color = Color.White, modifier = Modifier.padding(horizontal = 12.dp))
                         Box(Modifier.weight(1f))

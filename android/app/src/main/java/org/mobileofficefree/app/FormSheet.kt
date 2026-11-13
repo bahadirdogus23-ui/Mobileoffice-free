@@ -1,6 +1,7 @@
 package org.mobileofficefree.app
 
-import androidx.compose.foundation.clickable
+import androidx.compose.foundation.selection.toggleable
+import androidx.compose.ui.semantics.Role
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -101,9 +102,9 @@ private fun FieldEditor(f: PdfFormField, inputs: MutableMap<String, FieldInput>)
             val on = (inputs[f.name] as? FieldInput.Check)?.on ?: f.value.isNotEmpty()
             Row(
                 verticalAlignment = Alignment.CenterVertically,
-                modifier = Modifier.fillMaxWidth().clickable(enabled = !f.readOnly) { inputs[f.name] = FieldInput.Check(!on) },
+                modifier = Modifier.fillMaxWidth().toggleable(value = on, enabled = !f.readOnly, role = Role.Checkbox) { inputs[f.name] = FieldInput.Check(it) },
             ) {
-                Checkbox(checked = on, onCheckedChange = { inputs[f.name] = FieldInput.Check(it) }, enabled = !f.readOnly)
+                Checkbox(checked = on, onCheckedChange = null, enabled = !f.readOnly)
                 Text(f.label)
             }
         }

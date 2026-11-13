@@ -5,6 +5,8 @@ import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.selection.selectable
+import androidx.compose.ui.semantics.Role
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -119,9 +121,9 @@ fun rememberImagesToPdf(onOpen: (Uri) -> Unit): () -> Unit {
                     for ((a4, label) in listOf(true to R.string.images_a4, false to R.string.images_own_size)) {
                         Row(
                             verticalAlignment = Alignment.CenterVertically,
-                            modifier = Modifier.fillMaxWidth().clickable { fitA4 = a4 },
+                            modifier = Modifier.fillMaxWidth().selectable(selected = fitA4 == a4, role = Role.RadioButton) { fitA4 = a4 },
                         ) {
-                            RadioButton(selected = fitA4 == a4, onClick = { fitA4 = a4 })
+                            RadioButton(selected = fitA4 == a4, onClick = null)
                             Text(stringResource(label))
                         }
                     }
@@ -222,7 +224,7 @@ private fun PageThumb(uri: Uri, number: Int, onRemove: () -> Unit) {
         }
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text(number.toString(), style = MaterialTheme.typography.labelLarge)
-            TextButton(onClick = onRemove, contentPadding = PaddingValues(4.dp)) { Text("✕") }
+            TextButton(onClick = onRemove, contentPadding = PaddingValues(4.dp), modifier = Modifier.described(stringResource(R.string.a11y_remove))) { Text("✕") }
         }
     }
 }

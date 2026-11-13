@@ -3,6 +3,7 @@ package org.mobileofficefree.app
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.ui.semantics.Role
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -54,8 +55,8 @@ fun SlideObjectBar(vm: SlidesViewModel) {
                     }
                 }
             }
-            TextButton(onClick = { vm.stylePicked(SlideStyle.TextSize(-2.0)) }) { Text("A−") }
-            TextButton(onClick = { vm.stylePicked(SlideStyle.TextSize(2.0)) }) { Text("A+") }
+            TextButton(onClick = { vm.stylePicked(SlideStyle.TextSize(-2.0)) }, modifier = Modifier.described(stringResource(R.string.a11y_text_smaller))) { Text("A−") }
+            TextButton(onClick = { vm.stylePicked(SlideStyle.TextSize(2.0)) }, modifier = Modifier.described(stringResource(R.string.a11y_text_larger))) { Text("A+") }
             TextButton(onClick = { vm.stylePicked(SlideStyle.Bold(!vm.pickedBold)) }) {
                 Text("K", fontWeight = if (vm.pickedBold) FontWeight.Black else FontWeight.Normal)
             }
@@ -136,7 +137,8 @@ private fun ColorRow(colors: List<Int>, onPick: (Int) -> Unit) {
                         .size(30.dp)
                         .background(Color(0xFF000000.toInt() or c), CircleShape)
                         .border(1.dp, MaterialTheme.colorScheme.outlineVariant, CircleShape)
-                        .clickable { onPick(c) },
+                        .clickable(role = Role.Button) { onPick(c) }
+                        .described(stringResource(R.string.a11y_color_n, colors.indexOf(c) + 1)),
                 )
             }
         }

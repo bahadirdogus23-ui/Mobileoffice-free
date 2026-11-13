@@ -653,4 +653,22 @@
     <string name="a11y_move_down">Aşağı taşı</string>
     <string name="a11y_remove">Kaldır</string>
     <string name="a11y_find">Ara</string>
+    <string name="a11y_clear_search">Aramayı temizle</string>
+    <string name="a11y_size_down">Boyutu küçült</string>
+    <string name="a11y_size_up">Boyutu büyüt</string>
+    <string name="a11y_text_smaller">Yazıyı küçült</string>
+    <string name="a11y_text_larger">Yazıyı büyüt</string>
+    <string name="a11y_previous_match">Önceki eşleşme</string>
+    <string name="a11y_next_match">Sonraki eşleşme</string>
+    <string name="a11y_previous">Önceki</string>
+    <string name="a11y_next">Sonraki</string>
+    <string name="a11y_color_n">Renk %1$d</string>
+    <string name="a11y_table_style_n">Tablo stili %1$d</string>
+    <string name="a11y_page_of">Sayfa %1$d / %2$d</string>
+    <string name="a11y_slide_of">Slayt %1$d / %2$d</string>
+    <string name="a11y_sheet_grid">Tablo, %1$s hücresi: %2$s</string>
+    <string name="a11y_cad_drawing">Çizim: %1$s</string>
+    <string name="a11y_scan_photo">Sayfa fotoğrafı: köşelerini kâğıdın köşelerine sürükleyin</string>
+    <string name="a11y_signature_n">Kayıtlı imza %1$d</string>
+    <string name="a11y_signature_pad">İmza alanı: parmağınızla çizin</string>
 </resources>

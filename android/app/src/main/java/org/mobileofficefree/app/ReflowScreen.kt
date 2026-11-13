@@ -50,8 +50,8 @@ fun ReflowScreen(vm: PagedViewModel, title: String, startPage: Int, reading: Rea
             title = { Text(title, maxLines = 1) },
             navigationIcon = { TextButton(onClick = onClose) { Text(stringResource(R.string.pages_view)) } },
             actions = {
-                TextButton(onClick = { reading.updateTextSize(reading.textSize - 2f) }) { Text("A−") }
-                TextButton(onClick = { reading.updateTextSize(reading.textSize + 2f) }) { Text("A+") }
+                TextButton(onClick = { reading.updateTextSize(reading.textSize - 2f) }, modifier = Modifier.described(stringResource(R.string.a11y_text_smaller))) { Text("A−") }
+                TextButton(onClick = { reading.updateTextSize(reading.textSize + 2f) }, modifier = Modifier.described(stringResource(R.string.a11y_text_larger))) { Text("A+") }
             },
         )
         val all = pages

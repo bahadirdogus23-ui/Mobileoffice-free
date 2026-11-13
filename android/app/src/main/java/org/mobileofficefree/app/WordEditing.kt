@@ -67,6 +67,10 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.selected
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.widthIn
@@ -407,7 +411,8 @@ internal fun Tool(
             .padding(horizontal = 1.dp)
             .clip(RoundedCornerShape(10.dp))
             .background(if (on) colors.secondaryContainer else Color.Transparent)
-            .clickable(enabled = enabled, onClick = onClick)
+            .clickable(enabled = enabled, role = Role.Button, onClick = onClick)
+            .semantics { selected = on }
             .widthIn(min = 52.dp)
             .padding(horizontal = 6.dp, vertical = 4.dp),
     ) {
@@ -419,9 +424,10 @@ internal fun Tool(
             textDecoration = decoration,
             color = if (enabled) glyphColor ?: content else content,
             maxLines = 1,
+            modifier = Modifier.decorative(),
         )
         if (bar != null) Box(Modifier.size(width = 20.dp, height = 3.dp).background(bar))
-        Text(stringResource(label), fontSize = 11.sp, color = content, maxLines = 1)
+        Text(stringResource(label), fontSize = 11.sp, color = content, maxLines = 1, overflow = TextOverflow.Ellipsis)
     }
 }
 
@@ -443,7 +449,8 @@ private fun Swatches(colors: List<String>, onPick: (String) -> Unit) {
                             .clip(CircleShape)
                             .background(hexColor(hex))
                             .border(1.dp, MaterialTheme.colorScheme.outline, CircleShape)
-                            .clickable { onPick(hex) },
+                            .clickable(role = Role.Button) { onPick(hex) }
+                            .described(stringResource(R.string.a11y_color_n, colors.indexOf(hex) + 1)),
                     )
                 }
             }

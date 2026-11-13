@@ -43,6 +43,8 @@ import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.minimumInteractiveComponentSize
+import androidx.compose.ui.semantics.Role
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
@@ -67,6 +69,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -298,7 +301,7 @@ fun HomeScreen(onOpen: (Uri) -> Unit, onNewSheet: () -> Unit, onDiagnostics: () 
     Scaffold(
         floatingActionButton = {
             Box {
-                ExtendedFloatingActionButton(onClick = { newMenu = true }, text = { Text(stringResource(R.string.new_document)) }, icon = { Text("＋", fontSize = 20.sp) })
+                ExtendedFloatingActionButton(onClick = { newMenu = true }, text = { Text(stringResource(R.string.new_document)) }, icon = { Text("＋", fontSize = 20.sp, modifier = Modifier.decorative()) })
                 DropdownMenu(expanded = newMenu, onDismissRequest = { newMenu = false }) {
                     DropdownMenuItem(text = { Text("📝  " + stringResource(R.string.new_word)) }, onClick = {
                         newMenu = false
@@ -362,9 +365,10 @@ fun HomeScreen(onOpen: (Uri) -> Unit, onNewSheet: () -> Unit, onDiagnostics: () 
                     )
                 }
                 Box(
-                    Modifier.size(40.dp).clip(CircleShape).background(MaterialTheme.colorScheme.surfaceContainerHigh).clickable { showSettings = true },
+                    Modifier.minimumInteractiveComponentSize().size(40.dp).clip(CircleShape).background(MaterialTheme.colorScheme.surfaceContainerHigh)
+                        .clickable(role = Role.Button) { showSettings = true }.described(stringResource(R.string.settings)),
                     contentAlignment = Alignment.Center,
-                ) { Text("⚙", fontSize = 20.sp, color = MaterialTheme.colorScheme.primary) }
+                ) { Text("⚙", fontSize = with(LocalDensity.current) { 20.dp.toSp() }, color = MaterialTheme.colorScheme.primary) }
             }
             // Search, as a soft pill.
             SearchPill(query, onChange = { query = it }, modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp))
@@ -511,7 +515,7 @@ fun HomeScreen(onOpen: (Uri) -> Unit, onNewSheet: () -> Unit, onDiagnostics: () 
                                             IconButton(onClick = {
                                                 folderAccess.remove(tree)
                                                 folders = folderAccess.all()
-                                            }) { Text("✕") }
+                                            }, modifier = Modifier.described(stringResource(R.string.a11y_remove))) { Text("✕") }
                                         }
                                     }
                                 }
@@ -645,7 +649,10 @@ internal fun KindBadge(text: String, color: Color, small: Boolean = false) {
             text,
             color = Color.White,
             fontWeight = FontWeight.Bold,
-            fontSize = if (small) (if (text.length > 1) 8.sp else 13.sp) else (if (text.length > 1) 12.sp else 20.sp),
+            // A fixed-size mark: its letters keep their size at large font settings instead of spilling out
+            // (the extension is also written, at the person's size, beside it).
+            fontSize = with(LocalDensity.current) { (if (small) (if (text.length > 1) 8 else 13) else (if (text.length > 1) 12 else 20)).dp.toSp() },
+            maxLines = 1,
         )
     }
 }
@@ -684,7 +691,7 @@ private fun SearchPill(query: String, onChange: (String) -> Unit, modifier: Modi
         modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(colors.surfaceVariant).padding(horizontal = 12.dp, vertical = 10.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Text("🔍", fontSize = 15.sp, color = colors.onSurfaceVariant)
+        Text("🔍", fontSize = 15.sp, color = colors.onSurfaceVariant, modifier = Modifier.decorative())
         Spacer(Modifier.width(8.dp))
         Box(Modifier.weight(1f)) {
             if (query.isEmpty()) Text(stringResource(R.string.search_files), color = colors.onSurfaceVariant, style = MaterialTheme.typography.bodyLarge)
@@ -698,7 +705,11 @@ private fun SearchPill(query: String, onChange: (String) -> Unit, modifier: Modi
             )
         }
         if (query.isNotEmpty()) {
-            Text("✕", color = colors.onSurfaceVariant, modifier = Modifier.clip(CircleShape).clickable { onChange("") }.padding(4.dp))
+            Text(
+                "✕",
+                color = colors.onSurfaceVariant,
+                modifier = Modifier.clip(CircleShape).clickable(role = Role.Button) { onChange("") }.described(stringResource(R.string.a11y_clear_search)).padding(4.dp),
+            )
         }
     }
 }
@@ -740,7 +751,7 @@ private fun QuickTile(glyph: String, label: String, tint: Color, modifier: Modif
         verticalArrangement = Arrangement.spacedBy(6.dp),
     ) {
         Box(Modifier.size(40.dp).clip(CircleShape).background(tint.copy(alpha = 0.16f)), contentAlignment = Alignment.Center) {
-            Text(glyph, fontSize = 20.sp)
+            Text(glyph, fontSize = with(LocalDensity.current) { 20.dp.toSp() }, modifier = Modifier.decorative())
         }
         // Large system font sizes: the name wraps to a second, centred line rather than spilling out.
         Text(

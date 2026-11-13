@@ -3,6 +3,8 @@ package org.mobileofficefree.app
 import android.widget.Toast
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.selection.toggleable
+import androidx.compose.ui.semantics.Role
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
@@ -38,6 +40,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
@@ -187,7 +190,7 @@ fun SettingsSheet(
             text = {
                 Column {
                     ListItem(
-                        leadingContent = { Text("✉", fontSize = 20.sp) },
+                        leadingContent = { Text("✉", fontSize = 20.sp, modifier = Modifier.decorative()) },
                         headlineContent = { Text(stringResource(R.string.report_by_email)) },
                         modifier = Modifier.clickable {
                             report = false
@@ -195,7 +198,7 @@ fun SettingsSheet(
                         },
                     )
                     ListItem(
-                        leadingContent = { Text("🐙", fontSize = 20.sp) },
+                        leadingContent = { Text("🐙", fontSize = 20.sp, modifier = Modifier.decorative()) },
                         headlineContent = { Text(stringResource(R.string.report_on_github)) },
                         modifier = Modifier.clickable {
                             report = false
@@ -232,7 +235,7 @@ private fun Section(title: String, rows: @Composable () -> Unit) {
 @Composable
 private fun Tile(sign: String, tint: Color) {
     Box(Modifier.size(36.dp).clip(RoundedCornerShape(10.dp)).background(tint), contentAlignment = Alignment.Center) {
-        Text(sign, color = Color.White, fontSize = 17.sp)
+        Text(sign, color = Color.White, fontSize = with(LocalDensity.current) { 17.dp.toSp() }, modifier = Modifier.decorative())
     }
 }
 
@@ -253,8 +256,8 @@ private fun Toggle(sign: String, tint: Color, title: String, hint: String?, chec
         leadingContent = { Tile(sign, tint) },
         headlineContent = { Text(title) },
         supportingContent = hint?.let { { Text(it) } },
-        trailingContent = { Switch(checked = checked, onCheckedChange = onChange, enabled = enabled) },
+        trailingContent = { Switch(checked = checked, onCheckedChange = null, enabled = enabled) },
         colors = ListItemDefaults.colors(containerColor = Color.Transparent),
-        modifier = Modifier.clickable(enabled = enabled) { onChange(!checked) },
+        modifier = Modifier.toggleable(value = checked, enabled = enabled, role = Role.Switch, onValueChange = onChange),
     )
 }

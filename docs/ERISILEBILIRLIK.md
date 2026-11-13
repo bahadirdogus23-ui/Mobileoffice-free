@@ -1,0 +1,76 @@
+# Erişilebilirlik denetimi (Faz 5)
+
+*13 Kasım 2026 · kapsam: `android/app` Compose arayüzü · plan: [RAPOR-VE-PLAN.md §7.9](RAPOR-VE-PLAN.md)*
+
+Amaç: uygulama TalkBack ile ve büyük yazı boyutunda (%200) kullanılabilsin; gören kullanıcı için görünüm değişmesin.
+Bu denetim kodu okuyarak yapıldı; cihazda TalkBack ile elle deneme ve Accessibility Scanner taraması hâlâ yapılmalı.
+
+## Neye bakıldı
+
+| Konu | Nasıl |
+|---|---|
+| Yalnızca simgeli düğmeler (`Icon`, `IconButton`, "✕ ▲ ▼ ↶ ↷ A− A+ ◀ ▶ ‹ ›" gibi işaretli `TextButton`'lar) | Hepsi tarandı; her birinin okunacak bir adı (`contentDescription`, `Modifier.described(...)`) var mı |
+| `contentDescription = null` | Her biri: süs mü (yanında yazı var) yoksa anlam taşıyor mu |
+| Küçük dokunma alanları | `Modifier.clickable` verilmiş küçük kutular, renk örnekleri, seçim tutamakları |
+| Açık/kapalı durumu | Kalın/İtalik araçları, sekme benzeri seçiciler, `Row + Checkbox/Switch/RadioButton` satırları |
+| Çizilen belge yüzeyleri | Tablo ızgarası, PDF/Word/slayt sayfaları, sunum, CAD tuvali, tarama fotoğrafı, imza alanı |
+| Büyük yazıda taşma | Sabit boyutlu kutulardaki `.sp` yazılar, tek satırlık başlık ve etiketler |
+
+## Ne değişti
+
+**Okunan adlar (TalkBack)**
+
+- Arama çubuklarındaki ▲ / ▼ düğmeleri (PDF/Word/slayt, metin, tablo): "Önceki eşleşme" / "Sonraki eşleşme"; tablo aramasındaki ✕: "Kapat".
+- A− / A+ düğmeleri (PDF metni, akan metin, metin düzenleyici, tablo biçimi, slayt yazısı): "Yazıyı küçült" / "Yazıyı büyüt".
+- Slayt düzenleyicideki ↶ / ↷: "Geri al" / "Yinele"; sunumdaki ◀ / ▶ ve taramadaki ‹ / ›: "Önceki" / "Sonraki".
+- PDF'e yazı eklerken − / +: "Boyutu küçült" / "Boyutu büyüt".
+- Ana ekran: ⚙ düğmesi "Ayarlar", arama kutusundaki ✕ "Aramayı temizle", klasör satırındaki ✕ "Kaldır"; resimlerden PDF'teki ✕ "Kaldır".
+- Renk örnekleri (PDF yazısı, Word yazı/vurgu, tablo yazı rengi, slayt renkleri): "Renk 1", "Renk 2"…; tablo stilleri: "Tablo stili 1"…
+- Kayıtlı imzalar: "Kayıtlı imza 1"…; çizim alanı: "İmza alanı: parmağınızla çizin".
+- Süs işaretleri (araç çubuğu simgeleri, hızlı işlem kutucukları, ayar satırı simgeleri, ☕, ›, 🔍, ＋, ▾) okunmuyor
+  (`Modifier.decorative()`): TalkBack yalnızca yanındaki yazıyı söyler.
+
+**Çizilen yüzeyler**
+
+- Tablo ızgarası: "Tablo, B3 hücresi: <içerik>" (seçili hücre ve içeriği).
+- PDF/Word sayfaları: "Sayfa 3 / 10"; slaytlar: "Slayt 3 / 10" — sayfa daha çizilmeden de okunur.
+- Sunum: "Slayt 3 / 10"; tarama küçük resimleri: "Sayfa 1 / 3"; köşe düzenleyici: "Sayfa fotoğrafı: köşelerini kâğıdın köşelerine sürükleyin".
+- CAD tuvali: "Çizim: <dosya adı>".
+
+**Durum bildirme**
+
+- Word/tablo araç çubuğu (`Tool`): düğme rolü ve `selected` durumu — Kalın/İtalik/Altı çizili açıkken "seçili" okunur.
+- Sayfa küçük resimleri: seçim modunda işaretli sayfalar, normalde ekrandaki sayfa "seçili".
+- Görünüm ayarları: açık/koyu ve köşe seçicisi sekme (`selectable`, `Role.Tab`), tema örnekleri radyo düğmesi gibi.
+- Onay kutusu / anahtar satırları tek öğe oldu (`toggleable`, iç denetim `onCheckedChange = null`): tablo süzgeci,
+  karartma türleri, form onay kutuları, imzayı sakla, CAD katmanları, okuma ayarları, Ayarlar'daki anahtarlar,
+  PDF sayfa ayarı, metni kaydır, tema arka plan tonu. Resimlerden PDF'teki A4/kendi boyutu seçimi `selectable` radyo.
+  Böylece TalkBack satırı tek seferde "Gece modu, anahtar, açık" diye okur; eskiden anahtar etiketsiz ayrı odaklanıyordu.
+- Renk örnekleri `selectable` / düğme rolüyle işaretlendi (PDF yazı renginde seçili olan "seçili" okunur).
+
+**Dokunma alanı ve büyük yazı**
+
+- Ana ekrandaki 40 dp ⚙ düğmesine `minimumInteractiveComponentSize()` (görünen daire aynı, dokunma alanı 48 dp).
+- Sabit kutulardaki simgeler (araç çubuğu, hızlı işlemler, ayar satırları, ⚙) ve dosya türü rozetleri ("DOCX")
+  yazı boyutuyla büyümüyor; eskiden %200'de kutudan taşıp kırpılıyordu. Uzantı satırdaki bilgi yazısında kişinin boyutuyla zaten yazıyor.
+- Tek satırlık başlıklar (tablo, PDF/Word/slayt, CAD) ve araç etiketleri, tema adları, süzgeç değerleri sonda "…" ile kısalıyor.
+
+Yeni metinler `values/strings.xml` ve `values-tr/strings.xml` dosyalarına `a11y_*` adlarıyla eklendi.
+
+## Kalanlar
+
+- **Izgara hücreleri tek tek okunmuyor.** TalkBack yalnızca seçili hücreyi duyurur; hücreler arasında kaydırarak gezinme
+  (`CollectionInfo`/sanal düğümler) yok. Önerilen yol: seçili hücrenin çevresi için sanal semantik düğümler ya da
+  "sonraki hücre" özel eylemleri.
+- **Sayfa metni okunmuyor.** PDF/Word/slayt sayfası resim olarak çiziliyor; ekran okuyucu yalnızca sayfa numarasını
+  söyler. Metin için şimdilik "Akan metin" ve "Sesli oku" kullanılabilir; sayfa metnini semantik ağaca vermek ayrı iş.
+- **Word düzenleme imleci**: yazma 1 dp'lik görünmez bir metin alanından yapılıyor; TalkBack ile düzenleme denenmedi.
+- **Küçük dokunma alanları bırakıldı** (düzeni bozacağı için): renk örnekleri (28–32 dp, sıra halinde), tablo stili
+  kutucukları (44×40 dp), arama kutusundaki ✕, Görünüm ayarlarındaki bölümlü seçici (~34 dp yükseklik), PDF metin seçimi
+  tutamakları (22 dp; Compose dokunmayı 48 dp'ye kendisi genişletir ama yerleşim alanı ayrılmadı), nesne çerçevesi tutamakları.
+- **Sürükleme ile yapılan işler** (sayfa sırası, nesne taşıma/boyutlama, tarama köşeleri, imza çizimi) için TalkBack'e
+  özel eylem yok; sayfa sırası için ▲/▼ düğmeleri olan yerler (PDF birleştirme, slaytlar) dışında erişilemez.
+- **Ayarlar başlıkları** (`ThemePicker` içindeki `Label`) Türkçe büyük harfe çevriliyor (`Locale.forLanguageTag("tr")`);
+  İngilizce arayüzde "i" harfi "İ" olur. Erişilebilirlikten çok yerelleştirme hatası; ayrıca düzeltilmeli.
+- Cihazda doğrulama: TalkBack ile ana akışlar (aç, ara, düzenle, kaydet, PDF imzala, tara) ve %200 yazı + "Ekran
+  boyutu: en büyük" ile her ekranın bir kez gezilmesi; Accessibility Scanner raporu.
