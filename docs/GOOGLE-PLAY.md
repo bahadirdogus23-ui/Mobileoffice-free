@@ -69,11 +69,41 @@ yükleme anahtarı istenebilir ama zahmetlidir).
 |---|---|
 | Uygulama adı | **Karar bekliyor** (ayırt edici yeni ad; aşağıya bakın) |
 | Kısa ve uzun açıklama (tr, en) | Hazır: `fastlane/metadata/android/` |
-| Simge 512×512, öne çıkan görsel 1024×500 | Hazırlanacak |
-| Telefon ekran görüntüleri (en az 2, önerilen 4–8) | Telefonunuzdan çekilmeli |
+| Simge 512×512, öne çıkan görsel 1024×500 (tr, en) | Hazır: `fastlane/metadata/android/<dil>/images/` |
+| Telefon ekran görüntüleri (en az 2, önerilen 4–8) | Telefonunuzdan çekilmeli (aşağıya bakın) |
 | Kategori | Verimlilik (Productivity) |
 | Gizlilik politikası adresi | `docs/GIZLILIK.md` (herkese açık bağlantısı verilecek) |
 | İletişim e-postası | bahadirdogus23@gmail.com |
+
+### Mağaza görselleri
+
+- `fastlane/metadata/android/tr/images/icon.png` ve `en-US/images/icon.png`: 512×512, 32 bit PNG.
+  Kare ve kenarlara taşan biçimdedir; köşe yuvarlatmayı ve gölgeyi Play kendisi ekler.
+- `fastlane/metadata/android/tr/images/featureGraphic.png` (Türkçe slogan) ve
+  `en-US/images/featureGraphic.png` (İngilizce slogan): 1024×500, saydamlıksız PNG.
+- İkisi de uygulamanın kendi başlatıcı simgesinden (`android/app/src/main/res/drawable/ic_launcher_*.xml`)
+  üretilir. Simge, ad ya da slogan değişirse yeniden üretin:
+
+  ```sh
+  python3 scripts/store-graphics.py
+  ```
+
+  Betik Node'daki Playwright'ın Chromium'unu ve yerel DejaVu Sans yazı tipini kullanır; internetten
+  hiçbir şey indirmez. Slogan metinleri betiğin başındaki `LOCALES` tablosundadır.
+
+**Telefon ekran görüntüleri (siz):** Play en az 2 tane ister (önerilen 4–8); 9:16 (dikey) ya da
+16:9 oran önerilir, kenarlar 320–3840 piksel arası olmalı ve uzun kenar kısa kenarın en fazla 2
+katı olabilir; JPEG ya da saydamlıksız PNG. Yeni telefonların dikey görüntüleri (ör. 1080×2400,
+20:9) bu sınırı aşar: 1080×1920'ye (9:16) kırpın.
+
+1. Uygulamayı telefona kurun, örnek belgeler açın (kişisel bilgi içermeyen: ör. bir bütçe tablosu,
+   bir sunum, bir Word belgesi ve belge listesi). Bildirim çubuğunu sade tutun (saat, tam pil).
+2. Her ekranda **Güç + Ses kısma** tuşlarına birlikte basın; görüntüler Galeri → Ekran görüntüleri
+   klasörüne kaydedilir.
+3. Gerekirse Galeri'deki düzenleyiciyle 9:16 orana kırpın.
+4. Dosyaları `fastlane/metadata/android/tr/images/phoneScreenshots/` klasörüne `1.png`, `2.png`…
+   adlarıyla koyun (İngilizce arayüzle çekilenler `en-US/images/phoneScreenshots/` klasörüne) ya da
+   doğrudan Play Console'a yükleyin.
 
 ## 5. Play Console formları (yanıtlar hazır)
 
