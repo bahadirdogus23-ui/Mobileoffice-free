@@ -1,10 +1,11 @@
 # Gizlilik politikası / Privacy policy
 
-*Son güncelleme / Last updated: 8 Kasım 2026*
+*Son güncelleme / Last updated: 9 Kasım 2026*
 
 ## Türkçe
 
-Bu uygulama (BadoOffice) **hiçbir kişisel veri toplamaz, saklamaz ya da paylaşmaz.**
+Bu uygulama (BadoOffice) **kişisel verilerinizi sunuculara toplamaz veya otomatik olarak paylaşmaz.**
+Belgeleri cihazınızda işler; aşağıda belirtilen ayarlar, önbellekler ve kurtarma kopyaları cihazda saklanır.
 
 - **İnternet izni yoktur.** Uygulama internete bağlanamaz; belgeleriniz, fotoğraflarınız ve yazdıklarınız telefonunuzdan çıkmaz.
 - **Analitik, reklam, izleme ya da hesap yoktur.** Google Play hizmetleri ve üçüncü taraf takip kitaplıkları kullanılmaz.
@@ -18,7 +19,8 @@ Sorularınız için: bahadirdogus23@gmail.com
 
 ## English
 
-This app (BadoOffice) **does not collect, store or share any personal data.**
+This app (BadoOffice) **does not collect your personal data on servers or automatically share it.**
+It processes documents on your device; the settings, caches and recovery copies described below are stored locally.
 
 - **No internet permission.** The app cannot go online; your documents, photos and text never leave your phone.
 - **No analytics, ads, tracking or accounts.** Google Play services and third-party tracking libraries are not used.

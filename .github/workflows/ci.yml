@@ -35,6 +35,19 @@ jobs:
         run: cargo clippy --manifest-path rust/Cargo.toml --workspace --all-targets -- -D warnings
       - name: Tests
         run: cargo test --manifest-path rust/Cargo.toml --workspace
+      - name: Test Android package validation
+        run: python3 -m unittest discover -s scripts -p 'test_android_packages.py'
+      - name: Verify saved PDF redaction with an independent reader
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes poppler-utils
+          bash scripts/check-pdf-redaction.sh
+      - name: Read saved Office documents with independent libraries
+        run: |
+          python3 -m venv "$RUNNER_TEMP/mobileoffice-interop"
+          source "$RUNNER_TEMP/mobileoffice-interop/bin/activate"
+          python -m pip install -r scripts/interop-requirements.txt
+          bash scripts/check-office-interop.sh
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
@@ -81,17 +94,59 @@ jobs:
           MO_UPLOAD_KEY_ALIAS: ${{ secrets.UPLOAD_KEY_ALIAS }}
           MO_UPLOAD_KEY_PASSWORD: ${{ secrets.UPLOAD_KEY_PASSWORD }}
         run: |
+          build_backup=""
+          restore_outputs() {
+            if [ -n "$build_backup" ] && [ -d "$build_backup/apk" ]; then
+              mkdir -p app/build/outputs app/build/reports
+              cp -a "$build_backup/apk" app/build/outputs/
+              if [ -d "$build_backup/reports" ]; then
+                cp -a "$build_backup/reports/." app/build/reports/
+              fi
+              rm -r "$build_backup"
+              build_backup=""
+            fi
+          }
+          trap 'rm -f "$RUNNER_TEMP/upload.jks"; restore_outputs' EXIT
           # The upload key exists only when the owner has added it as repository secrets.
           if [ -n "$UPLOAD_KEYSTORE_BASE64" ]; then
             echo "$UPLOAD_KEYSTORE_BASE64" | base64 -d > "$RUNNER_TEMP/upload.jks"
             export MO_UPLOAD_STORE_FILE="$RUNNER_TEMP/upload.jks"
-            echo "Signed with the Play upload key" >> "$GITHUB_STEP_SUMMARY"
+            echo "Play upload key configured; verify the resulting artifact signature before upload." >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "No Play upload key: release artifacts use the debug key and are for testing only." >> "$GITHUB_STEP_SUMMARY"
           fi
-          # Separately: the bundle is built without the per-processor APK splits.
+          # Keep split APKs, then build the bundle with no stale split resources.
           ./gradlew assembleRelease --console=plain
-          ./gradlew bundleRelease --console=plain
-          rm -f "$RUNNER_TEMP/upload.jks"
+          build_backup="$(mktemp -d "$RUNNER_TEMP/mobileoffice-apks-reports.XXXXXX")"
+          cp -a app/build/outputs/apk "$build_backup/apk"
+          cp -a app/build/reports "$build_backup/reports"
+          ./gradlew clean bundleRelease -Pmo.abiSplits=false --console=plain
+          test -s app/build/outputs/bundle/release/app-release.aab
+          restore_outputs
+          for abi in arm64-v8a armeabi-v7a x86_64 universal; do
+            test -s "app/build/outputs/apk/release/app-$abi-release.apk"
+          done
           ls -l app/build/outputs/apk/release/ app/build/outputs/bundle/release/
+      - name: Verify packaged engines and report package sizes
+        run: |
+          for variant in debug release; do
+            for abi in arm64-v8a armeabi-v7a x86_64; do
+              python3 scripts/check_android_packages.py \
+                "android/app/build/outputs/apk/$variant/app-$abi-$variant.apk" \
+                --abis "$abi" --report "android/app/build/reports/packages/$variant-$abi.json"
+            done
+            python3 scripts/check_android_packages.py \
+              "android/app/build/outputs/apk/$variant/app-universal-$variant.apk" \
+              --abis arm64-v8a armeabi-v7a x86_64 --report "android/app/build/reports/packages/$variant-universal.json"
+          done
+          python3 scripts/check_android_packages.py android/app/build/outputs/bundle/release/app-release.aab \
+            --abis arm64-v8a armeabi-v7a x86_64 --report android/app/build/reports/packages/release-bundle.json
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: package-size-reports
+          path: android/app/build/reports/packages/*.json
+          if-no-files-found: ignore
       - uses: actions/upload-artifact@v4
         with:
           name: mobileoffice-release
@@ -106,7 +161,7 @@ jobs:
         run: |
           for apk in android/app/build/outputs/apk/debug/*.apk; do
             "$ANDROID_HOME/build-tools/36.0.0/zipalign" -c -P 16 -v 4 "$apk" | tail -1
-            "$ANDROID_HOME/build-tools/36.0.0/apksigner" verify --print-certs "$apk" | head -2
+            "$ANDROID_HOME/build-tools/36.0.0/apksigner" verify --print-certs "$apk"
           done
           ls -l android/app/build/outputs/apk/debug/
       - uses: actions/upload-artifact@v4

@@ -55,7 +55,7 @@ object DeviceFiles {
     }
 
     /** Every supported document, newest first. Call off the main thread. */
-    fun scan(context: Context, limit: Int = 5_000): List<DeviceFile> {
+    fun scan(context: Context, limit: Int = 5_000, refreshFolders: Boolean = false): List<DeviceFile> {
         val extensions = DocumentKind.listedExtensions.toList()
         // MediaStore keeps names as typed; LIKE is case-insensitive for ASCII, which file extensions are.
         // Folders are left out: a folder can be named like a document ("Dilekçe.udf" unpacked).
@@ -95,16 +95,20 @@ object DeviceFiles {
         // system is asked to index what was missing, which gives each one its content address.
         // Files indexed this way stay in MediaStore, so the walk is needed only now and then.
         val now = android.os.SystemClock.elapsedRealtime()
-        if (hasAccess(context) && out.size < limit && (lastWalk == 0L || now - lastWalk > WALK_EVERY_MS)) {
-            lastWalk = now
-            val root = Environment.getExternalStorageDirectory()
+        if (hasAccess(context) && out.size < limit && (refreshFolders || lastWalk == 0L || now - lastWalk > WALK_EVERY_MS)) {
+            val roots = storageRoots(Environment.getExternalStorageDirectory(), context.getExternalFilesDirs(null).toList())
             // XML is left to the index: most of it belongs to apps, not people.
-            val missing = findDocuments(root, extensions.map { it.lowercase(java.util.Locale.ROOT) }.toSet() - "xml") { it.path !in known }.take(MAX_INDEXED)
-            val got = indexed(context, missing.map { it.path })
+            val missing = roots.flatMap { root ->
+                findDocuments(root, extensions.map { it.lowercase(java.util.Locale.ROOT) }.toSet() - "xml") { it.path !in known }
+            }.distinctBy { it.path }.sortedByDescending { it.lastModified() }.take(limit)
+            // Limit only the indexing work, not the documents shown. Unknown formats can remain
+            // unindexed forever; they must not hide every file after the first batch.
+            val got = indexed(context, missing.take(MAX_INDEXED).map { it.path })
             val gotPaths = got.map { it.first.path }.toSet()
             // What the system would not index is listed by its path: with access to every file
             // the app reads it directly.
             byPath = missing.filter { it.path !in gotPaths }
+            lastWalk = now
             out += got.mapNotNull { (file, uri) ->
                 val kind = listedKind(context, uri, file.name, null) ?: return@mapNotNull null
                 DeviceFile(uri = uri, name = file.name, kind = kind, size = file.length(), modifiedAt = file.lastModified())
@@ -123,7 +127,7 @@ object DeviceFiles {
 
     /**
      * Files under [root] whose extension is one of [extensions] (lower case) and that [wanted]
-     * accepts, newest first. Hidden folders and Android/ (apps' private data) are skipped; at most
+     * accepts, newest first. Hidden folders and Android/data and Android/obb are skipped; at most
      * [maxEntries] entries are looked at, so a huge card cannot stall the list.
      */
     fun findDocuments(root: java.io.File, extensions: Set<String>, maxEntries: Int = 200_000, wanted: (java.io.File) -> Boolean): List<java.io.File> {
@@ -160,11 +164,20 @@ object DeviceFiles {
             done.countDown()
         }
         done.await(INDEX_WAIT_SECONDS, java.util.concurrent.TimeUnit.SECONDS)
-        return got.toList()
+        return synchronized(got) { got.toList() }
     }
 }
 
-/** At most this many unindexed documents are added per scan; the next scan adds more. */
+/** Shared storage roots, including removable volumes exposed through app-specific directories. */
+internal fun storageRoots(primary: java.io.File, appDirectories: List<java.io.File?>): List<java.io.File> =
+    (listOf(primary) + appDirectories.mapNotNull { directory ->
+        // Android guarantees <volume>/Android/data/<package>/files for these directories.
+        val data = directory?.parentFile?.parentFile
+        val android = data?.parentFile
+        if (directory?.name == "files" && data?.name == "data" && android?.name == "Android") android.parentFile else null
+    }).distinctBy { it.absolutePath }
+
+/** At most this many documents are submitted to MediaStore; others are listed directly. */
 private const val MAX_INDEXED = 300
 private const val INDEX_WAIT_SECONDS = 15L
 private const val WALK_EVERY_MS = 10 * 60 * 1000L

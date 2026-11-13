@@ -17,6 +17,11 @@ Android için **ücretsiz, reklamsız, hesapsız ve internetsiz** çalışan ofi
 
 Kapsamlı rapor ve proje planı: [docs/RAPOR-VE-PLAN.md](docs/RAPOR-VE-PLAN.md)
 
+**Kapsam sınırları:** RAR arşivleri desteklenmez; ZIP ve 7z okuyucuları vardır.
+Eski PPT/PPS dosyalarında yalnız metin, notlar ve slayt ölçüleri içe alınır;
+görseller, şekiller ve özgün biçim korunmaz. Bu destek tam sunum görüntüleme değildir.
+Güncel doğrulama ve açık kabul işleri: [9 Kasım takip planı](docs/DOGRULAMA-TAKIBI-2026-11-09.md).
+
 **Test sürümünü indir:** [MobileOffice-Free.apk](https://github.com/bahadirdogus23-ui/Mobileoffice-free/releases/download/gelistirme/MobileOffice-Free.apk). CI her başarılı derlemede bu dosyayı yeniler ([sürüm sayfası](https://github.com/bahadirdogus23-ui/Mobileoffice-free/releases/tag/gelistirme)). Bu bir geliştirme sürümüdür; kurmak için telefonda bilinmeyen kaynaklardan yüklemeye izin verin. Sonraki test sürümleri bunun üzerine kurulur. Bu dosya 64 bit ARM telefonlar içindir (son yılların hemen tüm telefonları, Android 8.0+); kurulmazsa [sürüm sayfasındaki](https://github.com/bahadirdogus23-ui/Mobileoffice-free/releases/tag/gelistirme) 32 bit ya da "hepsi bir arada" dosyasını deneyin.
 
 ## İlkeler

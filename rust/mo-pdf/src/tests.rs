@@ -259,6 +259,52 @@ fn blacks_out_personal_data_for_good() {
     assert_eq!(saved.redaction_marks(), 0);
 }
 
+#[test]
+fn redacts_all_58_ids_after_reopening_marks() {
+    // Synthetic checksum-valid numbers, not a corpus of real people's identities.
+    let ids: Vec<String> = (100_000_000..100_000_058)
+        .map(|seed| {
+            let prefix = seed.to_string();
+            let digits: Vec<i32> = prefix.bytes().map(|b| i32::from(b - b'0')).collect();
+            let odd: i32 = digits.iter().step_by(2).sum();
+            let even: i32 = digits.iter().skip(1).step_by(2).sum();
+            let tenth = (7 * odd - even).rem_euclid(10);
+            let last = (digits.iter().sum::<i32>() + tenth) % 10;
+            format!("{prefix}{tenth}{last}")
+        })
+        .collect();
+    let mut pdf = gridcraft_pdf::PdfDoc::new();
+    for chunk in ids.chunks(20) {
+        let page = pdf.add_page(595.0, 842.0);
+        page.text(72.0, 50.0, 12.0, gridcraft_pdf::Font::Helvetica, [0, 0, 0], "KEEP THIS TEXT");
+        for (row, id) in chunk.iter().enumerate() {
+            let shown = if row % 2 == 0 { id.clone() } else { format!("{} {} {} {}", &id[..3], &id[3..6], &id[6..9], &id[9..]) };
+            page.text(72.0, 100.0 + row as f32 * 24.0, 12.0, gridcraft_pdf::Font::Helvetica, [0, 0, 0], &format!("TC: {shown}"));
+        }
+    }
+    let original = pdf.finish();
+    let mut doc = reopened(original.clone());
+    assert_eq!(doc.page_count().unwrap(), 3);
+    assert_eq!(doc.mark_redactions(&[Sensitive::TurkishId], &[]).unwrap().len(), 58);
+    let mut marked = reopened(doc.save().unwrap());
+    assert_eq!(marked.redaction_marks(), 58);
+    assert_eq!(marked.apply_redactions().unwrap(), 58);
+    let bytes = marked.save().unwrap();
+    if let Ok(dir) = std::env::var("MO_REDACTION_CORPUS_DIR") {
+        let dir = std::path::Path::new(&dir);
+        std::fs::write(dir.join("before.pdf"), original).unwrap();
+        std::fs::write(dir.join("after.pdf"), &bytes).unwrap();
+        std::fs::write(dir.join("ids.txt"), ids.join("\n")).unwrap();
+    }
+    let mut saved = reopened(bytes);
+    assert_eq!(saved.redaction_marks(), 0);
+    for page in 0..3 {
+        let text = saved.page_text(page).unwrap();
+        assert!(text.contains("KEEP THIS TEXT"), "page {page}: {text}");
+        assert!(!text.chars().any(|c| c.is_ascii_digit()), "page {page} leaks digits: {text}");
+    }
+}
+
 /// A small RGB PNG, `w` × `h`.
 fn png(w: u32, h: u32) -> Vec<u8> {
     let mut out = Vec::new();
@@ -345,6 +391,23 @@ fn finds_the_fields_of_a_form_printed_from_a_browser() {
 }
 
 #[test]
+fn failed_text_update_preserves_original_text_and_undo_history() {
+    let mut doc = reopened(pdf(1, "Sayfa"));
+    doc.add_text(0, [0.1, 0.1], "Korunacak metin", 14.0, TextFont::Sans, [0.0, 0.0, 0.0]).unwrap();
+    let before = doc.typed_texts(0).unwrap();
+    let look = TextLook { size: 24.0, font: TextFont::SerifBold, color: [0.8, 0.0, 0.0] };
+    assert!(doc.update_text(0, before[0].index, [0.5, 0.6], " \n\t ", look).is_err());
+    let after = doc.typed_texts(0).unwrap();
+    assert_eq!(after.len(), 1, "failed edit must not delete the original annotation");
+    assert_eq!(after[0].text, before[0].text);
+    assert_eq!(after[0].rect, before[0].rect);
+    assert_eq!(after[0].size, before[0].size);
+    assert_eq!(reopened(doc.save().unwrap()).typed_texts(0).unwrap()[0].text, "Korunacak metin");
+    assert!(doc.undo_annotation().unwrap(), "the original undo entry must survive a failed edit");
+    assert!(doc.typed_texts(0).unwrap().is_empty());
+}
+
+#[test]
 fn typed_text_can_be_moved_restyled_and_removed() {
     let mut doc = reopened(pdf(1, "Sayfa"));
     doc.add_text(0, [0.1, 0.1], "Taşınacak yazı", 14.0, TextFont::Sans, [0.0, 0.0, 0.0]).unwrap();
@@ -400,6 +463,30 @@ fn fields_with_default_names_take_their_printed_labels() {
     assert_eq!(label("Text2"), "Address", "{labels:?}");
     assert_eq!(label("undefined"), "I agree", "{labels:?}");
     assert_eq!(label("Telefon"), "Telefon", "{labels:?}");
+}
+
+#[test]
+fn generic_tooltips_do_not_hide_printed_labels_or_meaningful_names() {
+    use pdfcraft_cos::{Object, PdfString};
+    let mut doc = reopened(include_bytes!("../testdata/generic-names-form.pdf").to_vec());
+    for field in pdfcraft_forms::fields(&doc.doc) {
+        let tooltip = if field.name == "Text2" { "Postal address" } else { "text" };
+        doc.doc
+            .update_dict(field.obj, |d| {
+                d.set(b"TU".to_vec(), Object::String(PdfString::literal(tooltip.as_bytes().to_vec())));
+            })
+            .unwrap();
+    }
+    let mut doc = reopened(doc.save().unwrap());
+    let before = doc.fields();
+    let labelled = doc.labelled_fields();
+    let label = |name: &str| labelled.iter().find(|f| f.name == name).unwrap().label.as_str();
+    assert_eq!(label("text_1"), "Full name");
+    assert_eq!(label("Text2"), "Postal address");
+    assert_eq!(label("undefined"), "I agree");
+    assert_eq!(label("Telefon"), "Telefon");
+    // Display labels must not rewrite field identities or tooltip metadata in the source.
+    assert_eq!(doc.fields(), before);
 }
 
 #[test]

@@ -10,11 +10,13 @@ Belge motorları şimdilik **uygulamayla aynı süreçte** çalışır. Ayrı s�
 
 ## Gerekçe
 
-- Motorların tamamı güvenli Rust'tır; içlerinde C/C++ kitaplık yoktur. PDF görüntüleme Android'in
-  kendi `PdfRenderer`'ıyla yapılır (ADR-0003). Bu yüzden bellek bozulmasıyla süreci çökertecek yerel
-  kod yolu yok denecek kadar azdır.
-- Bir motorda oluşan `panic` uygulamayı çökertmez. UniFFI onu Kotlin'de bir istisnaya çevirir
-  (`mo-ffi/src/lib.rs`). Kilit zehirlenirse (`PoisonError`), belge kullanılmaya devam eder.
+- Belge motorlarının büyük bölümü Rust ile yazılmıştır; bu, tüm yerel kodun bellek güvenli
+  olduğunu kanıtlamaz. OCR, Tesseract4Android üzerinden C/C++ kitaplıklarını kullanır (ADR-0006);
+  PDF görüntüleme de Android'in yerel `PdfRenderer` bileşenine dayanır (ADR-0003).
+  Yerel bellek hataları ve süreç çökmeleri ayrıca değerlendirilmelidir.
+- UniFFI sınırında yakalanabilen Rust `panic` hataları Kotlin'de bir istisnaya çevrilir
+  (`mo-ffi/src/lib.rs`). Bu koruma yerel sinyalleri, bellek bozulmasını veya süreç sonlandırılmasını
+  kapsamaz. Kilit zehirlenirse (`PoisonError`), belge kullanılmaya devam eder.
 - Kotlin tarafında yakalanmayan hatalar `Diagnostics` ile kaydedilir ve kullanıcıya e-postayla
   bildirme imkânı sunulur. Kaydedilmemiş değişiklikler 30 saniyede bir kurtarma kopyasına alınır
   (`RecoveryStore`); çökmeden sonra dosya yeniden açılınca geri yükleme önerilir.
@@ -25,4 +27,6 @@ Belge motorları şimdilik **uygulamayla aynı süreçte** çalışır. Ayrı s�
 
 Beta sürecinde motor kaynaklı yerel çökme oranı %0,5'i geçerse ya da güvenilmeyen kaynaklardan
 gelen dosyalarla ilgili bir güvenlik açığı bulunursa, PDF ve CAD motorları ayrı bir süreçte
-çalışacak şekilde taşınır.
+çalışacak şekilde taşınır. OCR/Tesseract kaynaklı yerel çökmeler de bu incelemeye dahil edilir;
+OCR için ayrı süreç gereksinimi ayrıca değerlendirilir. Henüz cihaz matrisiyle doğrulanmış
+bir yerel çökme oranı yoktur.

@@ -248,10 +248,14 @@ internal fun SheetScreen(vm: SheetViewModel, state: SheetUiState) {
             onSelect = { row, col ->
                 if (vm.placeChart(row, col)) {
                     // The tap put the picked chart there.
-                } else if ((formulaFocused || cellEditing) && pointing(formula)) {
-                    val (v, r) = insertReference(formula, cellName(row, col), lastReference)
-                    formula = v
-                    lastReference = r
+                } else if ((formulaFocused || cellEditing) && formula.text.startsWith("=")) {
+                    // A tap inside a quoted formula must neither insert an address nor leave
+                    // the editor and attempt to save an unfinished string or sheet name.
+                    if (pointing(formula)) {
+                        val (v, r) = insertReference(formula, cellName(row, col), lastReference)
+                        formula = v
+                        lastReference = r
+                    }
                 } else {
                     if (cellEditing) {
                         // Leaving a cell being typed in keeps what was typed, as Excel does.

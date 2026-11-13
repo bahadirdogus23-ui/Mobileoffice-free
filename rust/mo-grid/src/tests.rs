@@ -37,6 +37,9 @@ fn blank_workbook_edits_through_commands_and_round_trips_as_xlsx() {
     assert_eq!(doc.edit_text(0, 1, 1).unwrap(), "=B1*2");
 
     let bytes = doc.save("rapor.xlsx").unwrap();
+    if let Ok(dir) = std::env::var("MO_INTEROP_DIR") {
+        std::fs::write(std::path::Path::new(&dir).join("grid.xlsx"), &bytes).unwrap();
+    }
     let back = GridDoc::open("rapor.xlsx", &bytes, None).unwrap();
     assert_eq!(back.cell_texts(0, 0, 0, 2, 2).unwrap(), vec!["Gelir", "1200", "", "2400"]);
 }
@@ -101,7 +104,7 @@ fn formats_cells_and_inserts_rows_through_commands() {
     assert!(doc.execute("cell.get", r#"{"cell":"A3"}"#).unwrap().contains("SUM(A2,10.5)"));
     assert!(looks[0].bold && looks[0].align == 2);
     assert_eq!(looks[0].fill, 0xFFFF_FF00);
-    assert_eq!(looks[1], CellLook::default());
+    assert_eq!(looks[1], CellLook { align: 3, ..CellLook::default() });
     // A row inserted above the number moves it down a row.
     doc.execute("home.insertRows", r#"{"rows":"2:2"}"#).unwrap();
     assert_eq!(doc.cell_texts(0, 1, 0, 2, 1).unwrap()[0], "");
@@ -151,6 +154,65 @@ fn reports_column_widths_and_row_heights() {
     assert_eq!((s.frozen_rows, s.frozen_cols), (0, 0));
     doc.execute("view.freezeTopRow", "{}").unwrap();
     assert_eq!(doc.sizes(0, 1, 1).unwrap().frozen_rows, 1);
+}
+
+#[test]
+fn general_alignment_uses_values_instead_of_the_first_display_character() {
+    let mut doc = GridDoc::blank();
+    for (row, input) in ["1250.5", "'123 dosya", "=\"123\"", "=TRUE()", "-42", "'-açıklama", "=1/0"].iter().enumerate() {
+        doc.set_input(row as u32, 0, input).unwrap();
+    }
+    let looks = doc.cell_looks(0, 0, 0, 7, 1).unwrap();
+    assert_eq!(looks.iter().map(|l| l.align).collect::<Vec<_>>(), vec![3, 0, 0, 2, 3, 0, 2]);
+    doc.execute("home.alignLeft", r#"{"range":"A1"}"#).unwrap();
+    assert_eq!(doc.cell_looks(0, 0, 0, 1, 1).unwrap()[0].align, 1);
+    let saved = doc.save("alignment.xlsx").unwrap();
+    let again = GridDoc::open("alignment.xlsx", &saved, None).unwrap();
+    assert_eq!(again.cell_looks(0, 1, 0, 6, 1).unwrap().iter().map(|l| l.align).collect::<Vec<_>>(), vec![0, 0, 2, 3, 0, 2]);
+}
+
+#[test]
+fn inserting_and_deleting_selected_lines_preserves_surrounding_cells() {
+    let mut doc = GridDoc::blank();
+    doc.execute("cell.set", r#"{"cell":"A1","input":"Header"}"#).unwrap();
+    doc.execute("cell.set", r#"{"cell":"B2","input":"Keep me"}"#).unwrap();
+    doc.execute("home.insertRows", r#"{"rows":"2:3"}"#).unwrap();
+    assert_eq!(doc.cell_texts(0, 3, 1, 1, 1).unwrap(), vec!["Keep me"]);
+    assert_eq!(doc.cell_texts(0, 1, 1, 2, 1).unwrap(), vec!["", ""]);
+    doc.execute("home.deleteRows", r#"{"rows":"2:3"}"#).unwrap();
+    assert_eq!(doc.cell_texts(0, 1, 1, 1, 1).unwrap(), vec!["Keep me"]);
+    doc.execute("home.insertColumns", r#"{"cols":"B:C"}"#).unwrap();
+    assert_eq!(doc.cell_texts(0, 1, 3, 1, 1).unwrap(), vec!["Keep me"]);
+    doc.execute("home.deleteColumns", r#"{"cols":"B:C"}"#).unwrap();
+    assert_eq!(doc.cell_texts(0, 1, 1, 1, 1).unwrap(), vec!["Keep me"]);
+    assert_eq!(doc.cell_texts(0, 0, 0, 1, 1).unwrap(), vec!["Header"]);
+}
+
+#[test]
+fn native_paste_keeps_formulas_and_can_replace_them_with_a_copied_blank() {
+    let mut doc = GridDoc::blank();
+    doc.set_input(0, 0, "12").unwrap();
+    doc.set_input(0, 1, "=A1*2").unwrap();
+    doc.execute("home.bold", r#"{"range":"B1"}"#).unwrap();
+    doc.execute("edit.copy", r#"{"range":"B1"}"#).unwrap();
+    doc.execute("edit.paste", r#"{"at":"B2"}"#).unwrap();
+    assert_eq!(doc.edit_text(0, 1, 1).unwrap(), "=A2*2");
+    assert!(doc.cell_looks(0, 1, 1, 1, 1).unwrap()[0].bold);
+    let blank: serde_json::Value = serde_json::from_str(&doc.execute("edit.copy", r#"{"range":"C1"}"#).unwrap()).unwrap();
+    assert!(blank["text"].as_str().unwrap().trim().is_empty());
+    doc.execute("edit.paste", r#"{"at":"B2"}"#).unwrap();
+    assert_eq!(doc.cell_texts(0, 1, 1, 1, 1).unwrap(), vec![""]);
+}
+
+#[test]
+fn text_from_another_workbook_pastes_without_a_native_clipboard() {
+    let mut source = GridDoc::blank();
+    source.set_input(0, 0, "İzmir").unwrap();
+    source.set_input(0, 1, "1250.5").unwrap();
+    let copied: serde_json::Value = serde_json::from_str(&source.execute("edit.copy", r#"{"range":"A1:B1"}"#).unwrap()).unwrap();
+    let mut target = GridDoc::blank();
+    target.execute("edit.paste", &serde_json::json!({"at":"B2", "text":copied["text"]}).to_string()).unwrap();
+    assert_eq!(target.cell_texts(0, 1, 1, 1, 2).unwrap(), vec!["İzmir", "1250.5"]);
 }
 
 #[test]

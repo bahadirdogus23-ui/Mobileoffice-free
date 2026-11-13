@@ -136,7 +136,22 @@ class InvoiceTest {
         assertTrue(paper.contains("content=\"width=818\""))
         assertTrue(!paper.contains("device-width"))
         // Inserted in the head, not after <header>.
-        assertTrue(paper.indexOf("width:794px") < paper.indexOf("<title>"))
+        assertTrue(paper.indexOf("width:794px") < paper.indexOf("<header>"))
+        assertTrue(paper.indexOf("name=\"viewport\"") < paper.indexOf("<title>"))
         assertTrue(Invoices.asPaper("<p>x</p>").startsWith("<head><meta name=\"viewport\""))
+    }
+
+    @Test
+    fun exportsPaperLayoutsForIndependentBrowserChecks() {
+        val seller = """<!doctype html><html><head><meta content="width=device-width" name="viewport"><style>body{width:640px;margin:7px;background:white} @media print{body{font-size:10pt}}</style></head><body><h1>Fatura</h1><p>İstanbul — 1.250,50 TL</p></body></html>"""
+        val paper = Invoices.asPaper(seller)
+        assertTrue(paper.contains("İstanbul"))
+        System.getenv("MO_INVOICE_HTML_DIR")?.let { path ->
+            val dir = java.io.File(path).apply { mkdirs() }
+            java.io.File(dir, "seller.html").writeText(paper)
+            java.io.File(dir, "fragment.html").writeText(Invoices.asPaper("<h1>Fatura</h1><p>İstanbul</p>"))
+            val bytes = invoice(false)
+            java.io.File(dir, "fallback.html").writeText(Invoices.html(bytes, Invoices.read(bytes)).first)
+        }
     }
 }

@@ -17,3 +17,4 @@ captures/
 /android/engine/src/main/java/uniffi/
 .DS_Store
 .kotlin/
+__pycache__/

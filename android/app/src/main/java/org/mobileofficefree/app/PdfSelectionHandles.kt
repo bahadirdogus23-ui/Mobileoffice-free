@@ -42,9 +42,11 @@ fun PdfSelectionHandles(pdf: PdfViewModel, page: Int, rects: List<PageRect>) {
         val h = constraints.maxHeight.toFloat()
         // (is the start handle, the line it moves, the line that stays)
         for ((start, moving, fixed) in listOf(Triple(true, first, last), Triple(false, last, first))) {
-            key(start) {
+            key(page, start) {
                 var drag by remember { mutableStateOf<Offset?>(null) }
                 var from by remember { mutableStateOf(Offset.Zero) }
+                var fixedPoint by remember { mutableStateOf(Offset.Zero) }
+                var lineHeight by remember { mutableStateOf(0f) }
                 val movingNow by rememberUpdatedState(moving)
                 val fixedNow by rememberUpdatedState(fixed)
                 val atX = (if (start) moving.left else moving.right).toFloat() * w
@@ -57,11 +59,14 @@ fun PdfSelectionHandles(pdf: PdfViewModel, page: Int, rects: List<PageRect>) {
                         .offset { IntOffset(x.roundToInt(), y.roundToInt()) }
                         .size(handle)
                         .background(color, if (start) RoundedCornerShape(50, 0, 50, 50) else RoundedCornerShape(0, 50, 50, 50))
-                        .pointerInput(start) {
+                        .pointerInput(page, start, w, h) {
                             detectDragGestures(
                                 onDragStart = {
                                     val m = movingNow
+                                    val f = fixedNow
                                     from = Offset((if (start) m.left else m.right).toFloat() * w, m.bottom.toFloat() * h)
+                                    fixedPoint = Offset((if (start) f.right else f.left).toFloat(), ((f.top + f.bottom) / 2).toFloat())
+                                    lineHeight = (m.bottom - m.top).toFloat() * h
                                     drag = Offset.Zero
                                 },
                                 onDragEnd = { drag = null },
@@ -70,13 +75,8 @@ fun PdfSelectionHandles(pdf: PdfViewModel, page: Int, rects: List<PageRect>) {
                                 change.consume()
                                 val now = (drag ?: return@detectDragGestures) + amount
                                 drag = now
-                                val f = fixedNow
-                                val m = movingNow
                                 // The end that stays, and the line just above the handle where the finger points.
-                                val fx = (if (start) f.right else f.left).toFloat()
-                                val fy = ((f.top + f.bottom) / 2).toFloat()
-                                val lineH = (m.bottom - m.top).toFloat() * h
-                                pdf.selectFromFixed(page, fx, fy, (from.x + now.x) / w, (from.y + now.y - lineH / 2) / h)
+                                pdf.selectFromFixed(page, fixedPoint.x, fixedPoint.y, (from.x + now.x) / w, (from.y + now.y - lineHeight / 2) / h)
                             }
                         },
                 )

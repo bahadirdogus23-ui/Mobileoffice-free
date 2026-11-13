@@ -9,6 +9,8 @@ import androidx.compose.runtime.setValue
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
@@ -24,6 +26,7 @@ data class InvoiceUiState(
 /** GİB e-Fatura / e-Arşiv / e-İrsaliye XML: a summary and the document drawn as HTML. */
 class InvoiceViewModel(app: Application) : AndroidViewModel(app) {
     private val recents = RecentFiles(app)
+    private var opening: Job? = null
 
     var state by mutableStateOf<InvoiceUiState?>(null)
         private set
@@ -33,16 +36,20 @@ class InvoiceViewModel(app: Application) : AndroidViewModel(app) {
         private set
 
     fun open(uri: Uri) {
+        opening?.cancel()
         val resolver = getApplication<Application>().contentResolver
+        state = null
+        error = null
         loading = true
         val started = SystemClock.elapsedRealtime()
-        viewModelScope.launch {
+        opening = viewModelScope.launch {
             val result = withContext(Dispatchers.IO) {
                 runCatching {
                     val info = FileInfo.of(resolver, uri)
                     val bytes = resolver.openInputStream(uri)?.use { it.readBytes() } ?: error("no data")
                     val summary = Invoices.read(bytes)
                     val (html, own) = Invoices.html(bytes, summary)
+                    coroutineContext.ensureActive()
                     recents.remember(uri, info.name, DocumentKind.INVOICE, info.size)
                     Diagnostics.record("INVOICE açma (${sizeLabel(info.size)}, ${if (own) "XSLT" else "sade"})", started)
                     InvoiceUiState(uri, info.name, summary, html, own)
@@ -54,6 +61,10 @@ class InvoiceViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     fun close() {
+        opening?.cancel()
+        opening = null
+        loading = false
+        error = null
         state = null
     }
 

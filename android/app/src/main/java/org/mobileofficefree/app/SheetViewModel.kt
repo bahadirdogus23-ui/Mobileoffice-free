@@ -92,6 +92,9 @@ class SheetViewModel(app: Application) : AndroidViewModel(app) {
     private val engine: CoroutineDispatcher = Dispatchers.IO.limitedParallelism(1)
 
     private var doc: SheetDocument? = null
+    /** Incremented when an edit is requested, including edits still waiting for the engine. */
+    private var editRevision = 0L
+    @Volatile private var sheetSelectionRequest = 0L
 
     var screen by mutableStateOf<Screen>(Screen.Home)
         private set
@@ -160,8 +163,18 @@ class SheetViewModel(app: Application) : AndroidViewModel(app) {
         val uri = source ?: return
         val d = doc ?: return
         if (!unsaved) return
-        lastCopyAt = System.currentTimeMillis()
-        withContext(engine) { runCatching { Measurements.time("Excel: kurtarma kopyası") { recovery.write(uri, "recovery.xlsx", d.save("recovery.xlsx")) } } }
+        val copied = withContext(engine) {
+            if (!unsaved || source != uri || doc !== d) return@withContext false
+            runCatching {
+                Measurements.time("Excel: kurtarma kopyası") {
+                    val bytes = d.save("recovery.xlsx")
+                    if (!unsaved || source != uri || doc !== d) return@time false
+                    recovery.write(uri, "recovery.xlsx", bytes)
+                    true
+                }
+            }.getOrDefault(false)
+        }
+        if (copied && source == uri && doc === d) lastCopyAt = System.currentTimeMillis()
     }
 
     private val copyNow: () -> Unit = { viewModelScope.launch { copyForRecovery() } }
@@ -229,6 +242,8 @@ class SheetViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     fun open(uri: Uri) {
+        closeAfterSave = false
+        lastCopyAt = 0L
         unsaved = false
         val resolver = getApplication<Application>().contentResolver
         screen = Screen.Loading
@@ -264,6 +279,7 @@ class SheetViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     fun newBlank() {
+        closeAfterSave = false
         unsaved = false
         screen = Screen.Loading
         val started = SystemClock.elapsedRealtime()
@@ -276,10 +292,13 @@ class SheetViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     fun close() {
+        lastCopyAt = 0L
         unsaved = false
         closeAfterSave = false
         val old = doc
         doc = null
+        copiedText = null
+        copiedFrom = null
         blocks.clear()
         forgetCharts()
         forgetPictures()
@@ -291,12 +310,16 @@ class SheetViewModel(app: Application) : AndroidViewModel(app) {
 
     fun selectSheet(index: Int) {
         val current = (screen as? Screen.Sheet)?.state ?: return
+        val owner = doc ?: return
+        val request = ++sheetSelectionRequest
         viewModelScope.launch {
             val state = withContext(engine) {
-                val d = doc ?: return@withContext null
+                if (doc !== owner || request != sheetSelectionRequest) return@withContext null
+                val d = owner
                 d.setActiveSheet(index.toUInt())
                 stateFor(d, current.fileName, index, 0, 0)
             } ?: return@launch
+            if (doc !== owner || request != sheetSelectionRequest || screen !is Screen.Sheet) return@launch
             blocks.clear()
             forgetCharts()
             forgetPictures()
@@ -309,14 +332,16 @@ class SheetViewModel(app: Application) : AndroidViewModel(app) {
 
     fun selectCell(row: Int, col: Int) {
         val current = (screen as? Screen.Sheet)?.state ?: return
+        val owner = doc ?: return
         screen = Screen.Sheet(current.copy(selectedRow = row, selectedCol = col, endRow = row, endCol = col, choices = emptyList(), wholeLine = false))
         viewModelScope.launch {
             val (edit, choices) = withContext(engine) {
-                val d = doc ?: return@withContext null
+                if (doc !== owner) return@withContext null
+                val d = owner
                 d.editText(current.sheet.toUInt(), row.toUInt(), col.toUInt()) to runCatching { d.listChoices(row.toUInt(), col.toUInt()) }.getOrDefault(emptyList())
             } ?: return@launch
             val now = (screen as? Screen.Sheet)?.state ?: return@launch
-            if (now.selectedRow == row && now.selectedCol == col) {
+            if (doc === owner && now.sheet == current.sheet && now.selectedRow == row && now.selectedCol == col) {
                 screen = Screen.Sheet(now.copy(editText = edit, choices = choices))
             }
         }
@@ -372,23 +397,30 @@ class SheetViewModel(app: Application) : AndroidViewModel(app) {
 
     /** The text last copied from the sheet: a paste of the same text uses the engine's own copy (formulas and formats kept). */
     private var copiedText: String? = null
+    private var copiedFrom: SheetDocument? = null
 
     /** Copies ([cut] false) or cuts the selection; [onText] gets it as tab-separated text for the phone's clipboard. */
     fun copySelection(cut: Boolean, onText: (String) -> Unit) {
         val current = (screen as? Screen.Sheet)?.state ?: return
         val range = formatRange(current)
         val run: (SheetDocument) -> Unit = { d ->
-            val text = runCatching { JSONObject(d.execute(if (cut) "edit.cut" else "edit.copy", JSONObject().put("range", range).toString())).optString("text") }.getOrDefault("")
+            val copied = JSONObject(d.execute(if (cut) "edit.cut" else "edit.copy", JSONObject().put("range", range).toString())).optString("text")
             viewModelScope.launch {
-                copiedText = text
-                if (text.isNotEmpty()) onText(text)
+                if (doc !== d) return@launch
+                copiedText = copied
+                copiedFrom = d
+                // An empty copied cell must replace an older phone clipboard too.
+                onText(copied)
             }
         }
         if (cut) {
             edit(run)
         } else {
             val d = doc ?: return
-            viewModelScope.launch { withContext(engine) { run(d) } }
+            viewModelScope.launch {
+                val result = withContext(engine) { runCatching { if (doc === d) run(d) } }
+                if (doc === d) result.onFailure { message = text(R.string.cell_update_failed, it.message ?: "") }
+            }
         }
     }
 
@@ -399,7 +431,11 @@ class SheetViewModel(app: Application) : AndroidViewModel(app) {
     fun paste(clipboard: String?) {
         val current = (screen as? Screen.Sheet)?.state ?: return
         val p = JSONObject().put("at", cellName(current.selectedRow, current.selectedCol))
-        if (clipboard != null && clipboard.isNotEmpty() && clipboard != copiedText) p.put("text", clipboard)
+        when (sheetPasteSource(clipboard, copiedText, copiedFrom === doc)) {
+            SheetPasteSource.NONE -> return
+            SheetPasteSource.TEXT -> p.put("text", clipboard)
+            SheetPasteSource.INTERNAL -> Unit
+        }
         edit { d -> d.execute("edit.paste", p.toString()) }
     }
 
@@ -572,16 +608,10 @@ class SheetViewModel(app: Application) : AndroidViewModel(app) {
         edit { d -> d.execute(if (col >= 0) "home.columnWidth" else "home.rowHeight", p.toString()) }
     }
 
-    /** The selected rows ("2:5") or columns ("B:D"), for whole-line commands. */
-    private fun selectedLines(s: SheetUiState, rows: Boolean): String {
-        val (r0, c0, r1, c1) = selectionBounds(s)
-        return if (rows) "${r0 + 1}:${r1 + 1}" else "${columnName(c0)}:${columnName(c1)}"
-    }
-
     /** Hides the selected rows ([rows]) or columns. */
     fun hideLines(rows: Boolean) {
         val current = (screen as? Screen.Sheet)?.state ?: return
-        val p = JSONObject().put(if (rows) "rows" else "cols", selectedLines(current, rows))
+        val p = JSONObject().put(if (rows) "rows" else "cols", selectedLineRange(current, rows))
         edit { d -> d.execute(if (rows) "home.hideRows" else "home.hideColumns", p.toString()) }
     }
 
@@ -594,15 +624,15 @@ class SheetViewModel(app: Application) : AndroidViewModel(app) {
     /** The selected columns as wide as their contents. */
     fun autofitColumns() {
         val current = (screen as? Screen.Sheet)?.state ?: return
-        edit { d -> d.execute("home.autofitColumnWidth", JSONObject().put("cols", selectedLines(current, false)).toString()) }
+        edit { d -> d.execute("home.autofitColumnWidth", JSONObject().put("cols", selectedLineRange(current, false)).toString()) }
     }
 
     /** Inserts ([insert]) or deletes a whole row ([rows]) or column at the selection. */
     fun lines(rows: Boolean, insert: Boolean) {
         val current = (screen as? Screen.Sheet)?.state ?: return
-        val at = if (rows) "${current.selectedRow + 1}" else columnName(current.selectedCol)
         val id = (if (insert) "home.insert" else "home.delete") + (if (rows) "Rows" else "Columns")
-        edit { d -> d.execute(id, JSONObject().put(if (rows) "rows" else "cols", "$at:$at").toString()) }
+        val range = selectedLineRange(current, rows)
+        edit { d -> d.execute(id, JSONObject().put(if (rows) "rows" else "cols", range).toString()) }
     }
 
     /** Sorts the table by the selected column. */
@@ -789,23 +819,30 @@ class SheetViewModel(app: Application) : AndroidViewModel(app) {
     /** Runs [op] on the engine thread, then refreshes the sheet; the old cells stay until the new ones arrive. */
     private fun edit(op: (SheetDocument) -> Unit) {
         val current = (screen as? Screen.Sheet)?.state ?: return
+        val owner = doc ?: return
+        editRevision++
         viewModelScope.launch {
             val result = withContext(engine) {
+                if (doc !== owner) return@withContext null
                 runCatching {
-                    val d = doc ?: error("no document")
+                    val d = owner
                     Measurements.time("Excel: düzenleme") { op(d) }
                     Measurements.time("Excel: ekran durumu (düzenleme sonrası)") { stateFor(d, current.fileName, current.sheet, current.selectedRow, current.selectedCol) }
                         .copy(endRow = current.endRow, endCol = current.endCol)
                 }
             }
-            result.fold(
+            if (doc !== owner || screen !is Screen.Sheet) return@launch
+            val completed = result ?: return@launch
+            completed.fold(
                 onSuccess = {
                     unsaved = true
                     // The selection may have moved while the engine worked (Enter in a cell).
                     val now = (screen as? Screen.Sheet)?.state
-                    screen = Screen.Sheet(
-                        if (now != null) it.copy(selectedRow = now.selectedRow, selectedCol = now.selectedCol, endRow = now.endRow, endCol = now.endCol, editText = if (now.selectedRow == current.selectedRow && now.selectedCol == current.selectedCol) it.editText else now.editText) else it,
-                    )
+                    if (now?.sheet == current.sheet) {
+                        screen = Screen.Sheet(
+                            it.copy(selectedRow = now.selectedRow, selectedCol = now.selectedCol, endRow = now.endRow, endCol = now.endCol, editText = if (now.selectedRow == current.selectedRow && now.selectedCol == current.selectedCol) it.editText else now.editText),
+                        )
+                    }
                     // A formula, a new row or a format can change any cell: fetch the loaded ones again.
                     for ((key, at) in blockAt.toMap()) requestBlock(at.first, at.second, at.third, key)
                     forgetCharts()
@@ -822,10 +859,14 @@ class SheetViewModel(app: Application) : AndroidViewModel(app) {
 
     fun saveTo(uri: Uri) {
         val resolver = getApplication<Application>().contentResolver
+        val owner = doc ?: return
+        val revision = editRevision
+        val shouldClose = closeAfterSave
         viewModelScope.launch {
             val result = withContext(engine) {
+                if (doc !== owner) return@withContext null
                 runCatching {
-                    val d = doc ?: error("no document")
+                    val d = owner
                     val name = displayName(resolver, uri)
                     val bytes = Measurements.time("Excel: kaydetme") { d.save(name) }
                     Diagnostics.event("Excel kaydedildi: ${bytes.size / 1024} KB")
@@ -833,14 +874,16 @@ class SheetViewModel(app: Application) : AndroidViewModel(app) {
                     resolver.openOutputStream(uri, "wt")?.use { it.write(bytes) } ?: error("cannot write")
                 }
             }
-            message = result.fold(
+            if (doc !== owner) return@launch
+            val completed = result ?: return@launch
+            message = completed.fold(
                 onSuccess = { text(R.string.saved) },
                 onFailure = { text(R.string.save_failed, it.message ?: "") },
             )
-            if (result.isSuccess) {
+            if (completed.isSuccess && revision == editRevision) {
                 unsaved = false
                 source?.let(recovery::clear)
-                if (closeAfterSave) close()
+                if (shouldClose && screen is Screen.Sheet) close()
             }
             closeAfterSave = false
         }
@@ -967,6 +1010,8 @@ class SheetViewModel(app: Application) : AndroidViewModel(app) {
     private fun replaceDocument(next: SheetDocument): SheetUiState {
         doc?.close()
         doc = next
+        copiedText = null
+        copiedFrom = null
         // Numbers and formulas the Turkish way when the phone speaks Turkish ("1.250,5", =TOPLA(…;…)).
         next.setTurkish(Locale.getDefault().language == "tr")
         turkish = Locale.getDefault().language == "tr"
@@ -1073,6 +1118,12 @@ fun selectionBounds(s: SheetUiState): IntArray {
 fun formatRange(s: SheetUiState): String {
     val (r0, c0, r1, c1) = selectionBounds(s)
     return if (r0 == r1 && c0 == c1) cellName(r0, c0) else cellName(r0, c0) + ":" + cellName(r1, c1)
+}
+
+/** Selected rows ("2:5") or columns ("B:D"), including merged cells unless a header was selected. */
+fun selectedLineRange(s: SheetUiState, rows: Boolean): String {
+    val (r0, c0, r1, c1) = selectionBounds(s)
+    return if (rows) "${r0 + 1}:${r1 + 1}" else "${columnName(c0)}:${columnName(c1)}"
 }
 
 fun rangeName(s: SheetUiState): String {

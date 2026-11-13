@@ -24,4 +24,25 @@ class SelectionBoundsTest {
         assertArrayEquals(intArrayOf(1, 0, 3, 2), selectionBounds(state(1, 0, 2, 1)))
         assertEquals("E5", formatRange(state(4, 4)))
     }
+
+    @Test
+    fun rowAndColumnOperationsUseTheEntireReversedSelection() {
+        val selected = state(6, 4, 4, 2)
+        assertEquals("5:7", selectedLineRange(selected, true))
+        assertEquals("C:E", selectedLineRange(selected, false))
+    }
+
+    @Test
+    fun headerSelectionIsNotWidenedByAMergedTitle() {
+        val column = state(0, 1, 9, 1).copy(wholeLine = true)
+        assertEquals("B:B", selectedLineRange(column, false))
+        assertEquals("1:10", selectedLineRange(column, true))
+    }
+
+    @Test
+    fun operationsOnAMergedCellCoverItsRowsAndColumns() {
+        val merged = state(2, 1)
+        assertEquals("3:4", selectedLineRange(merged, true))
+        assertEquals("B:C", selectedLineRange(merged, false))
+    }
 }

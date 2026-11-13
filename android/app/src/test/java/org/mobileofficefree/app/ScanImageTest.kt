@@ -7,6 +7,23 @@ import org.junit.Test
 
 class ScanImageTest {
     @Test
+    fun cropCornersCannotCrossCollapseOrLeaveTheImage() {
+        val page = listOf(0.1f to 0.1f, 0.9f to 0.2f, 0.8f to 0.9f, 0.1f to 0.8f)
+        assertTrue(ScanImage.validCorners(page))
+        assertTrue(ScanImage.validCorners(listOf(0f to 0f, 1f to 0f, 1f to 1f, 0f to 1f)))
+        val bad = listOf(
+            listOf(page[0], page[2], page[1], page[3]), // Crossing edges.
+            page.toMutableList().also { it[2] = 0.2f to 0.2f }, // Concave page.
+            page.toMutableList().also { it[1] = it[0] },
+            page.toMutableList().also { it[0] = Float.NaN to 0f },
+            page.toMutableList().also { it[0] = -0.1f to 0f },
+            page.reversed(),
+            page.take(3),
+        )
+        bad.forEach { assertTrue("Invalid crop accepted: $it", !ScanImage.validCorners(it)) }
+    }
+
+    @Test
     fun straightenedSizeTakesTheLongerEdges() {
         val corners = listOf(10f to 10f, 210f to 20f, 220f to 320f, 0f to 300f)
         val (w, h) = ScanImage.outputSize(corners)

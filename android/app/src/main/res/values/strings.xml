@@ -228,6 +228,7 @@
     <string name="scan_take">Take photo</string>
     <string name="scan_from_gallery">From gallery</string>
     <string name="scan_make_pdf">Make PDF</string>
+    <string name="scan_saving">Creating and saving PDF…</string>
     <string name="scan_no_camera">No camera app was found on this phone.</string>
     <string name="scan_color">Colour</string>
     <string name="scan_document">Document</string>

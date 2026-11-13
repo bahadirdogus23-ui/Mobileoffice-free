@@ -83,6 +83,11 @@ pub fn find_sensitive(kind: Sensitive, text: &[char]) -> Vec<Range<usize>> {
     }
 }
 
+/// Horizontal Unicode spaces used within printed numbers; exclude line and column breaks.
+fn grouping_space(c: char) -> bool {
+    matches!(c, ' ' | '\u{00a0}' | '\u{1680}' | '\u{2000}'..='\u{200a}' | '\u{202f}' | '\u{205f}' | '\u{3000}')
+}
+
 /// T.C. kimlik numbers: eleven digits with valid check digits, written together or in groups
 /// with single spaces ("123 456 789 01"), with no other digit next to them. Letters may touch
 /// them ("TCKN12345678901", "No:12345678901").
@@ -105,7 +110,7 @@ fn turkish_ids(text: &[char]) -> Vec<Range<usize>> {
                 digits.push(text[j] as u8 - b'0');
                 j += 1;
                 end = j;
-            } else if text[j] == ' ' && digit(j + 1) && digits.len() < 11 {
+            } else if grouping_space(text[j]) && digit(j + 1) && digits.len() < 11 {
                 j += 1;
             } else {
                 break;
@@ -138,7 +143,8 @@ fn digit_runs(text: &[char], seps: &[char]) -> Vec<(Range<usize>, Vec<u8>)> {
         let mut digits = Vec::new();
         let mut end = i;
         while i < text.len() {
-            let c = text[i];
+            // Normalize for matching only; returned ranges still refer to the original text.
+            let c = if grouping_space(text[i]) { ' ' } else { text[i] };
             if let Some(d) = c.to_digit(10).filter(|_| c.is_ascii_digit()) {
                 digits.push(d as u8);
                 i += 1;
@@ -191,7 +197,7 @@ fn iban(text: &[char]) -> Vec<Range<usize>> {
                 digits += 1;
                 j += 1;
                 end = j;
-            } else if text[j] == ' ' && text.get(j + 1).is_some_and(char::is_ascii_digit) {
+            } else if grouping_space(text[j]) && text.get(j + 1).is_some_and(char::is_ascii_digit) {
                 j += 1;
             } else {
                 break;
@@ -259,5 +265,32 @@ mod tests {
     #[test]
     fn finds_email_addresses() {
         assert_eq!(found(Sensitive::Email, "yaz: ali.veli@ornek.com.tr lütfen"), ["ali.veli@ornek.com.tr"]);
+    }
+
+    #[test]
+    fn finds_numbers_with_typographic_spaces_at_original_positions() {
+        for separator in ['\u{00a0}', '\u{202f}', '\u{2009}'] {
+            for (kind, plain) in [
+                (Sensitive::TurkishId, "100 000 001 46"),
+                (Sensitive::Iban, "TR33 0006 1005 1978 6457 8413 26"),
+                (Sensitive::Phone, "+90 (212) 555 12 34"),
+            ] {
+                let number = plain.replace(' ', &separator.to_string());
+                assert_eq!(found(kind, &format!("📝 Şule: {number}; son")), [number]);
+            }
+        }
+    }
+
+    #[test]
+    fn number_groups_do_not_cross_lines_or_table_tabs() {
+        for separator in ['\n', '\r', '\t', '\u{2028}', '\u{2029}'] {
+            for (kind, plain) in [
+                (Sensitive::TurkishId, "100 000 001 46"),
+                (Sensitive::Iban, "TR33 0006 1005 1978 6457 8413 26"),
+                (Sensitive::Phone, "0532 123 45 67"),
+            ] {
+                assert!(found(kind, &plain.replace(' ', &separator.to_string())).is_empty());
+            }
+        }
     }
 }
