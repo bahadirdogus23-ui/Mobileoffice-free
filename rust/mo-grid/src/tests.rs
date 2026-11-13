@@ -548,3 +548,26 @@ fn a_chart_from_one_cell_takes_the_used_area() {
     let pic = doc.render_chart(0, 0, 1.0).unwrap();
     assert!(pic.texts.iter().any(|t| t.text.contains("Ocak")), "{:?}", pic.texts.iter().map(|t| &t.text).collect::<Vec<_>>());
 }
+
+/// The lossless-save corpus (scripts/office_corpus.py): every `*.xlsx` in `MO_CORPUS_DIR` is
+/// opened, cell B3 of its "Veri" sheet (an input of its formulas) is set to 75 through the engine
+/// and it is saved as `*.saved.xlsx`, which the independent reader then compares with the
+/// original. Nothing to do without the variable.
+#[test]
+fn corpus_round_trip() {
+    let Ok(dir) = std::env::var("MO_CORPUS_DIR") else { return };
+    let mut seen = 0;
+    for entry in std::fs::read_dir(&dir).unwrap() {
+        let path = entry.unwrap().path();
+        let name = path.file_name().unwrap().to_string_lossy().into_owned();
+        let Some(stem) = name.strip_suffix(".xlsx").filter(|s| !s.ends_with(".saved")) else { continue };
+        let mut doc = GridDoc::open(&name, &std::fs::read(&path).unwrap(), None).unwrap();
+        let sheet = doc.sheet_names().iter().position(|s| s == "Veri").expect("a Veri sheet");
+        doc.set_active_sheet(sheet as u32).unwrap();
+        doc.execute("cell.set", r#"{"cell":"B3","input":"75"}"#).unwrap();
+        std::fs::write(path.with_file_name(format!("{stem}.saved.xlsx")), doc.save(&name).unwrap()).unwrap();
+        std::fs::write(path.with_file_name(format!("{stem}.xlsx.warnings.txt")), doc.warnings().join("\n")).unwrap();
+        seen += 1;
+    }
+    assert!(seen > 0, "no .xlsx in {dir}");
+}

@@ -461,3 +461,25 @@ fn an_object_moves_to_another_slide_where_it_was() {
     assert!(d.undo());
     assert!(d.objects(0).unwrap().iter().any(|o| o.id == id));
 }
+
+/// The lossless-save corpus (scripts/office_corpus.py): every `*.pptx` in `MO_CORPUS_DIR` is
+/// opened, " (düzenlendi)" is added to the first text on its first slide through the bridge's
+/// editing and it is saved as `*.saved.pptx`, which the independent reader then compares with the
+/// original. Nothing to do without the variable.
+#[test]
+fn corpus_round_trip() {
+    let Ok(dir) = std::env::var("MO_CORPUS_DIR") else { return };
+    let mut seen = 0;
+    for entry in std::fs::read_dir(&dir).unwrap() {
+        let path = entry.unwrap().path();
+        let name = path.file_name().unwrap().to_string_lossy().into_owned();
+        let Some(stem) = name.strip_suffix(".pptx").filter(|s| !s.ends_with(".saved")) else { continue };
+        let mut doc = DeckDoc::open(&std::fs::read(&path).unwrap()).unwrap();
+        let first = doc.text_shapes(0).unwrap().into_iter().find(|s| s.cell.is_none() && !s.text.is_empty()).expect("text on slide 1");
+        doc.set_text(0, first.id, &format!("{} (düzenlendi)", first.text)).unwrap();
+        std::fs::write(path.with_file_name(format!("{stem}.saved.pptx")), doc.save(&name).unwrap()).unwrap();
+        std::fs::write(path.with_file_name(format!("{stem}.pptx.warnings.txt")), doc.warnings().join("\n")).unwrap();
+        seen += 1;
+    }
+    assert!(seen > 0, "no .pptx in {dir}");
+}

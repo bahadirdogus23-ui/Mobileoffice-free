@@ -414,3 +414,25 @@ fn contacts_calendars_and_mails_open_as_documents() {
     assert!(doc.attachment(0).unwrap().starts_with(b"%PDF"));
     assert!(!doc.notes().is_empty());
 }
+
+/// The lossless-save corpus (scripts/office_corpus.py): every `*.docx` in `MO_CORPUS_DIR` is
+/// opened, a word is typed at its start through the engine and it is saved as `*.saved.docx`,
+/// which the independent reader then compares with the original. Nothing to do without the
+/// variable.
+#[test]
+fn corpus_round_trip() {
+    let Ok(dir) = std::env::var("MO_CORPUS_DIR") else { return };
+    let mut seen = 0;
+    for entry in std::fs::read_dir(&dir).unwrap() {
+        let path = entry.unwrap().path();
+        let name = path.file_name().unwrap().to_string_lossy().into_owned();
+        let Some(stem) = name.strip_suffix(".docx").filter(|s| !s.ends_with(".saved")) else { continue };
+        let mut doc = WordDoc::open(&name, &std::fs::read(&path).unwrap(), None).unwrap();
+        doc.execute("caret.docStart", "").unwrap();
+        doc.execute("text.insert", r#"{"text": "Düzenlendi "}"#).unwrap();
+        std::fs::write(path.with_file_name(format!("{stem}.saved.docx")), doc.export(&name).unwrap()).unwrap();
+        std::fs::write(path.with_file_name(format!("{stem}.docx.warnings.txt")), doc.notes().join("\n")).unwrap();
+        seen += 1;
+    }
+    assert!(seen > 0, "no .docx in {dir}");
+}

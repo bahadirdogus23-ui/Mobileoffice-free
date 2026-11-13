@@ -41,3 +41,13 @@ for slide in list(deck.slides)[:2]:
     assert any("İğdır'da güneşli" in shape.text for shape in slide.shapes if shape.has_text_frame)
 print("Independent OOXML readers: DOCX Turkish text, UDF text/table, XLSX formula/value, PPTX edited/copied text passed.")
 PY
+
+# Lossless-save corpus (docs/KAYIPSIZ-KAYIT-KORPUSU.md): generate richer files with the
+# independent libraries, open → edit → save them through the bridges, compare what comes back.
+corpus="$scratch/corpus"
+python3 "$root/scripts/office_corpus.py" generate "$corpus"
+export MO_CORPUS_DIR="$corpus"
+cargo test --locked -p mo-word tests::corpus_round_trip -- --exact
+cargo test --locked -p mo-grid tests::corpus_round_trip -- --exact
+cargo test --locked -p mo-deck tests::corpus_round_trip -- --exact
+python3 "$root/scripts/office_corpus.py" check "$corpus"
