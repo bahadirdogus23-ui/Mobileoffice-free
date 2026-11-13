@@ -17,6 +17,7 @@ import org.json.JSONObject
 import org.mobileofficefree.engine.SearchHit
 import org.mobileofficefree.engine.WordCaret
 import org.mobileofficefree.engine.WordDocument
+import org.mobileofficefree.engine.WordLoss
 
 /** The formatting where the caret is, for the editing tool bar. */
 data class WordFormat(
@@ -38,6 +39,11 @@ class WordViewModel(app: Application) : PagedViewModel(app, DocumentKind.WORD) {
     private var doc: WordDocument? = null
     private var source: Uri? = null
     private var fileName: String = ""
+    /**
+     * Opening left out something the file holds (a damaged part, an ODT's notes, a web page's
+     * style sheets…): saving over [source] would delete it, so only "Save as" is offered.
+     */
+    @Volatile private var incomplete = false
 
     var editing by mutableStateOf(false)
         private set
@@ -70,8 +76,11 @@ class WordViewModel(app: Application) : PagedViewModel(app, DocumentKind.WORD) {
 
     override val hasUnsavedChanges: Boolean get() = dirty
 
-    /** Saving writes the opened file again only in formats the engine writes faithfully. */
-    val savesInPlace: Boolean get() = fileName.substringAfterLast('.', "").lowercase(Locale.ROOT) in IN_PLACE
+    /**
+     * Saving writes the opened file again only in formats the engine writes faithfully, and only
+     * when the engine read all of it.
+     */
+    val savesInPlace: Boolean get() = !incomplete && fileName.substringAfterLast('.', "").lowercase(Locale.ROOT) in IN_PLACE
 
     fun startEditing() {
         editing = true
@@ -254,6 +263,11 @@ class WordViewModel(app: Application) : PagedViewModel(app, DocumentKind.WORD) {
     fun save(dest: Uri, name: String, then: () -> Unit = {}) {
         val d = doc ?: return
         val app = getApplication<Application>()
+        if (incomplete && dest == source) {
+            // Never over a file the engine did not read whole: what it left out would be lost.
+            tell(app.getString(R.string.save_over_incomplete))
+            return
+        }
         viewModelScope.launch {
             val result = withContext(engine) {
                 runCatching {
@@ -279,6 +293,7 @@ class WordViewModel(app: Application) : PagedViewModel(app, DocumentKind.WORD) {
         doc = next
         source = uri
         fileName = name
+        incomplete = next.openedIncomplete()
         return (0u until next.pageCount()).map { next.pageSize(it).let { s -> s.width to s.height } }
     }
 
@@ -314,7 +329,12 @@ class WordViewModel(app: Application) : PagedViewModel(app, DocumentKind.WORD) {
         val d = doc ?: return null
         // Read here, on the engine thread, as the document opens.
         attachments = runCatching { d.attachmentNames() }.getOrDefault(emptyList())
-        val notes = d.notes() + listOfNotNull(if (d.isSigned()) getApplication<Application>().getString(R.string.udf_signed) else null)
+        val app = getApplication<Application>()
+        // What opening left out comes first: it decides how the document can be saved.
+        val losses = runCatching { d.losses() }.getOrDefault(emptyList()).map { app.getString(lossText(it)) }
+        val inPlaceFormat = fileName.substringAfterLast('.', "").lowercase(Locale.ROOT) in IN_PLACE
+        val lost = if (losses.isEmpty() || !inPlaceFormat) losses else losses + app.getString(R.string.save_in_place_off)
+        val notes = lost + d.notes() + listOfNotNull(if (d.isSigned()) app.getString(R.string.udf_signed) else null)
         return notes.takeIf { it.isNotEmpty() }?.joinToString("\n")
     }
 
@@ -346,6 +366,7 @@ class WordViewModel(app: Application) : PagedViewModel(app, DocumentKind.WORD) {
         doc?.close()
         doc = null
         source = null
+        incomplete = false
         viewModelScope.launch {
             editing = false
             caret = null
@@ -353,6 +374,20 @@ class WordViewModel(app: Application) : PagedViewModel(app, DocumentKind.WORD) {
             dirty = false
         }
     }
+}
+
+/** What the person is told for each thing opening left out. */
+private fun lossText(loss: WordLoss): Int = when (loss) {
+    WordLoss.DAMAGED -> R.string.word_loss_damaged
+    WordLoss.OTHER_FORMAT -> R.string.word_loss_other_format
+    WordLoss.NOTES -> R.string.word_loss_notes
+    WordLoss.COMMENTS -> R.string.word_loss_comments
+    WordLoss.SHAPES -> R.string.word_loss_shapes
+    WordLoss.OBJECTS -> R.string.word_loss_objects
+    WordLoss.PICTURES -> R.string.word_loss_pictures
+    WordLoss.FORMS -> R.string.word_loss_forms
+    WordLoss.WEB_CONTENT -> R.string.word_loss_web
+    WordLoss.OTHER -> R.string.word_loss_other
 }
 
 /** Pictures go in this wide (points) at most: a little under an A4 page's text width. */

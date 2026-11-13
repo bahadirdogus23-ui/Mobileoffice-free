@@ -280,8 +280,20 @@ impl SheetDocument {
         self.doc().strings_kept()
     }
 
-    /// Whether opening lost data the file holds (see [`SheetDocument::truncated_sheets`] and
-    /// [`SheetDocument::shared_strings_kept`]): the app must then never save over the opened file.
+    /// Sheets the engine did not read at all (a dialog, macro or chart sheet, or a worksheet that
+    /// could not be read and opened empty): saving over the opened file would delete them.
+    pub fn unread_sheets(&self) -> Vec<String> {
+        self.doc().unread_sheets().to_vec()
+    }
+
+    /// Parts the engine could not parse and left out (styles, comments, drawings…).
+    pub fn skipped_parts(&self) -> Vec<String> {
+        self.doc().skipped_parts().to_vec()
+    }
+
+    /// Whether opening lost data the file holds (see [`SheetDocument::truncated_sheets`],
+    /// [`SheetDocument::shared_strings_kept`], [`SheetDocument::unread_sheets`] and
+    /// [`SheetDocument::skipped_parts`]): the app must then never save over the opened file.
     pub fn opened_incomplete(&self) -> bool {
         self.doc().opened_incomplete()
     }
@@ -568,6 +580,45 @@ impl WordDocument {
     }
 }
 
+/// Something a Word-processing file holds that opening left out (see [`WordDocument::losses`]).
+#[derive(uniffi::Enum, Clone, Copy, Debug, PartialEq, Eq)]
+pub enum WordLoss {
+    /// Part of the file is damaged or past the engine's limits.
+    Damaged,
+    /// The file holds another format than its name says.
+    OtherFormat,
+    Notes,
+    Comments,
+    /// Text boxes and drawing shapes.
+    Shapes,
+    /// Embedded objects (charts, formulas, OLE objects).
+    Objects,
+    /// Pictures the engine cannot keep.
+    Pictures,
+    Forms,
+    /// A web page's scripts, style sheets, media and pictures from other files.
+    WebContent,
+    Other,
+}
+
+impl From<mo_word::Loss> for WordLoss {
+    fn from(l: mo_word::Loss) -> Self {
+        use mo_word::Loss as L;
+        match l {
+            L::Damaged => WordLoss::Damaged,
+            L::OtherFormat => WordLoss::OtherFormat,
+            L::Notes => WordLoss::Notes,
+            L::Comments => WordLoss::Comments,
+            L::Shapes => WordLoss::Shapes,
+            L::Objects => WordLoss::Objects,
+            L::Pictures => WordLoss::Pictures,
+            L::Forms => WordLoss::Forms,
+            L::WebContent => WordLoss::WebContent,
+            L::Other => WordLoss::Other,
+        }
+    }
+}
+
 /// Where the caret is drawn on a Word page, in points.
 #[derive(uniffi::Record)]
 pub struct WordCaret {
@@ -588,6 +639,18 @@ impl WordDocument {
     /// What opening could not keep (an e-book's fonts, an e-mail's remote pictures…).
     pub fn notes(&self) -> Vec<String> {
         self.doc().notes().to_vec()
+    }
+
+    /// What the opened file holds that opening left out (a damaged part, an ODT's notes, a web
+    /// page's style sheets…). When not empty, saving over the opened file would delete it: the app
+    /// must only offer "Save as" to a new file.
+    pub fn losses(&self) -> Vec<WordLoss> {
+        self.doc().losses().iter().map(|&l| l.into()).collect()
+    }
+
+    /// Whether opening left out something the file holds (see [`WordDocument::losses`]).
+    pub fn opened_incomplete(&self) -> bool {
+        self.doc().opened_incomplete()
     }
 
     /// The names of the files carried inside (an e-mail's attachments).
@@ -873,6 +936,13 @@ impl SlidesDocument {
 
     pub fn warnings(&self) -> Vec<String> {
         self.doc().warnings().to_vec()
+    }
+
+    /// Whether opening left out something the file holds (a slide, master, layout, notes page or
+    /// picture that could not be read, or a `.ppt`/`.odp` read into a PowerPoint model): saving
+    /// over the opened file would delete it, so the app must only offer "Save as".
+    pub fn opened_incomplete(&self) -> bool {
+        self.doc().opened_incomplete()
     }
 
     pub fn slide_count(&self) -> u32 {

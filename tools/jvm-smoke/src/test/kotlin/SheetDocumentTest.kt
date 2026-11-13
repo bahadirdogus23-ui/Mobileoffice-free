@@ -24,6 +24,8 @@ class SheetDocumentTest {
                 // Read whole: nothing cut, so saving over the file is allowed.
                 assertTrue(back.truncatedSheets().isEmpty())
                 assertEquals(null, back.sharedStringsKept())
+                assertTrue(back.unreadSheets().isEmpty())
+                assertTrue(back.skippedParts().isEmpty())
                 assertTrue(!back.openedIncomplete())
             }
         }

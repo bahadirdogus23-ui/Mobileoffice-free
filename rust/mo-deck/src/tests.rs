@@ -483,3 +483,63 @@ fn corpus_round_trip() {
     }
     assert!(seen > 0, "no .pptx in {dir}");
 }
+
+/// `bytes` (a zip) with entry `name` replaced by `data`, the other entries as they were.
+fn with_entry(bytes: &[u8], name: &str, data: &[u8]) -> Vec<u8> {
+    use std::io::{Read, Write};
+    let mut zin = zip::ZipArchive::new(std::io::Cursor::new(bytes)).unwrap();
+    let mut out = zip::ZipWriter::new(std::io::Cursor::new(Vec::new()));
+    let opts = zip::write::SimpleFileOptions::default().compression_method(zip::CompressionMethod::Stored);
+    let mut found = false;
+    for i in 0..zin.len() {
+        let mut f = zin.by_index(i).unwrap();
+        let entry = f.name().to_string();
+        let mut old = Vec::new();
+        f.read_to_end(&mut old).unwrap();
+        out.start_file(entry.as_str(), opts).unwrap();
+        found |= entry == name;
+        out.write_all(if entry == name { data } else { &old }).unwrap();
+    }
+    assert!(found, "no {name}");
+    out.finish().unwrap().into_inner()
+}
+
+fn entry(bytes: &[u8], name: &str) -> Vec<u8> {
+    use std::io::Read;
+    let mut zin = zip::ZipArchive::new(std::io::Cursor::new(bytes)).unwrap();
+    let mut out = Vec::new();
+    zin.by_name(name).unwrap().read_to_end(&mut out).unwrap();
+    out
+}
+
+/// DeckCraft reports only the slides it cannot read: a damaged master, layout or notes page is
+/// left out, and a slide cut short is read up to the cut, without a word. Saving over the
+/// original would make that loss permanent, so the deck is flagged.
+#[test]
+fn what_deckcraft_leaves_out_on_opening_is_flagged() {
+    let pptx = sample_pptx();
+    let whole = DeckDoc::open(&pptx).unwrap();
+    assert!(!whole.opened_incomplete(), "{:?}", whole.warnings());
+
+    let master = entry(&pptx, "ppt/slideMasters/slideMaster1.xml");
+    let deck = DeckDoc::open(&with_entry(&pptx, "ppt/slideMasters/slideMaster1.xml", &master[..master.len() / 2])).unwrap();
+    assert!(deck.warnings().is_empty(), "DeckCraft says nothing: {:?}", deck.warnings());
+    assert!(deck.opened_incomplete());
+
+    // Cut after a tag: the elements still open are closed and the slide shows what came before.
+    let slide = entry(&pptx, "ppt/slides/slide2.xml");
+    let cut = slide[..slide.len() * 2 / 3].iter().rposition(|&b| b == b'>').unwrap() + 1;
+    let deck = DeckDoc::open(&with_entry(&pptx, "ppt/slides/slide2.xml", &slide[..cut])).unwrap();
+    assert_eq!(deck.slide_count(), whole.slide_count(), "the cut slide is still shown");
+    assert!(deck.warnings().is_empty(), "{:?}", deck.warnings());
+    assert!(deck.opened_incomplete());
+
+    // A slide that does not parse at all is one DeckCraft reports itself.
+    let deck = DeckDoc::open(&with_entry(&pptx, "ppt/slides/slide2.xml", b"<p:sld")).unwrap();
+    assert!(!deck.warnings().is_empty());
+    assert!(deck.opened_incomplete());
+
+    // Another format read into a PPTX model.
+    assert!(DeckDoc::open(include_bytes!("../testdata/sample.odp")).unwrap().opened_incomplete());
+    assert!(!DeckDoc::blank().unwrap().opened_incomplete());
+}

@@ -623,3 +623,51 @@ fn a_sheet_cut_by_the_engine_is_reported_as_truncated() {
     assert!(!GridDoc::open("k.xlsx", &small, None).unwrap().opened_incomplete());
     assert!(!GridDoc::blank().opened_incomplete());
 }
+
+#[test]
+fn reads_the_engines_unread_sheet_and_part_warnings() {
+    assert_eq!(parse_unread_sheet("sheet \"Özet\" could not be read: XML error: x"), Some("Özet"));
+    assert_eq!(parse_unread_sheet("sheet \"Makro\" is a macrosheet and was skipped"), Some("Makro"));
+    assert_eq!(parse_unread_sheet("chart sheet \"Grafik 1\" was skipped and is not kept on save"), Some("Grafik 1"));
+    assert_eq!(parse_unread_sheet("sheet \"A\" has no part; skipped"), None);
+    assert_eq!(parse_unread_sheet("sheet \"A\" is damaged (x); kept 3 rows"), None);
+    assert_eq!(parse_skipped_part("skipped xl/styles.xml: XML error: unexpected end"), Some("xl/styles.xml"));
+    assert_eq!(parse_skipped_part("skipped 3 cells: x"), None);
+}
+
+/// `bytes` (a zip) with entry `name` replaced by `data`, the other entries as they were.
+fn with_entry(bytes: &[u8], name: &str, data: &[u8]) -> Vec<u8> {
+    use std::io::{Read, Write};
+    let mut zin = zip::ZipArchive::new(std::io::Cursor::new(bytes)).unwrap();
+    let mut out = zip::ZipWriter::new(std::io::Cursor::new(Vec::new()));
+    let opts = zip::write::SimpleFileOptions::default().compression_method(zip::CompressionMethod::Stored);
+    let mut found = false;
+    for i in 0..zin.len() {
+        let mut f = zin.by_index(i).unwrap();
+        let entry = f.name().to_string();
+        let mut old = Vec::new();
+        f.read_to_end(&mut old).unwrap();
+        out.start_file(entry.as_str(), opts).unwrap();
+        found |= entry == name;
+        out.write_all(if entry == name { data } else { &old }).unwrap();
+    }
+    assert!(found, "no {name}");
+    out.finish().unwrap().into_inner()
+}
+
+/// A worksheet or styles part GridCraft cannot parse is only a warning: the sheet opens empty, the
+/// cells lose their formats. Saving that over the original would make it permanent.
+#[test]
+fn a_sheet_or_part_the_engine_could_not_read_blocks_saving_over_the_file() {
+    let xlsx = GridDoc::open("k.csv", "a,b\n1,2\n".as_bytes(), None).unwrap().save("k.xlsx").unwrap();
+    assert!(!GridDoc::open("k.xlsx", &xlsx, None).unwrap().opened_incomplete());
+
+    let doc = GridDoc::open("k.xlsx", &with_entry(&xlsx, "xl/worksheets/sheet1.xml", b"\x00\x01 not xml"), None).unwrap();
+    assert!(doc.opened_incomplete(), "warnings: {:?}", doc.warnings());
+    // Reported as a sheet cut at row 0 (see `truncated`).
+    assert_eq!(doc.truncated().len(), 1, "warnings: {:?}", doc.warnings());
+
+    let doc = GridDoc::open("k.xlsx", &with_entry(&xlsx, "xl/styles.xml", b"\x00\x01 not xml"), None).unwrap();
+    assert!(doc.opened_incomplete(), "warnings: {:?}", doc.warnings());
+    assert_eq!(doc.skipped_parts(), ["xl/styles.xml"], "warnings: {:?}", doc.warnings());
+}

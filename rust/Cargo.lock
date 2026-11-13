@@ -1980,6 +1980,7 @@ dependencies = [
  "base64 0.22.1",
  "cfb",
  "mail-parser",
+ "quick-xml 0.41.0",
  "roxmltree",
  "zip",
 ]
@@ -1995,6 +1996,7 @@ dependencies = [
  "deckcraft-pptx",
  "deckcraft-render",
  "deckcraft-text",
+ "mo-convert",
  "png",
  "roxmltree",
  "thiserror",
@@ -2030,6 +2032,7 @@ dependencies = [
  "serde_json",
  "thiserror",
  "wordcraft-fonts",
+ "zip",
 ]
 
 [[package]]

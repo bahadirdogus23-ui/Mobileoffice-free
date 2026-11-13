@@ -11,9 +11,16 @@ import org.mobileofficefree.engine.blankDocument
 class BlankDocumentTest {
     @Test
     fun newDocumentsOpenInTheirEngines() {
-        WordDocument.open("Yeni.docx", blankDocument("docx"), null).use { assertTrue(it.pageCount() >= 1u) }
+        WordDocument.open("Yeni.docx", blankDocument("docx"), null).use {
+            assertTrue(it.pageCount() >= 1u)
+            // Read whole: saving over the file is allowed.
+            assertTrue(!it.openedIncomplete())
+        }
         SheetDocument.open("Yeni.xlsx", blankDocument("xlsx"), null).use { assertEquals(1, it.sheetNames().size) }
-        SlidesDocument.open(blankDocument("pptx")).use { assertEquals(1u, it.slideCount()) }
+        SlidesDocument.open(blankDocument("pptx")).use {
+            assertEquals(1u, it.slideCount())
+            assertTrue(!it.openedIncomplete())
+        }
         assertFailsWith<MoException.Save> { blankDocument("exe") }
     }
 }

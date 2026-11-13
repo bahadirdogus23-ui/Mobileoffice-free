@@ -22,6 +22,11 @@ class SlidesViewModel(app: Application) : PagedViewModel(app, DocumentKind.SLIDE
     private var doc: SlidesDocument? = null
     private var source: Uri? = null
     private var fileName = ""
+    /**
+     * Opening left out something the file holds (a slide, master or picture DeckCraft could not
+     * read): saving over [source] would delete it, so only "Save as" is offered.
+     */
+    @Volatile private var incomplete = false
 
     /** Editing: a tap on a slide opens the text under it; the bar adds, copies and deletes slides. */
     var editing by mutableStateOf(false)
@@ -34,7 +39,9 @@ class SlidesViewModel(app: Application) : PagedViewModel(app, DocumentKind.SLIDE
     override val hasUnsavedChanges: Boolean get() = dirty
 
     /** Saving writes the opened file again for the formats DeckCraft writes. */
-    val savesInPlace: Boolean get() = fileName.substringAfterLast('.', "").lowercase(Locale.ROOT) in setOf("pptx", "ppsx", "potx")
+    val savesInPlace: Boolean get() = !incomplete && isPowerPoint(fileName)
+
+    private fun isPowerPoint(name: String) = name.substringAfterLast('.', "").lowercase(Locale.ROOT) in setOf("pptx", "ppsx", "potx")
 
     /** The text shape at (`x`, `y`) points on [slide], front-most first, offered for editing. */
     fun tapText(slide: Int, x: Float, y: Float, objectId: UInt? = null) {
@@ -362,6 +369,11 @@ class SlidesViewModel(app: Application) : PagedViewModel(app, DocumentKind.SLIDE
     fun save(dest: Uri, name: String, then: () -> Unit = {}) {
         val d = doc ?: return
         val app = getApplication<Application>()
+        if (incomplete && dest == source) {
+            // Never over a file DeckCraft did not read whole: what it left out would be lost.
+            tell(app.getString(R.string.save_over_incomplete))
+            return
+        }
         viewModelScope.launch {
             val result = withContext(engine) {
                 runCatching {
@@ -380,7 +392,13 @@ class SlidesViewModel(app: Application) : PagedViewModel(app, DocumentKind.SLIDE
     }
 
     /** What the engine could not keep when it read the file (an .odp's styles, a .ppt's pictures…). */
-    override fun openedNotice(): String? = doc?.warnings()?.takeIf { it.isNotEmpty() }?.joinToString("\n")
+    override fun openedNotice(): String? {
+        val d = doc ?: return null
+        val app = getApplication<Application>()
+        // A .ppt or .odp is always saved as a new PPTX, so its conversion needs no warning here.
+        val lost = if (incomplete && isPowerPoint(fileName)) listOf(app.getString(R.string.slides_incomplete), app.getString(R.string.save_in_place_off)) else emptyList()
+        return (lost + d.warnings()).takeIf { it.isNotEmpty() }?.joinToString("\n")
+    }
 
     override fun recoveryBytes(): Pair<String, ByteArray>? = doc?.let { "recovery.pptx" to it.save("recovery.pptx") }
 
@@ -404,6 +422,7 @@ class SlidesViewModel(app: Application) : PagedViewModel(app, DocumentKind.SLIDE
         doc = next
         source = uri
         fileName = name
+        incomplete = next.openedIncomplete()
         val size = next.slideSize()
         return List(next.slideCount().toInt()) { size.width to size.height }
     }
@@ -435,6 +454,7 @@ class SlidesViewModel(app: Application) : PagedViewModel(app, DocumentKind.SLIDE
         doc?.close()
         doc = null
         source = null
+        incomplete = false
         viewModelScope.launch {
             editing = false
             dirty = false

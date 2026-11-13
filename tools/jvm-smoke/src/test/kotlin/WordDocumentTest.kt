@@ -4,6 +4,7 @@ import kotlin.test.assertFailsWith
 import kotlin.test.assertTrue
 import org.mobileofficefree.engine.MoException
 import org.mobileofficefree.engine.WordDocument
+import org.mobileofficefree.engine.WordLoss
 
 class WordDocumentTest {
     @Test
@@ -35,6 +36,25 @@ class WordDocumentTest {
             doc.markSaved()
             assertEquals(false, doc.isDirty())
             assertFailsWith<MoException.Command> { doc.execute("no.such", "") }
+        }
+    }
+
+    @Test
+    fun tellsWhatOpeningLeftOut() {
+        // Read whole: saving over the file is allowed.
+        WordDocument.open("a.md", "Merhaba.\n".toByteArray(), null).use { doc ->
+            assertTrue(doc.losses().isEmpty())
+            assertTrue(!doc.openedIncomplete())
+        }
+        // An RTF footnote is not read: saving over the file would delete it.
+        val rtf = "{\\rtf1\\ansi Metin{\\footnote\\pard Dipnot}\\par}".toByteArray()
+        WordDocument.open("a.rtf", rtf, null).use { doc ->
+            assertEquals(listOf(WordLoss.NOTES), doc.losses())
+            assertTrue(doc.openedIncomplete())
+        }
+        // A web page's style sheet is dropped.
+        WordDocument.open("a.html", "<style>p{}</style><p>x</p>".toByteArray(), null).use { doc ->
+            assertEquals(listOf(WordLoss.WEB_CONTENT), doc.losses())
         }
     }
 }

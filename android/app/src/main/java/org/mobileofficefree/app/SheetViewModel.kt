@@ -278,7 +278,9 @@ class SheetViewModel(app: Application) : AndroidViewModel(app) {
                         // A cut sheet comes first, in the person's language: it decides how to save.
                         val cuts = d?.truncatedSheets().orEmpty().map { text(R.string.sheet_truncated, it.sheet, it.lastRow.toInt()) }
                         val strings = d?.sharedStringsKept()?.let { listOf(text(R.string.strings_truncated, it.toLong())) }.orEmpty()
-                        cuts + strings + d?.warnings().orEmpty()
+                        val unread = d?.unreadSheets().orEmpty().map { text(R.string.sheet_unread, it) }
+                        val parts = d?.skippedParts().orEmpty().takeIf { it.isNotEmpty() }?.let { listOf(text(R.string.parts_skipped, it.joinToString(", "))) }.orEmpty()
+                        cuts + strings + unread + parts + d?.warnings().orEmpty()
                     }
                     recoveryOffer = recovery.find(uri)
                 },

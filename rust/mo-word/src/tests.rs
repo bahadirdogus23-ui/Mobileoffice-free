@@ -436,3 +436,110 @@ fn corpus_round_trip() {
     }
     assert!(seen > 0, "no .docx in {dir}");
 }
+
+/// `bytes` (a zip) with entry `name` replaced by `data`, the other entries as they were.
+fn with_entry(bytes: &[u8], name: &str, data: &[u8]) -> Vec<u8> {
+    use std::io::{Read, Write};
+    let mut zin = zip::ZipArchive::new(std::io::Cursor::new(bytes)).unwrap();
+    let mut out = zip::ZipWriter::new(std::io::Cursor::new(Vec::new()));
+    let opts = zip::write::SimpleFileOptions::default().compression_method(zip::CompressionMethod::Stored);
+    for i in 0..zin.len() {
+        let mut f = zin.by_index(i).unwrap();
+        let entry = f.name().to_string();
+        let mut old = Vec::new();
+        f.read_to_end(&mut old).unwrap();
+        out.start_file(entry.as_str(), opts).unwrap();
+        out.write_all(if entry == name { data } else { &old }).unwrap();
+    }
+    out.finish().unwrap().into_inner()
+}
+
+/// WordCraft skips a DOCX part it cannot parse (styles, notes, comments…) with only a log line
+/// and opens the rest; saving that over the original would delete the part for good.
+#[test]
+fn a_docx_part_the_engine_skips_is_reported() {
+    let docx = sample_docx();
+    let whole = WordDoc::open("el-kitabi.docx", &docx, None).unwrap();
+    assert!(whole.losses().is_empty(), "{:?}", whole.losses());
+    assert!(!whole.opened_incomplete());
+
+    let styles = zip_entry(&docx, "word/styles.xml");
+    let cut = with_entry(&docx, "word/styles.xml", &styles.as_bytes()[..styles.len() / 2]);
+    let doc = WordDoc::open("el-kitabi.docx", &cut, None).expect("the engine opens it without the styles");
+    assert_eq!(doc.losses(), [Loss::Damaged]);
+    assert!(doc.opened_incomplete());
+
+    // A damaged entry (its checksum no longer matches) is skipped the same way.
+    let mut bad = with_entry(&docx, "docProps/app.xml", b"<Properties>0123456789abcdef</Properties>");
+    let at = bad.windows(16).position(|w| w == b"0123456789abcdef").unwrap();
+    bad[at] = b'X';
+    assert_eq!(WordDoc::open("el-kitabi.docx", &bad, None).unwrap().losses(), [Loss::Damaged]);
+
+    // Another format under a Word name is opened by content; saving would convert it.
+    let rtf = WordDoc::open("rapor.docx", br"{\rtf1\ansi Merhaba\par}", None).unwrap();
+    assert_eq!(rtf.losses(), [Loss::OtherFormat]);
+}
+
+/// The ODT reader keeps paragraphs, lists, tables and pictures only: notes, comments, text
+/// boxes, shapes and form controls are not read.
+#[test]
+fn what_the_odt_reader_skips_is_reported() {
+    let odt = WordDoc::open("el-kitabi.docx", &sample_docx(), None).unwrap().export("el-kitabi.odt").unwrap();
+    assert!(WordDoc::open("el-kitabi.odt", &odt, None).unwrap().losses().is_empty());
+
+    let content = zip_entry(&odt, "content.xml");
+    let at = content.find("</text:p>").unwrap();
+    let note = r#"<text:note text:id="n1" text:note-class="footnote"><text:note-citation>1</text:note-citation><text:note-body><text:p>Dipnot</text:p></text:note-body></text:note>"#;
+    let with_note = format!("{}{note}{}", &content[..at], &content[at..]);
+    let doc = WordDoc::open("el-kitabi.odt", &with_entry(&odt, "content.xml", with_note.as_bytes()), None).unwrap();
+    assert_eq!(doc.losses(), [Loss::Notes]);
+
+    let comment = r#"<office:annotation><text:p>Not</text:p></office:annotation>"#;
+    let with_comment = format!("{}{comment}{}", &content[..at], &content[at..]);
+    let doc = WordDoc::open("el-kitabi.odt", &with_entry(&odt, "content.xml", with_comment.as_bytes()), None).unwrap();
+    assert_eq!(doc.losses(), [Loss::Comments]);
+
+    // Content cut short: the reader stops where the XML breaks.
+    let cut = with_entry(&odt, "content.xml", &content.as_bytes()[..content.len() * 2 / 3]);
+    assert!(WordDoc::open("el-kitabi.odt", &cut, None).unwrap().losses().contains(&Loss::Damaged));
+
+    assert_eq!(losses::find("x.odt", b"{\\rtf1 x}"), [Loss::OtherFormat]);
+}
+
+#[test]
+fn what_the_rtf_reader_skips_is_reported() {
+    let plain = br"{\rtf1\ansi{\fonttbl{\f0 Arial;}}{\*\generator Word;}Merhaba \b d\'fcnya\b0\par}";
+    assert!(WordDoc::open("a.rtf", plain, None).unwrap().losses().is_empty());
+    let note = WordDoc::open("a.rtf", br"{\rtf1\ansi Metin{\super\chftn}{\footnote\pard\plain\chftn Dipnot}\par}", None).unwrap();
+    assert_eq!(note.losses(), [Loss::Notes]);
+    assert_eq!(losses::find("a.rtf", br"{\rtf1 a{\*\atnid AY}{\*\annotation{\pard yorum}}\par}"), [Loss::Comments]);
+    assert_eq!(losses::find("a.rtf", br"{\rtf1 {\object\objemb{\*\objdata 0102}{\result x}}\par}"), [Loss::Objects]);
+    assert_eq!(losses::find("a.rtf", br"{\rtf1 {\shp{\*\shpinst{\sp{\sn fillColor}{\sv 255}}}}\par}"), [Loss::Shapes]);
+    // A Windows metafile is dropped, unless it is only the fallback beside a PNG.
+    assert_eq!(losses::find("a.rtf", br"{\rtf1 {\pict\wmetafile8\picw10\pich10 0102}\par}"), [Loss::Pictures]);
+    assert!(losses::find("a.rtf", br"{\rtf1 {\*\shppict{\pict\pngblip 0102}}{\nonshppict{\pict\wmetafile8 0102}}\par}").is_empty());
+    // Binary data is skipped unread, whatever it looks like.
+    assert!(losses::find("a.rtf", b"{\\rtf1 {\\pict\\pngblip\\bin9 \\footnote}\\par}").is_empty());
+    assert_eq!(losses::find("a.rtf", b"<html>x</html>"), [Loss::OtherFormat]);
+}
+
+#[test]
+fn what_web_pages_and_markdown_lose_is_reported() {
+    let page = "<html><body><h1>Başlık</h1><p>Metin <b>kalın</b></p></body></html>";
+    assert!(WordDoc::open("a.html", page.as_bytes(), None).unwrap().losses().is_empty());
+    assert!(losses::find("a.html", b"<p><img src=\"data:image/png;base64,AAAA\" alt=\"x\"></p>").is_empty());
+    assert_eq!(losses::find("a.html", b"<p><IMG SRC='foto.jpg'></p>"), [Loss::WebContent]);
+    assert_eq!(losses::find("a.htm", b"<head><style>p{color:red}</style></head><p>x</p>"), [Loss::WebContent]);
+    assert_eq!(losses::find("a.html", b"<p>x</p><script>alert(1)</script>"), [Loss::WebContent]);
+    // `<strong>` is not `<script>`, nor `<s>` a style sheet.
+    assert!(losses::find("a.html", b"<p><strong>x</strong><s>y</s><small>z</small></p>").is_empty());
+
+    let md = "# Başlık\n\nMetin **kalın** ve [bağlantı](https://ornek.org).\n";
+    assert!(WordDoc::open("a.md", md.as_bytes(), None).unwrap().losses().is_empty());
+    assert_eq!(losses::find("a.md", b"# Logo\n\n![logo](logo.png)\n"), [Loss::Pictures]);
+    assert_eq!(losses::find("a.md", b"---\ntitle: x\n---\n# A\n"), [Loss::Other]);
+    assert_eq!(losses::find("a.md", b"<div align=\"center\">\n<img src=\"a.png\">\n</div>\n"), [Loss::WebContent]);
+    assert!(losses::find("a.md", b"```html\n<script>x</script>\n```\n").is_empty());
+    // Formats not saved over the opened file are not checked.
+    assert!(losses::find("a.doc", b"anything").is_empty());
+}

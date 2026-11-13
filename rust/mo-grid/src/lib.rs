@@ -138,6 +138,9 @@ pub struct GridDoc {
     truncated: Vec<Truncation>,
     /// The shared strings the engine kept when it stopped reading that list part-way.
     strings_kept: Option<u64>,
+    /// Sheets the engine did not read at all, and parts it skipped (see [`GridDoc::unread_sheets`]).
+    unread_sheets: Vec<String>,
+    skipped_parts: Vec<String>,
     /// Numbers and formulas typed and shown the Turkish way (see `turkish.rs`).
     turkish: bool,
 }
@@ -217,6 +220,29 @@ fn parse_strings_cut(w: &str) -> Option<u64> {
     tail.strip_suffix(" strings")?.parse().ok()
 }
 
+/// The sheet name of GridCraft's warnings for a sheet it did not read at all, if `w` is one:
+/// `sheet "X" could not be read: …` (an empty sheet stands in for it), `sheet "X" is a K and was
+/// skipped` and `chart sheet "X" was skipped and is not kept on save` (crates/xlsx/src/read.rs:270-279,
+/// passthrough/read.rs:187). Saving over the original would delete such a sheet.
+fn parse_unread_sheet(w: &str) -> Option<&str> {
+    if let Some(rest) = w.strip_prefix("chart sheet \"") {
+        return rest.strip_suffix("\" was skipped and is not kept on save");
+    }
+    let rest = w.strip_prefix("sheet \"")?;
+    if let Some((name, _)) = rest.split_once("\" could not be read: ") {
+        return Some(name);
+    }
+    let (name, kind) = rest.rsplit_once("\" is a ")?;
+    kind.strip_suffix(" and was skipped").filter(|k| !k.contains('"')).map(|_| name)
+}
+
+/// The part named by GridCraft's warning for an optional part it could not parse (styles, theme,
+/// comments, drawings, tables…: crates/xlsx/src/read.rs:88), if `w` is one.
+fn parse_skipped_part(w: &str) -> Option<&str> {
+    let rest = w.strip_prefix("skipped ")?;
+    rest.split_once(": ").map(|(part, _)| part).filter(|p| !p.is_empty() && !p.contains(' '))
+}
+
 /// The rectangle from A1 to the last used cell, as counts.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct UsedSize {
@@ -229,7 +255,15 @@ impl GridDoc {
     pub fn blank() -> GridDoc {
         let mut session = Session::new();
         session.new_workbook();
-        GridDoc { session, warnings: Vec::new(), truncated: Vec::new(), strings_kept: None, turkish: false }
+        GridDoc {
+            session,
+            warnings: Vec::new(),
+            truncated: Vec::new(),
+            strings_kept: None,
+            unread_sheets: Vec::new(),
+            skipped_parts: Vec::new(),
+            turkish: false,
+        }
     }
 
     /// Opens an XLSX/XLSM/XLS/XLSB/ODS/CSV/TSV file from its bytes. `name` is the file name; its
@@ -253,7 +287,9 @@ impl GridDoc {
         let mut session = Session::new();
         session.add_document(DocState::new(wb, None, title, Trust::FromFile));
         let strings_kept = warnings.iter().find_map(|w| parse_strings_cut(w));
-        let mut doc = GridDoc { session, warnings, truncated: Vec::new(), strings_kept, turkish: false };
+        let unread_sheets = warnings.iter().filter_map(|w| parse_unread_sheet(w)).map(str::to_string).collect();
+        let skipped_parts = warnings.iter().filter_map(|w| parse_skipped_part(w)).map(str::to_string).collect();
+        let mut doc = GridDoc { session, warnings, truncated: Vec::new(), strings_kept, unread_sheets, skipped_parts, turkish: false };
         doc.truncated = doc.find_truncations();
         Ok(doc)
     }
@@ -290,10 +326,23 @@ impl GridDoc {
         self.strings_kept
     }
 
-    /// Whether opening lost data the file holds (a cut sheet or string list): saving over the
-    /// original would make that loss permanent.
+    /// Sheets the engine did not read at all (a damaged worksheet opens empty; a dialog, macro or
+    /// chart sheet is left out). As with [`GridDoc::truncated`], the workbook must not be saved
+    /// over the file it came from: these sheets would be lost.
+    pub fn unread_sheets(&self) -> &[String] {
+        &self.unread_sheets
+    }
+
+    /// Parts the engine could not parse and left out (styles, theme, comments, drawings, tables…):
+    /// saving over the original would drop what they hold.
+    pub fn skipped_parts(&self) -> &[String] {
+        &self.skipped_parts
+    }
+
+    /// Whether opening lost data the file holds (a cut sheet or string list, a sheet or part not
+    /// read): saving over the original would make that loss permanent.
     pub fn opened_incomplete(&self) -> bool {
-        !self.truncated.is_empty() || self.strings_kept.is_some()
+        !self.truncated.is_empty() || self.strings_kept.is_some() || !self.unread_sheets.is_empty() || !self.skipped_parts.is_empty()
     }
 
     fn wb(&self) -> &Arc<Workbook> {

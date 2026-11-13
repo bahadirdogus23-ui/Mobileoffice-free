@@ -23,6 +23,8 @@ zip = { version = "3", default-features = false, features = ["deflate"] }
 roxmltree = "0.20"
 # Old binary PowerPoint (.ppt), read for its text (src/ppt.rs).
 cfb = "0.15"
+# Package integrity check on opening (mo_convert::package).
+mo-convert = { workspace = true }
 
 [dev-dependencies]
 # The engine's built-in sample deck gives the tests a real presentation.

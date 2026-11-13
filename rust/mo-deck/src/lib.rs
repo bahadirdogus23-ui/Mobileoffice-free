@@ -32,10 +32,31 @@ pub struct Raster {
 pub struct DeckDoc {
     pres: Presentation,
     warnings: Vec<String>,
+    /// Opening left out something the file holds (see [`DeckDoc::opened_incomplete`]).
+    incomplete: bool,
     dirty: bool,
     /// The presentation before each change (newest last), and changes taken back (for redo).
     undo: Vec<Presentation>,
     redo: Vec<Presentation>,
+}
+
+/// DeckCraft's package reader (crates/pptx/src/opc.rs:10-19, xml.rs:14-16, pinned 55e5ee5) skips
+/// a zip entry that does not inflate or is larger than 512 MB, stops inflating after 4 GB, leaves
+/// out an XML part over 96 MB or one that does not parse, and keeps only the start of an XML part
+/// cut short; only unreadable slides are reported. Whether none of that happens to `bytes`.
+fn package_reads_whole(bytes: &[u8]) -> bool {
+    use mo_convert::package::{XmlLimits, damaged_entries};
+    const XML: XmlLimits =
+        XmlLimits { max_elements: 4_000_000, max_depth: 256, max_attrs: None, max_bytes: 96 * 1024 * 1024, allow_unmatched_ends: true };
+    const MAX_PART: u64 = 512 * 1024 * 1024;
+    const MAX_TOTAL: u64 = 2 * 1024 * 1024 * 1024;
+    let Ok(mut zip) = zip::ZipArchive::new(std::io::Cursor::new(bytes)) else { return false };
+    let sizes: Vec<u64> = (0..zip.len()).filter_map(|i| zip.by_index_raw(i).ok().map(|f| f.size())).collect();
+    if sizes.len() != zip.len() || sizes.iter().any(|&s| s > MAX_PART) || sizes.iter().sum::<u64>() > MAX_TOTAL {
+        return false;
+    }
+    let parsed = |n: &str| n.ends_with(".rels") || (n.ends_with(".xml") && (n.starts_with("ppt/") || n.starts_with("docprops/")));
+    damaged_entries(bytes, parsed, &XML).is_empty()
 }
 
 /// How many changes can be taken back.
@@ -54,17 +75,28 @@ impl DeckDoc {
         }
         if ppt::sniff(bytes) {
             let (pres, warnings) = ppt::import(bytes)?;
-            return Ok(DeckDoc { pres, warnings, dirty: false, undo: Vec::new(), redo: Vec::new() });
+            // Read into a PPTX model: saving writes a PPTX, not the file as it was.
+            return Ok(DeckDoc { pres, warnings, incomplete: true, dirty: false, undo: Vec::new(), redo: Vec::new() });
         }
         if odp::sniff(bytes) {
             let (pres, warnings) = odp::import(bytes)?;
-            return Ok(DeckDoc { pres, warnings, dirty: false, undo: Vec::new(), redo: Vec::new() });
+            return Ok(DeckDoc { pres, warnings, incomplete: true, dirty: false, undo: Vec::new(), redo: Vec::new() });
         }
         if !deckcraft_pptx::sniff(bytes) {
             return Err(DeckError::Open("Not a PowerPoint (.pptx) presentation.".into()));
         }
         let (pres, warnings) = deckcraft_pptx::import_checked(bytes).map_err(|e| DeckError::Open(e.to_string()))?;
-        Ok(DeckDoc { pres, warnings, dirty: false, undo: Vec::new(), redo: Vec::new() })
+        // The slides DeckCraft could not read are its warnings; what else it skipped is found here.
+        let incomplete = !warnings.is_empty() || !package_reads_whole(bytes);
+        Ok(DeckDoc { pres, warnings, incomplete, dirty: false, undo: Vec::new(), redo: Vec::new() })
+    }
+
+    /// Whether opening left out something the file holds: a slide, master, layout, notes page or
+    /// picture DeckCraft could not read, or a presentation in another format (`.ppt`, `.odp`)
+    /// read into this one. Saving over the opened file would then delete it, so the app must only
+    /// offer "Save as" to a new file (AGENTS.md invariant 4).
+    pub fn opened_incomplete(&self) -> bool {
+        self.incomplete
     }
 
     /// A new presentation: one title slide on the default 16:9 theme.
@@ -79,7 +111,7 @@ impl DeckDoc {
     }
 
     fn from_presentation(pres: Presentation) -> DeckDoc {
-        DeckDoc { pres, warnings: Vec::new(), dirty: false, undo: Vec::new(), redo: Vec::new() }
+        DeckDoc { pres, warnings: Vec::new(), incomplete: false, dirty: false, undo: Vec::new(), redo: Vec::new() }
     }
 
     /// What the import could not keep.

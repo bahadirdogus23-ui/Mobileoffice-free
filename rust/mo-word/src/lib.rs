@@ -4,9 +4,11 @@
 //! (`text.insert`, `format.bold`, …), as for spreadsheets: nothing here edits the document itself.
 
 mod find;
+mod losses;
 pub mod udf;
 
 pub use find::{Hit, MAX_MATCHES, fold};
+pub use losses::Loss;
 use std::sync::Arc;
 
 use wordcraft_doc::{Document, SectionProps};
@@ -73,6 +75,8 @@ pub struct WordDoc {
     notes: Vec<String>,
     /// Files carried inside (an e-mail's attachments), to open on their own.
     attachments: Vec<mo_convert::Attachment>,
+    /// What the opened file holds that the document does not (see [`WordDoc::losses`]).
+    losses: Vec<Loss>,
 }
 
 impl WordDoc {
@@ -95,7 +99,21 @@ impl WordDoc {
             return Ok(out);
         }
         let (doc, _encrypted) = wordcraft_engine::io::open_bytes_with(name, bytes, password).map_err(WordError::Open)?;
-        Ok(WordDoc::from_document(doc))
+        let mut out = WordDoc::from_document(doc);
+        out.losses = losses::find(name, bytes);
+        Ok(out)
+    }
+
+    /// What the opened file holds that opening left out (a damaged part, an ODT's notes, a web
+    /// page's style sheets…), for the formats the app saves over the opened file. When not empty,
+    /// saving over that file would delete it: the app must only offer "Save as" to a new file.
+    pub fn losses(&self) -> &[Loss] {
+        &self.losses
+    }
+
+    /// Whether opening left out something the file holds (see [`WordDoc::losses`]).
+    pub fn opened_incomplete(&self) -> bool {
+        !self.losses.is_empty()
     }
 
     /// What opening could not keep, to tell the person.
@@ -138,7 +156,7 @@ impl WordDoc {
     fn from_document(doc: Document) -> WordDoc {
         let mut session = Session::new(doc);
         let layout = session.layout();
-        WordDoc { session, layout, signed: false, notes: Vec::new(), attachments: Vec::new() }
+        WordDoc { session, layout, signed: false, notes: Vec::new(), attachments: Vec::new(), losses: Vec::new() }
     }
 
     fn doc(&self) -> &Document {
