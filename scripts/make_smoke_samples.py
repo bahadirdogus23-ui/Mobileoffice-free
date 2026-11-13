@@ -1,22 +1,30 @@
 #!/usr/bin/env python3
 """Sample documents for the emulator smoke test of the release APK (scripts/emulator-smoke.sh).
 
-`make_smoke_samples.py DIR` writes one small file per format the app opens into DIR, plus
-`samples.tsv` that tells the smoke test how to hand each one to the app:
+`make_smoke_samples.py [--small-only] DIR` writes one small file per format the app opens into DIR,
+a few large ones for the performance baseline (skipped with --small-only), plus `samples.tsv` that
+tells the smoke test how to hand each one to the app:
 
-    file name <TAB> MIME type <TAB> route <TAB> expectation
+    file name <TAB> MIME type <TAB> route <TAB> expectation <TAB> size class
 
 route: `filter` sends an implicit VIEW intent restricted to the app's package, so the manifest's
 intent filter has to match; `explicit` names MainActivity directly, for types the filter does not
 list (the app still opens them from its own picker and file list).
 expectation: `viewer` means a document screen must appear; `viewer-or-notice` also accepts the
 app's "this format opens in an upcoming version" notice.
+size class: `small`, or `big` for the large generated files, which get a longer open timeout and
+a larger soft time budget in the smoke test.
+
+Legacy binary formats: only .xls has a file in the repository's test data (mo-grid); there is no
+.doc or .ppt file to copy, so those two are not covered here.
 
 Everything is written here with the Python standard library or copied from test data that is
 already in the repository: nothing is downloaded and no binary file is committed.
 """
 
 import pathlib
+import random
+import re
 import shutil
 import struct
 import sys
@@ -30,8 +38,8 @@ TURKISH = "İstanbul'da ılık bir gün: Şişli, Ağrı, Üsküdar, Ödemiş, �
 SAMPLES = []  # (name, mime, route, expectation)
 
 
-def sample(name, mime, route="filter", expect="viewer"):
-    SAMPLES.append((name, mime, route, expect))
+def sample(name, mime, route="filter", expect="viewer", size="small"):
+    SAMPLES.append((name, mime, route, expect, size))
     return name
 
 
@@ -58,12 +66,31 @@ def make_docx(path):
         (None, TURKISH),
         (None, "Bu belge sürüm derlemesinin açılıp açılmadığını denemek için üretildi."),
     ]
-    body = "".join(
+    write_docx(path, "".join(docx_paragraph(text, style) for style, text in paragraphs))
+
+
+def docx_paragraph(text, style=None, page_break_before=False):
+    return (
         "<w:p>"
         + (f'<w:pPr><w:pStyle w:val="{style}"/></w:pPr>' if style else "")
+        + ('<w:r><w:br w:type="page"/></w:r>' if page_break_before else "")
         + f'<w:r><w:t xml:space="preserve">{xml_escape(text)}</w:t></w:r></w:p>'
-        for style, text in paragraphs
     )
+
+
+TABLE_GRID_STYLE = (
+    '<w:style w:type="table" w:styleId="TableGrid"><w:name w:val="Table Grid"/><w:tblPr><w:tblBorders>'
+    + "".join(
+        f'<w:{side} w:val="single" w:sz="4" w:space="0" w:color="000000"/>'
+        for side in ("top", "left", "bottom", "right", "insideH", "insideV")
+    )
+    + "</w:tblBorders></w:tblPr></w:style>"
+)
+
+
+def write_docx(path, body, table_style=False):
+    """A minimal DOCX package (document and styles) whose body holds `body`; `table_style` adds a
+    bordered "TableGrid" table style."""
     w = 'xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"'
     write_zip(
         path,
@@ -102,7 +129,9 @@ def make_docx(path):
                 '<w:style w:type="paragraph" w:default="1" w:styleId="Normal"><w:name w:val="Normal"/></w:style>'
                 '<w:style w:type="paragraph" w:styleId="Heading1"><w:name w:val="heading 1"/>'
                 '<w:basedOn w:val="Normal"/><w:pPr><w:outlineLvl w:val="0"/></w:pPr>'
-                '<w:rPr><w:b/><w:sz w:val="32"/></w:rPr></w:style></w:styles>',
+                '<w:rPr><w:b/><w:sz w:val="32"/></w:rPr></w:style>'
+                + (TABLE_GRID_STYLE if table_style else "")
+                + "</w:styles>",
             ),
             (
                 "word/document.xml",
@@ -270,6 +299,11 @@ def make_xlsx(path):
         f'<row r="{r + 1}">' + "".join(cell(f"{'AB'[c]}{r + 1}", k, v) for c, (k, v) in enumerate(row)) + "</row>"
         for r, row in enumerate(rows)
     )
+    write_xlsx(path, sheet_rows, strings)
+
+
+def write_xlsx(path, sheet_rows, strings, sheet_name="Veri"):
+    """A minimal XLSX package with one sheet whose <sheetData> holds `sheet_rows`."""
     main = 'xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"'
     rel = 'xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"'
     ct = "application/vnd.openxmlformats-officedocument.spreadsheetml"
@@ -298,7 +332,7 @@ def make_xlsx(path):
             (
                 "xl/workbook.xml",
                 f'<?xml version="1.0" encoding="UTF-8" standalone="yes"?><workbook {main} {rel}>'
-                '<sheets><sheet name="Veri" sheetId="1" r:id="rId1"/></sheets></workbook>',
+                f'<sheets><sheet name="{xml_escape(sheet_name)}" sheetId="1" r:id="rId1"/></sheets></workbook>',
             ),
             (
                 "xl/_rels/workbook.xml.rels",
@@ -354,6 +388,11 @@ def make_pdf(path):
         b"<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>",
         b"<< /Length " + str(len(content)).encode() + b" >>\nstream\n" + content + b"\nendstream",
     ]
+    write_pdf(path, objects)
+
+
+def write_pdf(path, objects):
+    """A PDF of `objects` (object n is objects[n - 1], 1 the catalog) with a correct xref table."""
     out = bytearray(b"%PDF-1.4\n%\xe2\xe3\xcf\xd3\n")
     offsets = []
     for number, body in enumerate(objects, start=1):
@@ -399,9 +438,191 @@ def make_zip(path, docx, txt):
 
 
 # --------------------------------------------------------------------------------------------
+# Large files for the performance baseline. Fixed seeds: the same bytes on every run, so open
+# times can be compared between runs.
+
+WORDS = (
+    "belge rapor tablo satır sütun hücre toplam bütçe şirket müşteri sipariş fatura ödeme tarih "
+    "İstanbul Ankara İzmir Bursa Ağrı Çorum Muğla Şanlıurfa Iğdır Ödemiş Üsküdar ılık güneşli "
+    "toplantı karar öneri değerlendirme çalışma süreç hizmet ürün kalite güvenlik eğitim proje "
+    "yıllık aylık haftalık günlük önemli gerekli yeni eski büyük küçük hızlı yavaş açık kapalı "
+    "ve ile için gibi kadar sonra önce üzerinde altında arasında göre rağmen dolayı birlikte"
+).split()
 
 
-def main(out):
+def sentence(rng, low=8, high=16):
+    words = [rng.choice(WORDS) for _ in range(rng.randint(low, high))]
+    text = " ".join(words)
+    return text[:1].upper() + text[1:] + "."
+
+
+def make_big_xlsx(path, rows=45_000):
+    """`rows` data rows x 10 columns: numbers, shared strings, every 500th amount a formula with its
+    cached value, and a total row with two SUMs over the whole sheet.
+
+    45 000 rows, not 50 000: the spreadsheet engine reads at most 1 000 000 XML elements from a
+    sheet part and reports the rest as damaged; 50 000 rows x 10 cells (<c> and <v> each) is just
+    over that and would be cut at 49 995 rows. This file stays below it to measure a clean open."""
+    rng = random.Random(45_000)
+    header = ["No", "Şehir", "Kategori", "Adet", "Birim fiyat", "Tutar", "İndirim %", "Kod", "Tarih", "Not"]
+    cities = ["İstanbul", "Ankara", "İzmir", "Bursa", "Ağrı", "Çorum", "Muğla", "Şanlıurfa", "Iğdır", "Ödemiş"]
+    categories = [f"Kategori {i}: {w}" for i, w in enumerate(WORDS[:30])]
+    codes = [f"KOD-{i:04d}" for i in range(2000)]
+    notes = sorted({sentence(rng, 3, 7) for _ in range(300)})
+    strings = header + cities + categories + codes + notes + ["Toplam"]
+    index = {text: i for i, text in enumerate(strings)}
+
+    def s(ref, text):
+        return f'<c r="{ref}" t="s"><v>{index[text]}</v></c>'
+
+    def n(ref, value):
+        return f'<c r="{ref}"><v>{value}</v></c>'
+
+    out = ['<row r="1">' + "".join(s(f"{chr(65 + c)}1", h) for c, h in enumerate(header)) + "</row>"]
+    total_qty = 0
+    total_amount = 0.0
+    for r in range(2, rows + 2):
+        qty = rng.randint(1, 500)
+        price = round(rng.uniform(1, 2000), 2)
+        amount = qty * price
+        total_qty += qty
+        total_amount += amount
+        if r % 500 == 0:
+            amount_cell = f'<c r="F{r}"><f>D{r}*E{r}</f><v>{amount!r}</v></c>'
+        else:
+            amount_cell = n(f"F{r}", repr(amount))
+        out.append(
+            f'<row r="{r}">'
+            + n(f"A{r}", r - 1)
+            + s(f"B{r}", rng.choice(cities))
+            + s(f"C{r}", rng.choice(categories))
+            + n(f"D{r}", qty)
+            + n(f"E{r}", price)
+            + amount_cell
+            + n(f"G{r}", rng.choice((0, 5, 10, 12.5, 20)))
+            + s(f"H{r}", rng.choice(codes))
+            + n(f"I{r}", 45_000 + rng.randint(0, 1500))
+            + s(f"J{r}", rng.choice(notes))
+            + "</row>"
+        )
+    last, t = rows + 1, rows + 2
+    out.append(
+        f'<row r="{t}">'
+        + s(f"A{t}", "Toplam")
+        + f'<c r="D{t}"><f>SUM(D2:D{last})</f><v>{total_qty}</v></c>'
+        + f'<c r="F{t}"><f>SUM(F2:F{last})</f><v>{total_amount!r}</v></c>'
+        + "</row>"
+    )
+    write_xlsx(path, "".join(out), strings, sheet_name="Büyük veri")
+
+
+def make_big_docx(path, pages=300):
+    """`pages` chapters, each a heading on a new page and about 300 words, so the document is at
+    least `pages` pages long; six chapters carry a 4-column table instead of part of their text."""
+    rng = random.Random(300)
+    cell = (
+        '<w:tc><w:tcPr><w:tcW w:w="2256" w:type="dxa"/></w:tcPr>'
+        '<w:p><w:r><w:t xml:space="preserve">{}</w:t></w:r></w:p></w:tc>'
+    )
+    parts = []
+    for chapter in range(1, pages + 1):
+        parts.append(docx_paragraph(f"Bölüm {chapter}", "Heading1", page_break_before=chapter > 1))
+        with_table = chapter % 50 == 25
+        for _ in range(2 if with_table else 4):
+            parts.append(docx_paragraph(" ".join(sentence(rng) for _ in range(6))))
+        if with_table:
+            rows = [["Şehir", "Adet", "Tutar", "Not"]] + [
+                [rng.choice(WORDS).capitalize(), str(rng.randint(1, 99)), f"{rng.uniform(1, 9999):.2f}", rng.choice(WORDS)]
+                for _ in range(12)
+            ]
+            parts.append(
+                '<w:tbl><w:tblPr><w:tblStyle w:val="TableGrid"/><w:tblW w:w="0" w:type="auto"/></w:tblPr>'
+                + "<w:tblGrid>"
+                + '<w:gridCol w:w="2256"/>' * 4
+                + "</w:tblGrid>"
+                + "".join("<w:tr>" + "".join(cell.format(xml_escape(v)) for v in row) + "</w:tr>" for row in rows)
+                + "</w:tbl>"
+            )
+            parts.append(docx_paragraph(sentence(rng)))
+    write_docx(path, "".join(parts), table_style=True)
+
+
+def make_big_pdf(path, pages=200):
+    """`pages` A4 pages of Helvetica text, one content stream per page, sharing one font."""
+    rng = random.Random(200)
+    ascii_words = [w for w in WORDS if w.isascii()]
+    objects = [
+        b"<< /Type /Catalog /Pages 2 0 R >>",
+        b"",  # the page tree, written once the pages are numbered
+        b"<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>",
+    ]
+    kids = []
+    for page in range(1, pages + 1):
+        lines = [f"BT /F1 18 Tf 56 790 Td (Sayfa {page} / {pages}) Tj /F1 11 Tf".encode()]
+        for _ in range(48):
+            text = " ".join(rng.choice(ascii_words) for _ in range(rng.randint(8, 13)))
+            lines.append(f"0 -15 Td ({text}) Tj".encode())
+        lines.append(b"ET")
+        content = b"\n".join(lines)
+        number = len(objects) + 1
+        kids.append(f"{number} 0 R")
+        objects.append(
+            b"<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Resources << /Font << /F1 3 0 R >> >> "
+            + f"/Contents {number + 1} 0 R >>".encode()
+        )
+        objects.append(b"<< /Length " + str(len(content)).encode() + b" >>\nstream\n" + content + b"\nendstream")
+    objects[1] = f"<< /Type /Pages /Kids [{' '.join(kids)}] /Count {pages} >>".encode()
+    write_pdf(path, objects)
+
+
+def make_big_pptx(path, source, slides=60):
+    """`source`'s one slide copied `slides` times (titles numbered), every copy listed in
+    [Content_Types].xml, the presentation's relationships and its slide list."""
+    with zipfile.ZipFile(source) as z:
+        parts = {info.filename: z.read(info.filename) for info in z.infolist()}
+    slide = parts["ppt/slides/slide1.xml"].decode("utf-8")
+    slide_rels = parts["ppt/slides/_rels/slide1.xml.rels"]
+    types = parts["[Content_Types].xml"].decode("utf-8")
+    rels = parts["ppt/_rels/presentation.xml.rels"].decode("utf-8")
+    presentation = parts["ppt/presentation.xml"].decode("utf-8")
+    first = re.search(r'Id="(rId\d+)"[^>]*Target="slides/slide1\.xml"', rels)
+    if slide.count("<a:t>Başlık</a:t>") != 1 or presentation.count("<p:sldId ") != 1 or not first:
+        sys.exit(f"{source} no longer has the one-slide layout make_big_pptx expects")
+
+    slide_type = "application/vnd.openxmlformats-officedocument.presentationml.slide+xml"
+    rel_type = "http://schemas.openxmlformats.org/officeDocument/2006/relationships/slide"
+    next_rel = max(int(i) for i in re.findall(r'Id="rId(\d+)"', rels)) + 1
+    slide_ids = [f'<p:sldId id="256" r:id="{first.group(1)}"/>']
+    for number in range(1, slides + 1):
+        parts[f"ppt/slides/slide{number}.xml"] = slide.replace(
+            "<a:t>Başlık</a:t>", f"<a:t>Başlık {number} / {slides}</a:t>"
+        ).encode("utf-8")
+        if number == 1:
+            continue
+        parts[f"ppt/slides/_rels/slide{number}.xml.rels"] = slide_rels
+        types = types.replace(
+            "</Types>", f'<Override PartName="/ppt/slides/slide{number}.xml" ContentType="{slide_type}"/></Types>'
+        )
+        rels = rels.replace(
+            "</Relationships>",
+            f'<Relationship Id="rId{next_rel}" Type="{rel_type}" Target="slides/slide{number}.xml"/></Relationships>',
+        )
+        slide_ids.append(f'<p:sldId id="{255 + number}" r:id="rId{next_rel}"/>')
+        next_rel += 1
+    presentation = re.sub(
+        r"<p:sldIdLst>.*?</p:sldIdLst>", f"<p:sldIdLst>{''.join(slide_ids)}</p:sldIdLst>", presentation
+    )
+    parts["[Content_Types].xml"] = types.encode("utf-8")
+    parts["ppt/_rels/presentation.xml.rels"] = rels.encode("utf-8")
+    parts["ppt/presentation.xml"] = presentation.encode("utf-8")
+    # [Content_Types].xml first, as Office writes it; the other parts in the source's order.
+    write_zip(path, sorted(parts.items(), key=lambda item: item[0] != "[Content_Types].xml"))
+
+
+# --------------------------------------------------------------------------------------------
+
+
+def main(out, big=True):
     out.mkdir(parents=True, exist_ok=True)
 
     def p(name):
@@ -418,6 +639,8 @@ def main(out):
     make_ics(p(sample("mo-smoke-ics.ics", "text/calendar", route="explicit")))
     make_xlsx(p(sample("mo-smoke-xlsx.xlsx", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")))
     make_csv(p(sample("mo-smoke-csv.csv", "text/csv")))
+    # The legacy binary formats the app routes (.doc, .xls, .ppt): only .xls has a test file.
+    shutil.copyfile(REPO / "rust/mo-grid/testdata/styled.xls", p(sample("mo-smoke-xls.xls", "application/vnd.ms-excel")))
     shutil.copyfile(
         REPO / "rust/mo-deck/testdata/grouped-text.pptx",
         p(sample("mo-smoke-pptx.pptx", "application/vnd.openxmlformats-officedocument.presentationml.presentation")),
@@ -433,12 +656,29 @@ def main(out):
     make_txt(p(sample("mo-smoke-txt.txt", "text/plain")))
     make_zip(p(sample("mo-smoke-zip.zip", "application/zip")), out / "mo-smoke-docx.docx", out / "mo-smoke-txt.txt")
 
+    if big:
+        # Last, so a slow or failing large file cannot hide a regression in the small ones.
+        make_big_xlsx(
+            p(sample("mo-smoke-big-xlsx.xlsx", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", size="big"))
+        )
+        make_big_docx(
+            p(sample("mo-smoke-big-docx.docx", "application/vnd.openxmlformats-officedocument.wordprocessingml.document", size="big"))
+        )
+        make_big_pdf(p(sample("mo-smoke-big-pdf.pdf", "application/pdf", size="big")))
+        make_big_pptx(
+            p(sample("mo-smoke-big-pptx.pptx", "application/vnd.openxmlformats-officedocument.presentationml.presentation", size="big")),
+            REPO / "rust/mo-deck/testdata/grouped-text.pptx",
+        )
+
     (out / "samples.tsv").write_text("".join("\t".join(s) + "\n" for s in SAMPLES), encoding="utf-8")
-    for name, mime, route, expect in SAMPLES:
-        print(f"{name:24} {(out / name).stat().st_size:>7} B  {route:8} {expect:16} {mime}")
+    for name, mime, route, expect, size in SAMPLES:
+        print(f"{name:24} {(out / name).stat().st_size:>9} B  {route:8} {expect:16} {size:5} {mime}")
 
 
 if __name__ == "__main__":
-    if len(sys.argv) != 2:
-        sys.exit(f"usage: {sys.argv[0]} OUTPUT_DIR")
-    main(pathlib.Path(sys.argv[1]))
+    args = sys.argv[1:]
+    small_only = "--small-only" in args
+    args = [a for a in args if a != "--small-only"]
+    if len(args) != 1 or args[0].startswith("-"):
+        sys.exit(f"usage: {sys.argv[0]} [--small-only] OUTPUT_DIR")
+    main(pathlib.Path(args[0]), big=not small_only)

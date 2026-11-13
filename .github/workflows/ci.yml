@@ -179,11 +179,14 @@ jobs:
   # The minified release build on an emulator: R8 can strip what only reflection or JNI reaches
   # (JNA/UniFFI, Tesseract), which no unit test notices. Opens one sample of every format through
   # "Open with" and fails on any crash (scripts/emulator-smoke.sh). Logs and screenshots are kept.
+  # It is also the performance baseline: cold start, time until each document is visible and PSS
+  # for every sample, plus a few large generated files, in the summary and metrics.tsv; budgets
+  # are soft (warnings only).
   emulator-smoke:
     name: Release APK on an emulator
     needs: android
     runs-on: ubuntu-latest
-    timeout-minutes: 40
+    timeout-minutes: 45
     steps:
       - uses: actions/checkout@v4
       - uses: actions/download-artifact@v4
