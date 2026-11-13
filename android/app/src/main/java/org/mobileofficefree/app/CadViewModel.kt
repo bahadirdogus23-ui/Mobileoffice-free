@@ -15,6 +15,7 @@ import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import org.mobileofficefree.engine.CadDocument
@@ -61,9 +62,20 @@ class CadViewModel(app: Application) : AndroidViewModel(app) {
     private var viewport = 0 to 0
     private var renderedFor: Pair<CadView, Pair<Int, Int>>? = null
 
+    /** The render in flight; views asked for meanwhile are drawn once it ends (only the newest). */
+    private var renderJob: Job? = null
+    private var renderAgain = false
+
+    /** The picture shown before the current one: the next render draws into it instead of a new one. */
+    private var spare: Bitmap? = null
+
+    /** Bumped when a document opens or closes: a render of the previous one is then dropped. */
+    private var generation = 0
+
     fun open(uri: Uri) {
         val resolver = getApplication<Application>().contentResolver
         loading = true
+        generation++
         val started = SystemClock.elapsedRealtime()
         viewModelScope.launch {
             val result = withContext(engine) {
@@ -71,8 +83,9 @@ class CadViewModel(app: Application) : AndroidViewModel(app) {
                     doc?.close()
                     doc = null
                     val info = FileInfo.of(resolver, uri)
-                    val bytes = resolver.openInputStream(uri)?.use { it.readBytes() } ?: error("no data")
-                    val next = CadDocument.open(info.typedName, bytes)
+                    // The file's bytes live only for this call: the engine keeps the drawing it
+                    // reads, not the file (a large DWG is tens of MB on top of the drawing).
+                    val next = CadDocument.open(info.typedName, readAll(resolver, uri, info.size))
                     Diagnostics.record("CAD ${info.typedName.substringAfterLast('.')} açma (${sizeLabel(info.size)})", started)
                     doc = next
                     recents.remember(uri, info.name, DocumentKind.CAD, info.size)
@@ -81,6 +94,7 @@ class CadViewModel(app: Application) : AndroidViewModel(app) {
             }
             loading = false
             frame = null
+            spare = null
             view = null
             result.fold(onSuccess = { state = it; fit() }, onFailure = { error = it.message ?: it.javaClass.simpleName })
         }
@@ -89,7 +103,9 @@ class CadViewModel(app: Application) : AndroidViewModel(app) {
     fun close() {
         state = null
         frame = null
+        spare = null
         view = null
+        generation++
         viewModelScope.launch(engine) {
             doc?.close()
             doc = null
@@ -134,23 +150,48 @@ class CadViewModel(app: Application) : AndroidViewModel(app) {
         view = CadView(ncx, ncy, s1)
     }
 
-    /** Draws the current view sharply (called when a gesture settles). */
+    /**
+     * Draws the current view sharply (called when a gesture settles). One render runs at a time;
+     * views asked for while it runs are not queued one by one: once it ends, only the newest is
+     * drawn. The picture before the current one is reused as the canvas of the next.
+     */
     fun render() {
         val s = state ?: return
         val v = view ?: return
         val (w, h) = viewport
         if (w <= 0 || renderedFor == (v to viewport)) return
+        if (renderJob?.isActive == true) {
+            renderAgain = true
+            return
+        }
         renderedFor = v to viewport
-        viewModelScope.launch {
-            val bmp = withContext(engine) {
-                runCatching {
-                    val r = Measurements.time("CAD: görünüm çizimi") { doc?.render(s.space.toUInt(), v.centerX, v.centerY, v.scale, w.toUInt(), h.toUInt(), s.dark) }
-                        ?: return@runCatching null
-                    // tiny-skia's premultiplied RGBA is exactly ARGB_8888's memory layout.
-                    createBitmap(r.width.toInt(), r.height.toInt()).apply { copyPixelsFromBuffer(ByteBuffer.wrap(r.pixels)) }
-                }.getOrNull()
+        val gen = generation
+        val reuse = spare?.takeIf { !it.isRecycled && it.width == w && it.height == h }
+        spare = null
+        renderJob = viewModelScope.launch {
+            try {
+                val bmp = withContext(engine) {
+                    runCatching {
+                        val r = Measurements.time("CAD: görünüm çizimi") { doc?.render(s.space.toUInt(), v.centerX, v.centerY, v.scale, w.toUInt(), h.toUInt(), s.dark) }
+                            ?: return@runCatching null
+                        // tiny-skia's premultiplied RGBA is exactly ARGB_8888's memory layout.
+                        val target = reuse?.takeIf { it.width == r.width.toInt() && it.height == r.height.toInt() }
+                            ?: createBitmap(r.width.toInt(), r.height.toInt())
+                        target.apply { copyPixelsFromBuffer(ByteBuffer.wrap(r.pixels)) }
+                    }.getOrNull()
+                }
+                if (bmp != null && gen == generation) {
+                    val shown = frame?.bitmap
+                    frame = CadFrame(bmp, v)
+                    if (shown !== bmp) spare = shown
+                }
+            } finally {
+                renderJob = null
+                if (renderAgain) {
+                    renderAgain = false
+                    render()
+                }
             }
-            if (bmp != null) frame = CadFrame(bmp, v)
         }
     }
 
@@ -326,6 +367,30 @@ class CadViewModel(app: Application) : AndroidViewModel(app) {
             state = state?.copy(layers = layers)
             renderedFor = null
             render()
+        }
+    }
+
+    /** All of a document's bytes, read into one array of the file's size when the provider tells it. */
+    private fun readAll(resolver: android.content.ContentResolver, uri: Uri, size: Long): ByteArray {
+        val input = resolver.openInputStream(uri) ?: error("no data")
+        return input.use { stream ->
+            if (size <= 0 || size > Int.MAX_VALUE - 8) return@use stream.readBytes()
+            val bytes = ByteArray(size.toInt())
+            var read = 0
+            while (read < bytes.size) {
+                val n = stream.read(bytes, read, bytes.size - read)
+                if (n < 0) break
+                read += n
+            }
+            if (read < bytes.size) return@use bytes.copyOf(read)
+            // A provider whose size was too small: the rest is read on.
+            val next = stream.read()
+            if (next < 0) return@use bytes
+            val all = java.io.ByteArrayOutputStream(bytes.size * 2)
+            all.write(bytes)
+            all.write(next)
+            stream.copyTo(all)
+            all.toByteArray()
         }
     }
 

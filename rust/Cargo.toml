@@ -92,6 +92,9 @@ opt-level = 3
 opt-level = 3
 [profile.release.package.tiny-skia-path]
 opt-level = 3
+# mo-cad culls and simplifies every CAD frame before drawing it.
+[profile.release.package.mo-cad]
+opt-level = 3
 
 # WordCraft's PDF writer needs the same krilla revision its own workspace patches in.
 [patch.crates-io]
