@@ -129,7 +129,9 @@ fun AppearanceSettings() {
 
 @Composable
 private fun Label(text: Int) {
-    Text(stringResource(text).uppercase(java.util.Locale.forLanguageTag("tr")), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+    // Display text, not an identifier: upper-cased in the language the interface is shown in.
+    val locale = androidx.compose.ui.platform.LocalConfiguration.current.locales[0]
+    Text(stringResource(text).uppercase(locale), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
 }
 
 /** A round sample of a look with its name; a ring marks the chosen one. */
