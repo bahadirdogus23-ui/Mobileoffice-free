@@ -382,9 +382,42 @@ fn ppt_text(text_type: u32, text: &str, wide: bool) -> Vec<u8> {
         let chars: Vec<u8> = text.encode_utf16().flat_map(u16::to_le_bytes).collect();
         out.extend(ppt_record(0, 0, 0x0FA0, &chars));
     } else {
-        out.extend(ppt_record(0, 0, 0x0FA8, text.as_bytes()));
+        // TextBytesAtom: the low byte of each UTF-16 unit, so only U+0000–U+00FF ([MS-PPT] 2.9.42).
+        let bytes: Vec<u8> = text.chars().map(|c| u8::try_from(u32::from(c)).expect("Latin-1 only")).collect();
+        out.extend(ppt_record(0, 0, 0x0FA8, &bytes));
     }
     out
+}
+
+#[test]
+fn old_powerpoint_text_atoms_keep_turkish_letters() {
+    // PowerPoint writes a run in a TextBytesAtom (one byte a letter, Latin-1) when every letter
+    // fits, else in a TextCharsAtom (UTF-16): "Çiçek Ölçüsü" can be narrow, "İğne Şişesi" cannot.
+    let persist = ppt_record(0, 0, 0x03F3, &[0u8; 20]);
+    let mut slides = persist;
+    slides.extend(ppt_text(0, "Çiçek Ölçüsü", false));
+    slides.extend(ppt_text(1, "İğne Şişesi ığüşöç", true));
+    let stream = ppt_record(0x0F, 0, 0x03E8, &ppt_record(0x0F, 0, 0x0FF0, &slides));
+    let mut file = cfb::CompoundFile::create(std::io::Cursor::new(Vec::new())).unwrap();
+    std::io::Write::write_all(&mut file.create_stream("/PowerPoint Document").unwrap(), &stream).unwrap();
+    let d = DeckDoc::open(&file.into_inner().into_inner()).unwrap();
+    let texts: Vec<String> = d.text_shapes(0).unwrap().into_iter().map(|t| t.text).collect();
+    assert_eq!(texts, ["Çiçek Ölçüsü", "İğne Şişesi ığüşöç"]);
+}
+
+#[test]
+fn slide_fonts_the_phone_lacks_fall_back_to_a_face_with_turkish_letters() {
+    // DeckCraft finds no installed fonts on Android (it looks in desktop folders) and the app is
+    // built without the optional craft-fonts faces, so only its compiled-in face is there.
+    let db = deckcraft_fonts::FontDb::with_font_dirs(Vec::new());
+    for family in ["Calibri", "Calibri Light", "Times New Roman", "Arial", "Aptos", "Tahoma", "Comic Sans MS"] {
+        for style in ["Regular", "Bold", "Italic"] {
+            let face = db.document_face(family, style);
+            for c in "İıŞşĞğÇçÖöÜü".chars() {
+                assert_ne!(face.glyph_for(c), 0, "{family} {style} → {} has no {c}", face.family);
+            }
+        }
+    }
 }
 
 #[test]

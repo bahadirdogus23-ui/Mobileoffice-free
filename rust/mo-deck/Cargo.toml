@@ -31,3 +31,5 @@ mo-convert = { workspace = true }
 deckcraft-engine = { workspace = true }
 # Writes the small picture the tests add to a slide (already in the tree through the renderer).
 png = "0.18"
+# Font lookups with only the fonts compiled into the app, as on a phone.
+deckcraft-fonts = { workspace = true }

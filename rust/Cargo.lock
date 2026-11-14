@@ -2358,6 +2358,7 @@ version = "0.1.0"
 dependencies = [
  "cfb",
  "deckcraft-engine",
+ "deckcraft-fonts",
  "deckcraft-model",
  "deckcraft-pdf",
  "deckcraft-pptx",
