@@ -180,7 +180,7 @@ impl PdfDoc {
     pub fn draw(&mut self, page: u32, strokes: &[Vec<[f64; 2]>], color: [f64; 3], width: f64, opacity: f64) -> Result<(), PdfError> {
         self.text = None;
         let strokes = self.user_strokes(page, strokes)?;
-        let style = annot::Style { color, opacity, width, fill: None };
+        let style = annot::Style { color, opacity, width, fill: None, ..annot::Style::default() };
         self.annotate(page, annot::Shape::Ink { strokes }, style, String::new())
     }
 

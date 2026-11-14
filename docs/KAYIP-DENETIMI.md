@@ -10,7 +10,8 @@ kalıcı olarak silinir.
 
 Bu belge uygulamanın asıl dosyanın üzerine yazabildiği her yolu listeler. Satır numaraları sabitlenmiş üst kaynak
 işlemelerine göredir (`rust/Cargo.toml`): WordCraft `c4fafc2`, DeckCraft `55e5ee5`, GridCraft `11bb673`,
-PdfCraft `20eebc1`. Motorlara dokunulmadı; algılama `mo-*` köprülerinde.
+PdfCraft `20eebc1` (PDF bölümündeki PdfCraft satırları güncellemeden sonra `0f22627`e göre). Motorlara dokunulmadı;
+algılama `mo-*` köprülerinde.
 
 ## Ortak düzeltme
 
@@ -71,11 +72,11 @@ Yazıcı uzantıya göre PPTX/PPSX/POTX yazar (`deckcraft_pptx::export_as`). `.p
 ## PDF (`PdfViewModel`)
 
 Asıl dosyanın üzerine kaydetme **yok**: düzenlenmiş PDF, sıkıştırma, sayfa çıkarma, birleştirme, OCR metni hep yeni
-dosyaya ("-duzenlendi.pdf", "-kucuk.pdf") yazılır. Yazıcı tam yeniden yazar (`mo-pdf/src/lib.rs:736`, `write_full`);
-PdfCraft sınırla açılmış belgeyi kaydetmeyi kendisi reddeder (`crates/cos/src/writer.rs:201`, `:272`).
+dosyaya ("-duzenlendi.pdf", "-kucuk.pdf") yazılır. Yazıcı tam yeniden yazar (`mo-pdf/src/lib.rs:748`, `write_full`);
+PdfCraft sınırla açılmış belgeyi kaydetmeyi kendisi reddeder (PdfCraft `0f22627`: `crates/cos/src/writer.rs:260`, `:403`).
 Karartma işaretleri karartılmadan kayıt açılmaz (`PagedScreen` `startSave`).
 
-**Durum**: güvenli. PdfCraft'ın açılışta yaptığı onarımlar (`repair_log`, `cos/src/document.rs:48`: yeniden kurulan
+**Durum**: güvenli. PdfCraft'ın açılışta yaptığı onarımlar (`repair_log`, `cos/src/document/objects.rs:90`: yeniden kurulan
 çapraz başvuru tablosu, eksik başlık, atlanan nesne numaraları…) artık köprüden geliyor (`PdfDoc::open_notes`,
 UniFFI `PdfDocument.openNotes()`) ve `PdfViewModel.openedNotice` ile Word/Sunu notları gibi gösteriliyor
 (`pdf_repaired` + motorun ilk satırları). 40 MB'tan büyük dosyalar açılışta motorla açılmadığından bu bildirim ilk

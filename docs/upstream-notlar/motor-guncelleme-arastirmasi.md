@@ -188,6 +188,25 @@ da koruma) olduğu gibi geçirme.
 karşı sağlamlık ve çizim hızı; köprü değişikliği tek satır. 3094 işleme büyük bir sıçrama olduğundan güncelleme
 değişikliğinde imza, form, karartma ve onarım (`open_notes`) yollarının jvm-smoke ve telefonda denenmesi gerekir.
 
+**Bu değişiklikte güncellendi** (`0f22627bff6cde9930817e891290f653d882bbda`). Araştırmadaki bulgular gerçek `[patch]`
+bölümüyle doğrulandı: köprüde tek satır (`..annot::Style::default()`; yeni alanların varsayılanları eski davranış:
+ayrı kenarlık rengi/dolgu saydamlığı yok, dikdörtgen kenarlık). `[patch.crates-io]`'ya `hayro-jbig2`, `vello_common`,
+`vello_cpu` eklendi; PdfCraft'ın kopyaları 0.0.8 sürümünde, WordCraft/DeckCraft `vello_*` 0.2 kullandığı için onları
+etkilemiyor. `Cargo.lock`: yalnızca PdfCraft paketleri, `hayro-jbig2` 0.3.1 → yamalı 0.3.0 ve yeni bağımlılıklar
+(ICU4X `icu_*`/`zerovec`/`yoke`… Unicode-3.0; `url`/`idna`/`form_urlencoded` MIT/Apache; `thread-priority` MIT, yalnızca
+sıkıştırma iş parçacıklarının önceliğini düşürüyor, sonucu yok sayılıyor; `roxmltree 0.21`; `windows*` yalnızca
+Windows'ta). Android hedefinde C derleyicisi gerekmiyor (`cargo check --target aarch64-linux-android -p mo-ffi`, ağaçta
+`cc` yok). `repair_log` duruyor (`cos/src/document/objects.rs:90`). `cargo test --workspace` (mo-pdf 36/36),
+`scripts/check-pdf-redaction.sh` (Poppler) ve jvm-smoke (19/19) geçti; UniFFI arayüzü değişmedi.
+
+Ölçüm (release, x86_64, 5 denemenin en iyisi, ilk sayfa ×2 PdfCraft çizimi / ilk sayfa metni; önce → sonra):
+300 sayfalık LibreOffice PDF'i çizim 15,0 → 13,4 ms, metin 54,5 → 23,0 ms; 200 sayfalık duman örneği 19,8 → 15,7 ms,
+metin 6,9 → 5,0 ms; 60 sayfalık sunu PDF'i metin 22,4 → 8,8 ms; taranmış görünümlü bir form 34 → 28-30 ms, metin
+16,9 → 11,4 ms; küçük formlar değişmedi (3-6 ms). Açılış (yalnızca `Document::open`) büyük dosyalarda biraz yavaşladı
+ama ms'nin altında kalıyor (300 sayfa 0,3 → 1,0 ms). Bozuk (rastgele bayt değiştirilmiş) örneklerde açılış 80-100 →
+36 ms; iki sürüm de aynı dosyaları açıp aynı dosyaları reddediyor, çökme yok. Çizilen piksel sayıları sağlam
+dosyalarda birebir aynı.
+
 ## craft-libs — `92d392cff132eaf53e13afff77f38b5c11b73aa0` → `948b5c23c12dc8c87c8b1828892b1462113dd5a7`
 
 Bizde yalnızca `krilla` yaması olarak sabit. `krilla` için arada üç işleme: `fb08be5f`/`b373482f` (CMYK, gri ve spot
