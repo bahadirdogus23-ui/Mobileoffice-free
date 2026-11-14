@@ -2318,6 +2318,7 @@ dependencies = [
 name = "mo-archive"
 version = "0.1.0"
 dependencies = [
+ "mo-fuzz",
  "sevenz-rust2",
 ]
 

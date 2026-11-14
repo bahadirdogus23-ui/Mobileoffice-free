@@ -16,3 +16,4 @@ sevenz-rust2 = { version = "0.25", default-features = false, features = ["ppmd"]
 [dev-dependencies]
 # The tests make their archives with the same crate's writer.
 sevenz-rust2 = { version = "0.25", default-features = false, features = ["compress", "util"] }
+mo-fuzz = { workspace = true }
