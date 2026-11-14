@@ -3,6 +3,7 @@
 //! (see `edit.rs`), so the app carries neither the editing engine nor its media decoders.
 
 mod edit;
+mod fonts;
 mod odp;
 mod ppt;
 pub use edit::{ObjectKind, ObjectStyle, SlideObject, TextShape};
@@ -70,6 +71,7 @@ impl DeckDoc {
 
     /// Opens PPTX, PPSX or POTX bytes.
     pub fn open(bytes: &[u8]) -> Result<DeckDoc, DeckError> {
+        fonts::register_global();
         if deckcraft_pptx::is_encrypted(bytes) {
             return Err(DeckError::Open("This presentation is password-protected.".into()));
         }
@@ -111,6 +113,7 @@ impl DeckDoc {
     }
 
     fn from_presentation(pres: Presentation) -> DeckDoc {
+        fonts::register_global();
         DeckDoc { pres, warnings: Vec::new(), incomplete: false, dirty: false, undo: Vec::new(), redo: Vec::new() }
     }
 

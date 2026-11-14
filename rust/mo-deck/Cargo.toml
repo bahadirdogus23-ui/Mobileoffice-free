@@ -17,6 +17,10 @@ deckcraft-model = { workspace = true }
 deckcraft-pdf = { workspace = true }
 # Measures table rows as they are drawn (already in the tree through the renderer).
 deckcraft-text = { workspace = true }
+# DeckCraft's font database: the app's bundled faces are added to it (src/fonts.rs).
+deckcraft-fonts = { workspace = true }
+# The OFL faces WordCraft compiles in, shared with the slides (src/fonts.rs); already in the app.
+wordcraft-fonts = { workspace = true }
 thiserror = { workspace = true }
 # OpenDocument presentations (.odp), which DeckCraft has no reader for (src/odp.rs).
 zip = { version = "3", default-features = false, features = ["deflate"] }
@@ -31,5 +35,3 @@ mo-convert = { workspace = true }
 deckcraft-engine = { workspace = true }
 # Writes the small picture the tests add to a slide (already in the tree through the renderer).
 png = "0.18"
-# Font lookups with only the fonts compiled into the app, as on a phone.
-deckcraft-fonts = { workspace = true }

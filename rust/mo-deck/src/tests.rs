@@ -576,3 +576,114 @@ fn what_deckcraft_leaves_out_on_opening_is_flagged() {
     assert!(DeckDoc::open(include_bytes!("../testdata/sample.odp")).unwrap().opened_incomplete());
     assert!(!DeckDoc::blank().unwrap().opened_incomplete());
 }
+
+/// The Turkish letters every slide font must draw.
+const TURKISH: &str = "İıŞşĞğÇçÖöÜü";
+
+#[test]
+fn slide_fonts_resolve_to_the_app_s_bundled_faces_without_system_fonts() {
+    // As on a phone: no font folder DeckCraft knows, no craft-fonts faces.
+    let db = deckcraft_fonts::FontDb::with_font_dirs(Vec::new());
+    let before = db.document_face("Calibri", "Bold");
+    assert_eq!(before.family, deckcraft_fonts::LAST_RESORT_FAMILY, "without the bundled faces everything is Ubuntu Light");
+    assert!(crate::fonts::register(&db) >= 10);
+    // (family, style asked for) → (family drawn, weight at least, italic face).
+    let cases = [
+        ("Calibri", "Regular", "Source Sans 3", 400.0, false),
+        ("Calibri", "Bold", "Source Sans 3", 700.0, false),
+        ("Calibri", "Italic", "Source Sans 3", 400.0, true),
+        ("Calibri Light", "Regular", "Source Sans 3", 400.0, false),
+        ("Comic Sans MS", "Regular", "Source Sans 3", 400.0, false),
+        ("Times New Roman", "Regular", "Source Serif 4", 400.0, false),
+        ("Times New Roman", "Bold Italic", "Source Serif 4", 700.0, true),
+        ("Cambria", "Bold", "Source Serif 4", 700.0, false),
+        // A missing font without a metric twin draws as Calibri, as in PowerPoint (Aptos, an
+        // Office cloud font, keeps its own stand-in).
+        ("Georgia", "Italic", "Source Sans 3", 400.0, true),
+        ("Courier New", "Regular", "JetBrains Mono", 400.0, false),
+        ("Arial", "Regular", "Inter", 400.0, false),
+        ("Arial", "Bold", "Inter", 600.0, false),
+        // Inter has no italic face here: the renderer slants the upright one.
+        ("Arial", "Italic", "Inter", 400.0, false),
+        ("Aptos", "Regular", "Inter", 400.0, false),
+        ("Tahoma", "Regular", "Source Sans 3", 400.0, false),
+    ];
+    let mut ids = std::collections::HashSet::new();
+    for (family, style, drawn, weight, italic) in cases {
+        let face = db.document_face(family, style);
+        assert_eq!((face.family.as_str(), face.italic), (drawn, italic), "{family} {style} → {} {}", face.family, face.style);
+        assert!(face.weight >= weight && face.weight < weight + 150.0, "{family} {style} → {} {} ({})", face.family, face.style, face.weight);
+        let glyphs = deckcraft_fonts::shape(&face, TURKISH, &[], |c| c);
+        assert_eq!(glyphs.len(), TURKISH.chars().count());
+        assert!(glyphs.iter().all(|g| g.gid != 0), "{family} {style} → {} draws .notdef", face.family);
+        ids.insert(face.id());
+    }
+    assert!(ids.len() >= 8, "only {} different faces", ids.len());
+    // Registering again adds nothing.
+    assert_eq!(crate::fonts::register(&db), 0);
+}
+
+#[test]
+fn slide_text_lays_out_in_bold_italic_and_serif_faces() {
+    use deckcraft_model::text::{Paragraph, Run, RunProps, TextBody};
+    let d = DeckDoc::blank().unwrap();
+    let props = |font: &str, bold: bool, italic: bool| RunProps {
+        font: Some(font.into()),
+        bold: Some(bold),
+        italic: Some(italic),
+        size: Some(24.0),
+        ..Default::default()
+    };
+    let runs = [
+        ("Calibri ", props("Calibri", false, false)),
+        ("Çağrı Işık ", props("Calibri", true, false)),
+        ("Şişli Göğüs ", props("Times New Roman", false, false)),
+        ("İstanbul Üsküdar", props("Arial", false, true)),
+    ];
+    let body = TextBody {
+        paragraphs: vec![Paragraph { runs: runs.iter().map(|(t, p)| Run::with(*t, p.clone())).collect(), ..Default::default() }],
+        ..Default::default()
+    };
+    let shape =
+        deckcraft_model::Shape { xfrm: Some(deckcraft_model::Xfrm::new(0.0, 0.0, 900.0, 400.0)), text: Some(body.clone()), ..Default::default() };
+    let ctx = deckcraft_model::resolve::Ctx::for_slide(&d.pres, &d.pres.slides[0]).unwrap();
+    let opts = deckcraft_text::Opts {
+        rect: deckcraft_model::Rect::new(0.0, 0.0, 900.0, 400.0),
+        fields: &deckcraft_text::NoFields,
+        prompt_color: None,
+        no_shrink: true,
+    };
+    let laid = deckcraft_text::layout(&ctx, &shape, &body, &opts);
+    let text: String = runs.iter().map(|(t, _)| *t).collect();
+    let chars: Vec<char> = text.chars().collect();
+    // Where each run starts, in characters of the paragraph.
+    let mut starts = Vec::new();
+    let mut n = 0;
+    for (t, _) in &runs {
+        starts.push(n);
+        n += t.chars().count();
+    }
+    let run_of = |ch: usize| starts.iter().rposition(|s| *s <= ch).unwrap();
+    let mut faces = std::collections::HashSet::new();
+    let mut seen = [false; 4];
+    for r in &laid.runs {
+        for ((gid, _, _), (ch, c)) in r.glyphs.iter().zip(&r.cells) {
+            assert_eq!(chars[*ch], *c);
+            if c.is_whitespace() {
+                continue;
+            }
+            assert_ne!(*gid, 0, "{c} drawn as .notdef in {}", r.face.family);
+            let i = run_of(*ch);
+            seen[i] = true;
+            match i {
+                1 => assert!(r.face.weight >= 600.0 || r.fake_bold, "bold Calibri in {} {}", r.face.family, r.face.style),
+                3 => assert!(r.face.italic || r.fake_italic, "italic Arial in {} {}", r.face.family, r.face.style),
+                _ => {}
+            }
+            faces.insert((r.face.family.clone(), r.face.style.clone()));
+        }
+    }
+    assert_eq!(seen, [true; 4], "every run is laid out");
+    assert!(faces.len() >= 3, "{faces:?}");
+    assert!(faces.iter().all(|(f, _)| f != deckcraft_fonts::LAST_RESORT_FAMILY), "{faces:?}");
+}
