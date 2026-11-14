@@ -1,0 +1,7 @@
+• Verileriniz güvende: eksik açılan Word, Excel ve sunum dosyalarının üzerine kaydedilmez, ne eksik olduğu söylenir
+• 50 binden uzun satırlı Excel sayfaları eksiksiz açılır
+• Çizimlerde (DWG/DXF) çok daha akıcı kaydırma ve yakınlaştırma; büyük çizimlerde bellek uyarısı
+• Daha hızlı ve sağlam PDF motoru; bozuk PDF'ler için açık uyarılar
+• .ppt ve .odp sunumlar açılır
+• Ekran okuyucu (TalkBack) ve büyük yazı desteği
+• Daha hızlı açılış

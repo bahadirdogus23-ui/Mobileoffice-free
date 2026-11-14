@@ -75,6 +75,12 @@ yükleme anahtarı istenebilir ama zahmetlidir).
 | Gizlilik politikası adresi | `docs/GIZLILIK.md` (herkese açık bağlantısı verilecek) |
 | İletişim e-postası | bahadirdogus23@gmail.com |
 
+### “Yenilikler” metni
+
+Play Console'daki “Bu sürümdeki yenilikler” alanı için hazır metinler
+`fastlane/metadata/android/<dil>/changelogs/default.txt` dosyalarındadır (en çok 500 karakter).
+Her yayından önce güncelleyin.
+
 ### Mağaza görselleri
 
 - `fastlane/metadata/android/tr/images/icon.png` ve `en-US/images/icon.png`: 512×512, 32 bit PNG.
