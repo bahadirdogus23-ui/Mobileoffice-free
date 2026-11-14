@@ -24,7 +24,7 @@ wordcraft-fonts = { workspace = true }
 thiserror = { workspace = true }
 # OpenDocument presentations (.odp), which DeckCraft has no reader for (src/odp.rs).
 zip = { version = "3", default-features = false, features = ["deflate"] }
-roxmltree = "0.20"
+roxmltree = "0.21"
 # Old binary PowerPoint (.ppt), read for its text (src/ppt.rs).
 cfb = "0.15"
 # Package integrity check on opening (mo_convert::package).

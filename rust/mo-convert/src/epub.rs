@@ -8,17 +8,27 @@ use crate::{Converted, body_of, data_uri, esc, image_mime, page, rewrite_src};
 /// What one part of the book may unpack to (32 MB) and the most chapters read.
 const MAX_PART: u64 = 32 * 1024 * 1024;
 const MAX_CHAPTERS: usize = 2000;
+/// The most all parts together may unpack to (a book that names the same large part in every
+/// chapter, or a zip bomb, stops here instead of filling the memory or running for minutes).
+const MAX_UNPACKED: u64 = 512 * 1024 * 1024;
+/// The most the page may hold: its text, and its pictures as `data:` addresses.
+const MAX_TEXT: usize = 128 * 1024 * 1024;
+const MAX_PICTURES: usize = 64 * 1024 * 1024;
 
 pub(crate) fn read(bytes: &[u8]) -> Result<Converted, String> {
     let mut zip = zip::ZipArchive::new(std::io::Cursor::new(bytes)).map_err(|e| format!("EPUB: {e}"))?;
+    let unpacked = std::cell::Cell::new(0u64);
     let part = |zip: &mut zip::ZipArchive<std::io::Cursor<&[u8]>>, name: &str| -> Option<Vec<u8>> {
-        let mut f = zip.by_name(name).ok()?;
-        if f.size() > MAX_PART {
+        let f = zip.by_name(name).ok()?;
+        let left = MAX_UNPACKED.saturating_sub(unpacked.get());
+        if f.size() > MAX_PART.min(left) {
             return None;
         }
+        // The declared size is not a bound on what a damaged or hostile entry inflates to.
         let mut out = Vec::new();
-        f.read_to_end(&mut out).ok()?;
-        Some(out)
+        f.take(MAX_PART.min(left) + 1).read_to_end(&mut out).ok()?;
+        unpacked.set(unpacked.get() + out.len() as u64);
+        (out.len() as u64 <= MAX_PART.min(left)).then_some(out)
     };
     if zip.by_name("META-INF/encryption.xml").is_ok_and(|f| f.size() > 0) {
         // Font obfuscation also uses encryption.xml; only a book whose chapters are encrypted is refused below.
@@ -52,8 +62,18 @@ pub(crate) fn read(bytes: &[u8]) -> Result<Converted, String> {
     }
     let mut chapters = 0;
     let mut unreadable = 0;
+    // Each picture is read and encoded once however often it is shown; past MAX_PICTURES the
+    // rest are left out.
+    let mut pictures: std::collections::HashMap<String, Option<String>> = std::collections::HashMap::new();
+    let mut picture_bytes = 0usize;
+    let mut pictures_left_out = false;
+    let manifest_index: std::collections::HashMap<&str, &str> = manifest.iter().rev().map(|(i, h, _)| (i.as_str(), h.as_str())).collect();
     for id in spine.iter().take(MAX_CHAPTERS) {
-        let Some((_, href, _)) = manifest.iter().find(|(i, _, _)| i == id) else { continue };
+        let Some(href) = manifest_index.get(id.as_str()) else { continue };
+        if body.len() > MAX_TEXT {
+            unreadable += 1;
+            continue;
+        }
         let path = resolve(&base, href);
         let Some(data) = part(&mut zip, &path) else {
             unreadable += 1;
@@ -73,9 +93,19 @@ pub(crate) fn read(bytes: &[u8]) -> Result<Converted, String> {
                 return None;
             }
             let p = resolve(&dir, src.split('#').next().unwrap_or(src));
-            let data = part(&mut zip, &p)?;
-            let mime = image_mime(&data)?;
-            Some(data_uri(mime, &data))
+            let uri = pictures
+                .entry(p)
+                .or_insert_with_key(|p| {
+                    let data = part(&mut zip, p)?;
+                    Some(data_uri(image_mime(&data)?, &data))
+                })
+                .as_ref()?;
+            if picture_bytes + uri.len() > MAX_PICTURES {
+                pictures_left_out = true;
+                return None;
+            }
+            picture_bytes += uri.len();
+            Some(uri.clone())
         });
         if chapters > 0 {
             // Each chapter starts on a new page, as in the book.
@@ -89,7 +119,10 @@ pub(crate) fn read(bytes: &[u8]) -> Result<Converted, String> {
     }
     let mut notes = vec![format!("E-kitap: {chapters} bölüm okundu; yazı tipleri ve bazı biçimler kitabınkiyle aynı olmayabilir.")];
     if unreadable > 0 {
-        notes.push(format!("{unreadable} bölüm okunamadı (korumalı ya da eksik)."));
+        notes.push(format!("{unreadable} bölüm okunamadı (korumalı, eksik ya da kitap çok büyük)."));
+    }
+    if pictures_left_out {
+        notes.push("Kitap çok resimli: resimlerin bir kısmı gösterilmedi.".to_string());
     }
     Ok(Converted { html: page(&title, &body), notes, attachments: Vec::new() })
 }

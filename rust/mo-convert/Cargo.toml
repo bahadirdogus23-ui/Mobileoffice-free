@@ -13,7 +13,7 @@ publish = false
 zip = { version = "3", default-features = false, features = ["deflate"] }
 # Package integrity checks (package.rs): the same XML reader the engines use.
 quick-xml = "0.41"
-roxmltree = "0.20"
+roxmltree = "0.21"
 # E-mail (MIME, RFC 5322) with every common charset, Turkish ones included (Apache-2.0 OR MIT).
 mail-parser = { version = "0.11", default-features = false, features = ["full_encoding"] }
 # Outlook .msg files are compound files.
@@ -24,4 +24,5 @@ chardetng = "1"
 encoding_rs = "0.8"
 
 [dev-dependencies]
+mo-fuzz = { workspace = true }
 zip = { version = "3", default-features = false, features = ["deflate"] }

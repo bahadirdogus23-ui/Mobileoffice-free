@@ -131,7 +131,7 @@ fn contacts_and_calendars_in_windows_1254_keep_quotes_and_dashes() {
 
 /// An Outlook .msg with 8-bit (001E) strings in code page `cp`, an HTML body in internet code
 /// page `internet_cp` and one attachment with an 8-bit name.
-fn msg_file(cp: Option<u32>, internet_cp: Option<u32>, html: &[u8]) -> Vec<u8> {
+pub(crate) fn msg_file(cp: Option<u32>, internet_cp: Option<u32>, html: &[u8]) -> Vec<u8> {
     use std::io::Write;
     let mut file = cfb::CompoundFile::create(std::io::Cursor::new(Vec::new())).unwrap();
     file.create_storage("/__attach_version1.0_#00000000").unwrap();

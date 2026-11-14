@@ -1,0 +1,12 @@
+[package]
+name = "mo-fuzz"
+description = "Test-only helpers for the bridges' robustness tests: deterministic input mutation and a watchdog"
+version = "0.1.0"
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+publish = false
+
+# No dependencies: only the bridges' tests use it (as a dev-dependency), never the app.
+[dependencies]

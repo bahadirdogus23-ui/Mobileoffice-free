@@ -1,6 +1,6 @@
 [workspace]
 resolver = "3"
-members = ["mo-archive", "mo-convert", "mo-grid", "mo-word", "mo-deck", "mo-cad", "mo-pdf", "mo-ffi", "uniffi-bindgen", "vendor/gridcraft-pdf"]
+members = ["mo-archive", "mo-convert", "mo-grid", "mo-word", "mo-deck", "mo-cad", "mo-pdf", "mo-ffi", "mo-fuzz", "uniffi-bindgen", "vendor/gridcraft-pdf"]
 
 [workspace.package]
 edition = "2024"
@@ -60,6 +60,7 @@ mo-word = { path = "mo-word" }
 mo-deck = { path = "mo-deck" }
 mo-cad = { path = "mo-cad" }
 mo-pdf = { path = "mo-pdf" }
+mo-fuzz = { path = "mo-fuzz" }
 
 # Dependencies without debug info in dev builds: the engines' debug info filled tens of GB.
 [profile.dev.package."*"]

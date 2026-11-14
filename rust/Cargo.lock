@@ -2347,8 +2347,9 @@ dependencies = [
  "chardetng",
  "encoding_rs",
  "mail-parser",
+ "mo-fuzz",
  "quick-xml 0.41.0",
- "roxmltree 0.20.0",
+ "roxmltree",
  "zip 3.0.0",
 ]
 
@@ -2366,7 +2367,7 @@ dependencies = [
  "deckcraft-text",
  "mo-convert",
  "png",
- "roxmltree 0.20.0",
+ "roxmltree",
  "thiserror 2.0.21",
  "wordcraft-fonts",
  "zip 3.0.0",
@@ -2388,6 +2389,10 @@ dependencies = [
  "uniffi",
  "zip 3.0.0",
 ]
+
+[[package]]
+name = "mo-fuzz"
+version = "0.1.0"
 
 [[package]]
 name = "mo-grid"
@@ -2714,7 +2719,7 @@ dependencies = [
  "pdfcraft-model",
  "pdfcraft-xfa",
  "regex",
- "roxmltree 0.21.2",
+ "roxmltree",
  "sha2",
  "thiserror 2.0.21",
  "unicode-normalization",
@@ -2752,7 +2757,7 @@ dependencies = [
  "pdfcraft-cos",
  "pdfcraft-fonts",
  "png",
- "roxmltree 0.21.2",
+ "roxmltree",
  "sha2",
  "thiserror 2.0.21",
 ]
@@ -3189,12 +3194,6 @@ name = "regex-syntax"
 version = "0.8.11"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d6f6ff9a378485b298a5286656da665ba74413d36db0979633275d2e708145d4"
-
-[[package]]
-name = "roxmltree"
-version = "0.20.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6c20b6793b5c2fa6553b250154b78d6d0db37e72700ae35fad9387a46f487c97"
 
 [[package]]
 name = "roxmltree"

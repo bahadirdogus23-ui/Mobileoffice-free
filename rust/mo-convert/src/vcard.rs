@@ -17,16 +17,22 @@ pub(crate) fn props(bytes: &[u8]) -> Vec<Prop> {
     // Unfold: a line starting with a space or tab continues the previous one; a quoted-printable
     // line ending in '=' continues on the next.
     let mut lines: Vec<String> = Vec::new();
+    // Whether the last logical line is quoted-printable: looked up once when it starts (its
+    // parameters are on its first line), not again for every continuation, which made a long
+    // folded value take time growing with the square of its length.
+    let mut qp = false;
     for raw in text.split('\n') {
         let line = raw.strip_suffix('\r').unwrap_or(raw);
-        if (line.starts_with(' ') || line.starts_with('\t')) && !lines.is_empty() {
-            lines.last_mut().unwrap().push_str(&line[1..]);
-        } else if lines.last().is_some_and(|l| l.ends_with('=') && l.to_ascii_uppercase().contains("QUOTED-PRINTABLE")) {
-            let last = lines.last_mut().unwrap();
-            last.pop();
-            last.push_str(line);
-        } else {
-            lines.push(line.to_string());
+        match lines.last_mut() {
+            Some(last) if line.starts_with(' ') || line.starts_with('\t') => last.push_str(&line[1..]),
+            Some(last) if qp && last.ends_with('=') => {
+                last.pop();
+                last.push_str(line);
+            }
+            _ => {
+                qp = line.to_ascii_uppercase().contains("QUOTED-PRINTABLE");
+                lines.push(line.to_string());
+            }
         }
     }
     lines

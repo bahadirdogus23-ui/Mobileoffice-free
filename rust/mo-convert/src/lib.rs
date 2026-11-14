@@ -105,42 +105,51 @@ pub(crate) fn body_of(html: &str) -> String {
     let start = lower.find("<body").and_then(|i| lower[i..].find('>').map(|j| i + j + 1)).unwrap_or(0);
     let end = lower[start..].rfind("</body>").map(|i| start + i).unwrap_or(html.len());
     let mut body = html[start..end].to_string();
+    // One pass per tag: a page of many thousand scripts takes no longer than its length.
     for tag in ["script", "style", "head"] {
-        loop {
-            let low = body.to_ascii_lowercase();
-            let Some(a) = low.find(&format!("<{tag}")) else { break };
-            let close = format!("</{tag}>");
-            let b = low[a..].find(&close).map(|i| a + i + close.len()).unwrap_or(body.len());
-            body.replace_range(a..b, "");
-        }
+        body = without_element(&body, tag);
     }
     body
 }
 
+/// `html` without its `<tag …>…</tag>` elements (to the end when one is not closed).
+fn without_element(html: &str, tag: &str) -> String {
+    let lower = html.to_ascii_lowercase();
+    let (open, close) = (format!("<{tag}"), format!("</{tag}>"));
+    let mut out = String::with_capacity(html.len());
+    let mut at = 0;
+    while let Some(a) = lower[at..].find(&open).map(|i| at + i) {
+        out.push_str(&html[at..a]);
+        at = lower[a..].find(&close).map_or(html.len(), |j| a + j + close.len());
+    }
+    out.push_str(&html[at..]);
+    out
+}
+
 /// Replaces each `src="…"` in `html` by what `map` gives for it (when it gives something).
 pub(crate) fn rewrite_src(html: &str, mut map: impl FnMut(&str) -> Option<String>) -> String {
+    // Lower-cased once: doing it again after every address made a page of many pictures slow.
+    let lower = html.to_ascii_lowercase();
     let mut out = String::with_capacity(html.len());
-    let mut rest = html;
-    loop {
-        let lower = rest.to_ascii_lowercase();
-        let Some(i) = lower.find("src=") else { break };
-        let quote = rest[i + 4..].chars().next();
-        let (Some(q @ ('"' | '\'')), true) = (quote, true) else {
-            out.push_str(&rest[..i + 4]);
-            rest = &rest[i + 4..];
+    // Copied to `out` up to `done`; the next `src=` is looked for from `from`.
+    let (mut done, mut from) = (0, 0);
+    while let Some(i) = lower[from..].find("src=").map(|i| from + i) {
+        let Some(&q @ (b'"' | b'\'')) = html.as_bytes().get(i + 4) else {
+            from = i + 4;
             continue;
         };
         let value_start = i + 5;
-        let Some(len) = rest[value_start..].find(q) else { break };
-        let value = &rest[value_start..value_start + len];
-        out.push_str(&rest[..value_start]);
+        let Some(len) = html[value_start..].find(char::from(q)) else { break };
+        let value = &html[value_start..value_start + len];
+        out.push_str(&html[done..value_start]);
         match map(value) {
             Some(new) => out.push_str(&new),
             None => out.push_str(value),
         }
-        rest = &rest[value_start + len..];
+        done = value_start + len;
+        from = done;
     }
-    out.push_str(rest);
+    out.push_str(&html[done..]);
     out
 }
 
@@ -171,4 +180,10 @@ pub(crate) fn page(title: &str, body: &str) -> String {
 }
 
 #[cfg(test)]
+mod robustness;
+#[cfg(test)]
 mod tests;
+
+#[cfg(test)]
+#[global_allocator]
+static ALLOC: mo_fuzz::CountingAlloc = mo_fuzz::CountingAlloc;
