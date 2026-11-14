@@ -24,6 +24,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -32,6 +33,9 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 /** Routes between the home screen and the open document, and shows one-shot messages. */
 @Composable
@@ -46,29 +50,39 @@ fun AppRoot(sheet: SheetViewModel, word: WordViewModel, pdf: PdfViewModel, slide
     // A crash report from the last run, offered once for sharing.
     var crashReport by remember { mutableStateOf(Diagnostics.takeCrashReport(context)) }
 
-    val openAny: (Uri) -> Unit = openAny@{ uri ->
-        val found = runCatching { FileInfo.of(context.contentResolver, uri) }
-        val info = found.getOrNull()
-        // A file that cannot be read is not an unsupported type: say what went wrong.
-        val unreadable = info?.kind == DocumentKind.OTHER &&
-            runCatching { context.contentResolver.openInputStream(uri)?.close() ?: error("no data") }.exceptionOrNull()?.let { e ->
-                notice = resources.getString(R.string.open_failed, e.message ?: e.javaClass.simpleName)
-                true
-            } == true
-        if (found.isFailure) notice = resources.getString(R.string.open_failed, found.exceptionOrNull()?.message ?: "")
-        if (found.isFailure || unreadable) return@openAny
-        when (info?.kind) {
-            DocumentKind.WORD -> word.open(uri)
-            DocumentKind.SHEET -> sheet.open(uri)
-            DocumentKind.PDF -> pdf.open(uri)
-            DocumentKind.CAD -> cad.open(uri)
-            DocumentKind.IMAGE -> image.open(uri)
-            DocumentKind.TEXT -> text.open(uri)
-            DocumentKind.ARCHIVE -> archive.open(uri)
-            DocumentKind.INVOICE -> invoice.open(uri)
-            // PPTX/PPSX/POTX natively; legacy .ppt and .odp are imported (saved as .pptx).
-            DocumentKind.SLIDES -> slides.open(uri)
-            else -> notice = resources.getString(R.string.unsupported_file)
+    val scope = rememberCoroutineScope()
+    val openAny: (Uri) -> Unit = { uri ->
+        scope.launch {
+            val resolver = context.contentResolver
+            // The provider is asked off the main thread: a slow one (a cloud drive, a large
+            // archive) must not freeze the screen while it answers.
+            val (found, unreadable) = withContext(Dispatchers.IO) {
+                val read = runCatching { FileInfo.of(resolver, uri) }
+                // A file that cannot be read is not an unsupported type: say what went wrong.
+                val problem = if (read.getOrNull()?.kind == DocumentKind.OTHER) {
+                    runCatching { resolver.openInputStream(uri)?.close() ?: error("no data") }.exceptionOrNull()
+                } else {
+                    null
+                }
+                read to problem
+            }
+            val info = found.getOrNull()
+            if (unreadable != null) notice = resources.getString(R.string.open_failed, unreadable.message ?: unreadable.javaClass.simpleName)
+            if (found.isFailure) notice = resources.getString(R.string.open_failed, found.exceptionOrNull()?.message ?: "")
+            if (info == null || unreadable != null) return@launch
+            when (info.kind) {
+                DocumentKind.WORD -> word.open(uri)
+                DocumentKind.SHEET -> sheet.open(uri)
+                DocumentKind.PDF -> pdf.open(uri)
+                DocumentKind.CAD -> cad.open(uri)
+                DocumentKind.IMAGE -> image.open(uri)
+                DocumentKind.TEXT -> text.open(uri)
+                DocumentKind.ARCHIVE -> archive.open(uri)
+                DocumentKind.INVOICE -> invoice.open(uri)
+                // PPTX/PPSX/POTX natively; legacy .ppt and .odp are imported (saved as .pptx).
+                DocumentKind.SLIDES -> slides.open(uri)
+                else -> notice = resources.getString(R.string.unsupported_file)
+            }
         }
     }
 
