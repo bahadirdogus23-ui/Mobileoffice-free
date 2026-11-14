@@ -25,7 +25,7 @@ data class ArchiveEntry(val index: Int, val path: String, val size: Long) {
  * IBM code page 857 (DOS Turkish), the code page Windows' "Send to → Compressed folder" and old
  * WinZip write Turkish file names in. Built in, because not every Android has "IBM857" among its
  * charsets (without it names fell back to CP437 or Latin-1: "Çağrı" read as "Ça§r?"). It reads
- * Western DOS names (CP437, CP850) right too, except the rare ì ÿ ª º and box drawing, whose bytes
+ * Western DOS names (CP437, CP850) right too, except rare signs (ì ÿ × ƒ ª º) and box drawing, whose bytes
  * are Turkish letters here. Unassigned bytes (0xD5, 0xE7, 0xF2) read as U+FFFD.
  */
 internal object Cp857 : Charset("x-mobileoffice-cp857", emptyArray<String>()) {
