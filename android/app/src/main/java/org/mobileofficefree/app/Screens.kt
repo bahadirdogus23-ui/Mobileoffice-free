@@ -171,9 +171,21 @@ internal fun SheetScreen(vm: SheetViewModel, state: SheetUiState) {
                     TextButton(onClick = vm::saveInPlace) { Text(stringResource(R.string.save)) }
                 }
                 TextButton(onClick = { finding = !finding }, modifier = Modifier.described(stringResource(R.string.a11y_find))) { Text("🔍") }
-                TextButton(onClick = { showPdf = true }) { Text("PDF") }
-                TextButton(onClick = { saveAs.launch(saveName(state.fileName)) }) {
-                    Text(stringResource(R.string.save_as))
+                // PDF and "Save as" sit behind ⋮: with large text (and Turkish's longer words) they
+                // used to take the whole bar and squeeze the file name out of sight.
+                var more by remember { mutableStateOf(false) }
+                Box {
+                    IconButton(onClick = { more = true }, modifier = Modifier.described(stringResource(R.string.a11y_more))) { Text("⋮", fontSize = 22.sp) }
+                    DropdownMenu(expanded = more, onDismissRequest = { more = false }) {
+                        DropdownMenuItem(text = { Text(stringResource(R.string.save_as)) }, onClick = {
+                            more = false
+                            saveAs.launch(saveName(state.fileName))
+                        })
+                        DropdownMenuItem(text = { Text("PDF") }, onClick = {
+                            more = false
+                            showPdf = true
+                        })
+                    }
                 }
             },
         )
