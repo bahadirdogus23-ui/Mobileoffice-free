@@ -20,6 +20,28 @@ class FormulaHelpTest {
     }
 
     @Test
+    fun namesMatchWhateverIFormAndKeyboardIsUsed() {
+        // English names (the app in English): Turkish upper case would turn "if" into "İF".
+        val english = listOf("IF", "IFERROR", "INDEX", "MID", "MIN", "PI")
+        assertEquals(listOf("IF", "IFERROR", "INDEX"), suggestions(at("=i"), english))
+        assertEquals(listOf("MID", "MIN"), suggestions(at("=mi"), english))
+        assertEquals(listOf("IFERROR"), suggestions(at("=if"), english))
+        // Turkish names typed on an English keyboard, or with I for İ.
+        val turkish = listOf("İNDİS", "MİN", "EĞER", "ÇARPIM")
+        assertEquals(listOf("İNDİS"), suggestions(at("=ind"), turkish))
+        assertEquals(listOf("İNDİS"), suggestions(at("=IND"), turkish))
+        assertEquals(listOf("MİN"), suggestions(at("=MI"), turkish))
+        assertEquals(listOf("ÇARPIM"), suggestions(at("=carp"), turkish))
+        // The function around the cursor finds its help whatever the i.
+        data class Doc(val name: String)
+        val docs = english.map(::Doc)
+        assertEquals(Doc("IF"), docFor(functionAtCursor(at("=if(A1;"))!!, docs) { it.name })
+        assertEquals(Doc("MIN"), docFor(functionAtCursor(at("=min(A1:A3"))!!, docs) { it.name })
+        assertEquals(Doc("EĞER"), docFor("EĞER", turkish.map(::Doc)) { it.name })
+        assertEquals(null, docFor("TOPLA", docs) { it.name })
+    }
+
+    @Test
     fun aSuggestionOpensItsBrackets() {
         val v = applySuggestion(at("=1+top"), "TOPLA")
         assertEquals("=1+TOPLA(", v.text)

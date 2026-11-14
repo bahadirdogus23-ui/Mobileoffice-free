@@ -16,6 +16,8 @@ class TextLogicTest {
         assertEquals("isik", "IŞIK".searchFold())
         assertTrue("Çağrı Merkezi Raporu.docx".searchFold().contains("cagri"))
         for (w in words + "Göğüş çığlığı ÖÜÇ") assertEquals(w.length, w.searchFold().length)
+        // "istanbul" finds the city however it was written: Turkish capitals, English spelling.
+        for (w in listOf("İSTANBUL", "Istanbul", "ISTANBUL", "ıstanbul")) assertEquals(w, "istanbul", w.searchFold())
     }
 
     @Test

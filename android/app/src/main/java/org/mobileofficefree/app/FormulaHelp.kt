@@ -36,12 +36,23 @@ fun nameBeforeCursor(value: TextFieldValue): String? {
     return text.substring(start, end)
 }
 
-/** Function names starting with what is typed, at most [limit]. */
+/**
+ * Function names starting with what is typed, at most [limit]. Compared in [searchFold] form, so
+ * the dotted and dotless i and Turkish letters typed without them match either way: "if" finds
+ * IF (English names; Turkish upper case would make it İF), "ind" finds İNDİS, "eg" finds EĞER.
+ */
 fun suggestions(value: TextFieldValue, names: List<String>, limit: Int = 8): List<String> {
     val typed = nameBeforeCursor(value) ?: return emptyList()
-    val up = upperTr(typed)
-    return names.filter { it.startsWith(up) && it != up }.take(limit)
+    val key = typed.searchFold()
+    return names.filter { val name = it.searchFold(); name.startsWith(key) && name != key }.take(limit)
 }
+
+/**
+ * The entry of [docs] (named by [nameOf]) for function [name] as [functionAtCursor] gives it: the
+ * exact name, else the one equal in [searchFold] form (typed "if(" gives İF; the list has IF).
+ */
+fun <T> docFor(name: String, docs: List<T>, nameOf: (T) -> String): T? =
+    docs.firstOrNull { nameOf(it) == name } ?: name.searchFold().let { key -> docs.firstOrNull { nameOf(it).searchFold() == key } }
 
 /** [value] with the name being typed replaced by `name(`, the cursor inside the brackets. */
 fun applySuggestion(value: TextFieldValue, name: String): TextFieldValue {

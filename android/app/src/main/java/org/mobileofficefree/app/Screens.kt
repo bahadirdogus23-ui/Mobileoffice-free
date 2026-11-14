@@ -741,7 +741,7 @@ private fun FormulaBar(
         // (with what the first one does), else the keys a formula needs.
         if (focused) {
             val offered = suggestions(value, names)
-            val shownDoc = (offered.firstOrNull() ?: functionAtCursor(value))?.let { n -> docs.firstOrNull { it.name == n } }
+            val shownDoc = (offered.firstOrNull() ?: functionAtCursor(value))?.let { n -> docFor(n, docs) { it.name } }
             if (shownDoc != null) {
                 Column(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 2.dp)) {
                     Text(shownDoc.signature, fontFamily = FontFamily.Monospace, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary)
