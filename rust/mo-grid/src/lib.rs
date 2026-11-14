@@ -97,6 +97,27 @@ fn fold_chars(text: &str) -> Vec<char> {
         .collect()
 }
 
+/// Text in its search form, as the document, PDF and file searches fold it: lower case, the
+/// dotted and dotless i merged and accents dropped, so "istanbul" finds "İSTANBUL" and
+/// "Istanbul", and "cagri" finds "Çağrı" (people type without the Turkish keyboard as often as
+/// with it). Only finding uses it; replacing keeps the exact Turkish case rules of [`fold_chars`].
+fn search_fold(text: &str) -> Vec<char> {
+    text.chars()
+        .map(|c| match c {
+            'ı' | 'I' | 'İ' | 'î' | 'Î' | 'í' | 'Í' | 'ì' | 'Ì' | 'ï' | 'Ï' => 'i',
+            'ç' | 'Ç' => 'c',
+            'ğ' | 'Ğ' => 'g',
+            'ö' | 'Ö' | 'ó' | 'Ó' | 'ò' | 'Ò' | 'ô' | 'Ô' | 'õ' | 'Õ' => 'o',
+            'ş' | 'Ş' => 's',
+            'ü' | 'Ü' | 'û' | 'Û' | 'ú' | 'Ú' | 'ù' | 'Ù' => 'u',
+            'â' | 'Â' | 'á' | 'Á' | 'à' | 'À' | 'ä' | 'Ä' | 'ã' | 'Ã' => 'a',
+            'é' | 'É' | 'è' | 'È' | 'ê' | 'Ê' | 'ë' | 'Ë' => 'e',
+            'ñ' | 'Ñ' => 'n',
+            _ => c.to_lowercase().next().unwrap_or(c),
+        })
+        .collect()
+}
+
 fn find_folded(hay: &[char], needle: &[char]) -> Option<usize> {
     if needle.len() > hay.len() {
         return None;
@@ -861,10 +882,10 @@ impl GridDoc {
         self.wb().sheets.get(self.active_sheet() as usize).is_some_and(|sh| sh.autofilter.is_some())
     }
 
-    /// The cells of every sheet whose shown text contains `query`, ignoring case the Turkish way
-    /// (I/ı, İ/i), sheet by sheet and row by row.
+    /// The cells of every sheet whose shown text contains `query`, ignoring case, accents and
+    /// the dotted/dotless i ([`search_fold`]), sheet by sheet and row by row.
     pub fn find_cells(&self, query: &str) -> Result<Vec<CellHit>, GridError> {
-        let needle = fold_chars(query.trim());
+        let needle = search_fold(query.trim());
         if needle.is_empty() {
             return Ok(Vec::new());
         }
@@ -877,7 +898,7 @@ impl GridDoc {
                     let cell = gridcraft_engine::cell(r, c);
                     let text = display::cell_text(wb, sh, cell);
                     let shown = if self.turkish && shows_number(wb, sh, cell) { number_display(&text) } else { text };
-                    if !shown.is_empty() && find_folded(&fold_chars(&shown), &needle).is_some() {
+                    if !shown.is_empty() && find_folded(&search_fold(&shown), &needle).is_some() {
                         hits.push(CellHit { sheet: si as u32, row: r, col: c });
                     }
                 }

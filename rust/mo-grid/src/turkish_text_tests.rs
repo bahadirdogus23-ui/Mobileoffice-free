@@ -89,3 +89,24 @@ fn excel_97_workbooks_with_turkish_code_page() {
     assert_eq!(doc.sheet_names(), ["Şube Özeti"]);
     assert_eq!(cells("rapor.xls", &xls), [TURKISH, "Çiçek Ölçü", "İstanbul"]);
 }
+
+#[test]
+fn finding_merges_i_forms_and_accents_but_replacing_keeps_turkish_case() {
+    let mut doc = GridDoc::blank();
+    doc.set_turkish(true);
+    for (r, t) in ["İSTANBUL", "Istanbul", "istanbul", "Çağrı Merkezi", "ılık su", "ilik"].iter().enumerate() {
+        doc.set_input(r as u32, 0, t).unwrap();
+    }
+    let rows = |doc: &GridDoc, q: &str| doc.find_cells(q).unwrap().iter().map(|h| h.row).collect::<Vec<_>>();
+    // As the document, PDF and file searches do: typed with or without the Turkish keyboard.
+    for q in ["istanbul", "ISTANBUL", "İstanbul", "ıstanbul"] {
+        assert_eq!(rows(&doc, q), [0, 1, 2], "{q}");
+    }
+    assert_eq!(rows(&doc, "cagri"), [3]);
+    assert_eq!(rows(&doc, "ÇAĞRI"), [3]);
+    // Replacing changes data: "ılık" (lukewarm) is not "ilik" (marrow), and İ/i, I/ı pair up.
+    assert_eq!(doc.replace_all("ılık", "sıcak").unwrap(), 1);
+    assert_eq!(doc.edit_text(0, 4, 0).unwrap(), "sıcak su");
+    assert_eq!(doc.edit_text(0, 5, 0).unwrap(), "ilik");
+    assert_eq!(doc.replace_all("istanbul", "Ankara").unwrap(), 2, "İSTANBUL and istanbul, not Istanbul");
+}
