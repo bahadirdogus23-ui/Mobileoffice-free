@@ -136,6 +136,38 @@ fn word_97_documents_keep_turkish_letters() {
     assert_eq!(words("eski.doc", &doc), "İıŞşĞğ ÇçÖöÜü “x” –");
 }
 
+/// A UYAP document whose `content.xml` is `xml` (bytes as given).
+fn udf(xml: &[u8]) -> Vec<u8> {
+    let mut out = std::io::Cursor::new(Vec::new());
+    let mut z = zip::ZipWriter::new(&mut out);
+    z.start_file("content.xml", zip::write::SimpleFileOptions::default()).unwrap();
+    std::io::Write::write_all(&mut z, xml).unwrap();
+    z.finish().unwrap();
+    out.into_inner()
+}
+
+#[test]
+fn udf_documents_in_utf8_and_turkish_code_pages() {
+    let content = |decl: &[u8], text: &[u8]| -> Vec<u8> {
+        [
+            decl,
+            b"<template format_id=\"1.8\"><content><![CDATA[",
+            text,
+            b"]]></content><elements resolver=\"hvl-default\"><paragraph><content startOffset=\"0\" length=\"12\"/></paragraph></elements></template>",
+        ]
+        .concat()
+    };
+    for xml in [
+        content(b"<?xml version=\"1.0\" encoding=\"UTF-8\"?>", TURKISH.as_bytes()),
+        content(b"\xef\xbb\xbf<?xml version=\"1.0\" encoding=\"UTF-8\"?>", TURKISH.as_bytes()),
+        content(b"<?xml version=\"1.0\" encoding=\"windows-1254\"?>", W1254),
+        content(b"<?xml version='1.0' encoding='ISO-8859-9'?>", W1254),
+        content(b"", W1254),
+    ] {
+        assert_eq!(words("karar.udf", &udf(&xml)), TURKISH, "{}", String::from_utf8_lossy(&xml));
+    }
+}
+
 /// Families Turkish documents ask for that the phone has no file for. Only the fonts compiled
 /// into the app are available (no font folders, as on Android, where WordCraft finds none).
 const MISSING_FAMILIES: [&str; 6] = ["Calibri", "Times New Roman", "Arial", "Cambria", "Tahoma", "Comic Sans MS"];

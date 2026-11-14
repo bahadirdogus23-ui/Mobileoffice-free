@@ -69,12 +69,13 @@ pub fn is_udf(bytes: &[u8]) -> bool {
 pub fn read(bytes: &[u8]) -> Result<Udf, String> {
     let mut zip = zip::ZipArchive::new(std::io::Cursor::new(bytes)).map_err(|e| format!("UDF: {e}"))?;
     let signed = zip.index_for_name("sign.sgn").is_some();
-    let mut xml = String::new();
+    let mut raw = Vec::new();
     zip.by_name("content.xml")
         .map_err(|_| "UDF: content.xml is missing".to_string())?
         .take(64 << 20)
-        .read_to_string(&mut xml)
+        .read_to_end(&mut raw)
         .map_err(|e| format!("UDF: {e}"))?;
+    let xml = xml_text(&raw);
     let (root, text) = parse(&xml)?;
     let (html, page) = to_html(&root, &text);
     let mut doc = wordcraft_formats::import_on("html", html.as_bytes(), &page)
@@ -107,6 +108,30 @@ pub fn read(bytes: &[u8]) -> Result<Udf, String> {
         }
     }
     Ok(Udf { doc, signed })
+}
+
+/// `content.xml` as text. UYAP writes UTF-8; a file saved by another program in the encoding its
+/// XML declaration names (`encoding="windows-1254"`, `"ISO-8859-9"`), or with no declaration in
+/// Windows-1254, is read too instead of being refused as "not UTF-8". The declaration is left
+/// as it is: the parser reads the decoded text.
+fn xml_text(raw: &[u8]) -> String {
+    if mo_convert::text::has_bom(raw) {
+        return mo_convert::text::decode_any(raw);
+    }
+    if let Ok(s) = std::str::from_utf8(raw) {
+        return s.to_string();
+    }
+    let decl = &raw[..raw.iter().position(|b| *b == b'>').unwrap_or(0)];
+    let label = decl.windows(9).position(|w| w == b"encoding=").and_then(|i| {
+        let rest = &decl[i + 9..];
+        let quote = *rest.first()?;
+        let end = rest[1..].iter().position(|b| *b == quote)?;
+        std::str::from_utf8(&rest[1..1 + end]).ok()
+    });
+    match label.and_then(|l| mo_convert::text::decode_label(raw, l)) {
+        Some(text) => text,
+        None => mo_convert::text::decode_any(raw),
+    }
 }
 
 /// The element tree under `<template>` and the CDATA text as UTF-16 units.
