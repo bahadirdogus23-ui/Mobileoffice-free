@@ -18,6 +18,6 @@ serde_json = { workspace = true }
 thiserror = { workspace = true }
 encoding_rs = "0.8"
 cfb = "0.15"
-
-[dev-dependencies]
+# Package checks for what saving an XLSX back would lose (losses.rs).
 zip = { version = "3", default-features = false, features = ["deflate"] }
+quick-xml = "0.41"

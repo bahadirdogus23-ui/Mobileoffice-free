@@ -21,6 +21,7 @@ import java.util.Locale
 import org.mobileofficefree.engine.CellLook
 import org.mobileofficefree.engine.FunctionDoc
 import org.mobileofficefree.engine.SheetDocument
+import org.mobileofficefree.engine.SheetLoss
 import org.mobileofficefree.engine.nativeVersion
 
 /** Everything the spreadsheet screen shows, apart from the cell texts (see [SheetViewModel.cellText]). */
@@ -125,10 +126,13 @@ class SheetViewModel(app: Application) : AndroidViewModel(app) {
     /** The opened file, saved over by "Save" when it is an XLSX. */
     private var source: Uri? = null
     /**
-     * The engine stopped reading the opened file part-way (a sheet or its shared strings): saving
-     * over [source] would delete what it did not read, so only "Save as" to another file is offered.
+     * The opened file holds something the workbook does not (a sheet or its shared strings cut
+     * part-way, a sheet or part not read, anything in `losses()`): saving over [source] would
+     * delete it, so only "Save as" to another file is offered.
      */
     @Volatile private var truncated = false
+    /** Rows or texts were cut on opening (a narrower case of [truncated], for the messages). */
+    @Volatile private var rowsCut = false
     var canSaveInPlace by mutableStateOf(false)
         private set
     var hasUnsaved by mutableStateOf(false)
@@ -280,6 +284,7 @@ class SheetViewModel(app: Application) : AndroidViewModel(app) {
                     val state = replaceDocument(SheetDocument.open(name, bytes, null))
                     source = uri
                     truncated = doc?.openedIncomplete() == true
+                    rowsCut = doc?.truncatedSheets().orEmpty().isNotEmpty() || doc?.sharedStringsKept() != null
                     canSaveInPlace = name.endsWith(".xlsx", ignoreCase = true) && !truncated
                     Diagnostics.record("SHEET ${name.substringAfterLast('.')} açma (${sizeLabel(info.size)})", started)
                     RecentFiles(getApplication()).remember(uri, info.name, DocumentKind.SHEET, info.size)
@@ -296,7 +301,9 @@ class SheetViewModel(app: Application) : AndroidViewModel(app) {
                         val strings = d?.sharedStringsKept()?.let { listOf(text(R.string.strings_truncated, it.toLong())) }.orEmpty()
                         val unread = d?.unreadSheets().orEmpty().map { text(R.string.sheet_unread, it) }
                         val parts = d?.skippedParts().orEmpty().takeIf { it.isNotEmpty() }?.let { listOf(text(R.string.parts_skipped, it.joinToString(", "))) }.orEmpty()
-                        cuts + strings + unread + parts + d?.warnings().orEmpty()
+                        val kept = d?.losses().orEmpty().map { text(sheetLossText(it)) }
+                        val lost = if (kept.isEmpty() || !name.endsWith(".xlsx", ignoreCase = true)) kept else kept + text(R.string.save_in_place_off)
+                        cuts + strings + unread + parts + lost + d?.warnings().orEmpty()
                     }
                     recoveryOffer = recovery.find(uri)
                 },
@@ -317,6 +324,7 @@ class SheetViewModel(app: Application) : AndroidViewModel(app) {
             val name = text(R.string.new_workbook_name)
             source = null
             truncated = false
+            rowsCut = false
             canSaveInPlace = false
             screen = Screen.Sheet(withContext(engine) { replaceDocument(SheetDocument.blank()) }.copy(fileName = name))
         }
@@ -894,10 +902,10 @@ class SheetViewModel(app: Application) : AndroidViewModel(app) {
         if (truncated && uri == source) {
             // Never over the file a sheet was cut from: the rows after the cut would be lost.
             closeAfterSave = false
-            message = text(R.string.save_over_truncated)
+            message = text(if (rowsCut) R.string.save_over_truncated else R.string.save_over_incomplete)
             return
         }
-        val wasTruncated = truncated
+        val wasTruncated = rowsCut
         val revision = editRevision
         val shouldClose = closeAfterSave
         viewModelScope.launch {
@@ -1206,4 +1214,18 @@ private fun drawChart(p: org.mobileofficefree.engine.SheetChartPicture): android
         canvas.restore()
     }
     return bmp
+}
+
+/** What the person is told for each thing saving the opened XLSX back would not keep. */
+private fun sheetLossText(loss: SheetLoss): Int = when (loss) {
+    SheetLoss.LINKS -> R.string.sheet_loss_links
+    SheetLoss.CONDITIONAL_FORMATS -> R.string.sheet_loss_conditional_formats
+    SheetLoss.PIVOT_TABLES -> R.string.sheet_loss_pivot_tables
+    SheetLoss.SLICERS -> R.string.sheet_loss_slicers
+    SheetLoss.DRAWINGS -> R.string.sheet_loss_drawings
+    SheetLoss.MACROS -> R.string.sheet_loss_macros
+    SheetLoss.FORMULAS -> R.string.sheet_loss_formulas
+    SheetLoss.FILTERS -> R.string.sheet_loss_filters
+    SheetLoss.CELL_VALUES -> R.string.sheet_loss_cell_values
+    SheetLoss.OTHER -> R.string.sheet_loss_other
 }

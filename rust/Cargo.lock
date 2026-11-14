@@ -2390,6 +2390,7 @@ dependencies = [
  "gridcraft-engine",
  "gridcraft-functions",
  "gridcraft-pdf",
+ "quick-xml 0.41.0",
  "serde_json",
  "thiserror 2.0.21",
  "wordcraft-fonts",

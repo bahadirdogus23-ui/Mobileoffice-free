@@ -1,10 +1,16 @@
+import java.io.ByteArrayInputStream
+import java.io.ByteArrayOutputStream
 import java.nio.charset.Charset
+import java.util.zip.ZipEntry
+import java.util.zip.ZipInputStream
+import java.util.zip.ZipOutputStream
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
 import kotlin.test.assertTrue
 import org.mobileofficefree.engine.MoException
 import org.mobileofficefree.engine.SheetDocument
+import org.mobileofficefree.engine.SheetLoss
 import org.mobileofficefree.engine.nativeVersion
 
 class SheetDocumentTest {
@@ -26,9 +32,49 @@ class SheetDocumentTest {
                 assertEquals(null, back.sharedStringsKept())
                 assertTrue(back.unreadSheets().isEmpty())
                 assertTrue(back.skippedParts().isEmpty())
+                assertTrue(back.losses().isEmpty())
                 assertTrue(!back.openedIncomplete())
             }
         }
+    }
+
+    @Test
+    fun tellsWhatSavingBackWouldNotKeep() {
+        val bytes = SheetDocument.blank().use { doc ->
+            doc.execute("cell.set", """{"cell":"A1","input":"Gelir"}""")
+            doc.save("senaryo.xlsx")
+        }
+        // A what-if scenario: GridCraft neither reads nor writes it back.
+        val withScenario = rezip(bytes, "xl/worksheets/sheet1.xml") {
+            it.replace("</sheetData>", "</sheetData><scenarios><scenario name=\"İyi\" count=\"1\"><inputCells r=\"A1\" val=\"5\"/></scenario></scenarios>")
+        }
+        SheetDocument.open("senaryo.xlsx", withScenario, null).use { doc ->
+            assertEquals(listOf(SheetLoss.OTHER), doc.losses())
+            assertTrue(doc.openedIncomplete())
+        }
+    }
+
+    /** [bytes] (a zip) with the text of entry [name] changed by [edit]. */
+    private fun rezip(bytes: ByteArray, name: String, edit: (String) -> String): ByteArray {
+        val out = ByteArrayOutputStream()
+        var found = false
+        ZipInputStream(ByteArrayInputStream(bytes)).use { zin ->
+            ZipOutputStream(out).use { zout ->
+                while (true) {
+                    val entry = zin.nextEntry ?: break
+                    var data = zin.readBytes()
+                    if (entry.name == name) {
+                        data = edit(data.toString(Charsets.UTF_8)).toByteArray(Charsets.UTF_8)
+                        found = true
+                    }
+                    zout.putNextEntry(ZipEntry(entry.name))
+                    zout.write(data)
+                    zout.closeEntry()
+                }
+            }
+        }
+        assertTrue(found, "no $name")
+        return out.toByteArray()
     }
 
     @Test

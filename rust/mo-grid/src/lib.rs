@@ -12,8 +12,10 @@ use gridcraft_engine::model::Workbook;
 use gridcraft_engine::{DocState, Session, Trust, display};
 
 mod encoding;
+mod losses;
 
 pub use encoding::{decode_turkish_legacy, looks_like_windows_1254};
+pub use losses::Loss;
 
 #[derive(Debug, thiserror::Error, PartialEq, Eq)]
 pub enum GridError {
@@ -141,6 +143,8 @@ pub struct GridDoc {
     /// Sheets the engine did not read at all, and parts it skipped (see [`GridDoc::unread_sheets`]).
     unread_sheets: Vec<String>,
     skipped_parts: Vec<String>,
+    /// Everything else an XLSX file holds that saving it back would not write (see [`Loss`]).
+    losses: Vec<Loss>,
     /// Numbers and formulas typed and shown the Turkish way (see `turkish.rs`).
     turkish: bool,
 }
@@ -224,11 +228,12 @@ fn parse_strings_cut(w: &str) -> Option<u64> {
 
 /// The sheet name of GridCraft's warnings for a sheet it did not read at all, if `w` is one:
 /// `sheet "X" could not be read: …` (an empty sheet stands in for it), `sheet "X" is a K and was
-/// skipped` and `chart sheet "X" was skipped and is not kept on save` (crates/xlsx/src/read.rs:270-279,
-/// passthrough/read.rs:187). Saving over the original would delete such a sheet.
+/// skipped`, `chart sheet "X" was skipped and is not kept on save` and `chart sheet "X" was
+/// dropped: …` (crates/xlsx/src/read.rs:337-347, passthrough/read.rs:187, :232). Saving over the
+/// original would delete such a sheet.
 fn parse_unread_sheet(w: &str) -> Option<&str> {
     if let Some(rest) = w.strip_prefix("chart sheet \"") {
-        return rest.strip_suffix("\" was skipped and is not kept on save");
+        return rest.strip_suffix("\" was skipped and is not kept on save").or_else(|| rest.rsplit_once("\" was dropped: ").map(|(name, _)| name));
     }
     let rest = w.strip_prefix("sheet \"")?;
     if let Some((name, _)) = rest.split_once("\" could not be read: ") {
@@ -264,6 +269,7 @@ impl GridDoc {
             strings_kept: None,
             unread_sheets: Vec::new(),
             skipped_parts: Vec::new(),
+            losses: Vec::new(),
             turkish: false,
         }
     }
@@ -291,7 +297,12 @@ impl GridDoc {
         let strings_kept = warnings.iter().find_map(|w| parse_strings_cut(w));
         let unread_sheets = warnings.iter().filter_map(|w| parse_unread_sheet(w)).map(str::to_string).collect();
         let skipped_parts = warnings.iter().filter_map(|w| parse_skipped_part(w)).map(str::to_string).collect();
-        let mut doc = GridDoc { session, warnings, truncated: Vec::new(), strings_kept, unread_sheets, skipped_parts, turkish: false };
+        // The warnings below are the XLSX reader's; the app saves only XLSX over the opened file.
+        let mut losses = if xlsx_family(name) && bytes.starts_with(b"PK") { losses::from_warnings(&warnings) } else { Vec::new() };
+        losses.extend(losses::from_package(name, bytes));
+        losses.sort();
+        losses.dedup();
+        let mut doc = GridDoc { session, warnings, truncated: Vec::new(), strings_kept, unread_sheets, skipped_parts, losses, turkish: false };
         doc.truncated = doc.find_truncations();
         Ok(doc)
     }
@@ -341,10 +352,23 @@ impl GridDoc {
         &self.skipped_parts
     }
 
+    /// What else the opened XLSX file holds that saving it back would not write: hyperlinks or
+    /// conditional formats past the engine's limits, slicers, a VBA project in an `.xlsx`, what-if
+    /// scenarios… (see [`Loss`]). As with [`GridDoc::truncated`], the workbook must not be saved
+    /// over the file it came from.
+    pub fn losses(&self) -> &[Loss] {
+        &self.losses
+    }
+
     /// Whether opening lost data the file holds (a cut sheet or string list, a sheet or part not
-    /// read): saving over the original would make that loss permanent.
+    /// read, anything in [`GridDoc::losses`]): saving over the original would make that loss
+    /// permanent.
     pub fn opened_incomplete(&self) -> bool {
-        !self.truncated.is_empty() || self.strings_kept.is_some() || !self.unread_sheets.is_empty() || !self.skipped_parts.is_empty()
+        !self.truncated.is_empty()
+            || self.strings_kept.is_some()
+            || !self.unread_sheets.is_empty()
+            || !self.skipped_parts.is_empty()
+            || !self.losses.is_empty()
     }
 
     fn wb(&self) -> &Arc<Workbook> {
@@ -931,6 +955,10 @@ impl GridDoc {
         let kind = FileKind::from_path(file_name).unwrap_or(FileKind::Xlsx);
         io::save_bytes_as(self.wb(), file_name, kind).map_err(|e| GridError::Save(e.to_string()))
     }
+}
+
+fn xlsx_family(name: &str) -> bool {
+    matches!(FileKind::from_path(name), Some(FileKind::Xlsx))
 }
 
 fn is_delimited_text(name: &str) -> bool {

@@ -295,9 +295,17 @@ impl SheetDocument {
         self.doc().skipped_parts().to_vec()
     }
 
+    /// What else the opened XLSX file holds that saving it back would not write (hyperlinks past
+    /// the engine's limits, slicers, macros in an `.xlsx`, what-if scenarios…). When not empty,
+    /// the app must only offer "Save as" to a new file.
+    pub fn losses(&self) -> Vec<SheetLoss> {
+        self.doc().losses().iter().map(|&l| l.into()).collect()
+    }
+
     /// Whether opening lost data the file holds (see [`SheetDocument::truncated_sheets`],
-    /// [`SheetDocument::shared_strings_kept`], [`SheetDocument::unread_sheets`] and
-    /// [`SheetDocument::skipped_parts`]): the app must then never save over the opened file.
+    /// [`SheetDocument::shared_strings_kept`], [`SheetDocument::unread_sheets`],
+    /// [`SheetDocument::skipped_parts`] and [`SheetDocument::losses`]): the app must then never
+    /// save over the opened file.
     pub fn opened_incomplete(&self) -> bool {
         self.doc().opened_incomplete()
     }
@@ -835,6 +843,48 @@ pub struct SheetTruncation {
     pub rows_kept: u64,
     /// The last row (1-based) the sheet now holds: everything after it in the file is missing.
     pub last_row: u32,
+}
+
+/// Something an opened XLSX file holds that saving it back would not write (see
+/// [`SheetDocument::losses`]).
+#[derive(uniffi::Enum, Clone, Copy, Debug, PartialEq, Eq)]
+pub enum SheetLoss {
+    /// Hyperlinks past the engine's limits, links to other workbooks or data connections.
+    Links,
+    ConditionalFormats,
+    PivotTables,
+    /// Slicers and timelines.
+    Slicers,
+    /// Charts, embedded objects, grouped shapes, ink, pictures in cells, controls.
+    Drawings,
+    /// A VBA project the file's type cannot hold or the engine could not read.
+    Macros,
+    /// Formulas kept only as their values (what-if data tables, Python cells…).
+    Formulas,
+    /// AutoFilter criteria (date filters).
+    Filters,
+    /// Cell values the engine could not read.
+    CellValues,
+    /// What-if scenarios, custom views, a data model, sharing settings, unknown parts…
+    Other,
+}
+
+impl From<mo_grid::Loss> for SheetLoss {
+    fn from(l: mo_grid::Loss) -> Self {
+        use mo_grid::Loss as L;
+        match l {
+            L::Links => SheetLoss::Links,
+            L::ConditionalFormats => SheetLoss::ConditionalFormats,
+            L::PivotTables => SheetLoss::PivotTables,
+            L::Slicers => SheetLoss::Slicers,
+            L::Drawings => SheetLoss::Drawings,
+            L::Macros => SheetLoss::Macros,
+            L::Formulas => SheetLoss::Formulas,
+            L::Filters => SheetLoss::Filters,
+            L::CellValues => SheetLoss::CellValues,
+            L::Other => SheetLoss::Other,
+        }
+    }
 }
 
 /// A cell [`SheetDocument::find_cells`] found.

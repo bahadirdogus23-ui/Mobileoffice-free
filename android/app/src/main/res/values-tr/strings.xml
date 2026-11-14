@@ -19,6 +19,16 @@
     <string name="save_over_truncated">Kaydedilmedi: bu çalışma kitabı açılırken kesildi ve asıl dosyanın üzerine kaydetmek satırları silerdi. Yeni bir dosya adı seçin.</string>
     <string name="sheet_unread">“%1$s” sayfası okunamadı ve gösterilmiyor. Asıl dosyanın üzerine kaydetme kapatıldı, çünkü bu sayfa silinirdi. Görünenleri yeni bir dosyada saklamak için “Farklı kaydet”i kullanın.</string>
     <string name="parts_skipped">Dosyanın bazı bölümleri okunamadı (%1$s): içlerindeki biçimler, açıklamalar ya da çizimler eksik. Asıl dosyanın üzerine kaydetme kapatıldı, çünkü bunlar silinirdi. Görünenleri yeni bir dosyada saklamak için “Farklı kaydet”i kullanın.</string>
+    <string name="sheet_loss_links">Bazı bağlantılar (bu uygulamanın sınırlarını aşan köprüler, başka çalışma kitaplarına bağlantılar ya da veri bağlantıları) korunmuyor.</string>
+    <string name="sheet_loss_conditional_formats">Bazı koşullu biçimlendirme kuralları korunmuyor.</string>
+    <string name="sheet_loss_pivot_tables">Bazı özet tablolar korunmuyor ya da yalnızca düz hücreler olarak kalıyor.</string>
+    <string name="sheet_loss_slicers">Dilimleyiciler ve zaman çizelgeleri korunmuyor.</string>
+    <string name="sheet_loss_drawings">Bazı grafikler, resimler, şekiller, gömülü nesneler ya da denetimler korunmuyor.</string>
+    <string name="sheet_loss_macros">Bu dosyadaki makrolar (VBA) korunmuyor.</string>
+    <string name="sheet_loss_formulas">Bazı formüller (durum çözümlemesi veri tabloları, Python hücreleri…) yalnızca değerleriyle kalıyor.</string>
+    <string name="sheet_loss_filters">Bazı filtre ayarları (tarih filtreleri) korunmuyor.</string>
+    <string name="sheet_loss_cell_values">Bazı hücre değerleri okunamadı ve boş gösteriliyor.</string>
+    <string name="sheet_loss_other">Bazı içerikler (senaryolar, özel görünümler, veri modeli, paylaşım ayarları…) korunmuyor.</string>
     <string name="word_loss_damaged">Bu dosyanın bir bölümü bozuk ya da bu uygulama için çok büyük; okunamadı.</string>
     <string name="word_loss_other_format">Bu dosyanın içi, adının söylediğinden farklı bir biçimde ve içeriğine göre açıldı: kaydetmek onu o biçime çevirirdi.</string>
     <string name="word_loss_notes">Dipnotlar ve son notlar okunmuyor.</string>

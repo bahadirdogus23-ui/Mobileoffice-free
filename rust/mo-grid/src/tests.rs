@@ -562,6 +562,8 @@ fn corpus_round_trip() {
         let name = path.file_name().unwrap().to_string_lossy().into_owned();
         let Some(stem) = name.strip_suffix(".xlsx").filter(|s| !s.ends_with(".saved")) else { continue };
         let mut doc = GridDoc::open(&name, &std::fs::read(&path).unwrap(), None).unwrap();
+        // Everything in the corpus is written back, so it must save over its file.
+        assert!(!doc.opened_incomplete(), "{name}: losses {:?}, warnings {:?}", doc.losses(), doc.warnings());
         let sheet = doc.sheet_names().iter().position(|s| s == "Veri").expect("a Veri sheet");
         doc.set_active_sheet(sheet as u32).unwrap();
         doc.execute("cell.set", r#"{"cell":"B3","input":"75"}"#).unwrap();
@@ -669,4 +671,413 @@ fn a_sheet_or_part_the_engine_could_not_read_blocks_saving_over_the_file() {
     let doc = GridDoc::open("k.xlsx", &with_entry(&xlsx, "xl/styles.xml", b"\x00\x01 not xml"), None).unwrap();
     assert!(doc.opened_incomplete(), "warnings: {:?}", doc.warnings());
     assert_eq!(doc.skipped_parts(), ["xl/styles.xml"], "warnings: {:?}", doc.warnings());
+}
+
+// ---------------------------------------------------------------------------------------------
+// What saving an XLSX back would lose (losses.rs).
+
+const NS_X14: &str = "http://schemas.microsoft.com/office/spreadsheetml/2009/9/main";
+const NS_XM: &str = "http://schemas.microsoft.com/office/excel/2006/main";
+const NS_X15: &str = "http://schemas.microsoft.com/office/spreadsheetml/2010/11/main";
+const REL: &str = "http://schemas.openxmlformats.org/officeDocument/2006/relationships";
+const SHEET: &str = "xl/worksheets/sheet1.xml";
+const SHEET_RELS: &str = "xl/worksheets/_rels/sheet1.xml.rels";
+const WORKBOOK: &str = "xl/workbook.xml";
+const WORKBOOK_RELS: &str = "xl/_rels/workbook.xml.rels";
+
+/// The parts of an XLSX package, to build test files from GridCraft's own output.
+struct Pkg(Vec<(String, Vec<u8>)>);
+
+impl Pkg {
+    /// A two-row sheet "k" as GridCraft writes it (no sheet relationships).
+    fn base() -> Pkg {
+        Pkg::of(&GridDoc::open("k.csv", "a,b\n1,2\n".as_bytes(), None).unwrap().save("k.xlsx").unwrap())
+    }
+
+    fn of(bytes: &[u8]) -> Pkg {
+        use std::io::Read;
+        let mut z = zip::ZipArchive::new(std::io::Cursor::new(bytes)).unwrap();
+        Pkg((0..z.len())
+            .map(|i| {
+                let mut f = z.by_index(i).unwrap();
+                let mut data = Vec::new();
+                f.read_to_end(&mut data).unwrap();
+                (f.name().to_string(), data)
+            })
+            .collect())
+    }
+
+    fn text(&self, part: &str) -> Option<String> {
+        self.0.iter().find(|(n, _)| n.eq_ignore_ascii_case(part)).map(|(_, d)| String::from_utf8_lossy(d).into_owned())
+    }
+
+    fn has_prefix(&self, prefix: &str) -> bool {
+        self.0.iter().any(|(n, _)| n.to_ascii_lowercase().starts_with(&prefix.to_ascii_lowercase()))
+    }
+
+    /// Adds or replaces `part`.
+    fn put(mut self, part: &str, data: &str) -> Pkg {
+        self.0.retain(|(n, _)| n != part);
+        self.0.push((part.to_string(), data.as_bytes().to_vec()));
+        self
+    }
+
+    /// `text` inserted in `part` before the first `before`.
+    fn insert(self, part: &str, before: &str, text: &str) -> Pkg {
+        let old = self.text(part).unwrap_or_else(|| panic!("no {part}"));
+        let at = old.find(before).unwrap_or_else(|| panic!("no {before} in {part}"));
+        let new = format!("{}{text}{}", &old[..at], &old[at..]);
+        self.put(part, &new)
+    }
+
+    /// A relationship of kind `ty` (full type URI) from the relationships part `rels`.
+    fn rel(self, rels: &str, id: &str, ty: &str, target: &str, external: bool) -> Pkg {
+        let mode = if external { " TargetMode=\"External\"" } else { "" };
+        let r = format!("<Relationship Id=\"{id}\" Type=\"{ty}\" Target=\"{target}\"{mode}/>");
+        match self.text(rels) {
+            Some(_) => self.insert(rels, "</Relationships>", &r),
+            None => self.put(
+                rels,
+                &format!("<?xml version=\"1.0\" encoding=\"UTF-8\"?><Relationships xmlns=\"http://schemas.openxmlformats.org/package/2006/relationships\">{r}</Relationships>"),
+            ),
+        }
+    }
+
+    fn content_type(self, part: &str, ct: &str) -> Pkg {
+        self.insert("[Content_Types].xml", "</Types>", &format!("<Override PartName=\"/{part}\" ContentType=\"{ct}\"/>"))
+    }
+
+    /// `xml` added to the sheet right after its cells.
+    fn after_cells(self, xml: &str) -> Pkg {
+        self.insert(SHEET, "<pageMargins", xml)
+    }
+
+    fn sheet_ext(self, xml: &str) -> Pkg {
+        self.insert(SHEET, "</worksheet>", &format!("<extLst>{xml}</extLst>"))
+    }
+
+    fn bytes(&self) -> Vec<u8> {
+        use std::io::Write;
+        let mut out = zip::ZipWriter::new(std::io::Cursor::new(Vec::new()));
+        let opts = zip::write::SimpleFileOptions::default().compression_method(zip::CompressionMethod::Deflated);
+        for (name, data) in &self.0 {
+            out.start_file(name.as_str(), opts).unwrap();
+            out.write_all(data).unwrap();
+        }
+        out.finish().unwrap().into_inner()
+    }
+}
+
+/// Opens `pkg` as `name`, saves it back under the same name and reopens it.
+fn round_trip(pkg: &Pkg, name: &str) -> (GridDoc, Pkg) {
+    let doc = GridDoc::open(name, &pkg.bytes(), None).unwrap();
+    let saved = doc.save(name).unwrap();
+    (doc, Pkg::of(&saved))
+}
+
+/// What GridCraft writes back is all there: links to other workbooks, custom XML, data
+/// connections, custom document properties, hyperlinks, data validation, conditional formats,
+/// sparklines, merged cells, sheet and workbook protection and defined names. Such a workbook
+/// must still save over its file.
+#[test]
+fn what_the_engine_writes_back_does_not_block_saving_over_the_file() {
+    let pkg = Pkg::base()
+        .after_cells(
+            "<sheetProtection sheet=\"1\" objects=\"1\" scenarios=\"1\"/><mergeCells count=\"1\"><mergeCell ref=\"A3:B3\"/></mergeCells>\
+             <conditionalFormatting sqref=\"A2:B2\"><cfRule type=\"colorScale\" priority=\"1\"><colorScale><cfvo type=\"min\"/><cfvo type=\"max\"/>\
+             <color rgb=\"FFF8696B\"/><color rgb=\"FF63BE7B\"/></colorScale></cfRule></conditionalFormatting>\
+             <dataValidations count=\"1\"><dataValidation type=\"list\" allowBlank=\"1\" sqref=\"A2\"><formula1>\"Evet,Hayır\"</formula1></dataValidation></dataValidations>\
+             <hyperlinks><hyperlink ref=\"A1\" r:id=\"rId1\"/><hyperlink ref=\"B1\" location=\"k!A2\" display=\"A2\"/></hyperlinks>",
+        )
+        .sheet_ext(&format!(
+            "<ext uri=\"{{05C60535-1F16-4fd2-B633-F4F36F0B64E0}}\" xmlns:x14=\"{NS_X14}\"><x14:sparklineGroups xmlns:xm=\"{NS_XM}\">\
+             <x14:sparklineGroup type=\"column\"><x14:colorSeries rgb=\"FF376092\"/><x14:sparklines><x14:sparkline><xm:f>k!A2:B2</xm:f><xm:sqref>C2</xm:sqref>\
+             </x14:sparkline></x14:sparklines></x14:sparklineGroup></x14:sparklineGroups></ext>"
+        ))
+        .rel(SHEET_RELS, "rId1", &format!("{REL}/hyperlink"), "https://example.org/rapor", true)
+        .insert(WORKBOOK, "<bookViews>", "<workbookProtection lockStructure=\"1\"/>")
+        .insert(
+            WORKBOOK,
+            "<calcPr",
+            "<externalReferences><externalReference r:id=\"rId10\"/></externalReferences><definedNames><definedName name=\"Gelir\">k!$B$2</definedName></definedNames>",
+        )
+        .rel(WORKBOOK_RELS, "rId10", &format!("{REL}/externalLink"), "externalLinks/externalLink1.xml", false)
+        .put(
+            "xl/externalLinks/externalLink1.xml",
+            "<externalLink xmlns=\"http://schemas.openxmlformats.org/spreadsheetml/2006/main\" xmlns:r=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships\">\
+             <externalBook r:id=\"rId1\"><sheetNames><sheetName val=\"Veri\"/></sheetNames></externalBook></externalLink>",
+        )
+        .content_type("xl/externalLinks/externalLink1.xml", "application/vnd.openxmlformats-officedocument.spreadsheetml.externalLink+xml")
+        .rel("xl/externalLinks/_rels/externalLink1.xml.rels", "rId1", &format!("{REL}/externalLinkPath"), "kaynak.xlsx", true)
+        .rel(WORKBOOK_RELS, "rId11", &format!("{REL}/customXml"), "../customXml/item1.xml", false)
+        .put("customXml/item1.xml", "<kök xmlns=\"urn:test\">Şişli</kök>")
+        .rel(WORKBOOK_RELS, "rId12", &format!("{REL}/connections"), "connections.xml", false)
+        .put(
+            "xl/connections.xml",
+            "<connections xmlns=\"http://schemas.openxmlformats.org/spreadsheetml/2006/main\"><connection id=\"1\" name=\"Sorgu\" type=\"5\" refreshedVersion=\"6\">\
+             <dbPr connection=\"Provider=x\" command=\"SELECT 1\"/></connection></connections>",
+        )
+        .content_type("xl/connections.xml", "application/vnd.openxmlformats-officedocument.spreadsheetml.connections+xml")
+        .rel("_rels/.rels", "rId9", &format!("{REL}/custom-properties"), "docProps/custom.xml", false)
+        .put(
+            "docProps/custom.xml",
+            "<Properties xmlns=\"http://schemas.openxmlformats.org/officeDocument/2006/custom-properties\" xmlns:vt=\"http://schemas.openxmlformats.org/officeDocument/2006/docPropsVTypes\">\
+             <property fmtid=\"{D5CDD505-2E9C-101B-9397-08002B2CF9AE}\" pid=\"2\" name=\"Proje\"><vt:lpwstr>Bütçe</vt:lpwstr></property></Properties>",
+        )
+        .content_type("docProps/custom.xml", "application/vnd.openxmlformats-officedocument.custom-properties+xml");
+
+    let (doc, saved) = round_trip(&pkg, "k.xlsx");
+    assert!(!doc.opened_incomplete(), "losses {:?}, warnings {:?}", doc.losses(), doc.warnings());
+    for part in ["xl/externalLinks/", "customXml/item1.xml", "xl/connections.xml", "docProps/custom.xml"] {
+        assert!(saved.has_prefix(part), "{part} kept: {:?}", saved.0.iter().map(|(n, _)| n).collect::<Vec<_>>());
+    }
+    let wb = saved.text(WORKBOOK).unwrap();
+    for x in ["<externalReference ", "<workbookProtection", "<definedName name=\"Gelir\""] {
+        assert!(wb.contains(x), "{x} in {wb}");
+    }
+    let sheet = saved.text(SHEET).unwrap();
+    for x in ["<sheetProtection", "<mergeCell ", "<conditionalFormatting", "<dataValidation ", "<hyperlink ", "sparklineGroup"] {
+        assert!(sheet.contains(x), "{x} in {sheet}");
+    }
+    assert!(saved.text(SHEET_RELS).is_some_and(|r| r.contains("https://example.org/rapor")));
+    // What was saved saves over itself too.
+    let again = GridDoc::open("k.xlsx", &saved.bytes(), None).unwrap();
+    assert!(!again.opened_incomplete(), "losses {:?}, warnings {:?}", again.losses(), again.warnings());
+}
+
+/// Content GridCraft skips without a warning: each blocks saving over the file, and each is
+/// indeed missing from what the engine would write.
+#[test]
+fn content_the_engine_skips_silently_blocks_saving_over_the_file() {
+    let slicer = |p: Pkg| {
+        p.sheet_ext(&format!(
+            "<ext uri=\"{{A8765BA9-456A-4dab-B4F3-ACF838C121DE}}\" xmlns:x14=\"{NS_X14}\"><x14:slicerList><x14:slicer r:id=\"rId7\"/></x14:slicerList></ext>"
+        ))
+        .rel(SHEET_RELS, "rId7", "http://schemas.microsoft.com/office/2007/relationships/slicer", "../slicers/slicer1.xml", false)
+        .put("xl/slicers/slicer1.xml", &format!("<slicers xmlns=\"{NS_X14}\"><slicer name=\"Ay\" cache=\"Slicer_Ay\" caption=\"Ay\" rowHeight=\"241300\"/></slicers>"))
+        .content_type("xl/slicers/slicer1.xml", "application/vnd.ms-excel.slicer+xml")
+    };
+    let ink = |p: Pkg| {
+        p.insert(SHEET, "</worksheet>", "<drawing r:id=\"rId5\"/>")
+            .rel(SHEET_RELS, "rId5", &format!("{REL}/drawing"), "../drawings/drawing1.xml", false)
+            .put(
+                "xl/drawings/drawing1.xml",
+                "<xdr:wsDr xmlns:xdr=\"http://schemas.openxmlformats.org/drawingml/2006/spreadsheetDrawing\" xmlns:xdr14=\"http://schemas.microsoft.com/office/excel/2010/spreadsheetDrawing\" \
+                 xmlns:r=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships\"><xdr:twoCellAnchor><xdr:from><xdr:col>0</xdr:col><xdr:colOff>0</xdr:colOff>\
+                 <xdr:row>0</xdr:row><xdr:rowOff>0</xdr:rowOff></xdr:from><xdr:to><xdr:col>2</xdr:col><xdr:colOff>0</xdr:colOff><xdr:row>3</xdr:row><xdr:rowOff>0</xdr:rowOff></xdr:to>\
+                 <xdr14:contentPart r:id=\"rId1\"/><xdr:clientData/></xdr:twoCellAnchor></xdr:wsDr>",
+            )
+            .content_type("xl/drawings/drawing1.xml", "application/vnd.openxmlformats-officedocument.drawing+xml")
+            .rel("xl/drawings/_rels/drawing1.xml.rels", "rId1", &format!("{REL}/customXml"), "../ink/ink1.xml", false)
+            .put("xl/ink/ink1.xml", "<inkml:ink xmlns:inkml=\"http://www.w3.org/2003/InkML\"><inkml:trace>0 0, 10 10</inkml:trace></inkml:ink>")
+            .content_type("xl/ink/ink1.xml", "application/inkml+xml")
+    };
+    type Edit = Box<dyn Fn(Pkg) -> Pkg>;
+    let cases: Vec<(&str, Edit, Loss, &str, &str)> = vec![
+        (
+            "what-if scenario",
+            Box::new(|p: Pkg| {
+                p.after_cells("<scenarios><scenario name=\"İyi\" count=\"1\" user=\"x\"><inputCells r=\"A2\" val=\"5\"/></scenario></scenarios>")
+            }),
+            Loss::Other,
+            SHEET,
+            "<scenario",
+        ),
+        (
+            "custom view",
+            Box::new(|p: Pkg| {
+                p.after_cells("<customSheetViews><customSheetView guid=\"{11111111-2222-3333-4444-555555555555}\" scale=\"80\"><selection activeCell=\"A1\" sqref=\"A1\"/></customSheetView></customSheetViews>")
+            }),
+            Loss::Other,
+            SHEET,
+            "customSheetView",
+        ),
+        (
+            "date filter grouping",
+            Box::new(|p: Pkg| {
+                p.insert(SHEET, "<pageMargins", "<autoFilter ref=\"A1:B2\"><filterColumn colId=\"0\"><filters><dateGroupItem year=\"2024\" dateTimeGrouping=\"year\"/></filters></filterColumn></autoFilter>")
+            }),
+            Loss::Filters,
+            SHEET,
+            "dateGroupItem",
+        ),
+        ("slicer", Box::new(slicer), Loss::Slicers, SHEET, "slicer"),
+        (
+            "data model",
+            Box::new(|p: Pkg| {
+                p.insert(
+                    WORKBOOK,
+                    "</workbook>",
+                    &format!("<extLst><ext uri=\"{{FCE2AD5D-F65C-4FA6-A056-5C36A1767C68}}\" xmlns:x15=\"{NS_X15}\"><x15:dataModel><x15:modelTables><x15:modelTable id=\"T\" name=\"T\" connection=\"Sorgu\"/></x15:modelTables></x15:dataModel></ext></extLst>"),
+                )
+            }),
+            Loss::Other,
+            WORKBOOK,
+            "dataModel",
+        ),
+        (
+            "password to modify",
+            Box::new(|p: Pkg| {
+                p.insert(WORKBOOK, "<workbookPr", "<fileSharing readOnlyRecommended=\"1\" userName=\"Ayşe\" reservationPassword=\"CC3D\"/>")
+            }),
+            Loss::Other,
+            WORKBOOK,
+            "fileSharing",
+        ),
+        (
+            "sheet custom property",
+            Box::new(|p: Pkg| {
+                p.insert(SHEET, "</worksheet>", "<customProperties><customPr name=\"Kod\" r:id=\"rId3\"/></customProperties>")
+                    .rel(SHEET_RELS, "rId3", &format!("{REL}/customProperty"), "../customProperty1.bin", false)
+                    .put("xl/customProperty1.bin", "K\0o\0d\0")
+            }),
+            Loss::Other,
+            SHEET,
+            "customPr",
+        ),
+        ("ink", Box::new(ink), Loss::Drawings, "xl/drawings/drawing1.xml", "contentPart"),
+    ];
+    for (what, edit, loss, part, marker) in cases {
+        let pkg = edit(Pkg::base());
+        assert!(pkg.text(part).unwrap().contains(marker), "{what}: test file holds {marker}");
+        let (doc, saved) = round_trip(&pkg, "k.xlsx");
+        assert!(doc.losses().contains(&loss), "{what}: losses {:?}, warnings {:?}", doc.losses(), doc.warnings());
+        assert!(doc.opened_incomplete(), "{what}");
+        assert!(!saved.text(part).unwrap_or_default().contains(marker), "{what}: the engine does write {marker} back");
+    }
+}
+
+/// A VBA project is written back only to a macro-enabled type (write.rs:422): in an `.xlsx` it
+/// would be lost, in an `.xlsm` it is kept.
+#[test]
+fn macros_block_saving_over_an_xlsx_but_not_an_xlsm() {
+    let pkg = Pkg::base()
+        .rel(WORKBOOK_RELS, "rId8", "http://schemas.microsoft.com/office/2006/relationships/vbaProject", "vbaProject.bin", false)
+        .put("xl/vbaProject.bin", "not really an OLE file")
+        .insert("[Content_Types].xml", "</Types>", "<Default Extension=\"bin\" ContentType=\"application/vnd.ms-office.vbaProject\"/>");
+    let (doc, saved) = round_trip(&pkg, "k.xlsx");
+    assert_eq!(doc.losses(), [Loss::Macros], "warnings {:?}", doc.warnings());
+    assert!(doc.opened_incomplete());
+    assert!(!saved.has_prefix("xl/vbaProject.bin"));
+
+    let (doc, saved) = round_trip(&pkg, "k.xlsm");
+    assert!(!doc.opened_incomplete(), "losses {:?}, warnings {:?}", doc.losses(), doc.warnings());
+    assert!(saved.text("xl/vbaProject.bin").is_some_and(|b| b == "not really an OLE file"));
+}
+
+/// Losses the engine reports as warnings, from real files: hyperlinks past its cap, an Excel 2010
+/// conditional format it cannot keep, a date filter, a what-if data table.
+#[test]
+fn losses_the_engine_warns_about_block_saving_over_the_file() {
+    let links: String = (1..=10_001).map(|r| format!("<hyperlink ref=\"C{r}\" location=\"k!A1\" display=\"A1\"/>")).collect();
+    let cases: Vec<(&str, Pkg, Loss)> = vec![
+        ("hyperlinks past the cap", Pkg::base().after_cells(&format!("<hyperlinks>{links}</hyperlinks>")), Loss::Links),
+        (
+            "Excel 2010 conditional format",
+            Pkg::base().sheet_ext(&format!(
+                "<ext uri=\"{{78C0D931-6437-407d-A8EE-F0AAD7539E65}}\" xmlns:x14=\"{NS_X14}\"><x14:conditionalFormattings>\
+                 <x14:conditionalFormatting xmlns:xm=\"{NS_XM}\"><x14:cfRule type=\"iconSet\" priority=\"1\" id=\"{{00000000-0000-0000-0000-000000000001}}\">\
+                 <x14:iconSet iconSet=\"3Stars\" custom=\"1\"><x14:cfvo type=\"percent\"><xm:f>0</xm:f></x14:cfvo></x14:iconSet></x14:cfRule>\
+                 <xm:sqref>A2:B2</xm:sqref></x14:conditionalFormatting></x14:conditionalFormattings></ext>"
+            )),
+            Loss::ConditionalFormats,
+        ),
+        (
+            "date filter",
+            Pkg::base().insert(SHEET, "<pageMargins", "<autoFilter ref=\"A1:B2\"><filterColumn colId=\"0\"><dynamicFilter type=\"thisMonth\"/></filterColumn></autoFilter>"),
+            Loss::Filters,
+        ),
+        (
+            "what-if data table",
+            Pkg::base().insert(SHEET, "<v>2</v>", "<f t=\"dataTable\" ref=\"B2\" dt2D=\"0\" dtr=\"0\" r1=\"A1\"/>"),
+            Loss::Formulas,
+        ),
+    ];
+    for (what, pkg, loss) in cases {
+        let doc = GridDoc::open("k.xlsx", &pkg.bytes(), None).unwrap();
+        assert_eq!(doc.losses(), [loss], "{what}: warnings {:?}", doc.warnings());
+        assert!(doc.opened_incomplete(), "{what}");
+    }
+}
+
+/// GridCraft's warning wording (crates/xlsx/src at c0ee120), as the bridge reads it. A change of
+/// wording upstream fails here.
+#[test]
+fn reads_the_engines_loss_warnings() {
+    use losses::warning_loss as w;
+    let cases: &[(&str, Option<Loss>)] = &[
+        // Losses.
+        ("sheet \"Satış\": hyperlinks longer than 8192 characters were dropped", Some(Loss::Links)),
+        ("sheet \"Satış\": hyperlinks past the first 10000 cells were dropped", Some(Loss::Links)),
+        ("sheet \"Satış\": hyperlink targets past 8388608 bytes were dropped", Some(Loss::Links)),
+        ("links to external workbooks were dropped: a link has no part", Some(Loss::Links)),
+        ("connections part connections.xml was dropped: it is too large", Some(Loss::Links)),
+        ("conditional format type \"x\" is not supported", Some(Loss::ConditionalFormats)),
+        ("conditional formats past 4000000 kept range cells were dropped", Some(Loss::ConditionalFormats)),
+        ("some Excel 2010 conditional format extensions were skipped", Some(Loss::ConditionalFormats)),
+        ("PivotTables on sheet \"Özet\" could not be read: XML error", Some(Loss::PivotTables)),
+        ("PivotTables with a consolidation data source are not supported; kept as plain cells", Some(Loss::PivotTables)),
+        ("xl/pivotCache/x.xml is not a pivot cache definition; its PivotTable was kept as plain cells", Some(Loss::PivotTables)),
+        ("calculated PivotTable fields are not supported", Some(Loss::PivotTables)),
+        ("PivotTable grouping of \"Tarih\" is not supported; the field is ungrouped", Some(Loss::PivotTables)),
+        ("PivotTable function stdDevp is not supported; using Sum", Some(Loss::PivotTables)),
+        ("macros (VBA project) could not be read and were dropped: x", Some(Loss::Macros)),
+        ("what-if data tables are not supported; kept their values", Some(Loss::Formulas)),
+        ("shared formulas expand to too much data; kept the cached values of the remaining cells that share them", Some(Loss::Formulas)),
+        ("a shared formula is longer than 8192 characters; kept the cached values of the cells that share it", Some(Loss::Formulas)),
+        ("formula-generated cell pictures were imported as static pictures; their formulas were not retained", Some(Loss::Formulas)),
+        ("the Python part is damaged (x); Python cells kept only their values", Some(Loss::Formulas)),
+        ("the Python part holds more than 10000 scripts; 3 were not read", Some(Loss::Formulas)),
+        ("2 Python cell(s) name code the file's Python part doesn't hold (or holds too much of); they kept only their values", Some(Loss::Formulas)),
+        ("date filters in AutoFilters are not supported", Some(Loss::Filters)),
+        ("some date cells could not be read", Some(Loss::CellValues)),
+        ("some numeric cells could not be read", Some(Loss::CellValues)),
+        ("a linked (not embedded) picture was skipped", Some(Loss::Drawings)),
+        ("chart xl/charts/chart1.xml has no supported plot and was skipped", Some(Loss::Drawings)),
+        ("an embedded object (SmartArt, OLE…) was skipped (xl/drawings/drawing1.xml, object 2)", Some(Loss::Drawings)),
+        ("grouped shapes are not supported and were skipped (xl/drawings/drawing1.xml, object 1)", Some(Loss::Drawings)),
+        ("cell-picture data could not be read (x); scalar fallbacks were retained", Some(Loss::Drawings)),
+        ("missing rich-value data relationship; cell pictures were not loaded", Some(Loss::Drawings)),
+        ("some cells have unsupported or missing value metadata; kept their scalar fallback (cell pictures may be missing)", Some(Loss::Drawings)),
+        ("sheet \"A\": controls and embedded objects were dropped: it is too large", Some(Loss::Drawings)),
+        ("sheet \"A\": header and footer pictures were dropped: x", Some(Loss::Drawings)),
+        ("sheet \"A\": oleObjects were dropped: its XML is damaged", Some(Loss::Drawings)),
+        ("unmodelled content of a Strict Open XML workbook (custom XML, links, controls…) is not kept on save", Some(Loss::Other)),
+        ("custom-properties was dropped: it is too large", Some(Loss::Other)),
+        ("customXml part ../customXml/item1.xml was dropped: x", Some(Loss::Other)),
+        ("sheet \"A\": relationships could not be read (x); unmodelled content was dropped", Some(Loss::Other)),
+        ("sheet \"A\": queryTable was dropped: x", Some(Loss::Other)),
+        ("sheet \"A\": printer settings were dropped: x", Some(Loss::Other)),
+        ("shared strings: 2 phonetic readings were dropped because another <si> with the same text already had one", Some(Loss::Other)),
+        // A sheet name that reads like a harmless warning does not hide a loss.
+        ("sheet \"missing part \": hyperlinks past the first 10000 cells were dropped", Some(Loss::Links)),
+        // Not losses.
+        ("missing part xl/comments1.xml", None),
+        ("missing picture xl/media/image1.png", None),
+        ("a chart without its chart part was skipped (xl/drawings/drawing1.xml, object 1)", None),
+        ("chart xl/charts/chart1.xml is missing from the package and was skipped (xl/drawings/drawing1.xml, object 1)", None),
+        ("sheet \"A\" has no part; skipped", None),
+        ("macros (VBA project) were kept but not executed", None),
+        ("macros (VBA project) reference a missing part and were dropped", None),
+        ("sheet \"A\": 3 cells or rows outside the 1,048,576 × 16,384 grid were dropped", None),
+        ("shared strings: 2 phonetic runs were dropped (bad sb/eb or no reading)", None),
+        ("links to external workbooks were kept; they are not followed or refreshed", None),
+        ("sheet \"A\": embedded objects and form controls are not shown; they are kept for saving", None),
+        ("sheet \"A\": pictures in the header and footer are not shown; they are kept for saving", None),
+        ("a PivotTable's source is in another workbook; its source reference may not resolve", None),
+        ("a shared formula refers to a missing master cell; kept the cached value", None),
+        ("some cells refer to missing shared strings", None),
+        ("no styles part", None),
+        ("the workbook has no worksheets; added an empty sheet", None),
+        // Reported by unread_sheets / skipped_parts / truncated instead.
+        ("chart sheet \"Grafik\" was skipped and is not kept on save", None),
+        ("chart sheet \"Grafik\" was dropped: it is too large", None),
+        ("sheet \"Makro\" is a macrosheet and was skipped", None),
+        ("skipped xl/styles.xml: XML error", None),
+        ("sheet \"A\" is damaged (x); kept 3 rows", None),
+    ];
+    for (warning, loss) in cases {
+        assert_eq!(w(warning), *loss, "{warning}");
+    }
+    assert_eq!(parse_unread_sheet("chart sheet \"Grafik 1\" was dropped: it is too large"), Some("Grafik 1"));
 }

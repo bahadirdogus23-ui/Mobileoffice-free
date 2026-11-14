@@ -20,6 +20,16 @@
     <string name="save_over_truncated">Not saved: this workbook was cut on opening, and saving over the original would delete rows. Choose a new file name.</string>
     <string name="sheet_unread">The sheet “%1$s” could not be read and is not shown. Saving over the original file is turned off, because it would delete this sheet. Use “Save as” to keep what is shown in a new file.</string>
     <string name="parts_skipped">Parts of the file could not be read (%1$s): the formats, comments or drawings they hold are missing. Saving over the original file is turned off, because it would delete them. Use “Save as” to keep what is shown in a new file.</string>
+    <string name="sheet_loss_links">Some links (hyperlinks beyond the limits of this app, links to other workbooks or data connections) are not kept.</string>
+    <string name="sheet_loss_conditional_formats">Some conditional formatting rules are not kept.</string>
+    <string name="sheet_loss_pivot_tables">Some pivot tables are not kept, or are kept only as plain cells.</string>
+    <string name="sheet_loss_slicers">Slicers and timelines are not kept.</string>
+    <string name="sheet_loss_drawings">Some charts, pictures, shapes, embedded objects or controls are not kept.</string>
+    <string name="sheet_loss_macros">The macros (VBA) in this file are not kept.</string>
+    <string name="sheet_loss_formulas">Some formulas (what-if data tables, Python cells…) are kept only as their values.</string>
+    <string name="sheet_loss_filters">Some filter settings (date filters) are not kept.</string>
+    <string name="sheet_loss_cell_values">Some cell values could not be read and are shown empty.</string>
+    <string name="sheet_loss_other">Some content (what-if scenarios, custom views, a data model, sharing settings…) is not kept.</string>
     <string name="word_loss_damaged">Part of this file is damaged or too large for this app and was not read.</string>
     <string name="word_loss_other_format">This file holds another format than its name says and was opened by its content: saving would turn it into that format.</string>
     <string name="word_loss_notes">Footnotes and endnotes are not read.</string>
