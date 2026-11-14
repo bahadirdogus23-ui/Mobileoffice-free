@@ -55,7 +55,7 @@ fn family(data: &[u8]) -> Option<String> {
                 return None;
             }
             let (l, o) = (be16(t, r + 8)? as usize, be16(t, r + 10)? as usize);
-            let units: Vec<u16> = t.get(strings + o..strings + o + l)?.chunks_exact(2).map(|c| u16::from_be_bytes([c[0], c[1]])).collect();
+            let units: Vec<u16> = t.get(strings + o..strings + o + l)?.as_chunks::<2>().0.iter().map(|c| u16::from_be_bytes(*c)).collect();
             Some(String::from_utf16_lossy(&units)).filter(|s| !s.is_empty())
         })
     };
