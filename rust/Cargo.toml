@@ -28,6 +28,12 @@ cadcraft-doc = { git = "https://github.com/storytold/cadcraft", rev = "565424072
 cadcraft-geom = { git = "https://github.com/storytold/cadcraft", rev = "56542407292b911ad30523cfcfa987923fe2f8e2" }
 cadcraft-color = { git = "https://github.com/storytold/cadcraft", rev = "56542407292b911ad30523cfcfa987923fe2f8e2" }
 cadcraft-engine = { git = "https://github.com/storytold/cadcraft", rev = "56542407292b911ad30523cfcfa987923fe2f8e2" }
+cadcraft-dwg = { git = "https://github.com/storytold/cadcraft", rev = "56542407292b911ad30523cfcfa987923fe2f8e2" }
+cadcraft-dxf = { git = "https://github.com/storytold/cadcraft", rev = "56542407292b911ad30523cfcfa987923fe2f8e2" }
+cadcraft-fonts = { git = "https://github.com/storytold/cadcraft", rev = "56542407292b911ad30523cfcfa987923fe2f8e2" }
+# The DWG reader CADCraft's DWG bridge uses, at the version Cargo.lock already has (mo-cad reads
+# its code page tables for code pages CADCraft's DXF reader doesn't know).
+acadrust = "=0.6.6"
 pdfcraft-cos = { git = "https://github.com/storytold/pdfcraft", rev = "0f22627bff6cde9930817e891290f653d882bbda" }
 pdfcraft-annot = { git = "https://github.com/storytold/pdfcraft", rev = "0f22627bff6cde9930817e891290f653d882bbda" }
 pdfcraft-fonts = { git = "https://github.com/storytold/pdfcraft", rev = "0f22627bff6cde9930817e891290f653d882bbda" }

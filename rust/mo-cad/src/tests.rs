@@ -164,3 +164,149 @@ fn whole_drawing_still_shows_its_objects() {
     let r = doc.render(0, 200.0, 200.0, 1.0, 420, 420, true).unwrap();
     assert!(ink(&r, [33, 40, 48]) > 20_000, "{}", ink(&r, [33, 40, 48]));
 }
+
+/// An ASCII DXF of `version` declaring `code_page`, with a layer (red), a TEXT and an MTEXT on it
+/// whose name and strings are the raw bytes given.
+fn coded_dxf(version: &str, code_page: &str, layer: &[u8], text: &[u8], mtext: &[u8]) -> Vec<u8> {
+    let mut b = Vec::new();
+    let mut put = |code: i32, v: &[u8]| {
+        b.extend_from_slice(format!("{code:>3}\r\n").as_bytes());
+        b.extend_from_slice(v);
+        b.extend_from_slice(b"\r\n");
+    };
+    let header = [
+        (0, &b"SECTION"[..]),
+        (2, b"HEADER"),
+        (9, b"$ACADVER"),
+        (1, version.as_bytes()),
+        (9, b"$DWGCODEPAGE"),
+        (3, code_page.as_bytes()),
+        (0, b"ENDSEC"),
+    ];
+    let tables = [
+        (0, &b"SECTION"[..]),
+        (2, b"TABLES"),
+        (0, b"TABLE"),
+        (2, b"LAYER"),
+        (0, b"LAYER"),
+        (2, layer),
+        (70, b"0"),
+        (62, b"1"),
+        (6, b"CONTINUOUS"),
+        (0, b"ENDTAB"),
+        (0, b"ENDSEC"),
+    ];
+    let entities = [(0, &b"SECTION"[..]), (2, b"ENTITIES"), (0, b"TEXT"), (8, layer), (10, b"0"), (20, b"0"), (40, b"1"), (1, text)];
+    let end = [(0, &b"MTEXT"[..]), (8, layer), (10, b"0"), (20, b"5"), (40, b"1"), (1, mtext), (0, b"ENDSEC"), (0, b"EOF")];
+    for (c, v) in header.into_iter().chain(tables).chain(entities).chain(end) {
+        put(c, v);
+    }
+    b
+}
+
+/// The drawing's layer names (without "0" and "Defpoints") and its TEXT values and MTEXT
+/// contents; asserts that every text is on a layer the drawing defines.
+fn strings(doc: &CadDoc) -> (Vec<String>, Vec<String>) {
+    let layers: Vec<String> = doc.layers().into_iter().map(|l| l.name).filter(|n| n != "0" && n != "Defpoints").collect();
+    let mut texts = Vec::new();
+    for e in doc.drawing.model.iter() {
+        let s = match &e.kind {
+            cadcraft_doc::EntityKind::Text(t) => t.value.clone(),
+            cadcraft_doc::EntityKind::MText(t) => t.contents.clone(),
+            _ => continue,
+        };
+        assert!(layers.contains(&e.common.layer), "{s} is on undefined layer {}", e.common.layer);
+        texts.push(s);
+    }
+    (layers, texts)
+}
+
+/// The same drawing as DWG files of 2000, 2004 and 2018, written by the engine's DWG writer.
+fn as_dwgs(dxf: &[u8]) -> Vec<(&'static str, Vec<u8>)> {
+    ["AC1015", "AC1018", "AC1032"].into_iter().map(|v| (v, cadcraft_dwg::dxf_to_dwg_as(dxf, v).unwrap())).collect()
+}
+
+/// "İstanbul ışık Şğ" in Windows-1254.
+const ISTANBUL_1254: &[u8] = b"\xDDstanbul \xFD\xFE\xFDk \xDE\xF0";
+
+/// Drawings in the Turkish code page (R12 and R2000 DXF, and the DWGs made from them) read
+/// right, `\U+` escapes too (with lower-case hex digits).
+#[test]
+fn turkish_code_page_drawings_read_right() {
+    for version in ["AC1009", "AC1015"] {
+        let dxf = coded_dxf(version, "ANSI_1254", b"KAPI\xDD", ISTANBUL_1254, b"\\U+0130\\U+0131 \\U+015f");
+        let expected = (vec!["KAPIİ".to_string()], vec!["İstanbul ışık Şğ".to_string(), "İı ş".to_string()]);
+        assert_eq!(strings(&CadDoc::open("a.dxf", &dxf).unwrap()), expected, "{version}");
+        for (v, dwg) in as_dwgs(&dxf) {
+            // The DWG's code page (file header byte 0x13) is ANSI_1254, AutoCAD's index 33.
+            assert_eq!(dwg[0x13], 33);
+            assert_eq!(strings(&CadDoc::open("a.dwg", &dwg).unwrap()), expected, "{version} → {v}");
+        }
+    }
+}
+
+/// Turkish text in a drawing that says it is ANSI_1252 read as Ý ý Þ þ Ð ð; now it reads as
+/// İ ı Ş ş Ğ ğ, in DXF and DWG, and its objects still find their (renamed the same way) layer.
+#[test]
+fn turkish_text_in_a_western_code_page_reads_as_turkish() {
+    let dxf = coded_dxf("AC1015", "ANSI_1252", b"KAPI\xDD", ISTANBUL_1254, b"\xE7\xF6\xFC \xFD");
+    let raw = cadcraft_io::read_dxf(&dxf).unwrap();
+    assert!(raw.layers.iter().any(|l| l.name == "KAPIÝ"), "the engine alone reads it as 1252");
+    let expected = (vec!["KAPIİ".to_string()], vec!["İstanbul ışık Şğ".to_string(), "çöü ı".to_string()]);
+    assert_eq!(strings(&CadDoc::open("a.dxf", &dxf).unwrap()), expected);
+    for (v, dwg) in as_dwgs(&dxf) {
+        assert_eq!(dwg[0x13], 30, "ANSI_1252");
+        let doc = CadDoc::open("a.dwg", &dwg).unwrap();
+        assert_eq!(strings(&doc), expected, "{v}");
+        assert_eq!(doc.layers().iter().find(|l| l.name == "KAPIİ").unwrap().color, (255, 0, 0), "{v}");
+    }
+    // A UTF-8 file (2007 and later) with those letters baked in by an earlier conversion.
+    let utf8 = coded_dxf("AC1032", "ANSI_1252", "KAPIÝ".as_bytes(), "Ýstanbul ýþýk Þð".as_bytes(), "çöü ý".as_bytes());
+    assert_eq!(strings(&CadDoc::open("a.dxf", &utf8).unwrap()), expected);
+}
+
+/// Icelandic text has Ý ý Þ þ Ð ð too, along with á é í ó ú æ: it is left as it is.
+#[test]
+fn icelandic_text_is_left_alone() {
+    let text = b"\xDEetta er \xFEa\xF0 sem \xE9g vil \xE1 \xCDslandi, \xE9g f\xF3r \xED b\xEDl \xFDmsum";
+    let dxf = coded_dxf("AC1015", "ANSI_1252", b"Hl\xF6\xF0", text, b"x");
+    assert!(text::prepare(&dxf).is_none());
+    let (layers, texts) = strings(&CadDoc::open("a.dxf", &dxf).unwrap());
+    assert_eq!(layers, ["Hlöð"]);
+    assert_eq!(texts[0], "Þetta er það sem ég vil á Íslandi, ég fór í bíl ýmsum");
+}
+
+/// `%%nnn` is character nnn of the drawing's code page: in a Turkish drawing %%221 is İ, not Ý.
+#[test]
+fn character_codes_follow_the_turkish_code_page() {
+    let dxf = coded_dxf("AC1015", "ANSI_1254", b"%%221", b"%%221stanbul %%253 %%%221 %%d %%199", b"%%254");
+    let (layers, texts) = strings(&CadDoc::open("a.dxf", &dxf).unwrap());
+    // Only text values change: a layer name is a name, not text with control codes.
+    assert_eq!(layers, ["%%221"]);
+    assert_eq!(texts, ["İstanbul ı %%%221 %%d %%199", "ş"]);
+    // A Western drawing whose only Turkish letters are such codes is a Turkish one.
+    let dxf = coded_dxf("AC1015", "ANSI_1252", b"L", b"KAPI %%221", b"x");
+    assert_eq!(strings(&CadDoc::open("a.dxf", &dxf).unwrap()).1[0], "KAPI İ");
+    // Other code pages keep the engine's reading.
+    let dxf = coded_dxf("AC1015", "ANSI_1251", b"L", b"%%221", b"x");
+    assert!(text::prepare(&dxf).is_none());
+    // A Turkish UTF-8 drawing with nothing to change is passed on as it is.
+    let dxf = coded_dxf("AC1032", "ANSI_1254", b"KAPI", "İstanbul ışık".as_bytes(), b"x");
+    assert!(text::prepare(&dxf).is_none());
+    assert_eq!(strings(&CadDoc::open("a.dxf", &dxf).unwrap()).1[0], "İstanbul ışık");
+}
+
+/// DOS857 (Turkish DOS) is a code page the engine's DXF reader doesn't know: its DXF files read
+/// as Windows-1252, and so did its DWGs (the DWG reader decodes them, then hands them on as
+/// DOS857 DXF). Both read right now.
+#[test]
+fn turkish_dos_code_page_reads_right() {
+    let dxf = coded_dxf("AC1015", "DOS857", b"KAPI\x98", b"\x98stanbul \x8D\x9F\x8Dk \x9E\xA7 \x80\x87\x94\x81", b"x");
+    let raw = cadcraft_io::read_dxf(&dxf).unwrap();
+    assert!(!raw.layers.iter().any(|l| l.name == "KAPIİ"), "the engine alone misreads it");
+    let expected = (vec!["KAPIİ".to_string()], vec!["İstanbul ışık Şğ Ççöü".to_string(), "x".to_string()]);
+    assert_eq!(strings(&CadDoc::open("a.dxf", &dxf).unwrap()), expected);
+    for (v, dwg) in as_dwgs(&dxf) {
+        assert_eq!(strings(&CadDoc::open("a.dwg", &dwg).unwrap()), expected, "{v}");
+    }
+}
