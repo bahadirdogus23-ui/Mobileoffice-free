@@ -106,9 +106,22 @@ pub fn xml_reads_whole(xml: &[u8], limits: &XmlLimits) -> bool {
 /// selects (by lower-case name) that [`xml_reads_whole`] refuses. A package that is not a zip at
 /// all is reported as one entry named `*`.
 pub fn damaged_entries(bytes: &[u8], is_xml: impl Fn(&str) -> bool, limits: &XmlLimits) -> Vec<String> {
+    damaged_within(bytes, is_xml, limits, MAX_UNPACKED)
+}
+
+/// [`damaged_entries`], inflating at most `budget` bytes in all.
+fn damaged_within(bytes: &[u8], is_xml: impl Fn(&str) -> bool, limits: &XmlLimits, budget: u64) -> Vec<String> {
     let Ok(mut zip) = zip::ZipArchive::new(Cursor::new(bytes)) else { return vec!["*".to_string()] };
     let mut out = Vec::new();
+    // What all entries together may inflate to. Entries of a hostile zip can share one
+    // compressed stream (a few MB that unpack to terabytes); past this the rest is not checked,
+    // and so not known to be whole.
+    let mut budget = budget;
     for i in 0..zip.len() {
+        if budget == 0 {
+            out.extend((i..zip.len()).map(|j| zip.name_for_index(j).unwrap_or("*").trim_start_matches('/').to_string()));
+            break;
+        }
         let mut f = match zip.by_index(i) {
             Ok(f) => f,
             Err(_) => {
@@ -123,19 +136,28 @@ pub fn damaged_entries(bytes: &[u8], is_xml: impl Fn(&str) -> bool, limits: &Xml
         let ok = if is_xml(&name.to_ascii_lowercase()) {
             let mut xml = Vec::new();
             // Reading to the end checks the entry's CRC.
-            match (&mut f).take(limits.max_bytes.saturating_add(1)).read_to_end(&mut xml) {
+            let read = (&mut f).take(limits.max_bytes.min(budget).saturating_add(1)).read_to_end(&mut xml);
+            budget = budget.saturating_sub(xml.len() as u64);
+            match read {
                 Ok(_) => xml_reads_whole(&xml, limits),
                 Err(_) => false,
             }
         } else {
-            std::io::copy(&mut f, &mut std::io::sink()).is_ok()
+            let copied = std::io::copy(&mut (&mut f).take(budget.saturating_add(1)), &mut std::io::sink());
+            budget = budget.saturating_sub(*copied.as_ref().unwrap_or(&0));
+            copied.is_ok()
         };
+        // Cut off by the budget: not checked to its end.
+        let ok = ok && budget > 0;
         if !ok {
             out.push(name);
         }
     }
     out
 }
+
+/// The most [`damaged_entries`] inflates, all entries together (1 GB).
+const MAX_UNPACKED: u64 = 1 << 30;
 
 /// UTF-16 text with a byte-order mark, as UTF-8 (as the engines read such parts).
 fn utf16_to_utf8(bytes: &[u8]) -> Option<String> {
@@ -202,5 +224,10 @@ mod tests {
         assert_eq!(damaged_entries(&bad, |n| n.ends_with(".xml"), &LIMITS), ["b.bin"]);
 
         assert_eq!(damaged_entries(b"not a zip", |_| true, &LIMITS), ["*"]);
+
+        // Past the budget, entries are not known to be whole.
+        assert!(damaged_within(&good, |n| n.ends_with(".xml"), &LIMITS, 100).is_empty());
+        assert_eq!(damaged_within(&good, |n| n.ends_with(".xml"), &LIMITS, 8), ["b.bin"]);
+        assert_eq!(damaged_within(&good, |n| n.ends_with(".xml"), &LIMITS, 2), ["a.xml", "b.bin"]);
     }
 }

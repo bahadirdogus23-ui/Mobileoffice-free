@@ -77,6 +77,7 @@ pub fn read(bytes: &[u8]) -> Result<Udf, String> {
         .map_err(|e| format!("UDF: {e}"))?;
     let xml = xml_text(&raw);
     let (root, text) = parse(&xml)?;
+    let text = Text { units: &text, left: std::cell::Cell::new(text.len().saturating_mul(4).saturating_add(1 << 20)) };
     let (html, page) = to_html(&root, &text);
     let mut doc = wordcraft_formats::import_on("html", html.as_bytes(), &page)
         .unwrap_or_else(|| Err("no HTML importer".into()))
@@ -134,6 +135,18 @@ fn xml_text(raw: &[u8]) -> String {
     }
 }
 
+/// The deepest element nesting read: UYAP documents nest a few levels (a table in a table cell
+/// adds three).
+const MAX_DEPTH: usize = 128;
+
+/// The document text (UTF-16 units) and how much more of it runs may still copy out. Each run
+/// copies its range, so without a bound a few kilobytes of runs that all name the whole text
+/// would make gigabytes of HTML.
+struct Text<'a> {
+    units: &'a [u16],
+    left: std::cell::Cell<usize>,
+}
+
 /// The element tree under `<template>` and the CDATA text as UTF-16 units.
 fn parse(xml: &str) -> Result<(El, Vec<u16>), String> {
     let mut reader = quick_xml::Reader::from_str(xml);
@@ -143,6 +156,11 @@ fn parse(xml: &str) -> Result<(El, Vec<u16>), String> {
     loop {
         match reader.read_event().map_err(|e| format!("UDF: {e}"))? {
             Event::Start(e) => {
+                // The tree is walked and dropped recursively: a hostile file nested a hundred
+                // thousand deep would overflow the stack, which ends the app.
+                if stack.len() > MAX_DEPTH {
+                    return Err("UDF: the document is nested too deeply".into());
+                }
                 let el = element(&e);
                 // The first <content> directly under <template> holds the text; the ones inside
                 // paragraphs are empty runs.
@@ -191,7 +209,7 @@ fn element(e: &BytesStart<'_>) -> El {
 }
 
 /// The page from `<pageFormat>` (points; A4 unless it says otherwise) and the body as HTML.
-fn to_html(t: &El, text: &[u16]) -> (String, SectionProps) {
+fn to_html(t: &El, text: &Text<'_>) -> (String, SectionProps) {
     let mut page = SectionProps { page_w: 595.3, page_h: 841.9, ..SectionProps::default() };
     if let Some(pf) = t.kid("properties").and_then(|p| p.kid("pageFormat")) {
         for (key, slot) in [
@@ -214,7 +232,7 @@ fn to_html(t: &El, text: &[u16]) -> (String, SectionProps) {
     let resolver = t.kid("elements").and_then(|e| e.attr("resolver")).unwrap_or("hvl-default");
     let base = t.kid("styles").and_then(|s| s.kids.iter().find(|st| st.attr("name") == Some(resolver)));
     let family = base.and_then(|b| b.attr("family")).unwrap_or("Times New Roman");
-    let size = base.and_then(|b| b.num("size")).unwrap_or(12.0);
+    let size = base.and_then(|b| b.num("size")).map_or(12.0, font_size);
     let mut html = format!("<html><body style=\"font-family:'{}';font-size:{size}pt\">", esc(family));
     if let Some(elements) = t.kid("elements") {
         blocks(&elements.kids, text, &mut html);
@@ -223,7 +241,7 @@ fn to_html(t: &El, text: &[u16]) -> (String, SectionProps) {
     (html, page)
 }
 
-fn blocks(els: &[El], text: &[u16], out: &mut String) {
+fn blocks(els: &[El], text: &Text<'_>, out: &mut String) {
     for el in els {
         match el.name.as_str() {
             "paragraph" => paragraph(el, text, out),
@@ -236,7 +254,7 @@ fn blocks(els: &[El], text: &[u16], out: &mut String) {
     }
 }
 
-fn paragraph(p: &El, text: &[u16], out: &mut String) {
+fn paragraph(p: &El, text: &Text<'_>, out: &mut String) {
     let mut style = String::new();
     match p.attr("Alignment") {
         Some("1") => style.push_str("text-align:center;"),
@@ -251,18 +269,18 @@ fn paragraph(p: &El, text: &[u16], out: &mut String) {
         ("SpaceAbove", "margin-top"),
         ("SpaceBelow", "margin-bottom"),
     ] {
-        if let Some(v) = p.num(attr).filter(|v| *v != 0.0) {
+        if let Some(v) = p.num(attr).filter(|v| *v != 0.0).map(|v| v.clamp(-MAX_LENGTH, MAX_LENGTH)) {
             let _ = write!(style, "{css}:{v}pt;");
         }
     }
-    if let Some(ls) = p.num("LineSpacing").filter(|v| *v > 0.0) {
+    if let Some(ls) = p.num("LineSpacing").filter(|v| *v > 0.0).map(|v| v.min(10.0)) {
         // UYAP stores extra spacing as a fraction (0.5 = one and a half lines).
         let _ = write!(style, "line-height:{};", 1.0 + ls);
     }
     if let Some(f) = p.attr("family") {
         let _ = write!(style, "font-family:'{}';", esc(f));
     }
-    if let Some(s) = p.num("size") {
+    if let Some(s) = p.num("size").map(font_size) {
         let _ = write!(style, "font-size:{s}pt;");
     }
     // pre-wrap keeps tabs and runs of spaces, which UYAP documents align their labels with.
@@ -278,11 +296,11 @@ fn paragraph(p: &El, text: &[u16], out: &mut String) {
 }
 
 /// One piece of a paragraph; returns whether it put anything visible in.
-fn run(r: &El, text: &[u16], out: &mut String) -> bool {
+fn run(r: &El, text: &Text<'_>, out: &mut String) -> bool {
     if r.name == "image" {
         if let Some(data) = r.attr("imageData").filter(|d| !d.is_empty()) {
             let size = match (r.num("width"), r.num("height")) {
-                (Some(w), Some(h)) => format!(" width=\"{w}\" height=\"{h}\""),
+                (Some(w), Some(h)) => format!(" width=\"{}\" height=\"{}\"", w.clamp(1.0, MAX_LENGTH), h.clamp(1.0, MAX_LENGTH)),
                 _ => String::new(),
             };
             let _ = write!(out, "<img src=\"data:image/png;base64,{}\"{size}>", esc(data.trim()));
@@ -292,11 +310,12 @@ fn run(r: &El, text: &[u16], out: &mut String) -> bool {
     }
     let (Some(start), Some(len)) = (r.num("startOffset"), r.num("length")) else { return false };
     let (start, len) = (start.max(0.0) as usize, len.max(0.0) as usize);
-    let end = start.saturating_add(len).min(text.len());
-    if start >= end {
+    let end = start.saturating_add(len).min(text.units.len());
+    if start >= end || end - start > text.left.get() {
         return false;
     }
-    let piece = String::from_utf16_lossy(&text[start..end]);
+    text.left.set(text.left.get() - (end - start));
+    let piece = String::from_utf16_lossy(&text.units[start..end]);
     // The paragraph's own line end belongs to the paragraph, not to its text.
     let piece = piece.trim_end_matches(['\n', '\r']);
     if piece.is_empty() {
@@ -318,7 +337,7 @@ fn run(r: &El, text: &[u16], out: &mut String) -> bool {
     if let Some(f) = r.attr("family") {
         let _ = write!(style, "font-family:'{}';", esc(f));
     }
-    if let Some(s) = r.num("size") {
+    if let Some(s) = r.num("size").map(font_size) {
         let _ = write!(style, "font-size:{s}pt;");
     }
     if let Some(c) = r.attr("foreground").and_then(|c| c.trim().parse::<i64>().ok()) {
@@ -342,7 +361,7 @@ fn column_spans(t: &El) -> Vec<f32> {
     t.attr("columnSpans").map(|s| s.split(',').filter_map(|v| v.trim().parse().ok()).collect()).unwrap_or_default()
 }
 
-fn table(t: &El, text: &[u16], out: &mut String) {
+fn table(t: &El, text: &Text<'_>, out: &mut String) {
     let bordered = t.attr("border").is_none_or(|b| !b.eq_ignore_ascii_case("borderNone"));
     let spans = column_spans(t);
     let total: f32 = spans.iter().sum();
@@ -351,7 +370,8 @@ fn table(t: &El, text: &[u16], out: &mut String) {
         out.push_str("<tr>");
         for (i, cell) in row.kids.iter().filter(|k| k.name == "cell").enumerate() {
             let width = spans.get(i).filter(|_| total > 0.0).map(|w| format!(" width=\"{:.0}%\"", w * 100.0 / total)).unwrap_or_default();
-            let span = cell.num("colspan").filter(|c| *c > 1.0).map(|c| format!(" colspan=\"{c:.0}\"")).unwrap_or_default();
+            // A colspan of 1e30 would have the engine make that many cells.
+            let span = cell.num("colspan").filter(|c| *c > 1.0).map(|c| format!(" colspan=\"{:.0}\"", c.min(MAX_COLSPAN))).unwrap_or_default();
             let _ = write!(out, "<td{width}{span}>");
             blocks(&cell.kids, text, out);
             out.push_str("</td>");
@@ -360,6 +380,18 @@ fn table(t: &El, text: &[u16], out: &mut String) {
     }
     out.push_str("</table>");
 }
+
+/// The largest length (points) passed on: indents, picture sizes. Values from a damaged file
+/// (1e30) would otherwise reach the layout engine.
+const MAX_LENGTH: f32 = 2000.0;
+
+/// A font size the layout engine can lay out (UYAP's own range is far inside it).
+fn font_size(pt: f32) -> f32 {
+    pt.clamp(1.0, 400.0)
+}
+
+/// The widest a cell may span (UYAP tables have a few columns).
+const MAX_COLSPAN: f32 = 64.0;
 
 fn esc(s: &str) -> String {
     s.replace('&', "&amp;").replace('<', "&lt;").replace('>', "&gt;").replace('"', "&quot;").replace('\'', "&#39;")

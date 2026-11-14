@@ -1,7 +1,7 @@
 use super::*;
 
 /// The engine's own sample handbook, written out as DOCX bytes: a real multi-page document.
-fn sample_docx() -> Vec<u8> {
+pub(crate) fn sample_docx() -> Vec<u8> {
     wordcraft_engine::io::save_bytes("sample.docx", &wordcraft_engine::sample::sample_document()).unwrap()
 }
 
@@ -155,7 +155,7 @@ fn zip_entry(bytes: &[u8], name: &str) -> String {
 }
 
 /// A UDF as UYAP's editor writes it: content.xml in a ZIP, offsets into the CDATA text.
-fn sample_udf(signed: bool) -> Vec<u8> {
+pub(crate) fn sample_udf(signed: bool) -> Vec<u8> {
     let text = "T.C.\nİSTANBUL 1. ASLİYE HUKUK MAHKEMESİ\nDava: Alacak\tKarar No: 2026/15\nAd\tSoyad\n";
     // Offsets in UTF-16 units (all of these letters are one unit each).
     let at = |s: &str| {

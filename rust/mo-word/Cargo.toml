@@ -24,6 +24,7 @@ zip = { version = "3", default-features = false, features = ["deflate"] }
 quick-xml = "0.41"
 
 [dev-dependencies]
+mo-fuzz = { workspace = true }
 # The tests look up fonts with only the bundled ones, as on a phone.
 wordcraft-fonts = { workspace = true }
 # Builds the small Word 97 file the tests open.

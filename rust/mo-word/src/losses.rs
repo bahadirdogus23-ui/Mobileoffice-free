@@ -291,7 +291,9 @@ fn html(text: &str) -> Vec<Loss> {
     let mut rest = lower.as_str();
     while let Some(at) = rest.find('<') {
         rest = &rest[at + 1..];
-        let end = rest.find('>').unwrap_or(rest.len());
+        // A tag ends at its `>`, or where the next one starts: looking further for a `>` made a
+        // page of many unclosed `<` take time growing with the square of its length.
+        let end = rest.find(['<', '>']).unwrap_or(rest.len());
         let tag = &rest[..end];
         let name: String = tag.chars().take_while(|c| c.is_ascii_alphanumeric()).collect();
         let dropped = match name.as_str() {
@@ -304,6 +306,7 @@ fn html(text: &str) -> Vec<Loss> {
             out.push(Loss::WebContent);
             break;
         }
+        rest = &rest[end..];
     }
     out
 }
@@ -346,13 +349,12 @@ fn markdown(text: &str) -> Vec<Loss> {
         if in_code || line.starts_with("    ") || line.starts_with('\t') {
             continue;
         }
-        let mut rest = line;
-        while let Some(at) = rest.find("![") {
-            rest = &rest[at + 2..];
-            // Export writes every picture as an `![alt](media-name)` placeholder.
-            if rest.contains("](") {
-                out.push(Loss::Pictures);
-            }
+        // Export writes every picture as an `![alt](media-name)` placeholder. (Looking after
+        // every `![` again made a line of many of them slow.)
+        if let Some(at) = line.find("![")
+            && line[at + 2..].contains("](")
+        {
+            out.push(Loss::Pictures);
         }
         if !html(line).is_empty() {
             out.push(Loss::WebContent);

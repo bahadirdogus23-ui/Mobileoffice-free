@@ -321,6 +321,12 @@ fn kurbo_affine(scale: f32, x: f32, y: f32) -> kurbo::Affine {
 }
 
 #[cfg(test)]
+mod robustness;
+#[cfg(test)]
 mod tests;
 #[cfg(test)]
 mod turkish_tests;
+
+#[cfg(test)]
+#[global_allocator]
+static ALLOC: mo_fuzz::CountingAlloc = mo_fuzz::CountingAlloc;
