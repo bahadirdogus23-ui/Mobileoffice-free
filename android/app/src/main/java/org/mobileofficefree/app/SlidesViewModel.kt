@@ -436,6 +436,14 @@ class SlidesViewModel(app: Application) : PagedViewModel(app, DocumentKind.SLIDE
         }
     }
 
+    /** The slide's texts in reading order: top to bottom, then left to right (a table row by row). */
+    override fun pageText(index: Int): String =
+        doc?.textShapes(index.toUInt()).orEmpty()
+            .sortedWith(compareBy({ it.y }, { it.x }))
+            .map { it.text.trim() }
+            .filter { it.isNotEmpty() }
+            .joinToString("\n")
+
     /** Makes [slide]'s speaker notes read [text]. */
     fun setNotes(slide: Int, text: String) = change(slide) {
         it.setNotes(slide.toUInt(), text)

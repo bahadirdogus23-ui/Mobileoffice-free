@@ -19,10 +19,21 @@ import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.key
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.CollectionInfo
+import androidx.compose.ui.semantics.CollectionItemInfo
+import androidx.compose.ui.semantics.ScrollAxisRange
+import androidx.compose.ui.semantics.collectionInfo
+import androidx.compose.ui.semantics.collectionItemInfo
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.horizontalScrollAxisRange
+import androidx.compose.ui.semantics.onClick
+import androidx.compose.ui.semantics.scrollBy
+import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.verticalScrollAxisRange
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
@@ -55,6 +66,8 @@ import kotlin.math.min
 /** Excel's sheet size; the grid never scrolls past it. */
 private const val MAX_ROWS = 1_048_576
 private const val MAX_COLS = 16_384
+/** At most this many cells get a node of their own for a screen reader (the sheet zoomed far out). */
+private const val MAX_SPOKEN_CELLS = 300
 
 /**
  * A virtualised spreadsheet grid drawn on one Canvas: only visible cells are measured and drawn,
@@ -123,6 +136,7 @@ fun SheetGrid(
     val measurer = rememberTextMeasurer(cacheSize = 512)
     val colors = MaterialTheme.colorScheme
     val select by rememberUpdatedState(onSelect)
+    val screenReader = rememberScreenReaderOn()
 
     var scale by remember(sheet) { mutableFloatStateOf(1f) }
     // How far the unfrozen part has scrolled, in pixels.
@@ -618,6 +632,84 @@ fun SheetGrid(
             }
         }
         drawRect(colors.surfaceVariant, Offset.Zero, Size(rowHeader, colHeader))
+    }
+    // With TalkBack on: an invisible node over each visible cell ("B3: 1.250,00"), so a screen
+    // reader moves through the sheet cell by cell; a double tap selects the cell (a second one types
+    // in it, as a tap does). With TalkBack off none of this is composed.
+    if (screenReader && viewSize.width > 0 && viewSize.height > 0) {
+        val k = unit * scale
+        val frozenW = columnAxis.start(fc) * k
+        val frozenH = rowAxis.start(fr) * k
+        val bodyLeft = rowHeader + frozenW
+        val bodyTop = colHeader + frozenH
+        val viewW = viewSize.width.toFloat()
+        val viewH = viewSize.height.toFloat()
+        fun xOf(c: Int) = if (c < fc) rowHeader + columnAxis.start(c) * k else bodyLeft + (columnAxis.start(c) - columnAxis.start(fc)) * k - offsetX
+        fun yOf(r: Int) = if (r < fr) colHeader + rowAxis.start(r) * k else bodyTop + (rowAxis.start(r) - rowAxis.start(fr)) * k - offsetY
+        val firstCol = max(fc, columnAxis.at(columnAxis.start(fc) + offsetX / k))
+        val firstRow = max(fr, rowAxis.at(rowAxis.start(fr) + offsetY / k))
+        val lastCol = min(cols - 1, columnAxis.at(columnAxis.start(fc) + (offsetX + viewW - bodyLeft) / k))
+        val lastRow = min(rows - 1, rowAxis.at(rowAxis.start(fr) + (offsetY + viewH - bodyTop) / k))
+        val visibleRows = (0 until fr) + (firstRow..lastRow)
+        val visibleCols = (0 until fc) + (firstCol..lastCol)
+        val maxX = max(0f, (columnAxis.start(cols) - columnAxis.start(fc)) * k - (viewW - bodyLeft))
+        val maxY = max(0f, (rowAxis.start(rows) - rowAxis.start(fr)) * k - (viewH - bodyTop))
+        val empty = stringResource(R.string.a11y_cell_empty)
+        val selectLabel = stringResource(R.string.a11y_select_cell)
+        Box(
+            Modifier.fillMaxSize().semantics {
+                collectionInfo = CollectionInfo(rowCount = rows, columnCount = cols)
+                // TalkBack's scroll gestures move the sheet, as a finger would.
+                horizontalScrollAxisRange = ScrollAxisRange(value = { offsetX }, maxValue = { maxX })
+                verticalScrollAxisRange = ScrollAxisRange(value = { offsetY }, maxValue = { maxY })
+                scrollBy { dx, dy ->
+                    offsetX = (offsetX + dx).coerceIn(0f, maxX)
+                    offsetY = (offsetY + dy).coerceIn(0f, maxY)
+                    true
+                }
+            },
+        ) {
+            var placed = 0
+            for (r in visibleRows) {
+                if (rowAxis.size(r) <= 0f) continue // a hidden row
+                for (c in visibleCols) {
+                    if (placed >= MAX_SPOKEN_CELLS) break
+                    if (columnAxis.size(c) <= 0f) continue
+                    // A merged range is one node, at its first cell (where its value lives).
+                    val m = mergeAt(r, c)
+                    if (m != null && (m[0] != r || m[1] != c)) continue
+                    val lastR = m?.get(2) ?: r
+                    val lastC = m?.get(3) ?: c
+                    // The part of the cell on screen, outside the headers and the frozen panes it scrolls under.
+                    val x0 = max(xOf(c), if (c < fc) rowHeader else bodyLeft)
+                    val y0 = max(yOf(r), if (r < fr) colHeader else bodyTop)
+                    val x1 = min(xOf(c) + (columnAxis.start(lastC + 1) - columnAxis.start(c)) * k, if (c < fc) bodyLeft else viewW)
+                    val y1 = min(yOf(r) + (rowAxis.start(lastR + 1) - rowAxis.start(r)) * k, if (r < fr) bodyTop else viewH)
+                    if (x1 - x0 < 1f || y1 - y0 < 1f) continue
+                    placed++
+                    val name = columnName(c) + (r + 1)
+                    val label = "$name: " + (cellText(sheet, r, c)?.takeIf { it.isNotBlank() } ?: empty)
+                    val isSelected = r == selectedRow && c == selectedCol
+                    key(r, c) {
+                        Box(
+                            Modifier
+                                .offset { IntOffset(x0.roundToInt(), y0.roundToInt()) }
+                                .size(with(density) { (x1 - x0).toDp() }, with(density) { (y1 - y0).toDp() })
+                                .semantics {
+                                    contentDescription = label
+                                    if (isSelected) this.selected = true
+                                    collectionItemInfo = CollectionItemInfo(rowIndex = r, rowSpan = lastR - r + 1, columnIndex = c, columnSpan = lastC - c + 1)
+                                    onClick(label = selectLabel) {
+                                        val now = selNow
+                                        if (r == now[0] && c == now[1] && now[2] == now[0] && now[3] == now[1]) edit() else select(r, c)
+                                        true
+                                    }
+                                },
+                        )
+                    }
+                }
+            }
+        }
     }
     // Typing in the cell: a field laid exactly over it (at least a comfortable size).
     if (cellEditor != null) {

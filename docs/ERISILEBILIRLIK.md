@@ -37,6 +37,25 @@ Bu denetim kodu okuyarak yapıldı; cihazda TalkBack ile elle deneme ve Accessib
 - Sunum: "Slayt 3 / 10"; tarama küçük resimleri: "Sayfa 1 / 3"; köşe düzenleyici: "Sayfa fotoğrafı: köşelerini kâğıdın köşelerine sürükleyin".
 - CAD tuvali: "Çizim: <dosya adı>".
 
+**Belgeyi okuma (yalnızca TalkBack açıkken)**
+
+Aşağıdakiler yalnızca dokunarak keşfetme (TalkBack) açıkken devreye girer (`rememberScreenReaderOn`,
+`AccessibilityManager.isTouchExplorationEnabled`, açılıp kapanması anında izlenir). TalkBack kapalıyken hiçbir metin
+yüklenmez, ek düğüm oluşturulmaz; görünüm ve hız değişmez.
+
+- **Sayfa metni**: PDF, Word (EPUB, EML, MHT gibi Word görünümünde açılanlar dahil) ve slayt sayfaları ekrana geldiğinde
+  metinleri motor iş parçacığında okunur ve sayfanın semantiğine `text` olarak verilir: "Sayfa 3 / 10. <sayfanın metni>".
+  `contentDescription` yerine `text` kullanıldığı için TalkBack metni karakter, kelime ve paragraf adımlarıyla da
+  gezebilir. Metin yüklenene kadar eskisi gibi "Sayfa 3 / 10" okunur; yazısız sayfada "bu sayfada okunacak yazı yok".
+  Kaynaklar: PDF'te sayfanın kendi metni (`page_text`), slaytta metin kutuları yukarıdan aşağı, soldan sağa (`text_shapes`),
+  Word'de motorun sayfa sayfa metni (`page_texts`; bir paragraf başladığı sayfada okunur). Son 24 sayfanın metni
+  bellekte tutulur, sayfa başına en çok 12.000 karakter; düzenleme, sayfa taşıma/silme ya da yeni belge önbelleği temizler.
+- **Tablo hücreleri**: ekrandaki her hücrenin üstüne görünmez bir erişilebilirlik düğümü konur ("B3: 1.250,00", boşsa
+  "B3: boş"); birleştirilmiş aralık tek düğümdür. TalkBack ile hücreden hücreye kaydırarak gezilir; çift dokunma hücreyi
+  seçer (seçili hücrede ikinci çift dokunma, parmakla dokunmada olduğu gibi yazmayı açar). Izgara `CollectionInfo`,
+  hücreler `CollectionItemInfo` (satır/sütun) taşır; seçili hücre "seçili" okunur. TalkBack'in kaydırma hareketleri
+  tabloyu kaydırır (`scrollBy`), yeni görünen hücreler düğüm olur. Uzaklaştırılmış görünümde en çok 300 hücre.
+
 **Durum bildirme**
 
 - Word/tablo araç çubuğu (`Tool`): düğme rolü ve `selected` durumu — Kalın/İtalik/Altı çizili açıkken "seçili" okunur.
@@ -59,11 +78,11 @@ Yeni metinler `values/strings.xml` ve `values-tr/strings.xml` dosyalarına `a11y
 
 ## Kalanlar
 
-- **Izgara hücreleri tek tek okunmuyor.** TalkBack yalnızca seçili hücreyi duyurur; hücreler arasında kaydırarak gezinme
-  (`CollectionInfo`/sanal düğümler) yok. Önerilen yol: seçili hücrenin çevresi için sanal semantik düğümler ya da
-  "sonraki hücre" özel eylemleri.
-- **Sayfa metni okunmuyor.** PDF/Word/slayt sayfası resim olarak çiziliyor; ekran okuyucu yalnızca sayfa numarasını
-  söyler. Metin için şimdilik "Akan metin" ve "Sesli oku" kullanılabilir; sayfa metnini semantik ağaca vermek ayrı iş.
+- **Sayfa metni ve tablo hücreleri cihazda denenmedi.** Yukarıdaki okuma kod üzerinden yapıldı; TalkBack ile PDF,
+  Word, slayt ve tabloda gezinme cihazda doğrulanmalı. Satır adımıyla (line) okuma yok: sayfa düğümü bir metin
+  yerleşimi (`TextLayoutResult`) vermiyor; karakter/kelime/paragraf adımları var. Taranmış PDF sayfası, OCR ile
+  aranabilir yapılmadıkça "yazı yok" okunur. Sunum ekranı ve sayfa küçük resimleri hâlâ yalnızca numara söyler.
+  Tabloda yalnızca ekrandaki hücreler gezilir; ekran dışına geçmek için TalkBack kaydırma hareketi gerekir.
 - **Word düzenleme imleci**: yazma 1 dp'lik görünmez bir metin alanından yapılıyor; TalkBack ile düzenleme denenmedi.
 - **Küçük dokunma alanları bırakıldı** (düzeni bozacağı için): renk örnekleri (28–32 dp, sıra halinde), tablo stili
   kutucukları (44×40 dp), arama kutusundaki ✕, Görünüm ayarlarındaki bölümlü seçici (~34 dp yükseklik), PDF metin seçimi

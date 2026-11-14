@@ -700,6 +700,9 @@
     <string name="a11y_page_of">Sayfa %1$d / %2$d</string>
     <string name="a11y_slide_of">Slayt %1$d / %2$d</string>
     <string name="a11y_sheet_grid">Tablo, %1$s hücresi: %2$s</string>
+    <string name="a11y_page_no_text">bu sayfada okunacak yazı yok</string>
+    <string name="a11y_cell_empty">boş</string>
+    <string name="a11y_select_cell">Seç</string>
     <string name="a11y_cad_drawing">Çizim: %1$s</string>
     <string name="a11y_scan_photo">Sayfa fotoğrafı: köşelerini kâğıdın köşelerine sürükleyin</string>
     <string name="a11y_signature_n">Kayıtlı imza %1$d</string>

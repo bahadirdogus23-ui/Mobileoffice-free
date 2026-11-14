@@ -687,6 +687,8 @@ class PdfViewModel(app: Application) : PagedViewModel(app, DocumentKind.PDF) {
         return out.toByteArray()
     }
 
+    override fun pageText(index: Int): String = editor().pageText(index.toUInt())
+
     override fun pageTexts(): List<String> {
         val doc = editor()
         return (0u until doc.pageCount()).map { runCatching { doc.pageText(it) }.getOrDefault("") }

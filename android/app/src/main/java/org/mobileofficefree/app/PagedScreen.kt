@@ -18,6 +18,8 @@ import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.text
+import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
@@ -73,6 +75,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
@@ -574,6 +577,8 @@ fun PagedScreen(vm: PagedViewModel, state: PagedUiState, reading: ReadingSetting
                     transformOrigin = TransformOrigin(focus.x / widthPx.coerceAtLeast(1), focus.y / heightPx.coerceAtLeast(1f))
                 },
             ) {
+                // With TalkBack on, each page shown also carries its text (read off the UI thread).
+                val screenReader = rememberScreenReaderOn()
                 LazyColumn(
                     state = list,
                     verticalArrangement = Arrangement.spacedBy(8.dp),
@@ -658,7 +663,25 @@ fun PagedScreen(vm: PagedViewModel, state: PagedUiState, reading: ReadingSetting
                         }
                         // Named even before it is drawn, so a screen reader says which page this is.
                         val pageLabel = stringResource(if (slides != null) R.string.a11y_slide_of else R.string.a11y_page_of, i + 1, state.pages.size)
-                        Box(Modifier.fillMaxWidth().aspectRatio(w / h).background(paper).semantics { contentDescription = pageLabel }.then(tapToSign)) {
+                        // For a screen reader: the page's text, so TalkBack reads it out and moves
+                        // through it by word or paragraph. Nothing is loaded while TalkBack is off.
+                        val pageText: String? = if (screenReader) {
+                            val version = vm.textVersion
+                            val loaded by produceState<String?>(null, i, version) { value = vm.accessiblePageText(i, version) }
+                            val noText = stringResource(R.string.a11y_page_no_text)
+                            loaded?.let { "$pageLabel. " + it.ifEmpty { noText } }
+                        } else {
+                            null
+                        }
+                        Box(
+                            Modifier.fillMaxWidth().aspectRatio(w / h).background(paper).semantics {
+                                if (pageText != null) {
+                                    this.text = AnnotatedString(pageText)
+                                } else {
+                                    contentDescription = pageLabel
+                                }
+                            }.then(tapToSign),
+                        ) {
                             val bmp = vm.page(i, renderPx, pagesDark)
                             if (bmp != null) {
                                 Image(

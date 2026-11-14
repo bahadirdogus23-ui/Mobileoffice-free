@@ -701,6 +701,9 @@
     <string name="a11y_page_of">Page %1$d of %2$d</string>
     <string name="a11y_slide_of">Slide %1$d of %2$d</string>
     <string name="a11y_sheet_grid">Spreadsheet, cell %1$s: %2$s</string>
+    <string name="a11y_page_no_text">no text to read on this page</string>
+    <string name="a11y_cell_empty">empty</string>
+    <string name="a11y_select_cell">Select</string>
     <string name="a11y_cad_drawing">Drawing: %1$s</string>
     <string name="a11y_scan_photo">Page photo: drag its corners onto the paper\'s corners</string>
     <string name="a11y_signature_n">Saved signature %1$d</string>
