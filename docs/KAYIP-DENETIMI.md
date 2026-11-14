@@ -75,8 +75,12 @@ dosyaya ("-duzenlendi.pdf", "-kucuk.pdf") yazılır. Yazıcı tam yeniden yazar 
 PdfCraft sınırla açılmış belgeyi kaydetmeyi kendisi reddeder (`crates/cos/src/writer.rs:201`, `:272`).
 Karartma işaretleri karartılmadan kayıt açılmaz (`PagedScreen` `startSave`).
 
-**Durum**: güvenli. **Kalan**: kişi seçicide asıl dosyayı seçerse onarılmış (`repair_log`, `cos/src/document.rs:48`)
-bir belge üzerine yazılabilir; onarım günlüğü köprüden henüz gösterilmiyor.
+**Durum**: güvenli. PdfCraft'ın açılışta yaptığı onarımlar (`repair_log`, `cos/src/document.rs:48`: yeniden kurulan
+çapraz başvuru tablosu, eksik başlık, atlanan nesne numaraları…) artık köprüden geliyor (`PdfDoc::open_notes`,
+UniFFI `PdfDocument.openNotes()`) ve `PdfViewModel.openedNotice` ile Word/Sunu notları gibi gösteriliyor
+(`pdf_repaired` + motorun ilk satırları). 40 MB'tan büyük dosyalar açılışta motorla açılmadığından bu bildirim ilk
+düzenleme, arama ya da kayıtta gelir. **Kalan**: kişi seçicide asıl dosyayı seçerse onarılmış belge üzerine
+yazılabilir (kişi önceden uyarılmış olur; kayıt engellenmiyor).
 
 ## Metin (`TextViewModel`)
 
@@ -100,5 +104,6 @@ U+FFFD'ye dönüşür ve kayıtta öyle yazılır; karışık satır sonları te
 - `mo-word`: `a_docx_part_the_engine_skips_is_reported`, `what_the_odt_reader_skips_is_reported`,
   `what_the_rtf_reader_skips_is_reported`, `what_web_pages_and_markdown_lose_is_reported`.
 - `mo-deck`: `what_deckcraft_leaves_out_on_opening_is_flagged`.
+- `mo-pdf`: `tells_what_opening_a_damaged_file_repaired`, `a_missing_header_is_reported_and_later_edits_do_not_add_notes`.
 - `mo-grid`: `reads_the_engines_unread_sheet_and_part_warnings`, `a_sheet_or_part_the_engine_could_not_read_blocks_saving_over_the_file`.
-- `tools/jvm-smoke`: `WordDocumentTest.tellsWhatOpeningLeftOut`, `BlankDocumentTest`, `SheetDocumentTest`.
+- `tools/jvm-smoke`: `WordDocumentTest.tellsWhatOpeningLeftOut`, `PdfDocumentTest.tellsWhatOpeningRepaired`, `BlankDocumentTest`, `SheetDocumentTest`.

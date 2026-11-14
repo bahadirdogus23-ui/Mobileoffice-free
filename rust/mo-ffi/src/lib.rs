@@ -1605,6 +1605,13 @@ impl PdfDocument {
         self.doc().is_restricted()
     }
 
+    /// What the engine repaired to open a damaged file (a rebuilt cross-reference index, a
+    /// missing header…), one English line each; empty for a sound file. Saved copies hold the
+    /// repaired document.
+    pub fn open_notes(&self) -> Vec<String> {
+        self.doc().open_notes().to_vec()
+    }
+
     /// Protects the next save with `password`; `seed` is 32 random bytes.
     pub fn protect(&self, password: String, seed: Vec<u8>) -> Result<(), MoError> {
         let seed: [u8; 32] = seed.try_into().map_err(|_| MoError::Command("the seed must be 32 bytes".into()))?;

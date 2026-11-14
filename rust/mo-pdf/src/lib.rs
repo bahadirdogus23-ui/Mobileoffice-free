@@ -61,6 +61,8 @@ pub struct PdfDoc {
     added: Vec<(usize, usize)>,
     /// The text layer of the document as it is now; dropped on every change.
     text: Option<pdfcraft_render::PageRenderer>,
+    /// What PdfCraft repaired while opening the file (see [`PdfDoc::open_notes`]).
+    open_notes: Vec<String>,
 }
 
 /// One place a search or a black-out found: its page and one rectangle per line, as fractions
@@ -86,7 +88,16 @@ fn edit<E: std::fmt::Display>(e: E) -> PdfError {
 impl PdfDoc {
     pub fn open(bytes: Vec<u8>, password: Option<&str>) -> Result<PdfDoc, PdfError> {
         let doc = Document::open_with_password(Arc::new(bytes), password).map_err(opening)?;
-        Ok(PdfDoc { doc, added: Vec::new(), text: None })
+        let open_notes = doc.repair_log().to_vec();
+        Ok(PdfDoc { doc, added: Vec::new(), text: None, open_notes })
+    }
+
+    /// What PdfCraft had to repair to open the file, one English line each (a rebuilt
+    /// cross-reference index, a missing header, skipped object numbers…); empty for a sound file.
+    /// Taken as the file opened: later edits do not add to it. Whatever is saved is the repaired
+    /// document, so the person is told before they keep a copy.
+    pub fn open_notes(&self) -> &[String] {
+        &self.open_notes
     }
 
     pub fn page_count(&self) -> Result<u32, PdfError> {

@@ -1,6 +1,7 @@
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
+import kotlin.test.assertTrue
 import org.mobileofficefree.engine.MoException
 import org.mobileofficefree.engine.PdfDocument
 import org.mobileofficefree.engine.NamedFile
@@ -24,6 +25,24 @@ class PdfDocumentTest {
             val part = doc.extract(listOf(0u))
             PdfDocument.open(part, null).use { assertEquals(1u, it.pageCount()) }
             PdfDocument.open(doc.save(), null).use { assertEquals(2u, it.pageCount()) }
+        }
+    }
+
+    @Test
+    fun tellsWhatOpeningRepaired() {
+        val sound = pdf()
+        PdfDocument.open(sound, null).use { assertEquals(emptyList<String>(), it.openNotes()) }
+        // The startxref offset zeroed (same length): the index has to be rebuilt.
+        val text = String(sound, Charsets.ISO_8859_1)
+        val at = text.lastIndexOf("startxref") + "startxref".length
+        val start = at + text.substring(at).takeWhile { it.isWhitespace() }.length
+        val end = start + text.substring(start).takeWhile { it.isDigit() }.length
+        assertTrue(end > start)
+        val broken = sound.copyOf().also { for (i in start until end) it[i] = '0'.code.toByte() }
+        PdfDocument.open(broken, null).use { doc ->
+            assertTrue(doc.openNotes().any { it.contains("rebuilt") }, doc.openNotes().toString())
+            assertEquals(1u, doc.pageCount())
+            PdfDocument.open(doc.save(), null).use { assertEquals(emptyList<String>(), it.openNotes()) }
         }
     }
 

@@ -170,6 +170,7 @@
     <string name="show">Göster</string>
     <string name="hide">Gizle</string>
     <string name="unlock_open">Aç</string>
+    <string name="pdf_repaired">Bu PDF bozuktu ve açılırken onarıldı; bir kısmı eksik ya da farklı görünebilir. Kaydettiğiniz kopyalar onarılmış belgeyi içerir; asıl dosya değiştirilmez.</string>
     <string name="pdf_locked_title">Bu PDF parolayla korunuyor</string>
     <string name="pdf_locked_body">Açmak için parolayı girin.</string>
     <string name="wrong_password">Parola yanlış</string>

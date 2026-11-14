@@ -43,6 +43,8 @@ class PdfViewModel(app: Application) : PagedViewModel(app, DocumentKind.PDF) {
     private var editor: PdfDocument? = null
     private var source: Uri? = null
     private var editCount = 0
+    /** Whether what the engine repaired on opening has been told. Engine thread only. */
+    private var repairsTold = false
 
     var edited by mutableStateOf(false)
         private set
@@ -440,7 +442,31 @@ class PdfViewModel(app: Application) : PagedViewModel(app, DocumentKind.PDF) {
             editor = it
             isProtected = it.isProtected()
             restricted = it.isRestricted()
+            // A file too large to check as it opened: what the engine repaired is told now,
+            // before anything made from it can be saved.
+            if (!repairsTold) {
+                repairsTold = true
+                repairNotice(it)?.let { text -> viewModelScope.launch { tell(text) } }
+            }
         }
+    }
+
+    /** What the engine repaired to open [doc], for the person; null for a sound file. Engine thread. */
+    private fun repairNotice(doc: PdfDocument): String? {
+        val notes = runCatching { doc.openNotes() }.getOrDefault(emptyList())
+        if (notes.isEmpty()) return null
+        return (listOf(getApplication<Application>().getString(R.string.pdf_repaired)) + notes.take(MAX_REPAIR_LINES)).joinToString("\n")
+    }
+
+    /**
+     * A damaged file the engine repaired is shown repaired, and copies are saved from that repair:
+     * the person is told as it opens. Files the engine did not open yet (larger than
+     * [MAX_ANNOTATED_BYTES]) are checked on the first edit, search or save instead.
+     */
+    override fun openedNotice(): String? {
+        val doc = editor
+        repairsTold = doc != null
+        return if (doc == null) null else repairNotice(doc)
     }
 
     private fun edit(after: () -> Unit = {}, op: (PdfDocument) -> Unit) {
@@ -537,10 +563,12 @@ class PdfViewModel(app: Application) : PagedViewModel(app, DocumentKind.PDF) {
         val size = runCatching { app.contentResolver.openAssetFileDescriptor(uri, "r")?.use { it.length } }.getOrNull() ?: -1L
         if (size !in 1..MAX_ANNOTATED_BYTES) return null
         val bytes = app.contentResolver.openInputStream(uri)?.use { it.readBytes() } ?: return null
-        // Annotations live in /Annots arrays, written plainly or inside object streams.
-        if (!bytes.containsAscii("/Annots") && !bytes.containsAscii("/ObjStm")) return null
+        // Opened by the engine even without annotations: it tells whether the file needed repair
+        // (see openedNotice), and the first edit or search then needs no second read.
         val doc = runCatching { PdfDocument.open(bytes, null) }.getOrNull() ?: return null
         editor = doc
+        // Annotations live in /Annots arrays, written plainly or inside object streams.
+        if (!bytes.containsAscii("/Annots") && !bytes.containsAscii("/ObjStm")) return null
         if (!doc.hasDrawnAnnotations()) return null
         val dir = File(app.cacheDir, "pdf-edit").apply { mkdirs() }
         val file = File(dir, "edit-${++editCount}.pdf")
@@ -693,8 +721,11 @@ private const val MAX_MATCHES = 2_000
 private const val EXPORT_DPI = 150f
 private const val MAX_EXPORT_SIDE = 3_000
 
-/** Files up to this size are checked for annotations to show when opened. */
+/** Files up to this size are checked for annotations to show, and for repairs, when opened. */
 private const val MAX_ANNOTATED_BYTES = 40L * 1024 * 1024
+
+/** Repair lines from the engine shown after the explanation (the rest are alike). */
+private const val MAX_REPAIR_LINES = 3
 
 /** Whether these bytes hold the ASCII text [word]. */
 internal fun ByteArray.containsAscii(word: String): Boolean {

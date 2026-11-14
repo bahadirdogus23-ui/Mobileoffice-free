@@ -171,6 +171,7 @@
     <string name="show">Show</string>
     <string name="hide">Hide</string>
     <string name="unlock_open">Open</string>
+    <string name="pdf_repaired">This PDF was damaged and was repaired as it opened; some of it may be missing or look different. Copies you save keep the repaired document; the original file is not changed.</string>
     <string name="pdf_locked_title">This PDF is password-protected</string>
     <string name="pdf_locked_body">Enter the password to open it.</string>
     <string name="wrong_password">Wrong password</string>

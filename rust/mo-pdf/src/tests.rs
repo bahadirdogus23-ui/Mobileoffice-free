@@ -55,6 +55,45 @@ fn bad_input_is_an_error() {
     assert!(matches!(PdfDoc::open(b"%PDF-1.7 broken".to_vec(), None), Err(PdfError::Open(_))));
 }
 
+/// `bytes` with the `startxref` offset pointing at the start of the file instead of the index.
+fn broken_xref_offset(mut bytes: Vec<u8>) -> Vec<u8> {
+    let at = bytes.windows(9).rposition(|w| w == b"startxref").expect("startxref") + 9;
+    let digits = bytes[at..].iter().skip_while(|b| b.is_ascii_whitespace()).take_while(|b| b.is_ascii_digit()).count();
+    let start = at + bytes[at..].iter().take_while(|b| b.is_ascii_whitespace()).count();
+    assert!(digits > 0);
+    // Same length, so nothing else moves: "0000…" leads to the %PDF- header, not an index.
+    for b in &mut bytes[start..start + digits] {
+        *b = b'0';
+    }
+    bytes
+}
+
+#[test]
+fn tells_what_opening_a_damaged_file_repaired() {
+    assert!(reopened(pdf(2, "Sayfa")).open_notes().is_empty(), "a sound file needs no repair");
+    let doc = reopened(broken_xref_offset(pdf(2, "Sayfa")));
+    assert!(!doc.open_notes().is_empty(), "the broken index offset is reported");
+    assert!(doc.open_notes().iter().any(|l| l.contains("rebuilt cross-reference index")), "{:?}", doc.open_notes());
+    // The repaired document still has its pages, and what is saved from it needs no repair.
+    assert_eq!(doc.page_count().unwrap(), 2);
+    let saved = reopened(doc.save().unwrap());
+    assert!(saved.open_notes().is_empty(), "{:?}", saved.open_notes());
+    assert_eq!(saved.page_count().unwrap(), 2);
+}
+
+#[test]
+fn a_missing_header_is_reported_and_later_edits_do_not_add_notes() {
+    let bytes = pdf(1, "Sayfa");
+    let at = bytes.windows(5).position(|w| w == b"%PDF-").unwrap();
+    let mut headerless = bytes.clone();
+    headerless[at..at + 5].copy_from_slice(b"%XXX-");
+    let mut doc = reopened(headerless);
+    let notes = doc.open_notes().to_vec();
+    assert!(notes.iter().any(|l| l.contains("header")), "{notes:?}");
+    doc.rotate(&[0], 90).unwrap();
+    assert_eq!(doc.open_notes(), &notes[..]);
+}
+
 #[test]
 fn signs_a_page_where_it_was_drawn() {
     let mut doc = PdfDoc::open(pdf(2, "Sayfa"), None).unwrap();
