@@ -110,7 +110,11 @@ impl Drop for CadDoc {
 impl CadDoc {
     /// Opens DXF (ASCII or binary, R12–2018) or DWG (R13–2018) bytes; `name` is the file name.
     pub fn open(name: &str, bytes: &[u8]) -> Result<CadDoc, CadError> {
-        let drawing = cadcraft_io::read(bytes, name).map_err(|e| CadError::Open(e.to_string()))?;
+        static FALLBACK_FONT: std::sync::Once = std::sync::Once::new();
+        FALLBACK_FONT.call_once(|| {
+            fonts::register_fallback(std::path::Path::new(fonts::SYSTEM_FONTS));
+        });
+        let drawing = read(name, bytes).map_err(|e| CadError::Open(e.to_string()))?;
         let mut layouts: Vec<_> = drawing.layouts.iter().map(|l| (l.tab_order, l.name.clone())).collect();
         layouts.sort();
         let mut spaces = vec![("Model".to_string(), Space::Model)];
@@ -226,6 +230,24 @@ impl CadDoc {
     }
 }
 
+/// Reads a drawing as `cadcraft_io::read` does, with its DXF text (a DWG's after conversion)
+/// fixed first where the engine would show it wrongly ([`text::prepare`]).
+fn read(name: &str, bytes: &[u8]) -> Result<Drawing, cadcraft_io::IoError> {
+    use cadcraft_io::IoError;
+    if cadcraft_dwg::is_dwg(bytes) {
+        let (dxf, notes) = cadcraft_dwg::dwg_to_dxf_noted(bytes, cadcraft_dwg::Limits::DEFAULT).map_err(IoError::Format)?;
+        let dxf = text::prepare(&dxf).unwrap_or(dxf);
+        let mut d = cadcraft_io::read_dxf(&dxf).map_err(|e| IoError::Format(format!("{e} (in the DXF converted from this DWG)")))?;
+        d.read_notes = notes;
+        return Ok(d);
+    }
+    let svg = matches!(cadcraft_doc::Format::from_path(name), Some(cadcraft_doc::Format::Svg | cadcraft_doc::Format::Svgz));
+    match text::prepare(bytes).filter(|_| !svg) {
+        Some(dxf) => cadcraft_io::read(&dxf, name),
+        None => cadcraft_io::read(bytes, name),
+    }
+}
+
 /// ⌊log2(drawing units per pixel)⌋ at `scale` pixels per unit: zooms within a band share a list.
 fn band(scale: f64) -> i32 {
     (1.0 / scale).log2().floor().clamp(-1000.0, 1000.0) as i32
@@ -328,6 +350,9 @@ fn push(out: &mut DisplayList, p: &cadcraft_render::DPrim, pts: &[Vec2]) {
     dst.extend_from_slice(pts);
     out.prims.push(q);
 }
+
+mod fonts;
+mod text;
 
 #[cfg(test)]
 mod tests;

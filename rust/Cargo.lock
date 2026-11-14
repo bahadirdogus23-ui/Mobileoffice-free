@@ -2325,9 +2325,13 @@ dependencies = [
 name = "mo-cad"
 version = "0.1.0"
 dependencies = [
+ "acadrust",
  "cadcraft-color",
  "cadcraft-doc",
+ "cadcraft-dwg",
+ "cadcraft-dxf",
  "cadcraft-engine",
+ "cadcraft-fonts",
  "cadcraft-geom",
  "cadcraft-io",
  "cadcraft-render",
