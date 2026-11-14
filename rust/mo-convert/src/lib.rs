@@ -7,6 +7,7 @@ mod calendar;
 mod epub;
 mod mail;
 pub mod package;
+pub mod text;
 mod vcard;
 
 /// A file turned into HTML: the page, notes on what was left out, and attachments to open.

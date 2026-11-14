@@ -65,35 +65,20 @@ fn find_value_colon(line: &str) -> Option<usize> {
     None
 }
 
-/// The file's text: UTF-8 (with or without a byte order mark), else Windows Turkish.
+/// The file's text: UTF-8 or UTF-16 (with or without a byte order mark), else the legacy
+/// encoding it looks like, Turkish first (see [`crate::text`]).
 fn decode_text(bytes: &[u8]) -> String {
-    let bytes = bytes.strip_prefix(b"\xEF\xBB\xBF").unwrap_or(bytes);
-    match std::str::from_utf8(bytes) {
-        Ok(s) => s.to_string(),
-        Err(_) => decode_charset(bytes, Some("windows-1254")),
-    }
+    crate::text::decode_any(bytes)
 }
 
-/// Bytes in a named single-byte charset (UTF-8 first, then the Turkish code pages by name).
+/// Bytes in a named charset (UTF-8 first, as phones often write it whatever they declare);
+/// without a known name, the legacy encoding they look like, Turkish first. Windows-1254's
+/// quotes and dashes (0x80–0x9F) are read as such, not as control characters.
 pub(crate) fn decode_charset(bytes: &[u8], charset: Option<&str>) -> String {
     if let Ok(s) = std::str::from_utf8(bytes) {
         return s.to_string();
     }
-    let cs = charset.unwrap_or("windows-1254").to_ascii_lowercase();
-    // Turkish letters in Windows-1254 and ISO-8859-9 (they agree on these); the rest is Latin-1.
-    let turkish = |b: u8| -> Option<char> {
-        Some(match b {
-            0xD0 => 'Ğ',
-            0xDD => 'İ',
-            0xDE => 'Ş',
-            0xF0 => 'ğ',
-            0xFD => 'ı',
-            0xFE => 'ş',
-            _ => return None,
-        })
-    };
-    let tr = cs.contains("1254") || cs.contains("8859-9") || cs.contains("latin5");
-    bytes.iter().map(|&b| if tr { turkish(b).unwrap_or(char::from(b)) } else { char::from(b) }).collect()
+    charset.and_then(|cs| crate::text::decode_label(bytes, cs)).unwrap_or_else(|| crate::text::decode_any(bytes))
 }
 
 /// Quoted-printable text ("=C5=9E") decoded in `charset`.

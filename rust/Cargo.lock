@@ -2344,6 +2344,8 @@ version = "0.1.0"
 dependencies = [
  "base64 0.22.1",
  "cfb",
+ "chardetng",
+ "encoding_rs",
  "mail-parser",
  "quick-xml 0.41.0",
  "roxmltree 0.20.0",

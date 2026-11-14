@@ -67,6 +67,97 @@ fn an_epub_in_spine_order_with_its_pictures() {
     assert!(c.notes[0].contains("2 bölüm"));
 }
 
+/// "İıŞşĞğÇçÖöÜü “alıntı” – tire" in Windows-1254 (ISO-8859-9 has the same letter bytes).
+const W1254: &[u8] = b"\xdd\xfd\xde\xfe\xd0\xf0\xc7\xe7\xd6\xf6\xdc\xfc \x93al\xfdnt\xfd\x94 \x96 tire";
+const TURKISH: &str = "İıŞşĞğÇçÖöÜü “alıntı” – tire";
+
+fn eml_body(headers: &str, body: &[u8]) -> String {
+    let mut m = format!("From: a@b.c\r\nSubject: x\r\nMIME-Version: 1.0\r\n{headers}\r\n\r\n").into_bytes();
+    m.extend_from_slice(body);
+    to_html("a.eml", &m).unwrap().html
+}
+
+#[test]
+fn e_mails_in_turkish_code_pages_keep_their_letters() {
+    for headers in [
+        // Labelled Windows-1254 and ISO-8859-9 (Turkish Outlook's label, with Windows-1254's quotes).
+        "Content-Type: text/plain; charset=windows-1254",
+        "Content-Type: text/plain; charset=iso-8859-9\r\nContent-Transfer-Encoding: 8bit",
+        // No charset, or no Content-Type at all: Turkish first, not "�".
+        "Content-Type: text/plain",
+        "X-Mailer: eski",
+    ] {
+        let html = eml_body(headers, W1254);
+        assert!(html.contains(TURKISH), "{headers}: {html}");
+    }
+    // Quoted-printable ISO-8859-9.
+    let html = eml_body("Content-Type: text/plain; charset=ISO-8859-9\r\nContent-Transfer-Encoding: quoted-printable", b"=DD=FD=DE=FE =93x=94");
+    assert!(html.contains("İıŞş “x”"), "{html}");
+    // An HTML part that names its charset only in a <meta>.
+    let mut page = b"<html><head><meta charset=windows-1254></head><body><p>".to_vec();
+    page.extend_from_slice(W1254);
+    page.extend_from_slice(b"</p></body></html>");
+    let html = eml_body("Content-Type: text/html\r\nContent-Transfer-Encoding: 8bit", &page);
+    assert!(html.contains(TURKISH), "{html}");
+    // A UTF-8 part without a charset is still UTF-8.
+    assert!(eml_body("Content-Type: text/plain", TURKISH.as_bytes()).contains(TURKISH));
+    // A raw 8-bit subject (no RFC 2047 encoded word), as old mail programs wrote it.
+    let raw = b"From: Ay\xfee <a@b.c>\r\nSubject: \xdd\xfe toplant\xfds\xfd\r\nMIME-Version: 1.0\r\nContent-Type: text/plain; charset=windows-1254\r\n\r\nx";
+    let html = to_html("a.eml", raw).unwrap().html;
+    assert!(html.contains("<h1>İş toplantısı</h1>") && html.contains("Ayşe"), "{html}");
+}
+
+#[test]
+fn contacts_and_calendars_in_windows_1254_keep_quotes_and_dashes() {
+    let vcf = b"BEGIN:VCARD\r\nVERSION:2.1\r\nN;CHARSET=ISO-8859-9;ENCODING=QUOTED-PRINTABLE:=DDnce;=DE=FCkr=FC\r\nNOTE:\x93Al\xfdnt\xfd\x94 \x96 \xfeirket\r\nEND:VCARD\r\n";
+    let html = to_html("rehber.vcf", vcf).unwrap().html;
+    assert!(html.contains("Şükrü İnce") && html.contains("“Alıntı” – şirket"), "{html}");
+    let ics = b"BEGIN:VCALENDAR\r\nBEGIN:VEVENT\r\nSUMMARY:\xddzmir toplant\xfds\xfd \x96 \x93Ar\xfeiv\x94\r\nDTSTART:20261110T130000Z\r\nEND:VEVENT\r\nEND:VCALENDAR\r\n";
+    let html = to_html("davet.ics", ics).unwrap().html;
+    assert!(html.contains("İzmir toplantısı – “Arşiv”"), "{html}");
+}
+
+/// An Outlook .msg with 8-bit (001E) strings in code page `cp`, an HTML body in internet code
+/// page `internet_cp` and one attachment with an 8-bit name.
+fn msg_file(cp: Option<u32>, internet_cp: Option<u32>, html: &[u8]) -> Vec<u8> {
+    use std::io::Write;
+    let mut file = cfb::CompoundFile::create(std::io::Cursor::new(Vec::new())).unwrap();
+    file.create_storage("/__attach_version1.0_#00000000").unwrap();
+    let mut put = |path: &str, data: &[u8]| file.create_stream(path).unwrap().write_all(data).unwrap();
+    let mut props = vec![0u8; 32];
+    for (id, value) in [(0x3FFDu32, cp), (0x3FDE, internet_cp)] {
+        if let Some(v) = value {
+            props.extend(((id << 16) | 3).to_le_bytes());
+            props.extend(6u32.to_le_bytes());
+            props.extend(v.to_le_bytes());
+            props.extend(0u32.to_le_bytes());
+        }
+    }
+    put("/__properties_version1.0", &props);
+    put("/__substg1.0_0037001E", b"\xdd\xfe toplant\xfds\xfd\0");
+    put("/__substg1.0_0C1A001E", b"Ay\xfee Kaya");
+    put("/__substg1.0_10130102", html);
+    put("/__attach_version1.0_#00000000/__substg1.0_37010102", b"veri");
+    put("/__attach_version1.0_#00000000/__substg1.0_3707001E", b"\xdezmir \xfeube.pdf");
+    file.into_inner().into_inner()
+}
+
+#[test]
+fn outlook_messages_read_their_code_pages() {
+    let mut page = b"<html><body><p>".to_vec();
+    page.extend_from_slice(W1254);
+    page.extend_from_slice(b"</p></body></html>");
+    for (cp, icp) in [(Some(1254), Some(1254)), (Some(1254), Some(28599)), (None, None), (Some(1252), None)] {
+        let c = to_html("ileti.msg", &msg_file(cp, icp, &page)).unwrap();
+        assert!(c.html.contains("<h1>İş toplantısı</h1>") && c.html.contains("Ayşe Kaya"), "{cp:?}: {}", c.html);
+        assert!(c.html.contains(TURKISH), "{cp:?}/{icp:?}: {}", c.html);
+        assert_eq!(c.attachments[0].name, "Şzmir şube.pdf");
+    }
+    // A UTF-8 HTML body (internet code page 65001) stays UTF-8.
+    let c = to_html("ileti.msg", &msg_file(Some(1254), Some(65001), format!("<p>{TURKISH}</p>").as_bytes())).unwrap();
+    assert!(c.html.contains(TURKISH), "{}", c.html);
+}
+
 #[test]
 fn unknown_files_are_not_taken() {
     assert_eq!(kind_of("a.txt", b"hello"), None);
