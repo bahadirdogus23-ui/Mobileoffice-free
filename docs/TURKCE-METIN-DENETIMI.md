@@ -44,7 +44,7 @@ Motorlar sabit sürümlerinde bırakıldı (AGENTS.md madde 5).
 | **UDF** (`mo-word/src/udf.rs`) UTF-8 / BOM'lu UTF-8 | | Doğru | Test eklendi |
 | UDF, `encoding="windows-1254"`/`"ISO-8859-9"` ya da bildirimsiz 1254 | | Dosya hiç açılmıyordu ("UTF-8 değil") | **Düzeltildi**: XML bildirimindeki kodlamayla, yoksa Türkçe öncelikli |
 | **Yazı tipleri — WordCraft** (Word, metin, e-posta…) | Yazı tipi klasörü olmadan "Calibri", "Times New Roman", "Arial", "Cambria", "Tahoma", "Comic Sans MS" × normal/kalın/italik | Hepsi uygulamaya gömülü Source Sans 3 / Source Serif 4'e düşüyor; 12 harfin hepsi var | Test eklendi (glif numarası ≠ 0). Android klasörleri taranmıyor ama Türkçe için gerekmiyor |
-| **Yazı tipleri — DeckCraft** (slaytlar ve PDF'leri) | Aynı aileler + "Calibri Light", "Aptos", "Courier New" | Hepsi gömülü tek yüze, Ubuntu Light'a düşüyordu (kalın ve tırnaklı yazı da ince, düz); 12 harf vardı | **Düzeltildi** (`mo-deck/src/fonts.rs`): WordCraft'ın uygulamada zaten bulunan yüzleri DeckCraft'a veriliyor; Calibri → Source Sans 3, Times New Roman/Cambria → Source Serif 4, Arial/Aptos → Inter, Courier New → JetBrains Mono, kalın/italik gerçek yüzleriyle. APK'ya ek bayt yok |
+| **Yazı tipleri — DeckCraft** (slaytlar ve PDF'leri) | Aynı aileler + "Calibri Light", "Aptos", "Courier New" | Hepsi gömülü tek yüze, Ubuntu Light'a düşüyordu (kalın yazı da ince); 12 harf vardı | **Kısmen düzeltildi** (`mo-deck/src/fonts.rs`): uygulamada zaten bulunan Inter (Regular/Medium/SemiBold) değiştirilmeden DeckCraft'a veriliyor; bütün aileler Inter ile, kalın yazı SemiBold ile çiziliyor. APK'ya ek bayt yok. Tırnaklı/eşaralıklı yüz yok (bkz. açık konular 1) |
 | Yazı tipleri — GridCraft PDF | | Önceki çalışmada düzeltildi (`vendor/gridcraft-pdf`, gömülü yüzler) | — |
 | Yazı tipleri — PDF görüntüleme | | Android PdfRenderer (PDFium) çiziyor; uygulamanın yazdığı PDF'ler yazı tiplerini gömüyor | Başkasının gömmediği yazı tipli PDF'lerde İ eksik kalabilir (bkz. açık konular) |
 | Yazı tipleri — CadCraft | | Önceki çalışmada düzeltildi (`mo-cad/src/fonts.rs`) | — |
@@ -81,8 +81,9 @@ Bildirilmemiş metin için tek bir karar yeri var; Word, e-posta, kişi/takvim, 
 - `rust/mo-grid/src/turkish_text_tests.rs`: CSV/TSV/TXT kodlamaları, en küçük BIFF8 dosyası, arama/değiştirme.
 - `rust/mo-deck/src/tests.rs`: `old_powerpoint_text_atoms_keep_turkish_letters`,
   `slide_fonts_the_phone_lacks_fall_back_to_a_face_with_turkish_letters`,
-  `slide_fonts_resolve_to_the_app_s_bundled_faces_without_system_fonts` (yazı tipi klasörü olmadan aile/kalınlık/italik
-  ve glif numarası ≠ 0), `slide_text_lays_out_in_bold_italic_and_serif_faces` (DeckCraft'ın satır dizgisiyle).
+  `slide_fonts_resolve_to_the_app_s_bundled_faces_without_system_fonts` (yazı tipi klasörü olmadan aile/kalınlık,
+  yüzün paketteki dosyayla bayt bayt aynı olması ve glif numarası ≠ 0), `slide_text_lays_out_in_bold_and_italic_faces`
+  (DeckCraft'ın satır dizgisiyle).
 - `rust/mo-ffi/src/templates.rs`: içerik aramasında 1254 metin.
 - Kotlin: `ArchiveReaderTest` (CP857, IBM850, Unicode Path), `FormulaHelpTest`, `TextLogicTest`. Kotlin yalnızca CI'da
   derleniyor; bu üç dosyanın kodu ve testleri yerelde düz bir JVM projesinde (Compose sınıfları için iki küçük taslakla)
@@ -90,34 +91,38 @@ Bildirilmemiş metin için tek bir karar yeri var; Word, e-posta, kişi/takvim, 
 
 ## Açık konular (bu çalışmada düzeltilmedi)
 
-1. ~~**Slaytlar telefonda hep Ubuntu Light ile çiziliyor**~~ — **düzeltildi** (`rust/mo-deck/src/fonts.rs`, motor
-   sürümü değişmedi). DeckCraft yazı tiplerini yalnız masaüstü klasörlerinde arıyor ve uygulama isteğe bağlı craft-fonts
-   yüzleri olmadan derleniyor; bu yüzden bütün aileler gömülü Ubuntu Light'a düşüyordu. DeckCraft yalnız kendi varsayılan
-   ailesini (Inter) ve Office yazı tiplerinin açık karşılıklarını (Calibri için Carlito, Times New Roman ve Cambria için
-   Liberation Serif, Courier New için Liberation Mono…) arıyor. Çözüm: WordCraft'ın uygulamaya zaten derlenmiş OFL
-   yüzleri (Source Sans 3, Source Serif 4, Inter, JetBrains Mono) ilk sunum açılırken `FontDb::add_font` ile DeckCraft'a
-   veriliyor. Inter kendi adıyla; ötekilerin `name` tablosunun bellekteki kopyasında Windows aile adı (ID 1) aranan
-   karşılığın adı yapılıyor, asıl aile adı (ID 16) korunuyor. Sonuç:
+1. **Slaytlarda tek aile: Inter** (önceden her şey Ubuntu Light'tı; kısmen düzeltildi, `rust/mo-deck/src/fonts.rs`,
+   motor sürümü değişmedi). DeckCraft yazı tiplerini yalnız masaüstü klasörlerinde arıyor ve uygulama isteğe bağlı
+   craft-fonts yüzleri olmadan derleniyor. DeckCraft yalnız kendi varsayılan ailesini (Inter) ve Office yazı tiplerinin
+   açık karşılıklarını (Calibri için Carlito, Times New Roman/Cambria için Caladea/Liberation Serif, Courier New için
+   Liberation Mono, Arial…) adıyla arıyor; aile takma adı veren bir API'si yok. Bulamadığı her aile Inter'e düşüyor.
+   Şimdi WordCraft'ın uygulamaya zaten derlenmiş Inter Regular/Medium/SemiBold dosyaları ilk sunum açılırken
+   **değiştirilmeden** `FontDb::add_font` ile veriliyor: Calibri, Arial, Times New Roman, Courier New… hepsi Inter;
+   kalın SemiBold yüzüyle, italik çizicide eğiltilerek. **APK etkisi: 0 bayt yazı tipi**; bellek ~1,25 MB.
 
-   | İstenen | Çizilen | Kalın / italik |
-   |---|---|---|
-   | Calibri, Calibri Light ve telefonda olmayan her aile (PowerPoint bunları Calibri ile çizer: Tahoma, Georgia, Comic Sans…) | Source Sans 3 | gerçek Bold, gerçek Italic (Bold Italic: Italic yüzü kalınlaştırılarak) |
-   | Times New Roman, Cambria | Source Serif 4 | dört biçim de gerçek |
-   | Arial, Helvetica, Aptos | Inter | Bold → SemiBold yüzü, italik çizicide eğiltiliyor |
-   | Courier New | JetBrains Mono | yalnız Regular (kalın çizicide kalınlaştırılıyor) |
+   **Lisans gerekçesi.** Uygulamadaki öteki yüzler (Source Sans 3, Source Serif 4, JetBrains Mono) DeckCraft'ın
+   aradığı bir adla bulunabilsin diye `name` tablosu değiştirilerek denendi, sonra bırakıldı: ad tablosunu değiştirmek
+   OFL'de "Değiştirilmiş Sürüm" demek ve dışa aktarılan PDF'ler yüzü (alt kümesini) gömerek dağıtıyor.
+   - Source Sans 3 ve Source Serif 4: OFL 1.1, **Ayrılmış Yazı Tipi Adı "Source"** (Adobe; `OFL-SourceSans3.txt`,
+     `OFL-SourceSerif4.txt` ilk satır). Değiştirilmiş sürüm bu adı birincil ad olarak taşıyamaz.
+   - Aranan adlar da başkalarının: Carlito ve Liberation (ve büyük olasılıkla Caladea) kendi OFL'lerinde Ayrılmış Yazı
+     Tipi Adı (çevrimdışı doğrulanamadı, hafızadan); Arial, Times New Roman, Courier New, Calibri ticari marka. Bir yüzü
+     bu adlarla göstermek yanıltıcı olur.
+   - Inter ("Copyright 2016 The Inter Project Authors") ve JetBrains Mono ("Copyright 2020 The JetBrains Mono Project
+     Authors"): OFL 1.1, Ayrılmış Ad **yok**. Inter zaten aranan ad olduğu için değiştirilmeden kullanılabiliyor
+     (Özgün Sürüm, yalnız lisans metni ve telif satırı korunmalı: README'de). JetBrains Mono'yu DeckCraft aramıyor.
 
-   Cihazda gerçek Carlito/Liberation varsa (masaüstü) yine o kullanılıyor. **APK etkisi: 0 bayt yazı tipi** (aynı
-   `include_bytes!` verisi; `libmo_ffi.so`'ya yalnız birkaç KB kod). Bellek: ilk sunumda ~3,6 MB yazı tipi kopyası.
-   Karşılaştırılan öteki yollar: (a) craft-fonts bir Cargo özelliği değil, `CRAFT_FONTS_DIR` ile verilen ayrı bir depo;
-   Latin sunum yüzlerinin (Inter, Carlito, Caladea, Liberation ×3, Montserrat, Lato, Open Sans, Roboto, Merriweather,
-   Playfair, Poppins, Nunito Sans; OFL/Apache) yanında ana listedeki Japonca/sembol/RTL yüzlerini de gömüyor (yalnız
-   BIZ UDPGothic 4,7 MB) ve çevrimdışı derlemede elimizde yok.
-   (b) `/system/fonts` (Roboto, Noto Serif, Droid Sans Mono): ücretsiz ama DeckCraft bu adları hiç aramıyor; yine ad
-   değiştirmek gerekir, cihazdan cihaza değişir. (c) Metrik uyumlu Carlito + Caladea + Liberation Sans/Serif/Mono'yu
-   (4'er biçim) varlık olarak eklemek en doğru satır kırılımını verir ama tahminen ~5 MB ham, APK'da ~2,5 MB sıkıştırılmış
-   (Carlito tek başına ~2,6 MB ham; Latin alt kümesine indirilirse yarısından az).
-   Kalan farklar: Source Sans 3 Calibri'den biraz geniş, Source Serif 4 Times'tan geniş; satırlar PowerPoint'ten farklı
-   yerde kırılabilir. İleride: Android'in CJK/emoji yüzleri için `/system/fonts` taraması (DeckCraft yaması gerekir).
+   Kalan yollar (APK büyüklüğü ↔ benzerlik):
+   - (a) craft-fonts: Cargo özelliği değil, `CRAFT_FONTS_DIR` ile verilen ayrı depo; Latin sunum yüzleri (Inter, Carlito,
+     Caladea, Liberation ×3, Montserrat, Lato, Open Sans, Roboto, Merriweather, Playfair, Poppins, Nunito Sans;
+     OFL/Apache) yanında ana listedeki Japonca/sembol/RTL yüzlerini de gömüyor (yalnız BIZ UDPGothic 4,7 MB).
+   - (b) `/system/fonts` (Roboto, Noto Serif, Droid Sans Mono): DeckCraft bu adları aramıyor; ad değiştirmeden
+     kullanılamaz (aynı lisans/yanıltma sorunu, üstelik cihaza göre değişir).
+   - (c) Carlito + Caladea + Liberation Sans/Serif/Mono'yu **değiştirmeden** varlık olarak eklemek: DeckCraft tam bu
+     adları arıyor, metrikler Office'le aynı, lisans temiz (Özgün Sürüm). Tahminen ~5 MB ham, APK'da ~2,5 MB
+     (Carlito tek başına ~2,6 MB; Latin alt kümesi bir değişiklik sayılır, aynı ad kullanılamaz). En doğru sonuç bu.
+   - (d) Upstream: DeckCraft'a aile takma adı API'si (ör. `FontDb::add_alias("Liberation Serif", "Source Serif 4")`)
+     ya da Android klasörleri; o zaman Source Serif 4/JetBrains Mono değiştirilmeden, sıfır baytla kullanılır.
 2. **Yazı tipini gömmeyen başkasının PDF'i**: görüntüleme Android PdfRenderer'da; PDFium'un yerleşik yedek yüzlerinde
    `/Idotaccent` olmayabiliyor (gridcraft-pdf yamasındaki gözlem). Uygulamanın yazdığı PDF'ler yazı tiplerini gömüyor;
    başkasının dosyası için yapacak bir şey yok (görüntüleyiciyi değiştirmeden).
@@ -139,6 +144,7 @@ Bildirilmemiş metin için tek bir karar yeri var; Word, e-posta, kişi/takvim, 
   gibi. HTML5 adlandırılmış karakter başvurularının tamamı (`&scedil;` vb.).
 - **mail-parser**: ISO-8859-9 için Windows-1254 tablosu (WHATWG); charset'siz 8 bit metin parçası ve ham 8 bit başlık
   için yedek kodlama seçeneği.
-- **DeckCraft** `deckcraft-fonts`: `system_font_dirs`'e `cfg!(target_os = "android")` için `/system/fonts` ve
-  `/product/fonts` (CJK, emoji ve sembol yedekleri `SYSTEM_FALLBACKS`'teki Noto adlarıyla zaten eşleşir); karşılık
-  listesine "Roboto", "Noto Serif", "Droid Sans Mono". O zaman 1. maddedeki ad değiştirme gereksizleşir.
+- **DeckCraft** `deckcraft-fonts`: aile takma adı API'si (`add_alias(istenen, var_olan)`), böylece uygulamanın
+  değiştirilmemiş Source Serif 4 / JetBrains Mono yüzleri tırnaklı/eşaralıklı karşılık olur; `system_font_dirs`'e
+  `cfg!(target_os = "android")` için `/system/fonts` ve `/product/fonts` (CJK, emoji ve sembol yedekleri
+  `SYSTEM_FALLBACKS`'teki Noto adlarıyla zaten eşleşir); karşılık listesine "Roboto", "Noto Serif", "Droid Sans Mono".

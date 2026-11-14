@@ -19,7 +19,7 @@ deckcraft-pdf = { workspace = true }
 deckcraft-text = { workspace = true }
 # DeckCraft's font database: the app's bundled faces are added to it (src/fonts.rs).
 deckcraft-fonts = { workspace = true }
-# The OFL faces WordCraft compiles in, shared with the slides (src/fonts.rs); already in the app.
+# The OFL faces WordCraft compiles in; Inter is shared with the slides (src/fonts.rs). Already in the app.
 wordcraft-fonts = { workspace = true }
 thiserror = { workspace = true }
 # OpenDocument presentations (.odp), which DeckCraft has no reader for (src/odp.rs).

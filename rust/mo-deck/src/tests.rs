@@ -586,45 +586,44 @@ fn slide_fonts_resolve_to_the_app_s_bundled_faces_without_system_fonts() {
     let db = deckcraft_fonts::FontDb::with_font_dirs(Vec::new());
     let before = db.document_face("Calibri", "Bold");
     assert_eq!(before.family, deckcraft_fonts::LAST_RESORT_FAMILY, "without the bundled faces everything is Ubuntu Light");
-    assert!(crate::fonts::register(&db) >= 10);
-    // (family, style asked for) → (family drawn, weight at least, italic face).
+    assert_eq!(crate::fonts::register(&db), 3, "Inter Regular, Medium and SemiBold");
+    // (family, style asked for) → (weight at least). Everything draws in Inter, DeckCraft's
+    // default family: the bundled faces go in unmodified (see src/fonts.rs on why the others don't).
     let cases = [
-        ("Calibri", "Regular", "Source Sans 3", 400.0, false),
-        ("Calibri", "Bold", "Source Sans 3", 700.0, false),
-        ("Calibri", "Italic", "Source Sans 3", 400.0, true),
-        ("Calibri Light", "Regular", "Source Sans 3", 400.0, false),
-        ("Comic Sans MS", "Regular", "Source Sans 3", 400.0, false),
-        ("Times New Roman", "Regular", "Source Serif 4", 400.0, false),
-        ("Times New Roman", "Bold Italic", "Source Serif 4", 700.0, true),
-        ("Cambria", "Bold", "Source Serif 4", 700.0, false),
-        // A missing font without a metric twin draws as Calibri, as in PowerPoint (Aptos, an
-        // Office cloud font, keeps its own stand-in).
-        ("Georgia", "Italic", "Source Sans 3", 400.0, true),
-        ("Courier New", "Regular", "JetBrains Mono", 400.0, false),
-        ("Arial", "Regular", "Inter", 400.0, false),
-        ("Arial", "Bold", "Inter", 600.0, false),
-        // Inter has no italic face here: the renderer slants the upright one.
-        ("Arial", "Italic", "Inter", 400.0, false),
-        ("Aptos", "Regular", "Inter", 400.0, false),
-        ("Tahoma", "Regular", "Source Sans 3", 400.0, false),
+        ("Calibri", "Regular", 400.0),
+        ("Calibri", "Bold", 600.0),
+        ("Calibri", "Italic", 400.0),
+        ("Calibri Light", "Regular", 400.0),
+        ("Comic Sans MS", "Bold Italic", 600.0),
+        ("Times New Roman", "Regular", 400.0),
+        ("Times New Roman", "Bold", 600.0),
+        ("Cambria", "Bold", 600.0),
+        ("Courier New", "Regular", 400.0),
+        ("Arial", "Regular", 400.0),
+        ("Arial", "Bold", 600.0),
+        ("Arial", "Italic", 400.0),
+        ("Aptos", "Regular", 400.0),
+        ("Tahoma", "Regular", 400.0),
     ];
+    let bundled = wordcraft_fonts::bundled();
     let mut ids = std::collections::HashSet::new();
-    for (family, style, drawn, weight, italic) in cases {
+    for (family, style, weight) in cases {
         let face = db.document_face(family, style);
-        assert_eq!((face.family.as_str(), face.italic), (drawn, italic), "{family} {style} → {} {}", face.family, face.style);
+        assert_eq!(face.family, "Inter", "{family} {style} → {} {}", face.family, face.style);
+        assert!(bundled.contains(&face.data()), "{family} {style}: the face is a bundled file, byte for byte");
         assert!(face.weight >= weight && face.weight < weight + 150.0, "{family} {style} → {} {} ({})", face.family, face.style, face.weight);
         let glyphs = deckcraft_fonts::shape(&face, TURKISH, &[], |c| c);
         assert_eq!(glyphs.len(), TURKISH.chars().count());
         assert!(glyphs.iter().all(|g| g.gid != 0), "{family} {style} → {} draws .notdef", face.family);
         ids.insert(face.id());
     }
-    assert!(ids.len() >= 8, "only {} different faces", ids.len());
+    assert_eq!(ids.len(), 2, "Regular and SemiBold");
     // Registering again adds nothing.
     assert_eq!(crate::fonts::register(&db), 0);
 }
 
 #[test]
-fn slide_text_lays_out_in_bold_italic_and_serif_faces() {
+fn slide_text_lays_out_in_bold_and_italic_faces() {
     use deckcraft_model::text::{Paragraph, Run, RunProps, TextBody};
     let d = DeckDoc::blank().unwrap();
     let props = |font: &str, bold: bool, italic: bool| RunProps {
@@ -684,6 +683,6 @@ fn slide_text_lays_out_in_bold_italic_and_serif_faces() {
         }
     }
     assert_eq!(seen, [true; 4], "every run is laid out");
-    assert!(faces.len() >= 3, "{faces:?}");
+    assert!(faces.len() >= 2, "{faces:?}");
     assert!(faces.iter().all(|(f, _)| f != deckcraft_fonts::LAST_RESORT_FAMILY), "{faces:?}");
 }
