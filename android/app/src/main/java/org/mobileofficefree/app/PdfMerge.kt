@@ -30,6 +30,7 @@ import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import org.mobileofficefree.engine.MoException
 import org.mobileofficefree.engine.PdfDocument
 
 /**
@@ -58,13 +59,18 @@ fun rememberPdfMerge(onOpen: (Uri) -> Unit): PdfMergeAction {
                 runCatching {
                     val resolver = context.contentResolver
                     fun bytesOf(uri: Uri) = resolver.openInputStream(uri)?.use { it.readBytes() } ?: error("no data")
+                    // A file without a single readable page (too damaged) is refused by name, not merged as nothing.
+                    fun unreadable(name: String, e: Throwable) = IllegalStateException(
+                        resources.getString(if (e is MoException.NoPages) R.string.merge_no_pages else R.string.merge_cannot_read, name),
+                        e,
+                    )
                     val (firstUri, firstName) = files.first()
                     val merged = runCatching { PdfDocument.open(bytesOf(firstUri), null) }
-                        .getOrElse { throw IllegalStateException(resources.getString(R.string.merge_cannot_read, firstName), it) }
+                        .getOrElse { throw unreadable(firstName, it) }
                     try {
                         for ((uri, name) in files.drop(1)) {
                             runCatching { merged.append(bytesOf(uri), null) }
-                                .onFailure { throw IllegalStateException(resources.getString(R.string.merge_cannot_read, name), it) }
+                                .onFailure { throw unreadable(name, it) }
                         }
                         val out = merged.save()
                         resolver.openOutputStream(dest, "wt")?.use { it.write(out) } ?: error("cannot write")

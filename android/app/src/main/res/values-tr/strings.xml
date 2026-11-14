@@ -171,6 +171,7 @@
     <string name="hide">Gizle</string>
     <string name="unlock_open">Aç</string>
     <string name="pdf_repaired">Bu PDF bozuktu ve açılırken onarıldı; bir kısmı eksik ya da farklı görünebilir. Kaydettiğiniz kopyalar onarılmış belgeyi içerir; asıl dosya değiştirilmez.</string>
+    <string name="pdf_no_pages">bu PDF\'in hiçbir sayfası okunamadı, dosya çok bozuk; asıl dosya değiştirilmedi</string>
     <string name="pdf_locked_title">Bu PDF parolayla korunuyor</string>
     <string name="pdf_locked_body">Açmak için parolayı girin.</string>
     <string name="wrong_password">Parola yanlış</string>
@@ -535,6 +536,7 @@
     <string name="merge_file_name">Birlesik.pdf</string>
     <string name="merge_working">PDF\'ler birleştiriliyor…</string>
     <string name="merge_cannot_read">%1$s okunamadı (bozuk ya da parolalı olabilir).</string>
+    <string name="merge_no_pages">%1$s dosyasının hiçbir sayfası okunamadı (dosya çok bozuk), bu yüzden eklenmedi.</string>
     <string name="slide_upright">Düzelt</string>
     <string name="slide_text_color">Renk</string>
     <string name="slide_align">Hizala</string>

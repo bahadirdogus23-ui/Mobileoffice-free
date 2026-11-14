@@ -47,6 +47,21 @@ class PdfDocumentTest {
     }
 
     @Test
+    fun refusesAFileWithoutReadablePages() {
+        val sound = pdf()
+        // The catalog's /Pages key renamed (same length): the engine finds no page tree.
+        val at = String(sound, Charsets.ISO_8859_1).indexOf("/Pages")
+        assertTrue(at >= 0)
+        val damaged = sound.copyOf().also { it[at + 1] = 'X'.code.toByte() }
+        assertFailsWith<MoException.NoPages> { PdfDocument.open(damaged, null) }
+        // Combining refuses it too, leaving the document as it was.
+        PdfDocument.open(sound, null).use { doc ->
+            assertFailsWith<MoException.NoPages> { doc.append(damaged, null) }
+            assertEquals(1u, doc.pageCount())
+        }
+    }
+
+    @Test
     fun signsAPage() {
         PdfDocument.open(pdf(), null).use { doc ->
             doc.sign(0u, listOf(listOf(0.6, 0.8, 0.7, 0.85, 0.8, 0.8)))

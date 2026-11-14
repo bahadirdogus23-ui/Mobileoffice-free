@@ -33,6 +33,9 @@ pub enum MoError {
     NeedsPassword(String),
     #[error("{0}")]
     WrongPassword(String),
+    /// A PDF opened without a single readable page (too damaged); also refused when combining.
+    #[error("{0}")]
+    NoPages(String),
 }
 
 impl From<GridError> for MoError {
@@ -76,6 +79,7 @@ impl From<PdfError> for MoError {
             e @ PdfError::WrongPassword => MoError::WrongPassword(e.to_string()),
             PdfError::Edit(m) => MoError::Command(m),
             PdfError::Save(m) => MoError::Save(m),
+            e @ PdfError::NoPages => MoError::NoPages(e.to_string()),
         }
     }
 }

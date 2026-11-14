@@ -297,10 +297,16 @@ class PdfViewModel(app: Application) : PagedViewModel(app, DocumentKind.PDF) {
         if (it.undoAnnotation()) added--
     }
 
-    /** Appends every page of the PDF at [uri] (combining files). */
+    /** Appends every page of the PDF at [uri] (combining files); one without a readable page is refused. */
     fun appendPdf(uri: Uri) = edit { doc ->
-        val bytes = getApplication<Application>().contentResolver.openInputStream(uri)?.use { it.readBytes() } ?: error("no data")
-        doc.append(bytes, null)
+        val app = getApplication<Application>()
+        val bytes = app.contentResolver.openInputStream(uri)?.use { it.readBytes() } ?: error("no data")
+        try {
+            doc.append(bytes, null)
+        } catch (e: MoException.NoPages) {
+            val name = runCatching { FileInfo.of(app.contentResolver, uri).name }.getOrDefault("PDF")
+            throw IllegalStateException(app.getString(R.string.merge_no_pages, name), e)
+        }
     }
 
     /** Writes a new PDF of just [pages] into [dest]. */
@@ -438,7 +444,7 @@ class PdfViewModel(app: Application) : PagedViewModel(app, DocumentKind.PDF) {
     private fun editor(): PdfDocument = editor ?: run {
         val uri = source ?: error("no document")
         val bytes = getApplication<Application>().contentResolver.openInputStream(uri)?.use { it.readBytes() } ?: error("no data")
-        PdfDocument.open(bytes, null).also {
+        openEngine(bytes, null).also {
             editor = it
             isProtected = it.isProtected()
             restricted = it.isRestricted()
@@ -449,6 +455,17 @@ class PdfViewModel(app: Application) : PagedViewModel(app, DocumentKind.PDF) {
                 repairNotice(it)?.let { text -> viewModelScope.launch { tell(text) } }
             }
         }
+    }
+
+    /**
+     * [bytes] opened by the engine. A file it finds no page in (too damaged: no usable page tree)
+     * fails with [R.string.pdf_no_pages] instead of opening empty, so nothing empty is shown or
+     * saved as if it were the person's document. Engine thread.
+     */
+    private fun openEngine(bytes: ByteArray, pass: String?): PdfDocument = try {
+        PdfDocument.open(bytes, pass)
+    } catch (e: MoException.NoPages) {
+        throw IllegalStateException(getApplication<Application>().getString(R.string.pdf_no_pages), e)
     }
 
     /** What the engine repaired to open [doc], for the person; null for a sound file. Engine thread. */
@@ -534,7 +551,7 @@ class PdfViewModel(app: Application) : PagedViewModel(app, DocumentKind.PDF) {
         restricted = false
         val app = getApplication<Application>()
         val pfd = app.contentResolver.openFileDescriptor(uri, "r") ?: error("no data")
-        return try {
+        val pages = try {
             val sizes = openRenderer(pfd)
             showingAnnotations(uri) ?: sizes
         } catch (_: SecurityException) {
@@ -542,7 +559,7 @@ class PdfViewModel(app: Application) : PagedViewModel(app, DocumentKind.PDF) {
             val pass = password
             password = null
             val bytes = app.contentResolver.openInputStream(uri)?.use { it.readBytes() } ?: error("no data")
-            val doc = PdfDocument.open(bytes, pass)
+            val doc = openEngine(bytes, pass)
             editor = doc
             isProtected = doc.isProtected()
             restricted = doc.isRestricted()
@@ -551,6 +568,10 @@ class PdfViewModel(app: Application) : PagedViewModel(app, DocumentKind.PDF) {
             file.writeBytes(doc.displayCopy())
             openRenderer(ParcelFileDescriptor.open(file, ParcelFileDescriptor.MODE_READ_ONLY))
         }
+        // A heavily damaged file can open in Android's renderer with no pages: an empty viewer
+        // would let the person take a copy saved from it for their document.
+        if (pages.isEmpty()) error(app.getString(R.string.pdf_no_pages))
+        return pages
     }
 
     /**
@@ -565,7 +586,16 @@ class PdfViewModel(app: Application) : PagedViewModel(app, DocumentKind.PDF) {
         val bytes = app.contentResolver.openInputStream(uri)?.use { it.readBytes() } ?: return null
         // Opened by the engine even without annotations: it tells whether the file needed repair
         // (see openedNotice), and the first edit or search then needs no second read.
-        val doc = runCatching { PdfDocument.open(bytes, null) }.getOrNull() ?: return null
+        // A file the engine finds no page in fails to open (see openEngine); other engine
+        // failures leave it to Android's renderer, as before.
+        val doc = try {
+            openEngine(bytes, null)
+        } catch (e: IllegalStateException) {
+            if (e.cause is MoException.NoPages) throw e
+            return null
+        } catch (_: Throwable) {
+            return null
+        }
         editor = doc
         // Annotations live in /Annots arrays, written plainly or inside object streams.
         if (!bytes.containsAscii("/Annots") && !bytes.containsAscii("/ObjStm")) return null

@@ -581,3 +581,55 @@ fn recognised_words_make_a_scanned_page_searchable_without_changing_its_look() {
         .any(|d| d.windows(4).any(|w| w == b"3 Tr"));
     assert!(plain, "the words are drawn invisibly");
 }
+
+/// Damaged copies of a two-page file whose pages cannot be found, each of which PdfCraft opens
+/// "successfully" with no pages: the catalog's /Pages key lost (no page tree), the page tree
+/// emptied, and the first of these with a broken cross-reference index too (repaired on opening).
+fn without_pages() -> Vec<(&'static str, Vec<u8>)> {
+    let sound = pdf(2, "Sayfa");
+    let mut no_tree = sound.clone();
+    let at = no_tree.windows(6).position(|w| w == b"/Pages").expect("the catalog's /Pages");
+    no_tree[at + 1] = b'X';
+    let mut emptied = sound.clone();
+    let kids = emptied.windows(28).position(|w| w == b"/Kids [6 0 R 8 0 R] /Count 2").expect("the page tree");
+    emptied[kids..kids + 28].copy_from_slice(b"/Kids []            /Count 0");
+    let rebuilt = broken_xref_offset(no_tree.clone());
+    vec![("no page tree", no_tree), ("empty page tree", emptied), ("no page tree, rebuilt index", rebuilt)]
+}
+
+#[test]
+fn a_file_whose_pages_cannot_be_found_does_not_open() {
+    for (what, bytes) in without_pages() {
+        // What the pinned engine does on its own: it opens, with no pages.
+        let engine = Document::open_with_password(Arc::new(bytes.clone()), None).expect(what);
+        assert!(!matches!(organize::page_count(&engine), Ok(n) if n > 0), "{what}");
+        assert_eq!(PdfDoc::open(bytes, None).err(), Some(PdfError::NoPages), "{what}");
+    }
+    assert!(PdfError::NoPages.to_string().contains("damaged"));
+    // Sound and repairable files still open with all their pages.
+    assert_eq!(reopened(pdf(2, "Sayfa")).page_count().unwrap(), 2);
+    assert_eq!(reopened(broken_xref_offset(pdf(2, "Sayfa"))).page_count().unwrap(), 2);
+}
+
+#[test]
+fn combining_refuses_a_file_without_pages() {
+    for (what, bytes) in without_pages() {
+        let mut doc = reopened(pdf(1, "Birinci"));
+        assert_eq!(doc.append(bytes, None), Err(PdfError::NoPages), "{what}");
+        assert_eq!(doc.page_count().unwrap(), 1, "{what}");
+        assert_eq!(reopened(doc.save().unwrap()).page_count().unwrap(), 1, "{what}");
+    }
+}
+
+#[test]
+fn nothing_is_written_from_a_document_without_pages() {
+    for (what, bytes) in without_pages() {
+        // As the engine opens it, bypassing the refusal in `open`.
+        let doc = Document::open_with_password(Arc::new(bytes), None).expect(what);
+        let doc = PdfDoc { doc, added: Vec::new(), text: None, open_notes: Vec::new() };
+        assert_eq!(doc.save(), Err(PdfError::NoPages), "{what}");
+        assert_eq!(doc.display_copy(), Err(PdfError::NoPages), "{what}");
+        assert!(doc.compress(true).is_err(), "{what}");
+        assert!(doc.extract(&[0]).is_err(), "{what}");
+    }
+}

@@ -72,7 +72,8 @@ Yazıcı uzantıya göre PPTX/PPSX/POTX yazar (`deckcraft_pptx::export_as`). `.p
 ## PDF (`PdfViewModel`)
 
 Asıl dosyanın üzerine kaydetme **yok**: düzenlenmiş PDF, sıkıştırma, sayfa çıkarma, birleştirme, OCR metni hep yeni
-dosyaya ("-duzenlendi.pdf", "-kucuk.pdf") yazılır. Yazıcı tam yeniden yazar (`mo-pdf/src/lib.rs:748`, `write_full`);
+dosyaya ("-duzenlendi.pdf", "-kucuk.pdf") yazılır. Yazıcı tam yeniden yazar (`mo-pdf/src/lib.rs:104`, `written` →
+`write_full`);
 PdfCraft sınırla açılmış belgeyi kaydetmeyi kendisi reddeder (PdfCraft `0f22627`: `crates/cos/src/writer.rs:260`, `:403`).
 Karartma işaretleri karartılmadan kayıt açılmaz (`PagedScreen` `startSave`).
 
@@ -82,6 +83,10 @@ UniFFI `PdfDocument.openNotes()`) ve `PdfViewModel.openedNotice` ile Word/Sunu n
 (`pdf_repaired` + motorun ilk satırları). 40 MB'tan büyük dosyalar açılışta motorla açılmadığından bu bildirim ilk
 düzenleme, arama ya da kayıtta gelir. **Kalan**: kişi seçicide asıl dosyayı seçerse onarılmış belge üzerine
 yazılabilir (kişi önceden uyarılmış olur; kayıt engellenmiyor).
+
+| Risk (üst kaynak) | Durum |
+|---|---|
+| Sayfa ağacı bulunamayan ya da boş, ağır bozuk dosya PdfCraft'ta hatasız ve **0 sayfayla** açılıyordu (`organize::page_count` → `NoPageTree` ya da 0); uygulama boş görüntüleyici gösteriyor, kayıt ~430 baytlık boş bir PDF yazıyordu. Asıl dosya yerinde kalsa da kişi yeni dosyayı belgesi sanıp asıl dosyayı silebilirdi | **Düzeltildi**: `PdfDoc::open` böyle dosyayı `PdfError::NoPages` ile reddeder (UniFFI `MoException.NoPages`); uygulama "Dosya açılamadı: … hiçbir sayfası okunamadı, dosya çok bozuk" (`pdf_no_pages`) sorununu "Bildir" ile gösterir. Android'in görüntüleyicisi 0 sayfa verirse de aynı hata. Birleştirme (her iki "PDF ekle" yolu) böyle dosyayı adıyla reddeder (`merge_no_pages`); kaydetme, sayfa çıkarma, sıkıştırma ve görüntü kopyası sayfasız belge yazmaz (`written`) |
 
 ## Metin (`TextViewModel`)
 
@@ -105,6 +110,8 @@ U+FFFD'ye dönüşür ve kayıtta öyle yazılır; karışık satır sonları te
 - `mo-word`: `a_docx_part_the_engine_skips_is_reported`, `what_the_odt_reader_skips_is_reported`,
   `what_the_rtf_reader_skips_is_reported`, `what_web_pages_and_markdown_lose_is_reported`.
 - `mo-deck`: `what_deckcraft_leaves_out_on_opening_is_flagged`.
-- `mo-pdf`: `tells_what_opening_a_damaged_file_repaired`, `a_missing_header_is_reported_and_later_edits_do_not_add_notes`.
+- `mo-pdf`: `tells_what_opening_a_damaged_file_repaired`, `a_missing_header_is_reported_and_later_edits_do_not_add_notes`,
+  `a_file_whose_pages_cannot_be_found_does_not_open`, `combining_refuses_a_file_without_pages`,
+  `nothing_is_written_from_a_document_without_pages`.
 - `mo-grid`: `reads_the_engines_unread_sheet_and_part_warnings`, `a_sheet_or_part_the_engine_could_not_read_blocks_saving_over_the_file`.
-- `tools/jvm-smoke`: `WordDocumentTest.tellsWhatOpeningLeftOut`, `PdfDocumentTest.tellsWhatOpeningRepaired`, `BlankDocumentTest`, `SheetDocumentTest`.
+- `tools/jvm-smoke`: `WordDocumentTest.tellsWhatOpeningLeftOut`, `PdfDocumentTest.tellsWhatOpeningRepaired`, `PdfDocumentTest.refusesAFileWithoutReadablePages`, `BlankDocumentTest`, `SheetDocumentTest`.

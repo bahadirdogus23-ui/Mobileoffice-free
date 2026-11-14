@@ -172,6 +172,7 @@
     <string name="hide">Hide</string>
     <string name="unlock_open">Open</string>
     <string name="pdf_repaired">This PDF was damaged and was repaired as it opened; some of it may be missing or look different. Copies you save keep the repaired document; the original file is not changed.</string>
+    <string name="pdf_no_pages">no page of this PDF could be read, the file is too damaged; the original file was not changed</string>
     <string name="pdf_locked_title">This PDF is password-protected</string>
     <string name="pdf_locked_body">Enter the password to open it.</string>
     <string name="wrong_password">Wrong password</string>
@@ -536,6 +537,7 @@
     <string name="merge_file_name">Combined.pdf</string>
     <string name="merge_working">Combining the PDFs…</string>
     <string name="merge_cannot_read">%1$s could not be read (it may be damaged or password protected).</string>
+    <string name="merge_no_pages">No page of %1$s could be read (the file is too damaged), so it was not added.</string>
     <string name="slide_upright">Upright</string>
     <string name="slide_text_color">Colour</string>
     <string name="slide_align">Align</string>

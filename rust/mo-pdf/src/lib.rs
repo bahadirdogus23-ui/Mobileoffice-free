@@ -51,6 +51,11 @@ pub enum PdfError {
     Edit(String),
     #[error("{0}")]
     Save(String),
+    /// The file opened but no page of it could be found (no usable page tree): too damaged to
+    /// show, and anything written from it would be an empty PDF the person might mistake for
+    /// their document.
+    #[error("no page of this PDF could be read; the file is too damaged")]
+    NoPages,
 }
 
 /// One open PDF being edited.
@@ -85,9 +90,28 @@ fn edit<E: std::fmt::Display>(e: E) -> PdfError {
     PdfError::Edit(e.to_string())
 }
 
+/// How many pages `doc` has; [`PdfError::NoPages`] when its page tree is missing, unreadable or
+/// empty. PdfCraft opens such a heavily damaged file "successfully" with no pages.
+fn pages_of(doc: &Document) -> Result<usize, PdfError> {
+    match organize::page_count(doc) {
+        Ok(n) if n > 0 => Ok(n),
+        _ => Err(PdfError::NoPages),
+    }
+}
+
+/// `doc` written afresh, refusing a document without pages: saved, it would be a few hundred
+/// bytes that look like a PDF but hold nothing of the person's file.
+fn written(doc: &Document) -> Result<Vec<u8>, PdfError> {
+    pages_of(doc)?;
+    pdfcraft_cos::write_full(doc, &SaveOptions::default()).map_err(|e| PdfError::Save(e.to_string()))
+}
+
 impl PdfDoc {
     pub fn open(bytes: Vec<u8>, password: Option<&str>) -> Result<PdfDoc, PdfError> {
         let doc = Document::open_with_password(Arc::new(bytes), password).map_err(opening)?;
+        // A file whose pages cannot be found did not really open: showing it empty, and saving
+        // that, would pass an empty PDF off as the person's document.
+        pages_of(&doc)?;
         let open_notes = doc.repair_log().to_vec();
         Ok(PdfDoc { doc, added: Vec::new(), text: None, open_notes })
     }
@@ -135,12 +159,13 @@ impl PdfDoc {
         organize::move_pages(&mut self.doc, &indices(pages), to as usize).map_err(edit)
     }
 
-    /// Appends all pages of another PDF (fields renamed where names clash).
+    /// Appends all pages of another PDF (fields renamed where names clash). One whose pages cannot
+    /// be read is refused with [`PdfError::NoPages`] rather than adding nothing.
     pub fn append(&mut self, other: Vec<u8>, password: Option<&str>) -> Result<(), PdfError> {
         self.text = None;
         self.refuse_restricted()?;
         let src = Document::open_with_password(Arc::new(other), password).map_err(opening)?;
-        let n = organize::page_count(&src).map_err(edit)?;
+        let n = pages_of(&src)?;
         let at = organize::page_count(&self.doc).map_err(edit)?;
         let all: Vec<usize> = (0..n).collect();
         organize::import_pages_with(&mut self.doc, &src, &all, at, organize::FieldConflicts::Rename).map_err(edit)?;
@@ -161,7 +186,7 @@ impl PdfDoc {
         let copies: Vec<usize> = keep.clone();
         organize::duplicate_pages(&mut out, &copies, Some(n)).map_err(edit)?;
         organize::delete_pages(&mut out, &(0..n).collect::<Vec<_>>()).map_err(edit)?;
-        pdfcraft_cos::write_full(&out, &SaveOptions::default()).map_err(|e| PdfError::Save(e.to_string()))
+        written(&out)
     }
 
     /// Puts a hand-drawn signature on `page` (0-based). Each stroke is a list of points as
@@ -416,7 +441,7 @@ impl PdfDoc {
                 copy = before;
             }
         }
-        pdfcraft_cos::write_full(&copy, &SaveOptions::default()).map_err(|e| PdfError::Save(e.to_string()))
+        written(&copy)
     }
 
     /// Whether Android's renderer would leave something out: an annotation other than a link or
@@ -441,7 +466,7 @@ impl PdfDoc {
         let preset = if for_screen { pdfcraft_optimize::Preset::Mobile } else { pdfcraft_optimize::Preset::Standard };
         let mut copy = self.doc.clone();
         pdfcraft_optimize::optimize(&mut copy, &preset.settings()).map_err(edit)?;
-        pdfcraft_cos::write_full(&copy, &SaveOptions::default()).map_err(|e| PdfError::Save(e.to_string()))
+        written(&copy)
     }
 
     /// The form's fields, in document order (none when there is no form).
@@ -743,9 +768,10 @@ impl PdfDoc {
         Ok(self.text.as_mut().expect("just set"))
     }
 
-    /// The whole document written afresh (compressed object streams, a new cross-reference).
+    /// The whole document written afresh (compressed object streams, a new cross-reference);
+    /// never a document without pages ([`PdfError::NoPages`]).
     pub fn save(&self) -> Result<Vec<u8>, PdfError> {
-        pdfcraft_cos::write_full(&self.doc, &SaveOptions::default()).map_err(|e| PdfError::Save(e.to_string()))
+        written(&self.doc)
     }
 }
 
