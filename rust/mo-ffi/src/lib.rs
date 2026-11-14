@@ -799,6 +799,12 @@ impl WordDocument {
         self.doc().page_texts()
     }
 
+    /// The body text starting on `page` alone (its entry of `page_texts`), cheap enough to ask
+    /// again after every edit: for a screen reader.
+    pub fn page_text(&self, page: u32) -> Result<String, MoError> {
+        Ok(self.doc().page_text(page)?)
+    }
+
     /// Where `query` appears in the body, ignoring case, accents and dotted/dotless i.
     pub fn find(&self, query: String) -> Vec<SearchHit> {
         self.doc().find(&query).into_iter().map(|h| SearchHit { index: h.index, page: h.page, x: h.x, y: h.y, width: h.w, height: h.h }).collect()

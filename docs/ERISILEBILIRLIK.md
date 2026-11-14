@@ -48,13 +48,24 @@ yüklenmez, ek düğüm oluşturulmaz; görünüm ve hız değişmez.
   `contentDescription` yerine `text` kullanıldığı için TalkBack metni karakter, kelime ve paragraf adımlarıyla da
   gezebilir. Metin yüklenene kadar eskisi gibi "Sayfa 3 / 10" okunur; yazısız sayfada "bu sayfada okunacak yazı yok".
   Kaynaklar: PDF'te sayfanın kendi metni (`page_text`), slaytta metin kutuları yukarıdan aşağı, soldan sağa (`text_shapes`),
-  Word'de motorun sayfa sayfa metni (`page_texts`; bir paragraf başladığı sayfada okunur). Son 24 sayfanın metni
-  bellekte tutulur, sayfa başına en çok 12.000 karakter; düzenleme, sayfa taşıma/silme ya da yeni belge önbelleği temizler.
+  Word'de yalnızca o sayfanın metni (`page_text`; bir paragraf başladığı sayfada okunur, paragrafın sayfası satırları
+  ölçülmeden yerleşimin dizininden bulunur — tüm sayfaların metni toplanmaz). Son 24 sayfanın metni bellekte tutulur,
+  sayfa başına en çok 12.000 karakter; sayfa taşıma/silme ya da yeni belge önbelleği temizler ve metin hemen yeniden okunur.
+  **Yazarken**: her düzenleme önbelleği geçersiz kılar, ama ekrandaki sayfanın metni ancak yazmaya ~700 ms ara
+  verildiğinde yeniden okunur (her tuş bekleme süresini baştan başlatır); o arada eski metin okunur, motor iş parçacığı
+  yazmaya ayrılır. Yeni ekrana gelen sayfa beklemeden okunur.
+  PDF'te metin PdfCraft motorundan gelir: 40 MB'a kadar olan (ve şifreli) dosyalarda motor açılışta zaten açılmış
+  olduğundan ek okuma yoktur; 40 MB'tan büyük dosyada ilk sayfa metni (aramada olduğu gibi) dosyanın tamamını belleğe
+  okuyup motoru açar. Android'in `PdfRenderer`'ı metin vermiyor (metin API'si yalnızca yeni sürümlerde), bu yüzden
+  daha ucuz bir yol yok.
 - **Tablo hücreleri**: ekrandaki her hücrenin üstüne görünmez bir erişilebilirlik düğümü konur ("B3: 1.250,00", boşsa
   "B3: boş"); birleştirilmiş aralık tek düğümdür. TalkBack ile hücreden hücreye kaydırarak gezilir; çift dokunma hücreyi
   seçer (seçili hücrede ikinci çift dokunma, parmakla dokunmada olduğu gibi yazmayı açar). Izgara `CollectionInfo`,
   hücreler `CollectionItemInfo` (satır/sütun) taşır; seçili hücre "seçili" okunur. TalkBack'in kaydırma hareketleri
   tabloyu kaydırır (`scrollBy`), yeni görünen hücreler düğüm olur. Uzaklaştırılmış görünümde en çok 300 hücre.
+  Görünen satır/sütun aralığı `derivedStateOf` ile izlenir: düğümler yalnızca aralık değişince (yeni bir satır ya da
+  sütun ekrana girince) yeniden oluşturulur; konumları ve boyutları yerleşim aşamasında (`Modifier.layout`) kaydırmadan
+  okunur, yani her kaydırma karesinde yeniden oluşturma (recomposition) olmaz.
 
 **Durum bildirme**
 

@@ -102,6 +102,19 @@ fn page_texts_follow_the_pages() {
 }
 
 #[test]
+fn one_page_text_matches_all_page_texts() {
+    let doc = WordDoc::open("sample.docx", &sample_docx(), None).unwrap();
+    let texts = doc.page_texts();
+    assert!(texts.len() > 1);
+    for (i, t) in texts.iter().enumerate() {
+        assert_eq!(&doc.page_text(i as u32).unwrap(), t, "page {i}");
+    }
+    assert!(matches!(doc.page_text(texts.len() as u32), Err(WordError::NoPage(_))));
+    let one = WordDoc::open("a.md", "Merhaba dünya.\n\nİkinci paragraf.\n".as_bytes(), None).unwrap();
+    assert_eq!(one.page_text(0).unwrap(), "Merhaba dünya.\nİkinci paragraf.");
+}
+
+#[test]
 fn exports_pdf_and_other_word_formats() {
     let doc = WordDoc::open("a.md", "# Başlık\n\nİçerik ğüşıöç.\n".as_bytes(), None).unwrap();
     assert!(doc.export("a.pdf").unwrap().starts_with(b"%PDF"));

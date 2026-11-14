@@ -21,6 +21,10 @@ class WordDocumentTest {
             assertFailsWith<MoException.NotFound> { doc.renderPage(3u, 1f, false) }
             val hits = doc.find("ISTANBUL")
             assertTrue(hits.isNotEmpty() && hits.all { it.page == 0u && it.width > 0f }, "$hits")
+            // One page's text for a screen reader: the same as that page's entry of pageTexts.
+            assertEquals(doc.pageTexts()[0], doc.pageText(0u))
+            assertTrue(doc.pageText(0u).contains("Şişli"), doc.pageText(0u))
+            assertFailsWith<MoException.NotFound> { doc.pageText(3u) }
         }
     }
 

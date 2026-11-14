@@ -2,9 +2,9 @@
 //! without the special letters as often as with them, so the search ignores case and accents and
 //! treats dotted and dotless i alike: "isik" finds "IŞIK" and "ışık".
 
-use wordcraft_doc::{Pos, StoryRef};
+use wordcraft_doc::{Path, Pos, StoryRef};
 
-use crate::WordDoc;
+use crate::{WordDoc, WordError};
 
 /// One highlighted rectangle of match number `index`, in page points.
 #[derive(Debug, Clone, PartialEq)]
@@ -48,24 +48,49 @@ impl WordDoc {
     pub fn page_texts(&self) -> Vec<String> {
         let mut out = vec![String::new(); self.layout.pages.len()];
         for path in self.doc().para_paths(StoryRef::Body) {
-            let Some(p) = self.doc().para(StoryRef::Body, &path) else { continue };
-            // Objects (pictures, fields) sit in the text as control characters; readers skip them
-            // (tabs stay: they separate words).
-            let text: String = p.text.chars().filter(|c| !c.is_control() || *c == '\t').collect();
-            if text.trim().is_empty() {
-                continue;
-            }
-            let a = Pos::new(StoryRef::Body, path.clone(), 0);
-            let b = Pos::new(StoryRef::Body, path.clone(), p.text.len());
-            let page = self.layout.selection_rects(self.doc(), &a, &b, 0).first().map_or(0, |(pg, _)| *pg);
-            if let Some(slot) = out.get_mut(page) {
-                if !slot.is_empty() {
-                    slot.push('\n');
-                }
-                slot.push_str(text.trim());
+            if let Some(slot) = out.get_mut(self.start_page(&path)) {
+                self.push_para_text(&path, slot);
             }
         }
         out
+    }
+
+    /// The body text that starts on `page` alone, as [`Self::page_texts`] gives it for that page,
+    /// for a screen reader: only that page's paragraphs are copied, and each paragraph is placed
+    /// through the layout's index rather than by measuring its lines, so it stays cheap to ask
+    /// again while the person types.
+    pub fn page_text(&self, page: u32) -> Result<String, WordError> {
+        if page as usize >= self.layout.pages.len() {
+            return Err(WordError::NoPage(page));
+        }
+        let mut out = String::new();
+        for path in self.doc().para_paths(StoryRef::Body) {
+            if self.start_page(&path) == page as usize {
+                self.push_para_text(&path, &mut out);
+            }
+        }
+        Ok(out)
+    }
+
+    /// The page a body paragraph starts on: where its first piece is placed (0 when it is not).
+    fn start_page(&self, path: &Path) -> usize {
+        self.layout.index.get(&(StoryRef::Body, path.clone())).and_then(|pieces| pieces.first()).map_or(0, |(page, _)| *page)
+    }
+
+    /// Adds body paragraph `path`'s text to `out` on a line of its own; nothing for an empty one.
+    fn push_para_text(&self, path: &Path, out: &mut String) {
+        let Some(p) = self.doc().para(StoryRef::Body, path) else { return };
+        // Objects (pictures, fields) sit in the text as control characters; readers skip them
+        // (tabs stay: they separate words).
+        let text: String = p.text.chars().filter(|c| !c.is_control() || *c == '\t').collect();
+        let text = text.trim();
+        if text.is_empty() {
+            return;
+        }
+        if !out.is_empty() {
+            out.push('\n');
+        }
+        out.push_str(text);
     }
 
     /// Every place `query` appears in the body text, as rectangles on the pages.

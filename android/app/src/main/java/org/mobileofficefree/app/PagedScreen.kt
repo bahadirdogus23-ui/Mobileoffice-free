@@ -667,7 +667,15 @@ fun PagedScreen(vm: PagedViewModel, state: PagedUiState, reading: ReadingSetting
                         // through it by word or paragraph. Nothing is loaded while TalkBack is off.
                         val pageText: String? = if (screenReader) {
                             val version = vm.textVersion
-                            val loaded by produceState<String?>(null, i, version) { value = vm.accessiblePageText(i, version) }
+                            val edits = vm.textEdits
+                            // The edit count this page's text was last read at. After an edit the
+                            // old text stays until typing pauses; only then is the page read again
+                            // (each keystroke restarts the wait), so reading never competes with typing.
+                            val readAt = remember(i, version) { intArrayOf(edits) }
+                            val loaded by produceState<String?>(null, i, version, edits) {
+                                value = vm.accessiblePageText(i, version, edits, afterEdit = edits != readAt[0])
+                                readAt[0] = edits
+                            }
                             val noText = stringResource(R.string.a11y_page_no_text)
                             loaded?.let { "$pageLabel. " + it.ifEmpty { noText } }
                         } else {

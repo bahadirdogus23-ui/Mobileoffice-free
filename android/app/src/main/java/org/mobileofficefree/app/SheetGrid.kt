@@ -20,6 +20,8 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.key
+import androidx.compose.runtime.derivedStateOf
+import androidx.compose.ui.layout.layout
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.CollectionInfo
@@ -68,6 +70,9 @@ private const val MAX_ROWS = 1_048_576
 private const val MAX_COLS = 16_384
 /** At most this many cells get a node of their own for a screen reader (the sheet zoomed far out). */
 private const val MAX_SPOKEN_CELLS = 300
+
+/** The scrolled rows and columns on screen (frozen ones apart), for the screen reader's cell nodes. */
+private data class VisibleCells(val firstRow: Int, val lastRow: Int, val firstCol: Int, val lastCol: Int)
 
 /**
  * A virtualised spreadsheet grid drawn on one Canvas: only visible cells are measured and drawn,
@@ -637,34 +642,55 @@ fun SheetGrid(
     // reader moves through the sheet cell by cell; a double tap selects the cell (a second one types
     // in it, as a tap does). With TalkBack off none of this is composed.
     if (screenReader && viewSize.width > 0 && viewSize.height > 0) {
-        val k = unit * scale
-        val frozenW = columnAxis.start(fc) * k
-        val frozenH = rowAxis.start(fr) * k
-        val bodyLeft = rowHeader + frozenW
-        val bodyTop = colHeader + frozenH
         val viewW = viewSize.width.toFloat()
         val viewH = viewSize.height.toFloat()
-        fun xOf(c: Int) = if (c < fc) rowHeader + columnAxis.start(c) * k else bodyLeft + (columnAxis.start(c) - columnAxis.start(fc)) * k - offsetX
-        fun yOf(r: Int) = if (r < fr) colHeader + rowAxis.start(r) * k else bodyTop + (rowAxis.start(r) - rowAxis.start(fr)) * k - offsetY
-        val firstCol = max(fc, columnAxis.at(columnAxis.start(fc) + offsetX / k))
-        val firstRow = max(fr, rowAxis.at(rowAxis.start(fr) + offsetY / k))
-        val lastCol = min(cols - 1, columnAxis.at(columnAxis.start(fc) + (offsetX + viewW - bodyLeft) / k))
-        val lastRow = min(rows - 1, rowAxis.at(rowAxis.start(fr) + (offsetY + viewH - bodyTop) / k))
-        val visibleRows = (0 until fr) + (firstRow..lastRow)
-        val visibleCols = (0 until fc) + (firstCol..lastCol)
-        val maxX = max(0f, (columnAxis.start(cols) - columnAxis.start(fc)) * k - (viewW - bodyLeft))
-        val maxY = max(0f, (rowAxis.start(rows) - rowAxis.start(fr)) * k - (viewH - bodyTop))
+        // These read the zoom and the scroll position when called, so they are called only from
+        // the derived range below and from layout and semantics lambdas: scrolling or zooming
+        // moves the nodes (layout) and recomposes only when another row or column comes into view.
+        fun kNow() = unit * scale
+        fun bodyLeftNow() = rowHeader + columnAxis.start(fc) * kNow()
+        fun bodyTopNow() = colHeader + rowAxis.start(fr) * kNow()
+        fun maxXNow() = max(0f, (columnAxis.start(cols) - columnAxis.start(fc)) * kNow() - (viewW - bodyLeftNow()))
+        fun maxYNow() = max(0f, (rowAxis.start(rows) - rowAxis.start(fr)) * kNow() - (viewH - bodyTopNow()))
+        /** The part of a cell (a merged range: its first and last cells) on screen, outside the headers and the frozen panes it scrolls under. */
+        fun onScreen(r: Int, c: Int, lastR: Int, lastC: Int): androidx.compose.ui.geometry.Rect {
+            val k = kNow()
+            val bodyLeft = bodyLeftNow()
+            val bodyTop = bodyTopNow()
+            val x = if (c < fc) rowHeader + columnAxis.start(c) * k else bodyLeft + (columnAxis.start(c) - columnAxis.start(fc)) * k - offsetX
+            val y = if (r < fr) colHeader + rowAxis.start(r) * k else bodyTop + (rowAxis.start(r) - rowAxis.start(fr)) * k - offsetY
+            val x0 = max(x, if (c < fc) rowHeader else bodyLeft)
+            val y0 = max(y, if (r < fr) colHeader else bodyTop)
+            val x1 = min(x + (columnAxis.start(lastC + 1) - columnAxis.start(c)) * k, if (c < fc) bodyLeft else viewW)
+            val y1 = min(y + (rowAxis.start(lastR + 1) - rowAxis.start(r)) * k, if (r < fr) bodyTop else viewH)
+            return androidx.compose.ui.geometry.Rect(x0, y0, max(x0, x1), max(y0, y1))
+        }
+        // The scrolled rows and columns on screen. A derived value compared by equality: a scroll
+        // within the same cells changes nothing here, so nothing is composed again.
+        val range by remember(sheet, columnAxis, rowAxis, fc, fr, cols, rows, viewSize, unit, rowHeader, colHeader) {
+            derivedStateOf {
+                val k = kNow()
+                VisibleCells(
+                    firstRow = max(fr, rowAxis.at(rowAxis.start(fr) + offsetY / k)),
+                    lastRow = min(rows - 1, rowAxis.at(rowAxis.start(fr) + (offsetY + viewH - bodyTopNow()) / k)),
+                    firstCol = max(fc, columnAxis.at(columnAxis.start(fc) + offsetX / k)),
+                    lastCol = min(cols - 1, columnAxis.at(columnAxis.start(fc) + (offsetX + viewW - bodyLeftNow()) / k)),
+                )
+            }
+        }
+        val visibleRows = (0 until fr) + (range.firstRow..range.lastRow)
+        val visibleCols = (0 until fc) + (range.firstCol..range.lastCol)
         val empty = stringResource(R.string.a11y_cell_empty)
         val selectLabel = stringResource(R.string.a11y_select_cell)
         Box(
             Modifier.fillMaxSize().semantics {
                 collectionInfo = CollectionInfo(rowCount = rows, columnCount = cols)
                 // TalkBack's scroll gestures move the sheet, as a finger would.
-                horizontalScrollAxisRange = ScrollAxisRange(value = { offsetX }, maxValue = { maxX })
-                verticalScrollAxisRange = ScrollAxisRange(value = { offsetY }, maxValue = { maxY })
+                horizontalScrollAxisRange = ScrollAxisRange(value = { offsetX }, maxValue = { maxXNow() })
+                verticalScrollAxisRange = ScrollAxisRange(value = { offsetY }, maxValue = { maxYNow() })
                 scrollBy { dx, dy ->
-                    offsetX = (offsetX + dx).coerceIn(0f, maxX)
-                    offsetY = (offsetY + dy).coerceIn(0f, maxY)
+                    offsetX = (offsetX + dx).coerceIn(0f, maxXNow())
+                    offsetY = (offsetY + dy).coerceIn(0f, maxYNow())
                     true
                 }
             },
@@ -680,12 +706,6 @@ fun SheetGrid(
                     if (m != null && (m[0] != r || m[1] != c)) continue
                     val lastR = m?.get(2) ?: r
                     val lastC = m?.get(3) ?: c
-                    // The part of the cell on screen, outside the headers and the frozen panes it scrolls under.
-                    val x0 = max(xOf(c), if (c < fc) rowHeader else bodyLeft)
-                    val y0 = max(yOf(r), if (r < fr) colHeader else bodyTop)
-                    val x1 = min(xOf(c) + (columnAxis.start(lastC + 1) - columnAxis.start(c)) * k, if (c < fc) bodyLeft else viewW)
-                    val y1 = min(yOf(r) + (rowAxis.start(lastR + 1) - rowAxis.start(r)) * k, if (r < fr) bodyTop else viewH)
-                    if (x1 - x0 < 1f || y1 - y0 < 1f) continue
                     placed++
                     val name = columnName(c) + (r + 1)
                     val label = "$name: " + (cellText(sheet, r, c)?.takeIf { it.isNotBlank() } ?: empty)
@@ -693,8 +713,15 @@ fun SheetGrid(
                     key(r, c) {
                         Box(
                             Modifier
-                                .offset { IntOffset(x0.roundToInt(), y0.roundToInt()) }
-                                .size(with(density) { (x1 - x0).toDp() }, with(density) { (y1 - y0).toDp() })
+                                // Placed and sized while laying out (the scroll is read there), not
+                                // while composing: scrolling moves the node without recomposing it.
+                                .layout { measurable, _ ->
+                                    val b = onScreen(r, c, lastR, lastC)
+                                    val w = b.width.roundToInt().coerceAtLeast(0)
+                                    val h = b.height.roundToInt().coerceAtLeast(0)
+                                    val placeable = measurable.measure(Constraints.fixed(w, h))
+                                    layout(w, h) { placeable.place(b.left.roundToInt(), b.top.roundToInt()) }
+                                }
                                 .semantics {
                                     contentDescription = label
                                     if (isSelected) this.selected = true

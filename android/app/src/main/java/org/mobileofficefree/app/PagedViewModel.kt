@@ -184,7 +184,8 @@ abstract class PagedViewModel(app: Application, private val kind: DocumentKind) 
     protected fun pagesEdited(pages: List<Pair<Float, Float>>, only: Int? = null) {
         val s = state ?: return
         state = s.copy(pages = pages, edits = s.edits + 1)
-        textVersion++
+        // Read only while TalkBack is on; then the page text follows once typing pauses.
+        textEdits++
         if (only != null && pages == s.pages) {
             // One page changed (an object moved on a slide): only it is drawn again.
             fresh.remove(only)
@@ -324,28 +325,45 @@ abstract class PagedViewModel(app: Application, private val kind: DocumentKind) 
     protected open fun pageText(index: Int): String? = null
 
     /**
-     * Grows whenever the pages' text may have changed (another document, an edit, pages moved or
-     * deleted): page texts read for a screen reader before it are stale.
+     * Grows whenever the pages themselves change (another document, pages moved, deleted or
+     * rebuilt): page texts read for a screen reader before it are stale, and read again at once.
      */
     var textVersion by mutableIntStateOf(0)
+        private set
+
+    /**
+     * Grows with every small edit (each keystroke): page texts read before it are stale too, but
+     * a screen reader reads them again only once typing pauses ([accessiblePageText] `afterEdit`).
+     */
+    var textEdits by mutableIntStateOf(0)
         private set
 
     /** Page texts for a screen reader, most recently used last; touched only on [engine]. */
     private val accessibleTexts = object : java.util.LinkedHashMap<Int, String>(16, 0.75f, true) {
         override fun removeEldestEntry(eldest: MutableMap.MutableEntry<Int, String>?): Boolean = size > ACCESSIBLE_PAGES
     }
-    /** The [textVersion] [accessibleTexts] were read at. */
+    /** The [textVersion] and [textEdits] [accessibleTexts] were read at. */
     private var accessibleVersion = -1
+    private var accessibleEdits = -1
 
     /**
      * Page [index]'s text for a screen reader (cut to [ACCESSIBLE_CHARS]), read on [engine] and
-     * kept for a few pages; "" when the page has none. [version] is the [textVersion] it is asked
-     * at. Asked only while TalkBack is on.
+     * kept for a few pages; "" when the page has none. [version] and [edits] are the [textVersion]
+     * and [textEdits] it is asked at: texts kept from before either are dropped. [afterEdit] (the
+     * page's text was already read before the latest edit) first waits [ACCESSIBLE_SETTLE_MS], so
+     * a caller cancelled by the next keystroke reads nothing while the person types.
+     * Asked only while TalkBack is on.
      */
-    suspend fun accessiblePageText(index: Int, version: Int): String = withContext(engine) {
-        if (accessibleVersion != version) {
+    suspend fun accessiblePageText(index: Int, version: Int, edits: Int, afterEdit: Boolean): String {
+        if (afterEdit) delay(ACCESSIBLE_SETTLE_MS)
+        return readAccessiblePageText(index, version, edits)
+    }
+
+    private suspend fun readAccessiblePageText(index: Int, version: Int, edits: Int): String = withContext(engine) {
+        if (accessibleVersion != version || accessibleEdits != edits) {
             accessibleTexts.clear()
             accessibleVersion = version
+            accessibleEdits = edits
         }
         accessibleTexts[index]?.let { return@withContext it }
         fun clip(t: String) = t.trim().let { if (it.length > ACCESSIBLE_CHARS) it.take(ACCESSIBLE_CHARS) + "…" else it }
@@ -354,7 +372,7 @@ abstract class PagedViewModel(app: Application, private val kind: DocumentKind) 
         if (one != null) {
             clip(one).also { accessibleTexts[index] = it }
         } else {
-            // Word lays out every page at once: keep the pages around this one too.
+            // An engine that gives every page's text at once: keep the pages around this one too.
             val all = runCatching { pageTexts() }.getOrDefault(emptyList())
             val near = (index - ACCESSIBLE_PAGES / 2).coerceAtLeast(0)..(index + ACCESSIBLE_PAGES / 2 - 1)
             for (p in near) all.getOrNull(p)?.let { accessibleTexts[p] = clip(it) }
@@ -577,6 +595,8 @@ abstract class PagedViewModel(app: Application, private val kind: DocumentKind) 
         const val ACCESSIBLE_PAGES = 24
         /** A page's text for a screen reader is cut here (a dense page has ~4000 characters). */
         const val ACCESSIBLE_CHARS = 12_000
+        /** After an edit, a page's text is read again only once typing has paused this long. */
+        const val ACCESSIBLE_SETTLE_MS = 700L
 
         /**
          * A 24th of the phone's RAM, between 48 and 256 MB: on an 11 GB phone a twelfth (384 MB)
