@@ -44,23 +44,55 @@ object Measurements {
     private val processStart = SystemClock.elapsedRealtime()
     @Volatile private var firstFrameMs = -1L
 
+    /** [clear] was called before the kept history was loaded: it is not brought back. Guarded by this object. */
+    private var clearedBeforeLoad = false
+
+    /**
+     * Reads the durations and stutters kept from earlier sessions, on the writer's thread (this
+     * runs in `Application.onCreate`). What is measured meanwhile is added to them, and nothing is
+     * written until they are in memory ([file] stays null until then), so the file is never
+     * replaced without them.
+     */
     fun load(context: Context) {
         val f = File(context.filesDir, FILE)
-        file = f
-        runCatching {
-            if (!f.exists()) return
-            f.forEachLine { line ->
-                val record = parseMeasurementRecord(line) ?: return@forEachLine
-                val v = record.values
-                when (record.kind) {
-                    "S" -> synchronized(stats) {
-                        stats[record.name] = Stat(v[0], v[1], v[2], v[3], v[4], v.getOrElse(5) { 0 })
-                    }
-                    "J" -> synchronized(stutters) {
-                        stutters[record.name] = v.toLongArray()
+        writer.execute {
+            val keptStats = LinkedHashMap<String, Stat>()
+            val keptStutters = LinkedHashMap<String, LongArray>()
+            runCatching {
+                if (f.exists()) {
+                    f.forEachLine { line ->
+                        val record = parseMeasurementRecord(line) ?: return@forEachLine
+                        val v = record.values
+                        when (record.kind) {
+                            "S" -> keptStats[record.name] = Stat(v[0], v[1], v[2], v[3], v[4], v.getOrElse(5) { 0 })
+                            "J" -> keptStutters[record.name] = v.toLongArray()
+                        }
                     }
                 }
             }
+            synchronized(Measurements) {
+                if (!clearedBeforeLoad) {
+                    synchronized(stats) {
+                        for ((name, s) in stats) {
+                            val kept = keptStats[name]
+                            keptStats[name] = if (kept == null) s else Stat(kept.count + s.count, kept.total + s.total, minOf(kept.min, s.min), maxOf(kept.max, s.max), s.last, kept.slow + s.slow)
+                        }
+                        stats.clear()
+                        stats.putAll(keptStats)
+                    }
+                    synchronized(stutters) {
+                        for ((name, a) in stutters) {
+                            val kept = keptStutters[name]
+                            keptStutters[name] = if (kept == null || kept.size < 4) a else longArrayOf(kept[0] + a[0], kept[1] + a[1], kept[2] + a[2], maxOf(kept[3], a[3]))
+                        }
+                        stutters.clear()
+                        stutters.putAll(keptStutters)
+                    }
+                }
+                file = f
+            }
+            // What was measured (or cleared) while loading reaches the file now.
+            flush()
         }
     }
 
@@ -92,6 +124,7 @@ object Measurements {
     @Synchronized fun clear() {
         synchronized(stats) { stats.clear() }
         synchronized(stutters) { stutters.clear() }
+        if (file == null) clearedBeforeLoad = true
         dirty = true
         flush()
     }

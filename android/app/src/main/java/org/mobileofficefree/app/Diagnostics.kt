@@ -85,27 +85,59 @@ object Diagnostics {
     @Volatile private var logFile: File? = null
     private val writer = java.util.concurrent.Executors.newSingleThreadExecutor()
 
+    /** Guards [logFile] being set against [clear], so a clear made while loading is not undone. */
+    private val loadLock = Any()
+    /** [clear] was called before the kept history was loaded: it is not brought back. Under [loadLock]. */
+    private var clearedBeforeLoad = false
+
     /**
-     * Reads the events and timings kept from earlier sessions; from now on every new one is kept
-     * too. They stay until the person clears them ([clear]), however often the app is closed.
+     * Reads the events and timings kept from earlier sessions, on a thread of its own (this runs in
+     * `Application.onCreate`); from then on every new one is kept too. They stay until the person
+     * clears them ([clear]), however often the app is closed. What happens while the file is read
+     * ("İlk kare"…) is kept in front of the earlier history, and nothing is written until that
+     * history is in memory, so the file is never replaced without it.
      */
     fun load(context: Context) {
         val file = File(context.filesDir, LOG_FILE)
-        logFile = file
-        runCatching {
-            if (!file.exists()) return
-            var section = 0
+        writer.execute {
             val ev = ArrayList<String>()
             val tm = ArrayList<String>()
-            file.forEachLine { line ->
-                when (line) {
-                    "[events]" -> section = 1
-                    "[timings]" -> section = 2
-                    else -> if (line.isNotBlank()) (if (section == 1) ev else if (section == 2) tm else null)?.add(line)
+            runCatching {
+                if (file.exists()) {
+                    var section = 0
+                    file.forEachLine { line ->
+                        when (line) {
+                            "[events]" -> section = 1
+                            "[timings]" -> section = 2
+                            else -> if (line.isNotBlank()) (if (section == 1) ev else if (section == 2) tm else null)?.add(line)
+                        }
+                    }
                 }
             }
-            synchronized(events) { events.clear(); events.addAll(ev.take(MAX_EVENTS)) }
-            synchronized(timings) { timings.clear(); timings.addAll(tm.take(MAX_TIMINGS)) }
+            val write = synchronized(loadLock) {
+                val cleared = clearedBeforeLoad
+                // Newest first: this session's entries, then the kept ones.
+                val freshEvents = synchronized(events) {
+                    val fresh = events.toList()
+                    if (!cleared) {
+                        events.clear()
+                        events.addAll((fresh + ev).take(MAX_EVENTS))
+                    }
+                    fresh.isNotEmpty()
+                }
+                val freshTimings = synchronized(timings) {
+                    val fresh = timings.toList()
+                    if (!cleared) {
+                        timings.clear()
+                        timings.addAll((fresh + tm).take(MAX_TIMINGS))
+                    }
+                    fresh.isNotEmpty()
+                }
+                logFile = file
+                freshEvents || freshTimings || cleared
+            }
+            // What was recorded (or cleared) while loading reaches the file now.
+            if (write) persist()
         }
     }
 
@@ -130,8 +162,11 @@ object Diagnostics {
 
     /** Forgets every kept event and timing (the person sent them, or wants a fresh start). */
     fun clear() {
-        synchronized(events) { events.clear() }
-        synchronized(timings) { timings.clear() }
+        synchronized(loadLock) {
+            synchronized(events) { events.clear() }
+            synchronized(timings) { timings.clear() }
+            if (logFile == null) clearedBeforeLoad = true
+        }
         Measurements.clear()
         persist()
     }
