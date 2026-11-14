@@ -52,7 +52,7 @@ olarak `.odt`'ye yazılmaz. `.doc`, `.dotx`, `.udf`, e-posta/e-kitap vb. her zam
 
 | Risk (üst kaynak) | Durum |
 |---|---|
-| 1.000.000 öğe sınırı sayfayı keser, "is damaged; kept N rows" (`crates/xlsx/src/sheet_read.rs:112`); paylaşılan metinler kesilir (`read.rs:197`) | Önceki işlemede düzeltildi (`truncatedSheets`, `sharedStringsKept`). Ayrıştırılamayan sayfa da bu yoldan "0. satırda kesildi" olarak gelir |
+| 1.000.000 öğe sınırı sayfayı keser, "is damaged; kept N rows" (`crates/xlsx/src/sheet_read.rs:112`); paylaşılan metinler kesilir (`read.rs:197`) | Önceki işlemede düzeltildi (`truncatedSheets`, `sharedStringsKept`). Ayrıştırılamayan sayfa da bu yoldan "0. satırda kesildi" olarak gelir. Sınırın kendisi GridCraft `c0ee120` ile upstream'de düzeldi (artık yalnızca ağaçta tutulan öğeleri sayıyor); algılama başka kesmeler için yerinde |
 | Okunamayan sayfa boş sayfa olarak açılır (`read.rs:279`), iletişim/makro sayfası (`read.rs:270`) ve grafik sayfası (`passthrough/read.rs:187`) kaydedilmez | **Bu işlemede düzeltildi**: `unreadSheets()` |
 | Ayrıştırılamayan isteğe bağlı parça atlanır: tema, stiller, açıklamalar, çizimler, tablolar (`read.rs:88`) | **Düzeltildi**: `skippedParts()` |
 | Köprü/koşullu biçim sınırları, makro, dış bağlantı, denetim düşmeleri (`sheet_read/parts.rs:25`, `rules.rs:117`, `read.rs:393`, `passthrough/read.rs:256-376`) | **Kalan**: motor bunları uyarı olarak bildiriyor ve uygulama içe aktarma notlarında gösteriyor (kural 4'ün "gösterilir" kısmı); üzerine kaydetmeyi engellemiyor. Gerekirse aynı yoldan eklenebilir |

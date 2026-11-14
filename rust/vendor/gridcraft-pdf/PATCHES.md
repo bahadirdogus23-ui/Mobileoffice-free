@@ -1,8 +1,16 @@
 # Local patch to GridCraft's PDF writer
 
-Upstream: `storytold/gridcraft`, crate `crates/pdf`, commit `11bb67386c9bb19b0717e21e98adc608162ae2e5`
+Upstream: `storytold/gridcraft`, crate `crates/pdf`, commit `c0ee120ac2d9b59630f5abf1151dd9b471fe2926`
 (MIT OR Apache-2.0; license files alongside). `rust/Cargo.toml` puts this copy in place of the git
 crate with `[patch]`.
+
+Rebased from `11bb673` onto `c0ee120` with the GridCraft bump (the engine there calls the new
+`Point`/`Rect`/`Font::Symbol` API, see `README.md`). The upstream files were copied as they are and
+the three changes below applied again; the upstream tests run unchanged apart from the expected
+font encoding. Upstream's new `Font::Symbol` keeps its own encoding and is never replaced by an
+embedded face (`set_text_fonts` still takes the 12 text slots).
+
+## 1. Turkish letters in the standard fonts
 
 **Change:** Turkish letters in PDFs exported from spreadsheets.
 

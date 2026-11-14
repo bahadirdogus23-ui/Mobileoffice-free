@@ -8,6 +8,7 @@ pub(crate) const MORE_DESCRIPTIONS: &[(&str, &str)] = &[
     ("SUMX2PY2", "Karşılıklı elemanların kareleri toplamını toplar."),
     ("SUMXMY2", "Karşılıklı elemanların farkının karesini toplar."),
     ("MROUND", "Sayıyı en yakın katına yuvarlar."),
+    ("ECMA.CEILING", "Sayıyı en yakın katına yukarı yuvarlar (TAVANAYUVARLA ile aynı)."),
     ("CEILING.MATH", "Sayıyı en yakın tamsayıya ya da katına yukarı yuvarlar."),
     ("CEILING.PRECISE", "Sayıyı artı sonsuza doğru bir katına yuvarlar."),
     ("ISO.CEILING", "Sayıyı artı sonsuza doğru bir katına yuvarlar."),

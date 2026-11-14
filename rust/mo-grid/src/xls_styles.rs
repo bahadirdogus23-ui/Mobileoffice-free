@@ -283,7 +283,7 @@ pub(crate) fn apply(wb: &mut Workbook, bytes: &[u8]) -> usize {
             }
             match sh.cells.get_mut(at) {
                 Some(cell) => cell.style = id,
-                None => sh.cells.set(at, Cell { value: gridcraft_engine::core::Value::Empty, formula: None, style: id }),
+                None => sh.cells.set(at, Cell { value: gridcraft_engine::core::Value::Empty, formula: None, style: id, py: None }),
             }
             count += 1;
         }

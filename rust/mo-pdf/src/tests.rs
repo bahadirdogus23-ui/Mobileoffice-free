@@ -177,7 +177,7 @@ fn compresses_a_photo_heavy_file() {
     let p = d.add_page(595.0, 842.0);
     let n = 1500u32;
     let rgba: Vec<u8> = (0..n * n).flat_map(|i| [(i % n) as u8, (i / n) as u8, ((i * 7) % 251) as u8, 255]).collect();
-    p.image_rgba(100.0, 100.0, 200.0, 200.0, &rgba, n, n);
+    p.image_rgba(gridcraft_pdf::Rect::new(100.0, 100.0, 200.0, 200.0), &rgba, [n, n]);
     let big = d.finish();
     let doc = PdfDoc::open(big.clone(), None).unwrap();
     let small = doc.compress(false).unwrap();

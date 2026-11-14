@@ -191,7 +191,9 @@ pub struct CellLook {
 /// workbook, so saving it over the original file would drop those rows for good.
 ///
 /// GridCraft reports this only as a warning (`sheet "X" is damaged (...); kept N rows`), e.g.
-/// when a large worksheet passes its XML element limit (docs/upstream-notlar/gridcraft-satir-siniri.md).
+/// when a worksheet holds invalid XML or a single row passes its XML element limit. (Before
+/// c0ee120 any sheet past ~1,000,000 cell elements was cut this way:
+/// docs/upstream-notlar/gridcraft-satir-siniri.md.)
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Truncation {
     pub sheet: String,
@@ -699,7 +701,7 @@ impl GridDoc {
         sh.validations
             .iter()
             .find(|v| v.kind == ValidationKind::List && v.ranges.iter().any(|r| r.contains(at)))
-            .map(|v| gridcraft_engine::cmd::data::list_items(wb, sheet, v))
+            .map(|v| gridcraft_engine::cmd::data::list_items(wb, sheet, at, v))
             .unwrap_or_default()
     }
 

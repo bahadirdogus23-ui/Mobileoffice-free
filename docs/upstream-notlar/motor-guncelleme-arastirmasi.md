@@ -53,6 +53,11 @@ da hâlâ oluyor, yeni kayıp yok.
   Türkçe harf sorunu upstream'de **düzelmedi**. `vendor/gridcraft-pdf` (11bb673 tabanlı) yeni motorla değiştirilmeden
   derleniyor ve testler geçiyor, yani yamalı kopya ilk adımda olduğu gibi kalabilir; yeni tabana taşımak (Symbol yazı
   tipi için) ayrı bir iş. `PATCHES.md`'deki taban işlemesi o zaman güncellenmeli.
+  **Düzeltme (güncelleme sırasında):** bu doğru çıkmadı. `[patch]` ile yamalı kopya yerine geçtiğinde
+  `gridcraft-engine` `c0ee120` yeni API'yi (`Point`, `Rect`, `Font::Symbol`, `can_encode`, yeni `image_rgba`)
+  çağırdığı için derlenmiyor (denemede yama büyük olasılıkla devrede değildi). Güncellemede `vendor/gridcraft-pdf`
+  `c0ee120` tabanına taşındı: upstream dosyaları olduğu gibi alındı, üç Türkçe yaması yeniden uygulandı
+  (`PATCHES.md`); `mo-pdf` testinde `image_rgba` çağrısı yeni imzaya uyarlandı.
 
 ### Deneme (yalnızca GridCraft `rev`'i değişti)
 

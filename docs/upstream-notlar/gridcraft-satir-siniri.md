@@ -1,6 +1,40 @@
 # GridCraft: büyük XLSX sayfalarının kesilmesi
 
-Sabitlenmiş sürüm: `gridcraft` @ `11bb67386c9bb19b0717e21e98adc608162ae2e5` (`rust/Cargo.toml`).
+> **Durum: upstream'de düzeldi, bu değişiklikle güncellendi.** GridCraft
+> `c0ee120ac2d9b59630f5abf1151dd9b471fe2926` (`rust/Cargo.toml`) aşağıdaki §1'deki düzeltmeyi içeriyor:
+> `0b7deaa3` "XLSX: the XML element cap counts only elements kept in the tree" (PR #2527, birleştirme
+> `e8bdd0ef`). Sabit sürüm `11bb673`'ten `c0ee120`'ye bu değişiklikte yükseltildi. Aşağıdaki metin
+> `11bb673`'teki durumu anlatır; "Güncellemeden sonra" bölümü ölçümleri verir.
+
+Eski sabit sürüm: `gridcraft` @ `11bb67386c9bb19b0717e21e98adc608162ae2e5`.
+
+## Güncellemeden sonra (`c0ee120`)
+
+- 120.001 satır × 10 sütunluk sade sayfa (CSV'den üretilmiş, 3,4 MB XLSX) **bütün satırlarıyla** açılıyor:
+  `truncated()` boş, `strings_kept()` `None`, `opened_incomplete()` `false`. Kaydedip yeniden açınca
+  1.200.010 hücrenin hepsi aynı.
+- `MAX_XML_NODES` hâlâ `1_000_000` ama artık yalnızca ağaçta o an tutulan öğeleri sayıyor; akışla verilen
+  satırların (`<row>`) ve paylaşılan metinlerin (`<si>`) öğeleri satır bırakılınca düşülüyor. Tek bir devasa
+  satır ya da çok iyi sıkışan "zip bombası" parça yine sınırlanıyor.
+- `mo-grid`'deki kesme tanıma kodu (`Truncation`, `opened_incomplete`, atlanan parçalar) **yerinde kaldı**:
+  geçersiz XML'li sayfa ya da sınırı aşan tek satır gibi kesmeler hâlâ uyarı olarak geliyor ve kötü niyetli
+  dosyalarda asıl dosyanın üzerine kaydı engelliyor. Test: `a_sheet_beyond_a_million_xml_elements_opens_whole`
+  (120.000 × 10, bütün satırlar, kesme yok); uyarı metni ayrıştırıcısının testi
+  (`reads_the_engines_damaged_sheet_warning`) duruyor.
+
+### Bellek (masaüstü, `release`, açılıştaki tepe `VmHWM`)
+
+Ölçüm: `GridDoc::open` ile aynı dosyayı açan ayrı bir süreç (depoya alınmayan geçici bir örnek program),
+x86_64 Linux, üç çalıştırmanın ortası. Değerler dosya okunduktan sonraki süreç tabanını (≈ 5–7 MB) içerir.
+
+| Dosya | `11bb673` (önce) | `c0ee120` (sonra) |
+|---|---|---|
+| 120.001 × 10 (3,4 MB XLSX) | 75 MB tepe, 37 MB kalıcı; **49.999 satır** (kesik), 0,52 s | 126 MB tepe, 87 MB kalıcı; **120.001 satır**, 1,3 s |
+| 49.999 × 10 (her iki sürümde de tam) | 50 MB tepe, 37 MB kalıcı; 0,48 s | 56 MB tepe, 43 MB kalıcı; 0,49 s |
+
+Yani aynı miktarda veri için bellek aşağı yukarı aynı (+%12); artış, artık sayfanın tamamının belleğe
+alınmasından geliyor (satır başına ≈ 0,7 KB kalıcı, 10 sayısal hücre). Bir milyon satırlık 10 sütunluk bir
+sayfa bu oranla ≈ 0,7–1 GB tutar; telefonda gerçek bir büyük dosyayla ölçüm ayrıca yapılmalı.
 
 ## Belirti
 
@@ -46,7 +80,8 @@ Motoru yamamadan (kural 5) `mo-grid` bu iki uyarıyı tanır:
   "Farklı kaydet" asıl dosyanın kendisine yazmayı reddeder ve başarılı kayıttan sonra kesik
   sayfaların eksik olduğunu hatırlatır.
 
-Test: `mo-grid/src/tests.rs` → `a_sheet_cut_by_the_engine_is_reported_as_truncated` (60.000 × 10).
+Test (`11bb673`'te): `a_sheet_cut_by_the_engine_is_reported_as_truncated` (60.000 × 10); `c0ee120` güncellemesiyle
+`a_sheet_beyond_a_million_xml_elements_opens_whole` (120.000 × 10, kesme yok) oldu.
 
 ## Önerilen upstream değişikliği (ayrı, bilinçli bir motor güncellemesi için)
 
@@ -63,5 +98,5 @@ Test: `mo-grid/src/tests.rs` → `a_sheet_cut_by_the_engine_is_reported_as_trunc
 3. Kesme olursa uyarı yerine yapılandırılmış bir bilgi (`ReadReport::truncated_sheets`) döndür ki
    istemciler metin ayrıştırmak zorunda kalmasın.
 
-Güncelleme yapıldığında: `mo-grid`'deki testi "tüm satırlar açılır, uyarı yok" olarak değiştirip
-120.000 × 10 bir sayfayla doğrulayın; uyarı tanıma kodu, başka kesmeler için yerinde kalabilir.
+`c0ee120` güncellemesinde yapıldı: `mo-grid`'deki test "tüm satırlar açılır, uyarı yok" olarak değiştirildi ve
+120.000 × 10 bir sayfayla doğrulandı; uyarı tanıma kodu başka kesmeler için yerinde kaldı. §1 upstream'de; §2 ve §3 hâlâ yok.
