@@ -217,8 +217,11 @@ fun SettingsSheet(
 /** A titled card holding rows, separated by thin lines. */
 @Composable
 private fun Section(title: String, rows: @Composable () -> Unit) {
+    // Display text: upper-cased in the language the interface is shown in (Turkish "i" → "İ" only
+    // in Turkish; an English title keeps "I").
+    val locale = androidx.compose.ui.platform.LocalConfiguration.current.locales[0]
     Text(
-        title.uppercase(java.util.Locale.forLanguageTag("tr")),
+        title.uppercase(locale),
         style = MaterialTheme.typography.labelSmall,
         color = MaterialTheme.colorScheme.onSurfaceVariant,
         modifier = Modifier.padding(start = 16.dp, top = 24.dp, bottom = 6.dp),

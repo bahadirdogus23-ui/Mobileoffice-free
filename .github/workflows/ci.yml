@@ -181,7 +181,9 @@ jobs:
   # "Open with" and fails on any crash (scripts/emulator-smoke.sh). Logs and screenshots are kept.
   # It is also the performance baseline: cold start, time until each document is visible and PSS
   # for every sample, plus a few large generated files, in the summary and metrics.tsv; budgets
-  # are soft (warnings only).
+  # are soft (warnings only). A second, shorter pass repeats a subset in Turkish (tr-TR), at font
+  # scale 2.0 and in the dark theme, with upper-case and Turkish-letter file names (summary section
+  # "tr-TR · yazı 2× · koyu", metrics-tr.tsv); its steps stop at SMOKE_TIME_LIMIT minutes.
   emulator-smoke:
     name: Release APK on an emulator
     needs: android
@@ -202,6 +204,9 @@ jobs:
           sudo udevadm trigger --name-match=kvm
       - name: Open every format in the release APK
         uses: reactivecircus/android-emulator-runner@v2.38.0
+        env:
+          # Minutes after the script starts; later second-pass steps are skipped (job timeout 45).
+          SMOKE_TIME_LIMIT: 34
         with:
           api-level: 34
           target: google_apis

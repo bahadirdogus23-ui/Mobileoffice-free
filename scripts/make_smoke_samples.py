@@ -15,6 +15,13 @@ app's "this format opens in an upcoming version" notice.
 size class: `small`, or `big` for the large generated files, which get a longer open timeout and
 a larger soft time budget in the smoke test.
 
+`samples-tr.tsv` lists what the smoke test's second pass opens (Turkish locale, font scale 2.0,
+dark theme): a subset of the files above plus copies whose names are written the way people name
+files here: upper-case extensions, Turkish letters, a space. An extension containing "I" (.ZIP,
+.ICS) is lower-cased to "ı" by a locale-sensitive conversion under tr-TR, which is the bug class
+this pass is for. Its rows have a sixth column, the ASCII step name used in the smoke test's
+output files.
+
 Legacy binary formats: only .xls has a file in the repository's test data (mo-grid); there is no
 .doc or .ppt file to copy, so those two are not covered here.
 
@@ -28,14 +35,40 @@ import re
 import shutil
 import struct
 import sys
+import unicodedata
 import zipfile
 import zlib
 
 REPO = pathlib.Path(__file__).resolve().parent.parent
 TURKISH = "İstanbul'da ılık bir gün: Şişli, Ağrı, Üsküdar, Ödemiş, Çeşme — ığüşöç İĞÜŞÖÇ."
 
-# Every name starts with "mo-smoke-" so the smoke test can recognise its own files on screen.
-SAMPLES = []  # (name, mime, route, expectation)
+# Every name in the first pass starts with "mo-smoke-" (its step names are derived from it).
+SAMPLES = []  # (name, mime, route, expectation, size)
+
+# Second pass (tr-TR, font scale 2.0, dark): (step, existing sample) for the formats it repeats,
+# then (new name, copied from, step) for the names an ASCII, en-US test never sees. NFC, as a
+# Turkish keyboard writes them.
+TR_SUBSET = [
+    ("tr-docx", "mo-smoke-docx.docx"),
+    ("tr-xlsx", "mo-smoke-xlsx.xlsx"),
+    ("tr-pptx", "mo-smoke-pptx.pptx"),
+    ("tr-pdf", "mo-smoke-pdf.pdf"),
+    ("tr-txt", "mo-smoke-txt.txt"),
+    ("tr-csv", "mo-smoke-csv.csv"),
+    ("tr-png", "mo-smoke-png.png"),
+    ("tr-epub", "mo-smoke-epub.epub"),
+]
+TR_RENAMED = [
+    ("RAPOR-İŞ.DOCX", "mo-smoke-docx.docx", "tr-upper-docx"),
+    ("TABLO_ı.XLSX", "mo-smoke-xlsx.xlsx", "tr-upper-xlsx"),
+    ("SUNUM.PPTX", "mo-smoke-pptx.pptx", "tr-upper-pptx"),
+    ("BELGE.PDF", "mo-smoke-pdf.pdf", "tr-upper-pdf"),
+    ("NOT_ğüşöç.TXT", "mo-smoke-txt.txt", "tr-upper-txt"),
+    ("GİDER LİSTESİ.CSV", "mo-smoke-csv.csv", "tr-upper-csv"),
+    # "ZIP".lowercase(tr) is "zıp", "ICS" is "ıcs": routing by extension has to use Locale.ROOT.
+    ("ARŞİV.ZIP", "mo-smoke-zip.zip", "tr-upper-zip"),
+    ("TAKVİM.ICS", "mo-smoke-ics.ics", "tr-upper-ics"),
+]
 
 
 def sample(name, mime, route="filter", expect="viewer", size="small"):
@@ -673,6 +706,17 @@ def main(out, big=True):
     (out / "samples.tsv").write_text("".join("\t".join(s) + "\n" for s in SAMPLES), encoding="utf-8")
     for name, mime, route, expect, size in SAMPLES:
         print(f"{name:24} {(out / name).stat().st_size:>9} B  {route:8} {expect:16} {size:5} {mime}")
+
+    by_name = {s[0]: s for s in SAMPLES}
+    tr_rows = [(*by_name[name], step) for step, name in TR_SUBSET]
+    for name, source, step in TR_RENAMED:
+        name = unicodedata.normalize("NFC", name)
+        shutil.copyfile(out / source, out / name)
+        tr_rows.append((name, *by_name[source][1:], step))
+    (out / "samples-tr.tsv").write_text("".join("\t".join(r) + "\n" for r in tr_rows), encoding="utf-8")
+    print("second pass (tr-TR, font scale 2.0, dark):")
+    for name, mime, route, expect, size, step in tr_rows:
+        print(f"{name:24} {(out / name).stat().st_size:>9} B  {route:8} {expect:16} {step:14} {mime}")
 
 
 if __name__ == "__main__":
