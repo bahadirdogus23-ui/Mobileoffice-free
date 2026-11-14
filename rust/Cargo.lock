@@ -2429,6 +2429,7 @@ dependencies = [
 name = "mo-word"
 version = "0.1.0"
 dependencies = [
+ "cfb",
  "kurbo",
  "mo-convert",
  "quick-xml 0.41.0",
@@ -2436,6 +2437,7 @@ dependencies = [
  "thiserror 2.0.21",
  "wordcraft-doc",
  "wordcraft-engine",
+ "wordcraft-fonts",
  "wordcraft-formats",
  "wordcraft-layout",
  "wordcraft-render",

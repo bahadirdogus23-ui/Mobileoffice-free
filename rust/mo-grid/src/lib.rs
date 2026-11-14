@@ -279,7 +279,13 @@ impl GridDoc {
     pub fn open(name: &str, bytes: &[u8], password: Option<&str>) -> Result<GridDoc, GridError> {
         let mut warnings = Vec::new();
         let utf8;
-        let bytes = if is_delimited_text(name) && looks_like_windows_1254(bytes) {
+        // UTF-16 first: its bytes are not UTF-8 and may hold a Windows-1254 letter's value.
+        let bytes = if is_delimited_text(name)
+            && let Some(text) = encoding::decode_unmarked_utf16(bytes)
+        {
+            utf8 = text;
+            utf8.as_bytes()
+        } else if is_delimited_text(name) && looks_like_windows_1254(bytes) {
             utf8 = decode_turkish_legacy(bytes);
             warnings.push("Metin Windows-1254 (Türkçe) kodlamasından dönüştürüldü.".to_string());
             utf8.as_bytes()
@@ -999,3 +1005,5 @@ fn shows_number(wb: &Workbook, sh: &gridcraft_engine::model::Sheet, c: gridcraft
     let fmt = gridcraft_engine::numfmt::NumberFormat::parse_cached(wb.styles.get(sh.style_id(c)).num_fmt.as_str());
     !fmt.is_date() && !fmt.is_text()
 }
+#[cfg(test)]
+mod turkish_text_tests;

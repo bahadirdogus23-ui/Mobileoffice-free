@@ -19,3 +19,24 @@ pub fn looks_like_windows_1254(bytes: &[u8]) -> bool {
 pub fn decode_turkish_legacy(bytes: &[u8]) -> String {
     encoding_rs::WINDOWS_1254.decode_without_bom_handling(bytes).0.into_owned()
 }
+
+/// The text of UTF-16 `bytes` without a byte order mark, told by their zero bytes (Latin text in
+/// UTF-16 has a zero in every other byte); `None` for anything else. Read as 8-bit text, such a
+/// file showed every letter with a NUL beside it.
+pub fn decode_unmarked_utf16(bytes: &[u8]) -> Option<String> {
+    if bytes.len() < 4 || !bytes.len().is_multiple_of(2) || bytes.starts_with(&[0xFF, 0xFE]) || bytes.starts_with(&[0xFE, 0xFF]) {
+        return None;
+    }
+    let sample = &bytes[..bytes.len().min(4096) & !1];
+    let even = sample.iter().step_by(2).filter(|b| **b == 0).count();
+    let odd = sample.iter().skip(1).step_by(2).filter(|b| **b == 0).count();
+    let half = sample.len() / 2;
+    let enc = if odd * 10 >= half * 4 && even * 10 < half {
+        encoding_rs::UTF_16LE
+    } else if even * 10 >= half * 4 && odd * 10 < half {
+        encoding_rs::UTF_16BE
+    } else {
+        return None;
+    };
+    Some(enc.decode_without_bom_handling(bytes).0.into_owned())
+}

@@ -3,12 +3,19 @@
 //! `Bitmap` uses. Editing goes through WordCraft's editing session and its command registry
 //! (`text.insert`, `format.bold`, …), as for spreadsheets: nothing here edits the document itself.
 
+mod charset;
 mod find;
 mod losses;
 pub mod udf;
 
 pub use find::{Hit, MAX_MATCHES, fold};
 pub use losses::Loss;
+
+/// The text of a plain text file: UTF-8 or UTF-16 (with or without a byte order mark), else the
+/// legacy code page it looks like, Turkish Windows-1254 first (`mo_convert::text`).
+pub fn plain_text(bytes: &[u8]) -> String {
+    mo_convert::text::decode_any(bytes)
+}
 use std::sync::Arc;
 
 use wordcraft_doc::{Document, SectionProps};
@@ -98,7 +105,11 @@ impl WordDoc {
             out.attachments = c.attachments;
             return Ok(out);
         }
-        let (doc, _encrypted) = wordcraft_engine::io::open_bytes_with(name, bytes, password).map_err(WordError::Open)?;
+        // Turkish text in files that do not declare their code page (charset.rs). The losses are
+        // still those of the file's own bytes.
+        let prepared = charset::prepare(name, bytes);
+        let (doc, _encrypted) =
+            wordcraft_engine::io::open_bytes_with(name, prepared.as_deref().unwrap_or(bytes), password).map_err(WordError::Open)?;
         let mut out = WordDoc::from_document(doc);
         out.losses = losses::find(name, bytes);
         Ok(out)
@@ -132,7 +143,7 @@ impl WordDoc {
     }
 
     /// Plain text laid out on `page`: one paragraph per line, in `page.font` at `page.size_pt`.
-    /// The bytes may be UTF-8, UTF-16 with a BOM or a Windows code page (WordCraft decides).
+    /// The bytes may be UTF-8, UTF-16 or a legacy code page (Turkish Windows-1254 first).
     pub fn from_text(bytes: &[u8], page: &TextPage) -> WordDoc {
         let (long, short) = (page.width_pt.max(page.height_pt), page.width_pt.min(page.height_pt));
         let sp = SectionProps {
@@ -145,7 +156,8 @@ impl WordDoc {
             margin_right: page.margin_pt,
             ..SectionProps::default()
         };
-        let mut doc = wordcraft_formats::txt::import_on(bytes, &sp);
+        let prepared = mo_convert::text::decode_undeclared(bytes);
+        let mut doc = wordcraft_formats::txt::import_on(prepared.as_ref().map_or(bytes, |s| s.as_bytes()), &sp);
         if let Some(normal) = doc.styles.get_mut("Normal") {
             normal.chr.font = Some(page.font.clone());
             normal.chr.size = Some(page.size_pt);
@@ -310,3 +322,5 @@ fn kurbo_affine(scale: f32, x: f32, y: f32) -> kurbo::Affine {
 
 #[cfg(test)]
 mod tests;
+#[cfg(test)]
+mod turkish_tests;

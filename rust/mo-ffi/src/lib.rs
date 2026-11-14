@@ -179,7 +179,7 @@ pub fn document_text(name: String, bytes: Vec<u8>, max_chars: u32) -> Result<Str
                 }
             }
         }
-        "txt" | "log" | "json" | "xml" | "ini" | "md" | "srt" | "vtt" | "yaml" | "yml" | "sql" => push(&String::from_utf8_lossy(&bytes)),
+        "txt" | "log" | "json" | "xml" | "ini" | "md" | "srt" | "vtt" | "yaml" | "yml" | "sql" => push(&mo_word::plain_text(&bytes)),
         _ => {
             let doc = WordDoc::open(&name, &bytes, None)?;
             for t in doc.page_texts() {

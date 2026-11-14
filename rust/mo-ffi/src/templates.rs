@@ -435,6 +435,9 @@ mod tests {
         // Cut at the limit, on a character boundary.
         let long = "ğ".repeat(100).into_bytes();
         assert!(crate::document_text("x.txt".into(), long, 11).unwrap().len() <= 11);
+        // Turkish Windows-1254 text files are found by their words, not as "�".
+        let tr = b"\xdestanbul \xfeubesi, \xddzmir \xe7ar\xfe\xfds\xfd".to_vec();
+        assert_eq!(crate::document_text("not.txt".into(), tr, 1000).unwrap(), "Şstanbul şubesi, İzmir çarşısı\n");
     }
 
     /// Saving must not lose what was opened: every template's words survive open → save → open,
