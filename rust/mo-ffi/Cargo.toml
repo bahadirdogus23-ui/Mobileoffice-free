@@ -15,6 +15,7 @@ name = "mo_ffi"
 
 [dependencies]
 mo-archive = { workspace = true }
+mo-convert = { workspace = true }
 mo-grid = { workspace = true }
 mo-word = { workspace = true }
 mo-deck = { workspace = true }

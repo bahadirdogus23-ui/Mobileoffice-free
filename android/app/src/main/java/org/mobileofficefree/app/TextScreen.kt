@@ -272,7 +272,7 @@ fun TextScreen(vm: TextViewModel, state: TextUiState, reading: ReadingSettings) 
                 for (enc in TextEncoding.entries) {
                     ListItem(
                         headlineContent = { Text(enc.label) },
-                        supportingContent = if (enc == state.encoding) { { Text(stringResource(R.string.text_current_encoding)) } } else null,
+                        supportingContent = if (enc.matches(state.encoding)) { { Text(stringResource(R.string.text_current_encoding)) } } else null,
                         modifier = Modifier.clickable {
                             showConvert = false
                             target = enc

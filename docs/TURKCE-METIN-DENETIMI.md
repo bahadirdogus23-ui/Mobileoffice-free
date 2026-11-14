@@ -35,7 +35,7 @@ Motorlar sabit sürümlerinde bırakıldı (AGENTS.md madde 5).
 | EML HTML parçası, charset yalnız `<meta>`'da | | "�" | **Düzeltildi** |
 | EML, ham 8 bit konu/gönderen (RFC 2047'siz) | | "�� toplant�s�" | **Düzeltildi**: üst başlık bloğu UTF-8'e çevrilip veriliyor |
 | EML ek adları (RFC 2047 / RFC 2231, iso-8859-9, windows-1254) | | Doğru | — |
-| EML `charset=ibm857` | | "����" | Açık (çok nadir; ayrıştırıcı bu adı tanımıyor, bizim çözücümüz de karıştırmıyor) |
+| EML `charset=ibm857` / `cp857` / `857` / `csIBM857` | 8 bit ve quoted-printable | "����" | **Düzeltildi**: ayrıştırıcı da encoding_rs de CP857'yi tanımadığı için parça baytları `mo_convert::text::decode_cp857` ile (128 girişlik tablo; Python'un ve uygulamadaki ZIP çözücüsünün tablosuyla aynı, 0xD5/0xE7/0xF2 boş) okunuyor. `decode_label` de bu adları tanıyor (VCF/UDF). RFC 2047 başlığında (`=?ibm857?…?=`) hâlâ çözülmüyor |
 | **MSG** 001E dizgileri | PR_MESSAGE_CODEPAGE 1254 / yok / yanlışlıkla 1252 | Kod sayfası okunmuyordu, hep 1254 sayılıyordu; 0x80–0x9F (“ ” – €) kontrol karakteri oluyordu | **Düzeltildi**: PR_MESSAGE_CODEPAGE'e göre; 1252 etiketli ama Türkçe harfli metin 1254 |
 | MSG HTML gövdesi | PR_INTERNET_CPID 1254 / 28599 / 65001 / yok | Hep UTF-8 kayıplı: Türkçe harfler "�" | **Düzeltildi**: PR_INTERNET_CPID → `<meta>` → Türkçe öncelikli tahmin |
 | MSG 8 bitlik ek adı (3707001E) | | Okunmuyordu ("ek-1") | **Düzeltildi** |
@@ -48,7 +48,8 @@ Motorlar sabit sürümlerinde bırakıldı (AGENTS.md madde 5).
 | Yazı tipleri — GridCraft PDF | | Önceki çalışmada düzeltildi (`vendor/gridcraft-pdf`, gömülü yüzler) | — |
 | Yazı tipleri — PDF görüntüleme | | Android PdfRenderer (PDFium) çiziyor; uygulamanın yazdığı PDF'ler yazı tiplerini gömüyor | Başkasının gömmediği yazı tipli PDF'lerde İ eksik kalabilir (bkz. açık konular) |
 | Yazı tipleri — CadCraft | | Önceki çalışmada düzeltildi (`mo-cad/src/fonts.rs`) | — |
-| **Kotlin**: metin dosyası açma (`TextEncoding.detect`) | BOM, katı UTF-8, sonra Windows-1254 | Türkçe için doğru | Değişiklik yok (bkz. açık konular) |
+| **Kotlin**: metin dosyası açma (`TextViewModel`) | BOM, BOM'suz UTF-16, katı UTF-8, sonra Türkçe öncelikli tahmin | BOM'suz UTF-16 her harfin yanında NUL; 8 bitlik her metin 1254 (Kiril/Çince bozuk) | **Düzeltildi**: Rust'taki ortak çözücü (`mo_convert::text::decode_text`, FFI `decodeTextFile`) arka planda (IO iş parçacığı) çağrılıyor; 16 MB sınırı korunuyor, kesilen son harf atılıyor. Bulunan kodlama başlıkta görünüyor ("windows-1251 · 12 satır") |
+| Kotlin: metin dosyasını **yerinde kaydetme** | 1254, UTF-16LE (BOM'lu/BOM'suz), UTF-8 (BOM'lu/BOM'suz), CRLF | Yalnız uygulamanın altı kodlaması vardı | **Düzeltildi**: dosya açıldığı kodlamayla, BOM'u ve satır sonlarıyla geri yazılıyor (`encodeTextFile`, encoding_rs; UTF-16 elle). O kodlamada olmayan bir harf (1254'te emoji) kaydı durduruyor ve "Farklı kodlamayla kaydet › UTF-8" öneriliyor; hiçbir zaman "?" yazılmıyor. Çözülürken "�" konmuş (geri yazılınca baytları değişecek) dosya yerinde hiç kaydedilmiyor |
 | Kotlin: pano | Compose/Android dizgileri UTF-16 | Doğru | — |
 | Kotlin: `uppercase()`/`lowercase()` yerel ayarsız | Bütün `app/src/main` | Yok; görünen metinde arayüz dili, tanımlayıcılarda `Locale.ROOT` | — |
 | Kotlin: arama katlaması (`searchFold`, `ContentSearch`, belge/PDF araması) | "istanbul" | "İSTANBUL", "Istanbul", "ISTANBUL", "ıstanbul" bulunuyor; uzunluk korunuyor | Test genişletildi |
@@ -85,6 +86,11 @@ Bildirilmemiş metin için tek bir karar yeri var; Word, e-posta, kişi/takvim, 
   yüzün paketteki dosyayla bayt bayt aynı olması ve glif numarası ≠ 0), `slide_text_lays_out_in_bold_and_italic_faces`
   (DeckCraft'ın satır dizgisiyle).
 - `rust/mo-ffi/src/templates.rs`: içerik aramasında 1254 metin.
+- `rust/mo-convert/src/text.rs`: `decoded_files_save_back_byte_for_byte` (1254, UTF-8 ±BOM, UTF-16LE/BE ±BOM, CRLF,
+  1251), `letters_an_encoding_lacks_are_refused_not_replaced`, `files_that_would_not_come_back_the_same_say_so`,
+  `the_start_of_a_large_file_drops_a_cut_letter`, `dos_code_page_857`; `rust/mo-convert/src/tests.rs`:
+  `e_mails_in_the_turkish_dos_code_page_keep_their_letters`.
+- `tools/jvm-smoke/src/test/kotlin/TextFileTest.kt`: `decodeTextFile`/`encodeTextFile` Kotlin bağlamalarıyla.
 - Kotlin: `ArchiveReaderTest` (CP857, IBM850, Unicode Path), `FormulaHelpTest`, `TextLogicTest`. Kotlin yalnızca CI'da
   derleniyor; bu üç dosyanın kodu ve testleri yerelde düz bir JVM projesinde (Compose sınıfları için iki küçük taslakla)
   derlenip çalıştırıldı.
@@ -132,9 +138,13 @@ Bildirilmemiş metin için tek bir karar yeri var; Word, e-posta, kişi/takvim, 
    "Kodlama: CP857" seçeneği eklenebilir.
 4. **Üçüncü taraf .xls üreticileri**: bazıları (eski PHP/Java kitaplıkları) BIFF8'in sıkıştırılmış dizgilerine 1254 baytları
    yazıyor; Excel bunları da Latin-1 okur (Ý ý Þ). Belirtime uyduğumuz için bilerek dokunulmadı.
-5. **Kotlin metin görüntüleyici** (`TextEncoding.detect`) BOM'suz UTF-16'yı tanımıyor ve 8 bitlik her metni 1254 sayıyor
-   (Kiril/Çince eski kodlamalar yanlış görünür). Türkçe kullanıcı için doğru; Rust tarafıyla birleştirmek ayrı bir iş.
-6. E-postada `charset=ibm857` (çok nadir) çözülmüyor.
+5. ~~Kotlin metin görüntüleyici BOM'suz UTF-16'yı tanımıyor ve 8 bitlik her metni 1254 sayıyor.~~ **Düzeltildi**: görüntüleyici
+   Rust'taki ortak çözücüyü kullanıyor ve kaydederken dosyanın kodlamasını sessizce değiştirmiyor (yukarıdaki tablo).
+   Kalan: karışık satır sonlu dosya (bazı satırlar CRLF, bazıları LF) kaydedilince hepsi CRLF oluyor (önceden de böyleydi);
+   "Farklı kodlamayla kaydet" listesi hâlâ uygulamanın altı kodlaması (açılan dosyanın 1251 gibi kodlaması listede yok,
+   yerinde kaydetme onu koruyor).
+6. ~~E-postada `charset=ibm857` çözülmüyor.~~ **Düzeltildi** (gövde parçaları). Kalan: RFC 2047 başlıklarında `=?ibm857?…?=`
+   (konu, gönderen adı) ayrıştırıcıda çözülmüyor; DOS (CP857) düz metin dosyaları yine 1254 sayılıyor (madde 3).
 
 ## Önerilen upstream yamaları
 

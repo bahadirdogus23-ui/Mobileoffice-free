@@ -134,7 +134,8 @@
     <string name="unsaved_body">Yaptığın değişiklikler kaydedilsin mi?</string>
     <string name="text_save_encoding">Farklı kodlamayla kaydet (TXT)</string>
     <string name="text_current_encoding">Şu anki kodlama</string>
-    <string name="text_unencodable">“%1$s” karakteri %2$s kodlamasında yazılamıyor. UTF-8 seçebilirsin.</string>
+    <string name="text_unencodable">“%1$s” karakteri %2$s kodlamasında yazılamıyor; dosya değiştirilmedi. Saklamak için Dönüştür › Farklı kodlamayla kaydet › UTF-8.</string>
+    <string name="text_save_inexact">Bu dosyada (%1$s) aynı biçimde geri yazılamayacak baytlar var; yerinde kaydedilmiyor. Bir kopya için Dönüştür › Farklı kodlamayla kaydet.</string>
     <string name="text_save_in_archive">Arşivden açılan dosya yerinde kaydedilemez; Dönüştür › Farklı kodlamayla kaydet ile bir kopya kaydet.</string>
     <string name="page_setup_for">%1$s · Sayfa yapısı</string>
     <string name="text_font">Yazı tipi</string>

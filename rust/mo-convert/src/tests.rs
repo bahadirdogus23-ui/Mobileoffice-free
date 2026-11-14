@@ -108,6 +108,18 @@ fn e_mails_in_turkish_code_pages_keep_their_letters() {
 }
 
 #[test]
+fn e_mails_in_the_turkish_dos_code_page_keep_their_letters() {
+    // "İıŞşĞğÇçÖöÜü" in CP857, as 8 bits and quoted-printable, under the names it goes by.
+    let dos = b"\x98\x8d\x9e\x9f\xa6\xa7\x80\x87\x99\x94\x9a\x81";
+    for charset in ["ibm857", "IBM857", "cp857", "\"cp857\""] {
+        let html = eml_body(&format!("Content-Type: text/plain; charset={charset}\r\nContent-Transfer-Encoding: 8bit"), dos);
+        assert!(html.contains("İıŞşĞğÇçÖöÜü"), "{charset}: {html}");
+    }
+    let html = eml_body("Content-Type: text/plain; charset=ibm857\r\nContent-Transfer-Encoding: quoted-printable", b"=98=8D=9E=9F =80=87");
+    assert!(html.contains("İıŞş Çç"), "{html}");
+}
+
+#[test]
 fn contacts_and_calendars_in_windows_1254_keep_quotes_and_dashes() {
     let vcf = b"BEGIN:VCARD\r\nVERSION:2.1\r\nN;CHARSET=ISO-8859-9;ENCODING=QUOTED-PRINTABLE:=DDnce;=DE=FCkr=FC\r\nNOTE:\x93Al\xfdnt\xfd\x94 \x96 \xfeirket\r\nEND:VCARD\r\n";
     let html = to_html("rehber.vcf", vcf).unwrap().html;

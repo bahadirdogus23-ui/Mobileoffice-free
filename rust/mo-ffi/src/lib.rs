@@ -36,6 +36,9 @@ pub enum MoError {
     /// A PDF opened without a single readable page (too damaged); also refused when combining.
     #[error("{0}")]
     NoPages(String),
+    /// Text has a letter the chosen encoding cannot store; the message is that letter alone.
+    #[error("{0}")]
+    Unencodable(String),
 }
 
 impl From<GridError> for MoError {
@@ -195,6 +198,39 @@ pub fn document_text(name: String, bytes: Vec<u8>, max_chars: u32) -> Result<Str
         out.truncate(cut);
     }
     Ok(out)
+}
+
+/// A plain text file decoded for the text viewer (see `mo_convert::text`).
+#[derive(uniffi::Record)]
+pub struct DecodedTextFile {
+    pub text: String,
+    /// The WHATWG name of the encoding it was in ("UTF-8", "UTF-16LE", "windows-1254",
+    /// "windows-1251"…), which [`encode_text_file`] takes back.
+    pub encoding: String,
+    /// It started with a byte order mark.
+    pub bom: bool,
+    /// Writing `text` back in `encoding` (with the mark when `bom`) gives the same bytes; when
+    /// false, saving over the file would change parts the person did not edit.
+    pub exact: bool,
+}
+
+/// A plain text file's `bytes` in the encoding they are in: a byte order mark, UTF-16 without
+/// one, UTF-8, else the legacy code page a Turkish reader expects (Windows-1254 for Turkish,
+/// Windows-1251 for Russian…). `complete` is false for the first part of a file too large to
+/// read whole (a letter cut at the end is dropped). Opening never writes.
+#[uniffi::export]
+pub fn decode_text_file(bytes: Vec<u8>, complete: bool) -> DecodedTextFile {
+    let d = mo_convert::text::decode_text(&bytes, complete);
+    DecodedTextFile { text: d.text, encoding: d.encoding.name().to_string(), bom: d.bom, exact: d.exact }
+}
+
+/// `text` in `encoding` (a name [`decode_text_file`] gave, or any WHATWG label), after a byte
+/// order mark when `bom` and the encoding has one. A letter the encoding cannot store is
+/// `MoError::Unencodable` with that letter, never a silent "?".
+#[uniffi::export]
+pub fn encode_text_file(text: String, encoding: String, bom: bool) -> Result<Vec<u8>, MoError> {
+    let enc = mo_convert::text::encoding_named(&encoding).ok_or_else(|| MoError::Save(format!("unknown encoding {encoding}")))?;
+    mo_convert::text::encode_text(&text, enc, bom).map_err(|c| MoError::Unencodable(c.to_string()))
 }
 
 /// One file or folder inside a 7z archive.

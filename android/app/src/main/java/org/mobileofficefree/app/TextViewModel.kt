@@ -15,8 +15,11 @@ import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import org.mobileofficefree.engine.MoException
 import org.mobileofficefree.engine.TextPage
 import org.mobileofficefree.engine.WordDocument
+import org.mobileofficefree.engine.decodeTextFile
+import org.mobileofficefree.engine.encodeTextFile
 
 /** One line on screen: a whole line of the file, or a slice of a very long one. */
 data class TextLine(val number: Int, val text: String, val continued: Boolean)
@@ -28,7 +31,8 @@ data class TextUiState(
     /** The same lines in [searchFold] form, for searching. */
     val folded: List<String>,
     val lineCount: Int,
-    val encoding: TextEncoding,
+    /** The encoding the file is in; saving in place writes it back the same way. */
+    val encoding: FileEncoding,
     /** Only the first [TextViewModel.MAX_BYTES] were read. */
     val truncated: Boolean,
     /** The whole text with "\n" line ends, as the editor shows it. */
@@ -77,7 +81,11 @@ class TextViewModel(app: Application) : AndroidViewModel(app) {
                     val stream = resolver.openInputStream(uri) ?: error("no data")
                     val bytes = stream.use { it.readNBytesCompat(MAX_BYTES + 1) }
                     val truncated = bytes.size > MAX_BYTES
-                    val (raw, encoding) = TextEncoding.detect(if (truncated) bytes.copyOf(cutBeforeLastLetter(bytes, MAX_BYTES)) else bytes)
+                    // The shared Turkish-aware decoder (BOM, BOM-less UTF-16, UTF-8, else the
+                    // legacy code page: Windows-1254 for Turkish, Windows-1251 for Russian…).
+                    val decoded = decodeTextFile(if (truncated) bytes.copyOf(MAX_BYTES) else bytes, !truncated)
+                    val raw = decoded.text
+                    val encoding = FileEncoding(decoded.encoding, decoded.bom, decoded.exact)
                     recents.remember(uri, info.name, DocumentKind.TEXT, info.size)
                     stateFor(uri, info.name, raw.replace("\r\n", "\n"), encoding, truncated, crlf = "\r\n" in raw)
                 }
@@ -89,7 +97,7 @@ class TextViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
-    private fun stateFor(uri: Uri, name: String, text: String, encoding: TextEncoding, truncated: Boolean, crlf: Boolean): TextUiState {
+    private fun stateFor(uri: Uri, name: String, text: String, encoding: FileEncoding, truncated: Boolean, crlf: Boolean): TextUiState {
         val lines = splitLines(text)
         val repaired = if (!truncated && text.length <= MAX_EDIT_CHARS) repairTurkish(text) else null
         return TextUiState(uri, name, lines, lines.map { it.text.searchFold() }, lines.lastOrNull()?.number ?: 0, encoding, truncated, text, crlf, repaired)
@@ -156,9 +164,12 @@ class TextViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     /**
-     * Writes the draft over the file it came from, in its own encoding and line ends ("wt":
-     * the whole file is replaced). Files unpacked from an archive live in the cache only, so
-     * they are not saved in place.
+     * Writes the draft over the file it came from, in its own encoding, byte order mark and line
+     * ends ("wt": the whole file is replaced), so other programs (Notepad, old Turkish software
+     * reading Windows-1254) read it as before. A letter that encoding cannot store stops the save
+     * with a note pointing to "Save with another encoding" (UTF-8); a file whose bytes would not
+     * come back the same is not written over at all. Files unpacked from an archive live in the
+     * cache only, so they are not saved in place.
      */
     fun save(then: PendingLeave? = null) {
         val s = state ?: return
@@ -167,12 +178,16 @@ class TextViewModel(app: Application) : AndroidViewModel(app) {
             notice = app.getString(R.string.text_save_in_archive)
             return
         }
+        if (!s.encoding.exact) {
+            notice = app.getString(R.string.text_save_inexact, s.encoding.label)
+            return
+        }
         val text = draft.text
         busy = true
         viewModelScope.launch {
             val result = withContext(Dispatchers.IO) {
                 runCatching {
-                    val bytes = s.encoding.encode(withLineEnds(text, s.crlf))
+                    val bytes = encodeInPlace(withLineEnds(text, s.crlf), s.encoding)
                     app.contentResolver.openOutputStream(s.uri, "wt")?.use { it.write(bytes) } ?: error("cannot write")
                     stateFor(s.uri, s.fileName, text, s.encoding, truncated = false, crlf = s.crlf)
                 }
@@ -235,10 +250,18 @@ class TextViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
+    /** [text] in the file's own encoding (native encoder); a letter it lacks is [UnencodableText]. */
+    private fun encodeInPlace(text: String, encoding: FileEncoding): ByteArray =
+        try {
+            encodeTextFile(text, encoding.name, encoding.bom)
+        } catch (e: MoException.Unencodable) {
+            throw UnencodableText(encoding.label, e.message)
+        }
+
     private fun saveProblem(e: Throwable): String {
         val app = getApplication<Application>()
         return when (e) {
-            is UnencodableText -> app.getString(R.string.text_unencodable, e.char?.toString() ?: "?", e.encoding)
+            is UnencodableText -> app.getString(R.string.text_unencodable, e.char ?: "?", e.encoding)
             else -> app.getString(R.string.save_failed, e.message ?: e.javaClass.simpleName)
         }
     }
@@ -306,9 +329,6 @@ class TextViewModel(app: Application) : AndroidViewModel(app) {
 /** Very long lines (minified JSON) are cut into slices of this many characters, so each fits a list row. */
 internal const val LINE_SLICE = 2_000
 
-/** Decoded text and the encoding it was in (see [TextEncoding.detect]); the encoding's label for display. */
-internal fun decodeText(bytes: ByteArray): Pair<String, String> = TextEncoding.detect(bytes).let { (t, e) -> t to e.label }
-
 internal fun splitLines(text: String): List<TextLine> {
     val out = ArrayList<TextLine>()
     var number = 0
@@ -326,18 +346,6 @@ internal fun splitLines(text: String): List<TextLine> {
     // A final newline does not start another line.
     if (out.size > 1 && out.last().text.isEmpty() && !out.last().continued) out.removeAt(out.lastIndex)
     return out
-}
-
-/**
- * Where to cut [bytes] at or before [end] so no UTF-8 letter is split in two (a split one would
- * make the whole text look like it is not UTF-8). Drops the last non-ASCII letter, which is
- * harmless at the cut of a file too large to show whole.
- */
-internal fun cutBeforeLastLetter(bytes: ByteArray, end: Int): Int {
-    var i = end
-    while (i > 0 && end - i < 3 && (bytes[i - 1].toInt() and 0xC0) == 0x80) i--
-    if (i > 0 && (bytes[i - 1].toInt() and 0xC0) == 0xC0) i--
-    return i
 }
 
 /** Up to [limit] bytes of the stream (InputStream.readNBytes needs API 33). */

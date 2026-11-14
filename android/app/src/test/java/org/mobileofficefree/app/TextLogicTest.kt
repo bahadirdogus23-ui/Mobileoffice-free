@@ -21,24 +21,15 @@ class TextLogicTest {
     }
 
     @Test
-    fun decodesUtf8AndFallsBackToTurkishWindowsCodePage() {
-        val turkish = "Şişli'de ığdır çağrı"
-        assertEquals(turkish to "UTF-8", decodeText(turkish.toByteArray(Charsets.UTF_8)))
-        val cp1254 = turkish.toByteArray(charset("windows-1254"))
-        assertEquals(turkish to "Windows-1254", decodeText(cp1254))
-        val bom = byteArrayOf(0xEF.toByte(), 0xBB.toByte(), 0xBF.toByte()) + "ğ".toByteArray()
-        assertEquals("ğ" to "UTF-8 (BOM)", decodeText(bom))
-        val utf16 = byteArrayOf(0xFF.toByte(), 0xFE.toByte()) + "İ".toByteArray(Charsets.UTF_16LE)
-        assertEquals("İ" to "UTF-16", decodeText(utf16))
-    }
-
-    @Test
-    fun aCutNeverSplitsALetter() {
-        val bytes = "aaaş".toByteArray() // 'ş' is two bytes
-        val end = bytes.size - 1 // in the middle of 'ş'
-        val cut = cutBeforeLastLetter(bytes, end)
-        assertEquals(3, cut)
-        assertEquals("aaa" to "UTF-8", decodeText(bytes.copyOf(cut)))
+    fun fileEncodingsShowThePickersLabels() {
+        // Names as the native decoder gives them (decoding itself is tested in tools/jvm-smoke).
+        assertEquals("Windows-1254", FileEncoding("windows-1254", bom = false, exact = true).label)
+        assertEquals("UTF-8 (BOM)", FileEncoding("UTF-8", bom = true, exact = true).label)
+        assertEquals("UTF-16", FileEncoding("UTF-16LE", bom = true, exact = true).label)
+        assertEquals("UTF-16LE", FileEncoding("UTF-16LE", bom = false, exact = true).label)
+        assertEquals("windows-1251", FileEncoding("windows-1251", bom = false, exact = true).label)
+        assertTrue(TextEncoding.UTF16BE.matches(FileEncoding("UTF-16BE", bom = true, exact = true)))
+        assertTrue(!TextEncoding.UTF8.matches(FileEncoding("UTF-8", bom = true, exact = true)))
     }
 
     @Test
@@ -96,6 +87,8 @@ class TextLogicTest {
         val failed = runCatching { TextEncoding.WINDOWS_1254.encode("Merhaba 😀") }.exceptionOrNull()
         assertTrue(failed is UnencodableText)
         assertEquals("Windows-1254", (failed as UnencodableText).encoding)
+        // The whole emoji, not half of its surrogate pair.
+        assertEquals("😀", failed.char)
     }
 
     @Test

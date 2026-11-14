@@ -59,7 +59,8 @@ fn headers_in_utf8(bytes: &[u8]) -> std::borrow::Cow<'_, [u8]> {
 /// trusted for Turkish: the part names no charset (the parser then reads UTF-8 and turns
 /// Windows-1254 letters into "�"; an HTML part may name it in a `<meta>` instead) or names
 /// ISO-8859-9 (which Turkish Windows programs write while using Windows-1254's quotes and
-/// dashes, dropped as control characters otherwise). `None` keeps the parser's text.
+/// dashes, dropped as control characters otherwise) or names CP857 (IBM857), which the parser
+/// does not know. `None` keeps the parser's text.
 fn reread_part(msg: &mail_parser::Message<'_>, part: &mail_parser::MessagePart<'_>) -> Option<String> {
     use mail_parser::decoders::{base64::base64_decode, quoted_printable::quoted_printable_decode};
     let html = matches!(part.body, mail_parser::PartType::Html(_));
@@ -68,7 +69,9 @@ fn reread_part(msg: &mail_parser::Message<'_>, part: &mail_parser::MessagePart<'
     }
     let charset = part.content_type().and_then(|c| c.attribute("charset")).map(str::to_ascii_lowercase);
     let declared = charset.as_deref().and_then(|c| encoding_rs::Encoding::for_label(c.trim().as_bytes()));
-    if charset.is_some() && declared.is_none_or(|e| e != encoding_rs::WINDOWS_1254) {
+    // CP857 (Turkish DOS): neither the parser nor encoding_rs knows it.
+    let dos = charset.as_deref().is_some_and(crate::text::is_cp857);
+    if charset.is_some() && !dos && declared.is_none_or(|e| e != encoding_rs::WINDOWS_1254) {
         return None;
     }
     let raw = msg.raw_message().get(part.offset_body as usize..part.offset_end as usize)?;
@@ -77,6 +80,9 @@ fn reread_part(msg: &mail_parser::Message<'_>, part: &mail_parser::MessagePart<'
         mail_parser::Encoding::Base64 => base64_decode(raw)?,
         mail_parser::Encoding::None => raw.to_vec(),
     };
+    if dos {
+        return Some(crate::text::decode_cp857(&body));
+    }
     if let Some(enc) = declared {
         return Some(enc.decode_without_bom_handling(&body).0.into_owned());
     }

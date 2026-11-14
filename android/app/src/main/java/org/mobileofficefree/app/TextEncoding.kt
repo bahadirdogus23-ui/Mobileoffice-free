@@ -26,11 +26,21 @@ enum class TextEncoding(val label: String, private val charset: String, private 
         val out = try {
             encoder.encode(CharBuffer.wrap(text))
         } catch (_: CharacterCodingException) {
-            val bad = text.firstOrNull { !Charset.forName(charset).newEncoder().canEncode(it) }
+            val probe = Charset.forName(charset).newEncoder()
+            var bad: String? = null
+            var i = 0
+            while (i < text.length && bad == null) {
+                val letter = text.substring(i, text.offsetByCodePoints(i, 1))
+                if (!probe.canEncode(letter)) bad = letter
+                i += letter.length
+            }
             throw UnencodableText(label, bad)
         }
         return bom + ByteArray(out.remaining()).also { out.get(it) }
     }
+
+    /** Whether a file read in [file] is written back the same way by this entry. */
+    fun matches(file: FileEncoding): Boolean = charset == file.name && bom.isNotEmpty() == file.bom
 
     companion object {
         /** BOMs first; then strict UTF-8; otherwise Turkish Windows-1254, which most Turkish non-UTF-8 text is. */
@@ -53,8 +63,20 @@ enum class TextEncoding(val label: String, private val charset: String, private 
     }
 }
 
+/**
+ * The encoding an opened text file is in, as the native decoder found it: a WHATWG [name]
+ * ("UTF-8", "UTF-16LE", "windows-1254", "windows-1251"…), whether it began with a byte order
+ * mark, and whether writing the text back gives the file's bytes exactly ([exact]; false when
+ * decoding had to put "�" in, so saving over the file would change what was not edited).
+ */
+data class FileEncoding(val name: String, val bom: Boolean, val exact: Boolean) {
+    /** The name shown to the person: the picker's label when it is one of [TextEncoding]. */
+    val label: String
+        get() = TextEncoding.entries.firstOrNull { it.matches(this) }?.label ?: if (bom) "$name (BOM)" else name
+}
+
 /** The text has a letter ([char]) that [encoding] cannot store. */
-class UnencodableText(val encoding: String, val char: Char?) : Exception("“$char” cannot be written in $encoding")
+class UnencodableText(val encoding: String, val char: String?) : Exception("“$char” cannot be written in $encoding")
 
 /** Lines joined with Windows line ends when [crlf]; the editor works with "\n" only. */
 fun withLineEnds(text: String, crlf: Boolean): String = if (crlf) text.replace("\r\n", "\n").replace("\n", "\r\n") else text
