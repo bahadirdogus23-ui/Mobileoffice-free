@@ -41,7 +41,7 @@ pub(crate) fn register(db: &FontDb) -> usize {
 }
 
 /// The typographic family of a font file (`name` ID 16, else 1; Windows Unicode records).
-fn family(data: &[u8]) -> Option<String> {
+pub(crate) fn family(data: &[u8]) -> Option<String> {
     let n = be16(data, 4)? as usize;
     let r = (0..n).map(|i| 12 + i * 16).find(|r| data.get(*r..*r + 4) == Some(b"name"))?;
     let (off, len) = (be32(data, r + 8)? as usize, be32(data, r + 12)? as usize);

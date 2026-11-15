@@ -47,9 +47,11 @@ pub fn import(bytes: &[u8]) -> Result<(Presentation, Vec<String>), DeckError> {
                 }
             }
             // A new slide (or notes page) in a SlideListWithText.
+            // Each 28-byte atom would otherwise make a slide: a hostile stream of millions of
+            // them filled the memory before the engine refused "too many slides".
             SLIDE_PERSIST_ATOM => match list {
-                Some(0) => slides.push(SlideText::default()),
-                Some(2) => notes.push(Vec::new()),
+                Some(0) if slides.len() < MAX_SLIDES => slides.push(SlideText::default()),
+                Some(2) if notes.len() < MAX_SLIDES => notes.push(Vec::new()),
                 _ => {}
             },
             TEXT_CHARS_ATOM | TEXT_BYTES_ATOM => {
@@ -189,6 +191,9 @@ const SLIDE_LIST_WITH_TEXT: u16 = 0x0FF0;
 const TEXT_HEADER_ATOM: u16 = 0x0F9F;
 const TEXT_CHARS_ATOM: u16 = 0x0FA0;
 const TEXT_BYTES_ATOM: u16 = 0x0FA8;
+
+/// The most slides read (PowerPoint's own limit is far below).
+const MAX_SLIDES: usize = 10_000;
 
 /// The most of the document stream read (256 MB).
 const MAX_STREAM: u64 = 256 * 1024 * 1024;

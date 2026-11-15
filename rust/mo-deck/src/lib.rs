@@ -346,4 +346,10 @@ impl DeckDoc {
 }
 
 #[cfg(test)]
+mod robustness;
+#[cfg(test)]
 mod tests;
+
+#[cfg(test)]
+#[global_allocator]
+static ALLOC: mo_fuzz::CountingAlloc = mo_fuzz::CountingAlloc;

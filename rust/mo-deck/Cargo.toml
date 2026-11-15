@@ -31,6 +31,7 @@ cfb = "0.15"
 mo-convert = { workspace = true }
 
 [dev-dependencies]
+mo-fuzz = { workspace = true }
 # The engine's built-in sample deck gives the tests a real presentation.
 deckcraft-engine = { workspace = true }
 # Writes the small picture the tests add to a slide (already in the tree through the renderer).

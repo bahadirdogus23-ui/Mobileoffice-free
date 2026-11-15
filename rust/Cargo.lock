@@ -2367,6 +2367,7 @@ dependencies = [
  "deckcraft-render",
  "deckcraft-text",
  "mo-convert",
+ "mo-fuzz",
  "png",
  "roxmltree",
  "thiserror 2.0.21",

@@ -1,7 +1,7 @@
 use super::*;
 
 /// The engine's sample deck ("Northern Lights"), written out as PPTX bytes.
-fn sample_pptx() -> Vec<u8> {
+pub(crate) fn sample_pptx() -> Vec<u8> {
     let mut s = deckcraft_engine::Session::default();
     deckcraft_engine::sample::open_sample(&mut s).unwrap();
     deckcraft_pptx::export(&s.doc().unwrap().doc).unwrap()
@@ -367,7 +367,7 @@ fn opendocument_presentations_open() {
 }
 
 /// A record of the PowerPoint 97–2003 binary format: header (version/instance, type, length) and body.
-fn ppt_record(ver: u16, instance: u16, rec_type: u16, body: &[u8]) -> Vec<u8> {
+pub(crate) fn ppt_record(ver: u16, instance: u16, rec_type: u16, body: &[u8]) -> Vec<u8> {
     let mut out = Vec::new();
     out.extend_from_slice(&(ver | instance << 4).to_le_bytes());
     out.extend_from_slice(&rec_type.to_le_bytes());
@@ -376,7 +376,7 @@ fn ppt_record(ver: u16, instance: u16, rec_type: u16, body: &[u8]) -> Vec<u8> {
     out
 }
 
-fn ppt_text(text_type: u32, text: &str, wide: bool) -> Vec<u8> {
+pub(crate) fn ppt_text(text_type: u32, text: &str, wide: bool) -> Vec<u8> {
     let mut out = ppt_record(0, 0, 0x0F9F, &text_type.to_le_bytes());
     if wide {
         let chars: Vec<u8> = text.encode_utf16().flat_map(u16::to_le_bytes).collect();
