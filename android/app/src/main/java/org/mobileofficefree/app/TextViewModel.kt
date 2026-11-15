@@ -180,6 +180,7 @@ class TextViewModel(app: Application) : AndroidViewModel(app) {
     fun save(then: PendingLeave? = null) {
         val s = state ?: return
         val app = getApplication<Application>()
+        android.util.Log.i(LOG_TAG, "save requested (${s.encoding}, crlf=${s.crlf}, dirty=$dirty)")
         if (s.uri.authority == ArchiveFiles.authority(app)) {
             notice = app.getString(R.string.text_save_in_archive)
             return
@@ -202,6 +203,7 @@ class TextViewModel(app: Application) : AndroidViewModel(app) {
             busy = false
             result.fold(
                 onSuccess = {
+                    android.util.Log.i(LOG_TAG, "save written")
                     state = it
                     notice = app.getString(R.string.saved)
                     when (then) {
