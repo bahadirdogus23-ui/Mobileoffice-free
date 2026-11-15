@@ -186,6 +186,7 @@ class TextViewModel(app: Application) : AndroidViewModel(app) {
         }
         if (!s.encoding.exact) {
             notice = app.getString(R.string.text_save_inexact, s.encoding.label)
+            android.util.Log.i(LOG_TAG, "save refused: not exact (${s.encoding})")
             return
         }
         val text = draft.text
@@ -209,7 +210,10 @@ class TextViewModel(app: Application) : AndroidViewModel(app) {
                         null -> Unit
                     }
                 },
-                onFailure = { notice = saveProblem(it) },
+                onFailure = {
+                    notice = saveProblem(it)
+                    android.util.Log.w(LOG_TAG, "save failed (${s.encoding})", it)
+                },
             )
         }
     }
@@ -329,6 +333,8 @@ class TextViewModel(app: Application) : AndroidViewModel(app) {
         /** The on-screen editor stays responsive up to about this many characters. */
         const val MAX_EDIT_CHARS = 300_000
         private const val MAX_MATCHES = 10_000
+        /** Logcat tag for save refusals and failures (the emulator smoke test prints these lines). */
+        private const val LOG_TAG = "BadoText"
     }
 }
 

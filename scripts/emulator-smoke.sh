@@ -988,7 +988,10 @@ save_text() {
     if wait_written "$name" "$old" 15; then
         save_outcome WRITTEN "written"
     else
-        save_outcome FAIL "the file did not change within 15 s of tapping Save"
+        # The app's own explanation (a toast uiautomator cannot see) is also logged.
+        local why
+        why=$(sh_adb logcat -d -s 'BadoText:*' 2>/dev/null | grep -E 'save (failed|refused)|Exception|Error' | head -n 3 | tr '\n' ' ')
+        save_outcome FAIL "the file did not change within 15 s of tapping Save${why:+ (app log: $why)}"
     fi
 }
 
