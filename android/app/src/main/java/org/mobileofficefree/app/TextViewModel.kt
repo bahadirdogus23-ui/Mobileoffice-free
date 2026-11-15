@@ -85,9 +85,15 @@ class TextViewModel(app: Application) : AndroidViewModel(app) {
                     // legacy code page: Windows-1254 for Turkish, Windows-1251 for Russian…).
                     val decoded = decodeTextFile(if (truncated) bytes.copyOf(MAX_BYTES) else bytes, !truncated)
                     val raw = decoded.text
-                    val encoding = FileEncoding(decoded.encoding, decoded.bom, decoded.exact)
+                    val crlf = "\r\n" in raw
+                    // Saving writes one kind of line end throughout: a file that mixes CRLF with bare
+                    // LF, or has old-Mac bare CR, would not come back byte for byte, so it is only
+                    // saved as a copy (the same rule as bytes the encoding cannot round-trip).
+                    val lf = raw.replace("\r\n", "")
+                    val sameEnds = '\r' !in lf && (!crlf || '\n' !in lf)
+                    val encoding = FileEncoding(decoded.encoding, decoded.bom, decoded.exact && sameEnds)
                     recents.remember(uri, info.name, DocumentKind.TEXT, info.size)
-                    stateFor(uri, info.name, raw.replace("\r\n", "\n"), encoding, truncated, crlf = "\r\n" in raw)
+                    stateFor(uri, info.name, raw.replace("\r\n", "\n"), encoding, truncated, crlf = crlf)
                 }
             }
             loading = false

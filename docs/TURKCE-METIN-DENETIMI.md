@@ -140,7 +140,7 @@ Bildirilmemiş metin için tek bir karar yeri var; Word, e-posta, kişi/takvim, 
    yazıyor; Excel bunları da Latin-1 okur (Ý ý Þ). Belirtime uyduğumuz için bilerek dokunulmadı.
 5. ~~Kotlin metin görüntüleyici BOM'suz UTF-16'yı tanımıyor ve 8 bitlik her metni 1254 sayıyor.~~ **Düzeltildi**: görüntüleyici
    Rust'taki ortak çözücüyü kullanıyor ve kaydederken dosyanın kodlamasını sessizce değiştirmiyor (yukarıdaki tablo).
-   Kalan: karışık satır sonlu dosya (bazı satırlar CRLF, bazıları LF) kaydedilince hepsi CRLF oluyor (önceden de böyleydi);
+   Karışık satır sonlu (CRLF ile LF bir arada) ya da tek CR satır sonlu dosyalar artık yerinde kaydedilmez, yalnız kopya olarak (15 Kasım);
    "Farklı kodlamayla kaydet" listesi hâlâ uygulamanın altı kodlaması (açılan dosyanın 1251 gibi kodlaması listede yok,
    yerinde kaydetme onu koruyor).
 6. ~~E-postada `charset=ibm857` çözülmüyor.~~ **Düzeltildi** (gövde parçaları). Kalan: RFC 2047 başlıklarında `=?ibm857?…?=`
