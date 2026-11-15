@@ -95,6 +95,8 @@ LTO'dan sonra: `.text` 42,6 → 37,0 MB, `.eh_frame` 4,9 → 2,7 MB, `.gcc_excep
 `.rela.dyn` 3,6 → 1,7 MB (paketlemeyle ~0). Aynı oran arm64'e uyarsa 48 MB'lık kitaplık ~37 MB'a
 iner.
 
+**CI ölçümü (15 Kasım, ilk arm64 derlemesi):** yayın APK'sındaki `lib/arm64-v8a/libmo_ffi.so` **45,2 MB** (önceki raporda 48,0 MB; arada başka özellikler de eklendi). Kazanç arm64'te x86_64 tahmininden çok küçük çıktı (~%6): Android derlemesinde bağlama zamanı iyileştirmesinin bir kısmı zaten etkiliydi ya da arm64 kodu bu değişikliklerden daha az etkileniyor. APK boyutu ~60,2 MB. Sıradaki seçenekler (ölçerek): `opt-level = "z"` (hız ölçümüyle), `--icf=all`.
+
 **İndirme ve kurulum boyutu:**
 
 - `jniLibs.useLegacyPackaging = false`: `.so` APK'da **sıkıştırılmadan** ve sayfa hizalı duruyor,
