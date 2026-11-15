@@ -52,7 +52,7 @@ Varsayılan çalıştırma ve ayrıca `MO_FUZZ_ITERS=2000 MO_FUZZ_SEED=777` ile:
   `Document::open_with_password`): 170 KB → 3,4 sn, 206 KB → 5,1 sn, 276 KB → 9,5 sn,
   416 KB → 21 sn. Telefonda birkaç kat yavaş: 400 KB'lık bir dosya açılırken uygulama dakikalarca
   yanıt vermez. Bulan girdi: `pdf` hedefi, tohum 777, 4. durum (146 798 bayt).
-- Panik değil, köprüden kesilemez (motorun içinde). Öneri upstream'e: `trailer` sözcüğünden sonra
+- Panik değil; motorun içinde düzeltilemez. **Köprüde önlem (15 Kasım):** `mo-pdf` açmadan önce ayraçsız bitişik `trailer` sözcüklerini sayar; 64'ten fazlaysa dosya “bozuk” diye reddedilir (gerçek PDF'lerde sözcükten sonra boşluk, `<<` ya da yorum gelir). Test: `trailer_keywords_run_together_are_refused_quickly`. Öneri upstream'e: `trailer` sözcüğünden sonra
   boşluk/ayraç ya da `<<` beklemek, ya da en fazla bir sözcük uzunluğu okumak.
 
 ## Köprülerde ve bağımlılıklarda bulunup düzeltilenler (özet)

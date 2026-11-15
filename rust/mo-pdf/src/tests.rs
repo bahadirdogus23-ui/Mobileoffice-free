@@ -633,3 +633,25 @@ fn nothing_is_written_from_a_document_without_pages() {
         assert!(doc.extract(&[0]).is_err(), "{what}");
     }
 }
+
+#[test]
+fn trailer_keywords_run_together_are_refused_quickly() {
+    let sound = include_bytes!("../testdata/jspdf-form.pdf").to_vec();
+    for f in [
+        &include_bytes!("../testdata/jspdf-form.pdf")[..],
+        include_bytes!("../testdata/pdflib-form.pdf"),
+        include_bytes!("../testdata/browser-printed-form.pdf"),
+    ] {
+        assert_eq!(glued_trailers(f), 0);
+    }
+    // A broken cross-reference offset plus thousands of glued `trailer` keywords made PdfCraft's
+    // repair take minutes; the file is now refused before the engine sees it.
+    let mut bad = sound.clone();
+    let at = bad.windows(9).rposition(|w| w == b"startxref").unwrap();
+    let glued = b"trailer".repeat(20_000);
+    bad.splice(at..at, glued);
+    let started = std::time::Instant::now();
+    assert!(matches!(PdfDoc::open(bad, None), Err(PdfError::Open(_))));
+    assert!(started.elapsed() < std::time::Duration::from_secs(2));
+    assert!(PdfDoc::open(sound, None).is_ok());
+}

@@ -106,8 +106,32 @@ fn written(doc: &Document) -> Result<Vec<u8>, PdfError> {
     pdfcraft_cos::write_full(doc, &SaveOptions::default()).map_err(|e| PdfError::Save(e.to_string()))
 }
 
+/// How many `trailer` keywords run straight into a regular character ("trailertrailer…"). A real
+/// PDF follows the keyword with white space, `<<` or a comment. PdfCraft's cross-reference repair
+/// parses after every `trailer` it finds, which takes time growing with the square of such runs
+/// (a 400 KB file kept a phone busy for minutes; docs/upstream-notlar/motor-panikleri.md).
+fn glued_trailers(bytes: &[u8]) -> usize {
+    const KEY: &[u8] = b"trailer";
+    let mut count = 0;
+    let mut i = 0;
+    while let Some(at) = bytes.get(i..).and_then(|rest| rest.windows(KEY.len()).position(|w| w == KEY)) {
+        let end = i + at + KEY.len();
+        if bytes.get(end).is_some_and(|b| b.is_ascii_alphanumeric()) {
+            count += 1;
+        }
+        i = end;
+    }
+    count
+}
+
+/// More glued `trailer` keywords than any real file has: the file is refused as damaged.
+const MAX_GLUED_TRAILERS: usize = 64;
+
 impl PdfDoc {
     pub fn open(bytes: Vec<u8>, password: Option<&str>) -> Result<PdfDoc, PdfError> {
+        if glued_trailers(&bytes) > MAX_GLUED_TRAILERS {
+            return Err(PdfError::Open("the file is damaged (its trailer keywords are run together)".into()));
+        }
         let doc = Document::open_with_password(Arc::new(bytes), password).map_err(opening)?;
         // A file whose pages cannot be found did not really open: showing it empty, and saving
         // that, would pass an empty PDF off as the person's document.
