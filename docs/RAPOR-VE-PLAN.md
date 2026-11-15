@@ -824,7 +824,7 @@ Varsayım: Başlangıç Kasım 2026; 1–2 geliştirici + yapay zekâ destekli g
   - [x] izinler ve dağıtım ([ADR-0005](adr/0005-izinler-ve-dagitim.md))
 - [x] Faz 1 iş listesi ve tahminlerin güncellenmesi (§13.2)
 
-### 13.2 Durum (14 Kasım 2026)
+### 13.2 Durum (15 Kasım 2026)
 
 Geliştirme planın sırasından hızlı ilerledi; Faz 3 ve 4'ün bazı işleri öne alındı. Kalanlar:
 
@@ -836,6 +836,7 @@ Geliştirme planın sırasından hızlı ilerledi; Faz 3 ve 4'ün bazı işleri 
 | 3 | Sürüyor | Kayıpsız kaydetmenin korpusla sistemli testi (otomatik kurtarma ve 8 Türkçe şablon eklendi: dilekçe, özgeçmiş, resmî yazı, tutanak, ders planı, bütçe, proforma, teklif) |
 | 4 | Tamam | EPUB, EML/MSG, VCF/ICS okunur (mo-convert, ekler açılır); belgelerin içinde arama, geniş ekranda iki sütun ve klavye kısayolları tamam (XLS biçimleri tamam; ODP içe aktarma tamam, PPT yalnız metinleriyle) |
 | 5 | Sürüyor | Tamam: erişilebilirlik geçişi (TalkBack adları, durumlar, büyük yazı; `docs/ERISILEBILIRLIK.md`), mağaza simgesi ve tanıtım görseli, küçültülmüş yayın APK’sının emülatörde 27 adımlık duman testi (her derlemede; açılış süresi ve bellek tablosu), kayıp denetimi (eksik açılan dosyanın üzerine kayıt engeli; `docs/KAYIP-DENETIMI.md`), ana ekran açılış takılması, CAD görünüm çizimi hızlandırması ve büyük çizimlerde bellek uyarısı. Kalan: telefon ekran görüntüleri, gerçek cihazda yeni ölçümler, motor kaynaklı sınırlar (CadCraft açılış belleği; `docs/upstream-notlar/`) ayrı ve planlı motor güncellemesiyle; GridCraft satır sınırı `c0ee120` güncellemesiyle kalktı |
+| 5 (ek, 14–15 Kasım) | Sürüyor | Motor güncellemeleri: GridCraft (büyük XLSX sayfaları eksiksiz), PdfCraft (sağlamlık, hız); acadrust 0.6.6’ya sabitlendi. Excel’de kalan kayıplar üzerine kaydı engelliyor. Türkçe metin denetimi (`docs/TURKCE-METIN-DENETIMI.md`): DWG/DXF kod sayfası ve yazı tipi, metin/HTML/e-posta/RTF/UDF/ZIP adları, Türkçe arama; metin görüntüleyici dosyanın kendi kodlamasıyla kaydeder. Sunumlarda paketli Inter. TalkBack sayfa metnini ve hücreleri okur. Emülatör testine Türkçe + 2× yazı + koyu tema turu. Bozuk/kötü niyetli dosya testleri (`rust/mo-fuzz`), bulunan çökme/donma/bellek sorunları giderildi. Kalan: cihazda deneme (Test Paneli 4), Office uyumlu slayt yazı tipleri (sahibin kararı), PdfCraft `trailer` yavaşlığı ve CadCraft açılış belleği motor tarafında |
 
 ### 13.3 Faz kabul testlerine örnekler
 
