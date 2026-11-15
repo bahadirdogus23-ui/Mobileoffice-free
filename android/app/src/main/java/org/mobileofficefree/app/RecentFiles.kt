@@ -44,7 +44,7 @@ class RecentFiles(context: Context) {
 
     fun remember(uri: Uri, name: String, kind: DocumentKind, size: Long) {
         // Files unpacked from an archive live in the cache only while it is open.
-        if (uri.authority == ArchiveFiles.authority(app)) return
+        if (ArchiveFiles.isCacheCopy(app, uri)) return
         // Incognito: nothing is listed (the file opens all the same).
         if (PrivacySettings.get(app).incognito) return
         runCatching {

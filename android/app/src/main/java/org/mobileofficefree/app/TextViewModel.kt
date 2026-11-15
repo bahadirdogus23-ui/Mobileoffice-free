@@ -181,7 +181,8 @@ class TextViewModel(app: Application) : AndroidViewModel(app) {
         val s = state ?: return
         val app = getApplication<Application>()
         android.util.Log.i(LOG_TAG, "save requested (${s.encoding}, crlf=${s.crlf}, dirty=$dirty)")
-        if (s.uri.authority == ArchiveFiles.authority(app)) {
+        if (ArchiveFiles.isCacheCopy(app, s.uri)) {
+            android.util.Log.i(LOG_TAG, "save refused: a cache copy (${s.uri})")
             notice = app.getString(R.string.text_save_in_archive)
             return
         }

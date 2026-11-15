@@ -19,6 +19,14 @@ import kotlinx.coroutines.withContext
 object ArchiveFiles {
     fun authority(context: Context) = "${context.packageName}.files"
     fun dir(context: Context) = File(context.cacheDir, "archive")
+
+    /**
+     * Whether [uri] is a temporary copy in the app's cache (an unpacked archive entry, a scan, an
+     * attachment) rather than a file in shared storage. The same provider also hands out real
+     * files under shared storage (its "storage" path), which are saved over like any other.
+     */
+    fun isCacheCopy(context: Context, uri: android.net.Uri): Boolean =
+        uri.authority == authority(context) && uri.pathSegments.firstOrNull() != "storage"
 }
 
 /** [sevenZip]: the 7z archive copied into the cache (7z is read from a file), null for a ZIP. */
