@@ -223,9 +223,11 @@ class SheetViewModel(app: Application) : AndroidViewModel(app) {
     fun restoreRecovery() {
         val copy = recoveryOffer ?: return
         val current = (screen as? Screen.Sheet)?.state ?: return
+        val uri = source
         recoveryOffer = null
         viewModelScope.launch {
             val state = withContext(engine) { runCatching { replaceDocument(SheetDocument.open(copy.name, copy.file.readBytes(), null)) }.getOrNull() }
+            uri?.let { recovery.note(it, if (state != null) "copy restored" else "copy could not be restored") }
             if (state != null) {
                 screen = Screen.Sheet(state.copy(fileName = current.fileName))
                 // Recovered edits are not in the file yet.
@@ -239,7 +241,10 @@ class SheetViewModel(app: Application) : AndroidViewModel(app) {
     /** Throws the recovery copy away (the person chose the file as it is). */
     fun discardRecovery() {
         recoveryOffer = null
-        source?.let(recovery::clear)
+        source?.let {
+            recovery.note(it, "copy discarded")
+            recovery.clear(it)
+        }
     }
 
     /** Back or the arrow: closes, asking first when there are unsaved edits. */

@@ -95,6 +95,28 @@
 # that left the file unchanged or broken, is a failure. Its own summary section and
 # metrics-save.tsv (for the opens).
 #
+# Fourth pass, "Kurtarma" (recovery of unsaved edits; AGENTS.md invariant 4): the files in
+# SAMPLES_DIR/samples-recovery.tsv are edited and NOT saved. Once the app's recovery copy is
+# written (RecoveryHub copies unsaved edits about 5 s after the first one; the app logs
+# "copy written" with the tag "BadoRecovery"; at least SMOKE_RECOVERY_WAIT s are waited), the app
+# is ended with `am force-stop`, which runs no onStop and so is as close as adb gets to a crash or
+# the system ending it in the background. The cold start with the same file must then offer the
+# copy ("Unsaved changes found": "Restore" / "Discard"). Each case is a cold start, then:
+#   - recover-xlsx: the save pass's cell edit (A1 becomes TYPED_NUMBER; the top bar's "Save" must
+#     come up, which shows the edit was taken), then "Restore": the formula bar (A1 is selected
+#     again) must show the typed number.
+#   - recover-docx: the save pass's Word edit, then Back out of editing until the top bar shows
+#     "Save" (the document is changed); after "Restore" the top bar must show "Save" again (only a
+#     changed document has it; the opened file is not changed) and the viewer's own search
+#     ("Search", the typed word) must find the word: the page itself is a picture uiautomator
+#     cannot read. Without the search field only the prompt, "Restore" and "Save" are checked.
+#   - discard-xlsx: the same cell edit, then "Discard": the formula bar shows A1's old text and
+#     there is no "Save"; a third cold start must not offer anything (the copy was deleted).
+# In every case the opened file must keep its bytes (nothing was saved; recovery never writes
+# over the file by itself) and nothing may appear next to it. On a failure the app's
+# "BadoRecovery" log lines for the file are added to the detail. A UI path that cannot be found
+# is a SKIP, as in the save pass. Its own summary section.
+#
 # Environment: SMOKE_OPEN_TIMEOUT (s, default 60) and SMOKE_BIG_OPEN_TIMEOUT (s, default 180, for
 # the samples marked "big" in samples.tsv), SMOKE_OPEN_BUDGET (s, default 15) and
 # SMOKE_BIG_OPEN_BUDGET (s, default 45), SMOKE_PSS_BUDGET_MB (default 768) (budgets are whole
@@ -105,7 +127,10 @@
 # second-pass steps that would start later are skipped, so the CI job stays within its timeout),
 # SMOKE_SAVE_PASS (1/0, default 1), SMOKE_SAVE_TIME_LIMIT (min since the script started, default
 # SMOKE_TIME_LIMIT + 4: save cases that would start later are skipped, and the whole pass when
-# fewer than 4 min are left).
+# fewer than 4 min are left), SMOKE_RECOVERY_PASS (1/0, default 1), SMOKE_RECOVERY_TIME_LIMIT (min
+# since the script started, default SMOKE_SAVE_TIME_LIMIT + 2: recovery cases that would start later
+# are skipped, and the whole pass when fewer than 3 min are left), SMOKE_RECOVERY_WAIT (s, default 7:
+# the least time between the edit and stopping the app).
 
 set -euo pipefail
 
@@ -136,6 +161,9 @@ TR_FONT_SCALE=${SMOKE_TR_FONT_SCALE:-2.0}
 TIME_LIMIT=${SMOKE_TIME_LIMIT:-34}
 SAVE_PASS=${SMOKE_SAVE_PASS:-1}
 SAVE_TIME_LIMIT=${SMOKE_SAVE_TIME_LIMIT:-$((TIME_LIMIT + 4))}
+RECOVERY_PASS=${SMOKE_RECOVERY_PASS:-1}
+RECOVERY_TIME_LIMIT=${SMOKE_RECOVERY_TIME_LIMIT:-$((SAVE_TIME_LIMIT + 2))}
+RECOVERY_WAIT=${SMOKE_RECOVERY_WAIT:-7}
 
 # What the app says on screen (English and Turkish, android/app/src/main/res/values*/strings.xml).
 FAILURE_TEXTS=(
@@ -170,6 +198,15 @@ TOOLBAR_LABELS=("Pages" "Sayfalar" "Reading" "Okuma")
 NO_PAGES_TEXTS=("no page of this PDF could be read" "hiçbir sayfası okunamadı")
 # The app's logcat tag for Word, slide and PDF saves (SAVE_LOG_TAG in PagedViewModel.kt).
 SAVE_LOG_TAG=BadoSave
+# The recovery pass: the prompt's title and buttons (recovery_title, recovery_restore,
+# recovery_discard), the viewer's search and its "no match" (search, no_matches), and the app's
+# logcat tag for recovery copies (RECOVERY_LOG_TAG in Recovery.kt).
+RECOVERY_TITLES=("Unsaved changes found" "Kaydedilmemiş değişiklikler bulundu")
+RESTORE_LABELS=("Restore" "Geri yükle")
+DISCARD_LABELS=("Discard" "Sil")
+SEARCH_LABELS=("Search" "Ara")
+NO_MATCH_TEXTS=("None" "Yok")
+RECOVERY_LOG_TAG=BadoRecovery
 # What is typed: ASCII, as `input text` sends it; the cell gets a number.
 TYPED_WORD=Smoke42
 TYPED_NUMBER=4242
@@ -187,13 +224,16 @@ METRICS="$OUT/metrics.tsv"
 RESULTS=()
 RESULTS_TR=()
 RESULTS_SAVE=()
+RESULTS_RECOVERY=()
 FAILED=0
 SLOW=0
 SLOW_TR=0
 SLOW_SAVE=0
+SLOW_RECOVERY=0
 # The result of the last record() call.
 LAST_RESULT=""
-# 1: en-US as the emulator comes; 2: tr-TR, font scale 2.0, dark (second_pass); 3: saving (save_pass).
+# 1: en-US as the emulator comes; 2: tr-TR, font scale 2.0, dark (second_pass); 3: saving (save_pass);
+# 4: recovery (recovery_pass).
 PASS=1
 # How the file name is looked for in the title bar (ui_query mode).
 TITLE_MODE=exact
@@ -236,7 +276,8 @@ ui_dump() {  # ui_dump FILE: the active window's UI tree, or an empty file if ui
 # a disabled control: the slide bar keeps a greyed-out Save), "show" (prints every value containing a label), "field-center" / "field-text" (no labels: "x y"
 # or the text of the first text field, class EditText, on screen), "picker-save" / "picker-name"
 # (no labels: "x y" of the system file picker's enabled save button, its android:id/button1 or a
-# button reading "Save" in any case, or the text of its file name field).
+# button reading "Save" in any case, or the text of its file name field), "after-field" (no labels:
+# the first non-empty text after the first text field, outside it: the viewer's search counter).
 # Exit status 0 when found.
 ui_query() {
     python3 - "$@" << 'PY'
@@ -295,6 +336,19 @@ if mode in ("picker-save", "picker-name"):
             if pick(node) and not disabled(node):
                 print(center(node))
                 sys.exit(0)
+    sys.exit(1)
+if mode == "after-field":
+    field = next((n for n in nodes if n.get("class", "").endswith("EditText")), None)
+    if field is None:
+        sys.exit(1)
+    inside = set(field.iter())
+    passed = False
+    for node in nodes:
+        if node is field:
+            passed = True
+        elif passed and node not in inside and (node.get("text") or "").strip():
+            print((node.get("text") or "").strip())
+            sys.exit(0)
     sys.exit(1)
 if mode in ("field-center", "field-text"):
     for node in nodes:
@@ -396,7 +450,8 @@ count_slow() {
     case "$PASS" in
         1) SLOW=$((SLOW + 1)) ;;
         2) SLOW_TR=$((SLOW_TR + 1)) ;;
-        *) SLOW_SAVE=$((SLOW_SAVE + 1)) ;;
+        3) SLOW_SAVE=$((SLOW_SAVE + 1)) ;;
+        *) SLOW_RECOVERY=$((SLOW_RECOVERY + 1)) ;;
     esac
 }
 
@@ -422,7 +477,8 @@ record() {  # record STEP RESULT DETAIL
     case "$PASS" in
         1) RESULTS+=("| $step | $result | $start | $visible | $pss | ${detail//|//} |") ;;
         2) RESULTS_TR+=("| $step | $result | $start | $visible | $pss | ${detail//|//} |") ;;
-        *) RESULTS_SAVE+=("| $step | $result | $start | $visible | $pss | ${detail//|//} |") ;;
+        3) RESULTS_SAVE+=("| $step | $result | $start | $visible | $pss | ${detail//|//} |") ;;
+        *) RESULTS_RECOVERY+=("| $step | $result | $start | $visible | $pss | ${detail//|//} |") ;;
     esac
     LAST_RESULT=$result
     if [ -n "$M_TOTAL$M_SEEN$M_PSS" ]; then
@@ -1564,6 +1620,347 @@ save_pass() {
     SAVE_ENDED=$(date +%s)
 }
 
+# --------------------------------------------------------------------------------------------
+# Fourth pass: edit, stop the app without saving, reopen and restore or discard ("Kurtarma")
+
+RECOVERY_STARTED=""
+RECOVERY_ENDED=""
+# What recovery_open saw: "prompt" (the recovery prompt), "document" (the document screen and no
+# prompt), "failed" (an open failure, a dead process or nothing in time); R_DETAIL says more.
+R_SEEN=""
+R_DETAIL=""
+# How long recovery_open keeps looking for the prompt once the document screen is up (a workbook
+# shows it only after its import notes were read on the engine thread).
+RECOVERY_GRACE=5
+
+# recovery_lines MARK [TEXT]: the app's "BadoRecovery" lines in the recorded logcat since MARK
+# (those containing TEXT).
+recovery_lines() { tail -n +"$(($1 + 1))" "$LOGCAT" 2> /dev/null | grep -F " $RECOVERY_LOG_TAG: " | grep -F -- "${2:-}" || true; }
+
+# recovery_open STEP NAME MIME ROUTE: a cold start with the document (a VIEW intent, as in
+# open_document); the screen is watched until the recovery prompt shows or the document screen has
+# been up for RECOVERY_GRACE s without one. Sets R_SEEN and R_DETAIL; import notes are read away
+# once. Always status 0.
+recovery_open() {
+    local step=$1 name=$2 mime=$3 route=$4 xml="$OUT/$1.window.xml" uri output started deadline doc_at="" notes=0
+    R_SEEN=""
+    R_DETAIL=""
+    uri="$URI_BASE/$(uri_encode "$name")"
+    sh_adb am force-stop "$PKG" || true
+    started=$(date +%s)
+    if [ "$route" = filter ]; then
+        output=$(sh_adb am start -W -a android.intent.action.VIEW -d "$uri" -t "$mime" -p "$PKG" 2>&1 || true)
+    else
+        output=$(sh_adb am start -W -a android.intent.action.VIEW -d "$uri" -t "$mime" -n "$ACTIVITY" 2>&1 || true)
+    fi
+    echo "$output" > "$OUT/$step.am.txt"
+    if grep -qE '^Error|Exception|unable to resolve' <<< "$output"; then
+        R_SEEN=failed
+        R_DETAIL="the intent did not start the app: $(grep -m1 -E 'Error|Exception|unable' <<< "$output")"
+        return 0
+    fi
+    deadline=$((started + OPEN_TIMEOUT))
+    while :; do
+        if ! alive; then
+            R_SEEN=failed
+            R_DETAIL="the app process died while opening"
+            break
+        fi
+        if ui_dump "$xml"; then
+            if ui_query "$xml" exact "${RESTORE_LABELS[@]}" && ui_query "$xml" contains "${RECOVERY_TITLES[@]}"; then
+                R_SEEN=prompt
+                R_DETAIL="recovery prompt shown after $(($(date +%s) - started)) s"
+                break
+            fi
+            if ui_query "$xml" contains "${FAILURE_TEXTS[@]}"; then
+                R_SEEN=failed
+                R_DETAIL="the app reported a problem on screen: $(ui_query "$xml" show "${FAILURE_TEXTS[@]}" | head -3 | tr '\n' ' ')"
+                break
+            fi
+            if [ "$notes" = 0 ] && ui_query "$xml" exact "${IMPORT_NOTES[@]}"; then
+                sh_adb input keyevent KEYCODE_BACK || true
+                notes=1
+            elif [ -z "$doc_at" ] && ui_query "$xml" exact "${BACK_LABELS[@]}" && ui_query "$xml" "$TITLE_MODE" "${name%.*}" "$name"; then
+                doc_at=$(date +%s)
+            fi
+        fi
+        if [ -n "$doc_at" ] && [ "$(date +%s)" -ge $((doc_at + RECOVERY_GRACE)) ]; then
+            R_SEEN=document
+            R_DETAIL="document screen after $((doc_at - started)) s and no recovery prompt within $RECOVERY_GRACE s more"
+            break
+        fi
+        if [ "$(date +%s)" -ge "$deadline" ]; then
+            R_SEEN=failed
+            R_DETAIL="neither the document screen nor the recovery prompt within $OPEN_TIMEOUT s (see $step.png / $step.window.xml)"
+            break
+        fi
+        sleep "$POLL"
+    done
+    screenshot "$step"
+}
+
+# recovery_word_edit STEP: the save pass's Word edit, then Back out of editing until the top bar
+# shows "Save" (only a changed document has it). Status 1 (and a SKIP) when it does not.
+recovery_word_edit() {
+    local step=$1 xml="$OUT/$1.window.xml" i
+    word_edit "$step" || return 1
+    # The first Back may only close the keyboard; leaving editing brings Save to the top bar.
+    for i in 1 2 3 4; do
+        if ui_dump "$xml" && ui_query "$xml" exact "${SAVE_LABELS[@]}"; then
+            save_note "typed \"$TYPED_WORD\" after \"Edit\", left editing: \"Save\" in the top bar"
+            return 0
+        fi
+        if [ "$i" -lt 4 ]; then
+            sh_adb input keyevent KEYCODE_BACK || true
+            sleep 2
+        fi
+    done
+    save_outcome SKIP "no \"Save\" in the top bar after typing \"$TYPED_WORD\" and leaving editing: the edit did not reach the document"
+    return 1
+}
+
+# recovery_wait_copy MARK NAME: waits at least RECOVERY_WAIT s, and until the app logged the
+# recovery copy of NAME as written (at most 25 s); notes which.
+recovery_wait_copy() {
+    local mark=$1 name=$2 started waited
+    started=$(date +%s)
+    while :; do
+        waited=$(($(date +%s) - started))
+        if [ "$waited" -ge "$RECOVERY_WAIT" ] && [ -n "$(recovery_lines "$mark" "copy written: $name")" ]; then
+            save_note "recovery copy logged as written, app force-stopped after $waited s"
+            return 0
+        fi
+        if [ "$waited" -ge 25 ]; then
+            save_note "no \"copy written\" log line within $waited s of the edit, app force-stopped anyway"
+            return 0
+        fi
+        sleep 1
+    done
+}
+
+# recovery_restored_sheet STEP: after "Restore", the formula bar (A1 is selected again) must show
+# the typed number; status 1 when it does not within 15 s. R_DETAIL says what was seen.
+recovery_restored_sheet() {
+    local step=$1 xml="$OUT/$1.window.xml" deadline shown="" bar="no \"Save\" in the top bar"
+    deadline=$(($(date +%s) + 15))
+    while :; do
+        if ui_dump "$xml"; then
+            shown=$(field_text "$step")
+            if [ "$shown" = "$TYPED_NUMBER" ]; then
+                if ui_query "$xml" exact "${SAVE_LABELS[@]}"; then bar="\"Save\" in the top bar"; fi
+                R_DETAIL="the formula bar shows A1 = $shown again, $bar"
+                return 0
+            fi
+        fi
+        if [ "$(date +%s)" -ge "$deadline" ]; then
+            R_DETAIL="the formula bar shows \"$shown\" after \"Restore\", not the typed $TYPED_NUMBER: the edit did not come back"
+            return 1
+        fi
+        sleep 1
+    done
+}
+
+# recovery_restored_word STEP: after "Restore" the top bar must show "Save" (status 1 when it does
+# not within 15 s); then the viewer's search for the typed word sets W_FOUND to "yes", "no" or ""
+# (the search could not be used). R_DETAIL says what was seen.
+W_FOUND=""
+recovery_restored_word() {
+    local step=$1 xml="$OUT/$1.window.xml" at counter="" deadline
+    W_FOUND=""
+    if ! wait_label "$step" 15 exact "${SAVE_LABELS[@]}"; then
+        R_DETAIL="no \"Save\" in the top bar within 15 s of \"Restore\": the copy was not opened"
+        return 1
+    fi
+    R_DETAIL="\"Save\" in the top bar again"
+    if ! tap_label "$step" center-exact "${SEARCH_LABELS[@]}"; then
+        R_DETAIL="$R_DETAIL; no \"Search\" in the top bar, so the restored text was not checked"
+        return 0
+    fi
+    sleep 1
+    ui_dump "$xml" || true
+    if ! at=$(ui_query "$xml" field-center); then
+        R_DETAIL="$R_DETAIL; no search field after \"Search\", so the restored text was not checked"
+        return 0
+    fi
+    tap_at "$at"
+    sleep 1
+    sh_adb input text "$TYPED_WORD"
+    deadline=$(($(date +%s) + 15))
+    while :; do
+        sleep 1
+        if ui_dump "$xml"; then
+            # The counter beside the field ("1/1"); the top bar's page counter looks the same.
+            counter=$(ui_query "$xml" after-field 2> /dev/null || true)
+            if [[ "$counter" =~ ^[0-9]+/[0-9]+$ ]]; then
+                W_FOUND=yes
+                R_DETAIL="$R_DETAIL; the search finds \"$TYPED_WORD\" ($counter)"
+                return 0
+            fi
+            if ui_query "$xml" exact "${NO_MATCH_TEXTS[@]}"; then
+                W_FOUND=no
+                R_DETAIL="$R_DETAIL; the search finds no \"$TYPED_WORD\": the restored document lacks the typed word"
+                return 0
+            fi
+        fi
+        if [ "$(date +%s)" -ge "$deadline" ]; then
+            R_DETAIL="$R_DETAIL; the search showed no result within 15 s (beside the field: \"$counter\"), so the restored text was not checked"
+            return 0
+        fi
+    done
+}
+
+# recovery_discarded STEP FIRST: after "Discard" the formula bar must show A1's old text FIRST and
+# the top bar no "Save"; then a third cold start must offer nothing. Leaves its outcome in S_RESULT.
+recovery_discarded() {
+    local step=$1 first=$2 name=$3 mime=$4 route=$5 xml="$OUT/$1.window.xml" shown again_mark
+    sleep 3
+    ui_dump "$xml" || true
+    shown=$(field_text "$step")
+    if [ "$shown" = "$TYPED_NUMBER" ] || { [ -n "$first" ] && [ "$shown" != "$first" ]; }; then
+        save_outcome FAIL "after \"Discard\" the formula bar shows \"$shown\", not A1's old \"$first\""
+        return 0
+    fi
+    if ui_query "$xml" exact "${SAVE_LABELS[@]}"; then
+        save_outcome FAIL "after \"Discard\" the top bar still offers \"Save\" (the workbook counts as changed)"
+        return 0
+    fi
+    save_note "\"Discard\": A1 shows \"$shown\" again, no \"Save\""
+    again_mark=$(log_mark)
+    recovery_open "$step-again" "$name" "$mime" "$route"
+    if [ "$R_SEEN" = prompt ]; then
+        tap_label "$step" center-exact "${DISCARD_LABELS[@]}" || true
+        save_outcome FAIL "the third cold start offered a recovery copy again: \"Discard\" did not delete it"
+    elif [ "$R_SEEN" != document ]; then
+        save_outcome FAIL "the third cold start failed: $R_DETAIL"
+    elif [ -n "$(recovery_lines "$again_mark" "offered: $name")" ]; then
+        save_outcome FAIL "the third cold start found a recovery copy (app log), though no prompt was seen"
+    else
+        save_outcome PASS "third cold start: $R_DETAIL"
+    fi
+}
+
+# recovery_case NAME MIME ROUTE STEP CASE: cold start, the edit, the wait for the recovery copy,
+# `am force-stop`, a cold start with the same file, then "Restore" or "Discard" and the checks.
+recovery_case() {
+    local name=$1 mime=$2 route=$3 step=$4 case=$5 xml="$OUT/$4.window.xml" old mark before after added first="" why
+    S_RESULT=""
+    S_DETAIL=""
+    old=$(hash_of "$SAMPLES/$name")
+    before=$(folder_list)
+    mark=$(log_mark)
+    recovery_open "$step-open" "$name" "$mime" "$route"
+    if [ "$R_SEEN" = prompt ]; then
+        # A copy left by an earlier run on this device: thrown away so the case starts clean.
+        tap_label "$step" center-exact "${DISCARD_LABELS[@]}" || true
+        save_note "a recovery copy from an earlier run was offered and discarded"
+        if wait_label "$step" 15 exact "${BACK_LABELS[@]}"; then R_SEEN=document; fi
+    fi
+    if [ "$R_SEEN" != document ]; then
+        save_outcome SKIP "the document did not open: $R_DETAIL"
+    else
+        case "$case" in
+            recover-xlsx | discard-xlsx)
+                ui_dump "$xml" || true
+                first=$(field_text "$step")
+                if sheet_edit "$step" && ! wait_label "$step" 10 exact "${SAVE_LABELS[@]}"; then
+                    save_outcome SKIP "no \"Save\" in the top bar after the edit (field shows \"$(field_text "$step")\"): the edit was not taken"
+                fi
+                ;;
+            recover-docx) recovery_word_edit "$step" || true ;;
+            *) save_outcome SKIP "unknown case \"$case\" in samples-recovery.tsv" ;;
+        esac
+    fi
+    if [ -z "$S_RESULT" ]; then
+        recovery_wait_copy "$mark" "$name"
+        # No onStop, no copy on leaving: what a crash or the system ending the app leaves behind.
+        sh_adb am force-stop "$PKG" || true
+        sleep 1
+        if alive; then save_note "the process was still there after am force-stop"; fi
+        recovery_open "$step-reopen" "$name" "$mime" "$route"
+        if [ "$R_SEEN" = document ]; then
+            save_outcome FAIL "reopened without saving: $R_DETAIL, so the unsaved edit is lost"
+        elif [ "$R_SEEN" != prompt ]; then
+            save_outcome FAIL "reopening failed: $R_DETAIL"
+        elif [ "$case" = discard-xlsx ]; then
+            save_note "$R_DETAIL"
+            if tap_label "$step" center-exact "${DISCARD_LABELS[@]}"; then
+                recovery_discarded "$step" "$first" "$name" "$mime" "$route"
+            else
+                save_outcome SKIP "the prompt's \"Discard\" could not be tapped"
+            fi
+        else
+            save_note "$R_DETAIL"
+            if ! tap_label "$step" center-exact "${RESTORE_LABELS[@]}"; then
+                save_outcome SKIP "the prompt's \"Restore\" could not be tapped"
+            elif [ "$case" = recover-xlsx ]; then
+                if recovery_restored_sheet "$step"; then save_outcome PASS "\"Restore\": $R_DETAIL"; else save_outcome FAIL "$R_DETAIL"; fi
+            elif ! recovery_restored_word "$step"; then
+                save_outcome FAIL "$R_DETAIL"
+            elif [ "$W_FOUND" = no ]; then
+                save_outcome FAIL "\"Restore\": $R_DETAIL"
+            else
+                save_outcome PASS "\"Restore\": $R_DETAIL"
+            fi
+        fi
+    fi
+    # Whatever happened, nothing was saved: the opened file keeps its bytes and has no company.
+    after=$(folder_list)
+    added=$(added_files "$before" "$after")
+    if ! original_kept "$name" "$old"; then
+        S_RESULT=FAIL
+        save_note "$ORIGINAL_STATE although nothing was saved"
+    else
+        save_note "$ORIGINAL_STATE"
+    fi
+    if [ -n "$added" ]; then
+        S_RESULT=FAIL
+        save_note "files appeared next to it: $added"
+    fi
+    screenshot "$step"
+    if ! check_logs "$step" "$mark"; then
+        S_RESULT=FAIL
+        save_note "crash signals in logcat (see the log above and $step.logcat.txt)"
+    fi
+    if [ "$S_RESULT" = FAIL ]; then
+        why=$(app_log "$RECOVERY_LOG_TAG" "$name")
+        save_note "app log: ${why:-no $RECOVERY_LOG_TAG line for $name}"
+    fi
+    if [ "$S_RESULT" = SKIP ]; then echo "::warning title=Emulator smoke test: $step skipped::$S_DETAIL"; fi
+    record "$step" "${S_RESULT:-SKIP}" "${S_DETAIL:-the driver decided nothing}"
+    sh_adb am force-stop "$PKG" || true
+    if [ "$S_RESULT" = FAIL ]; then clear_crash_report; fi
+}
+
+recovery_pass() {
+    local list="$SAMPLES/samples-recovery.tsv" elapsed name mime route step case
+    PASS=4
+    TITLE_MODE=title
+    RECOVERY_STARTED=$(date +%s)
+    elapsed=$(((RECOVERY_STARTED - RUN_STARTED) / 60))
+    if [ ! -s "$list" ]; then
+        record recovery-setup SKIP "no samples-recovery.tsv in $SAMPLES"
+        return
+    fi
+    if [ "$elapsed" -ge $((RECOVERY_TIME_LIMIT - 3)) ]; then
+        echo "::warning title=Emulator smoke test: recovery pass skipped::the earlier passes took $elapsed min (limit $RECOVERY_TIME_LIMIT min)"
+        record recovery-setup SKIP "skipped: the earlier passes took $elapsed min, too close to the $RECOVERY_TIME_LIMIT min limit"
+        return
+    fi
+    log "recovery pass: edit, stop the app without saving, reopen, restore or discard"
+    while IFS=$'\t' read -r name _ <&3; do
+        timeout 60 adb push "$SAMPLES/$name" "$DEVICE_DIR/$name" > /dev/null < /dev/null
+    done 3< "$list"
+    while IFS=$'\t' read -r name mime route _ _ step case <&3; do
+        if [ $((($(date +%s) - RUN_STARTED) / 60)) -ge "$RECOVERY_TIME_LIMIT" ]; then
+            record "$step" SKIP "skipped: the run reached its $RECOVERY_TIME_LIMIT min limit"
+            continue
+        fi
+        recovery_case "$name" "$mime" "$route" "$step" "$case"
+    done 3< "$list"
+    sh_adb am force-stop "$PKG" || true
+    RECOVERY_ENDED=$(date +%s)
+}
+
 finish() {
     local status=$?
     [ -n "${LOGCAT_PID:-}" ] && kill "$LOGCAT_PID" 2> /dev/null || true
@@ -1613,6 +2010,22 @@ finish() {
                 ".docx and an unreadable slide in .pptx, for which \"Save as\" must come up instead; mixed line ends)" \
                 "or open (a PDF without a readable page); the file must keep its bytes. Pulled copies are in the logs artifact as *.saved-*. ${SLOW_SAVE} over budget (⚠)." \
                 "Pass: $(((${SAVE_ENDED:-$(date +%s)} - ${SAVE_STARTED:-$(date +%s)}) / 60)) min."
+        fi
+        if [ "${#RESULTS_RECOVERY[@]}" -gt 0 ]; then
+            echo
+            echo "### Kurtarma"
+            echo
+            echo "| Step | Result | am start | Visible | PSS | Detail |"
+            echo "|---|---|---|---|---|---|"
+            printf '%s\n' "${RESULTS_RECOVERY[@]}"
+            echo
+            echo "Edit without saving, wait for the app's recovery copy (\`$RECOVERY_LOG_TAG\` \"copy written\" in logcat," \
+                "at least ${RECOVERY_WAIT} s), end the app with \`am force-stop\` (no onStop: like a crash or the system" \
+                "ending it), then open the same file again: the recovery prompt must come up. *recover-*: \"Restore\" must" \
+                "bring the edit back (the formula bar shows the typed number; for Word, \"Save\" in the top bar and the" \
+                "viewer's search finds the typed word). *discard-*: \"Discard\" must show the file as it is and the next" \
+                "open must offer nothing. Every case: the opened file keeps its bytes and nothing appears next to it." \
+                "Pass: $(((${RECOVERY_ENDED:-$(date +%s)} - ${RECOVERY_STARTED:-$(date +%s)}) / 60)) min."
         fi
     } > "$OUT/summary.md"
     cat "$OUT/summary.md"
@@ -1687,6 +2100,11 @@ fi
 # Last, in English again (second_pass put the app's locale back): it changes files.
 if [ "$SAVE_PASS" = 1 ]; then
     save_pass
+fi
+
+# After saving, still in English: it leaves recovery copies in the app's own folder.
+if [ "$RECOVERY_PASS" = 1 ]; then
+    recovery_pass
 fi
 
 if [ "$FAILED" -gt 0 ]; then

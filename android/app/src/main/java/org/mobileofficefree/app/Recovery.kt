@@ -2,12 +2,16 @@ package org.mobileofficefree.app
 
 import android.content.Context
 import android.net.Uri
+import android.util.Log
 import java.io.File
 import java.io.IOException
 import java.security.MessageDigest
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.joinAll
 import kotlinx.coroutines.withTimeoutOrNull
+
+/** Logcat tag of the recovery copies (written, offered, restored, discarded, cleared); the emulator smoke test prints these lines. */
+internal const val RECOVERY_LOG_TAG = "BadoRecovery"
 
 /**
  * Auto-recovery, as Office keeps it: unsaved edits are copied every so often into the app's own
@@ -31,6 +35,7 @@ class RecoveryStore(context: Context) {
         tmp.writeBytes(bytes)
         replaceRecoveryCopy(tmp, File(dir, "$k.bin"))
         File(dir, "$k.name").writeText(name)
+        Log.i(RECOVERY_LOG_TAG, "copy written: ${logName(uri)}, ${bytes.size} bytes")
     }
 
     /** The recovery copy of the file at [uri], if one was left behind. */
@@ -39,14 +44,25 @@ class RecoveryStore(context: Context) {
         val bin = File(dir, "$k.bin")
         if (!bin.isFile || bin.length() == 0L) return null
         val name = runCatching { File(dir, "$k.name").readText() }.getOrNull() ?: return null
+        Log.i(RECOVERY_LOG_TAG, "copy found, offered: ${logName(uri)}, ${bin.length()} bytes")
         return Copy(name, bin, bin.lastModified())
     }
 
     /** Forgets the copy (the file was saved, or the changes were thrown away on purpose). */
     fun clear(uri: Uri) {
         val k = key(uri)
+        val had = File(dir, "$k.bin").isFile
         listOf("bin", "name", "tmp").forEach { File(dir, "$k.$it").delete() }
+        if (had) Log.i(RECOVERY_LOG_TAG, "copy cleared: ${logName(uri)}")
     }
+
+    /** Notes in the log that [what] happened to the copy of the file at [uri] ("copy restored"…). */
+    fun note(uri: Uri, what: String) {
+        Log.i(RECOVERY_LOG_TAG, "$what: ${logName(uri)}")
+    }
+
+    /** The file's name for the log: the last segment of [uri] (the file name for the app's own and most file URIs). */
+    private fun logName(uri: Uri): String = uri.lastPathSegment?.substringAfterLast('/') ?: "?"
 }
 
 /** Report failed replacement instead of treating an old or missing copy as newly saved. */

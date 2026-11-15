@@ -43,6 +43,12 @@ viewer's rule for a file that mixes CRLF and LF line ends (saved only as a copy)
 a copy of rust/mo-pdf/testdata/jspdf-form.pdf; the PDF without pages mirrors the "empty page tree"
 file of rust/mo-pdf's `a_file_whose_pages_cannot_be_found_does_not_open` (`PdfError::NoPages`).
 
+`samples-recovery.tsv` lists what the smoke test's recovery pass edits without saving (section
+"Kurtarma"): the same seven columns, with the case `recover-xlsx`, `recover-docx` (the app is
+stopped after its recovery copy is written, the file reopened and the copy restored) or
+`discard-xlsx` (the copy thrown away instead). Separate copies again ("mo-recover-…"): the app
+keys its recovery copies by the file's URI, so no other pass's edits can be offered back here.
+
 Legacy binary formats: only .xls has a file in the repository's test data (mo-grid); there is no
 .doc or .ppt file to copy, so those two are not covered here.
 
@@ -639,6 +645,22 @@ def make_pdf_without_pages(path):
     write_pdf(path, objects)
 
 
+# The recovery pass (samples-recovery.tsv): (name, MIME type, step, case).
+RECOVERY_CASES = [
+    ("mo-recover-xlsx.xlsx", XLSX_MIME, "recover-xlsx", "recover-xlsx"),
+    ("mo-recover-docx.docx", DOCX_MIME, "recover-docx", "recover-docx"),
+    ("mo-discard-xlsx.xlsx", XLSX_MIME, "discard-xlsx", "discard-xlsx"),
+]
+
+
+def make_recovery_samples(out):
+    """Writes the recovery pass's files into `out`; returns the rows of samples-recovery.tsv."""
+    make_xlsx(out / "mo-recover-xlsx.xlsx")
+    make_docx(out / "mo-recover-docx.docx")
+    make_xlsx(out / "mo-discard-xlsx.xlsx")
+    return [(name, mime, "filter", "viewer", "small", step, case) for name, mime, step, case in RECOVERY_CASES]
+
+
 def make_save_samples(out):
     """Writes the save pass's files into `out`; returns the rows of samples-save.tsv."""
     make_docx(out / "mo-save-docx.docx")
@@ -917,6 +939,12 @@ def main(out, big=True):
     print("save pass (edit and save over the file, or as a new PDF):")
     for name, mime, route, expect, size, step, case in save_rows:
         print(f"{name:24} {(out / name).stat().st_size:>9} B  {route:8} {step:18} {case:10} {mime}")
+
+    recovery_rows = make_recovery_samples(out)
+    (out / "samples-recovery.tsv").write_text("".join("\t".join(r) + "\n" for r in recovery_rows), encoding="utf-8")
+    print("recovery pass (edit, stop the app without saving, reopen and restore or discard):")
+    for name, mime, route, expect, size, step, case in recovery_rows:
+        print(f"{name:24} {(out / name).stat().st_size:>9} B  {route:8} {step:18} {case:12} {mime}")
 
 
 if __name__ == "__main__":

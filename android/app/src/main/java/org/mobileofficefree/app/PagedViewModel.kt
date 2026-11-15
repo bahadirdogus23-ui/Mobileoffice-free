@@ -155,9 +155,11 @@ abstract class PagedViewModel(app: Application, private val kind: DocumentKind) 
     /** Takes the recovery copy back: the document as it was when last copied. */
     fun restoreRecovery() {
         val copy = recoveryOffer ?: return
+        val uri = state?.uri
         recoveryOffer = null
         viewModelScope.launch {
             val pages = withContext(engine) { runCatching { restoreFrom(copy.name, copy.file.readBytes()) }.getOrNull() }
+            uri?.let { recovery.note(it, if (pages != null) "copy restored" else "copy could not be restored") }
             if (pages != null) pagesChanged(pages) else tell(getApplication<Application>().getString(R.string.recovery_failed))
         }
     }
@@ -165,7 +167,10 @@ abstract class PagedViewModel(app: Application, private val kind: DocumentKind) 
     /** Throws the recovery copy away (the person chose the file as it is). */
     fun discardRecovery() {
         recoveryOffer = null
-        state?.uri?.let(recovery::clear)
+        state?.uri?.let {
+            recovery.note(it, "copy discarded")
+            recovery.clear(it)
+        }
     }
 
     /** After a save: the recovery copy is not needed any more. Call on the main thread. */

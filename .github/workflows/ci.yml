@@ -190,6 +190,10 @@ jobs:
   # PPTX with an unreadable slide and a TXT with mixed line ends must not. A filled-in PDF form is
   # saved as a new "-duzenlendi" file through "Save as" (the opened PDF keeps its bytes), and a PDF
   # without a readable page must not open. Its cases stop at SMOKE_SAVE_TIME_LIMIT minutes.
+  # A fourth pass (summary section "Kurtarma") edits an XLSX and a DOCX without saving, waits for
+  # the app's recovery copy, ends the app with `am force-stop` (like a crash) and reopens the file:
+  # the copy must be offered, "Restore" must bring the edit back and "Discard" must delete it, and
+  # the file itself must keep its bytes. Its cases stop at SMOKE_RECOVERY_TIME_LIMIT minutes.
   emulator-smoke:
     name: Release APK on an emulator
     needs: android
@@ -215,6 +219,8 @@ jobs:
           SMOKE_TIME_LIMIT: 34
           # The same for the save pass, which runs last.
           SMOKE_SAVE_TIME_LIMIT: 38
+          # And for the recovery pass after it (about 4 min).
+          SMOKE_RECOVERY_TIME_LIMIT: 40
         with:
           api-level: 34
           target: google_apis
