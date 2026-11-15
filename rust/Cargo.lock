@@ -2336,6 +2336,7 @@ dependencies = [
  "cadcraft-geom",
  "cadcraft-io",
  "cadcraft-render",
+ "mo-fuzz",
  "thiserror 2.0.21",
 ]
 

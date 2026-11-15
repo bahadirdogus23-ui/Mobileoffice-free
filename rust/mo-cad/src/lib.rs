@@ -355,4 +355,10 @@ mod fonts;
 mod text;
 
 #[cfg(test)]
+mod robustness;
+#[cfg(test)]
 mod tests;
+
+#[cfg(test)]
+#[global_allocator]
+static ALLOC: mo_fuzz::CountingAlloc = mo_fuzz::CountingAlloc;

@@ -20,3 +20,6 @@ cadcraft-dxf = { workspace = true }
 cadcraft-fonts = { workspace = true }
 acadrust = { workspace = true }
 thiserror = { workspace = true }
+
+[dev-dependencies]
+mo-fuzz = { workspace = true }
