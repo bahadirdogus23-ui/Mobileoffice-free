@@ -9,8 +9,10 @@ repository.workspace = true
 publish = false
 
 [lib]
-# cdylib: libmo_ffi.so for Android; lib: lets uniffi-bindgen and tests link it.
-crate-type = ["cdylib", "lib"]
+# cdylib only: libmo_ffi.so for Android, read by uniffi-bindgen with `--library`; unit tests still build.
+# Do not add "lib" back: rustc skips LTO when an rlib is among the outputs, and the release .so then
+# grows by about a quarter (docs/BOYUT.md).
+crate-type = ["cdylib"]
 name = "mo_ffi"
 
 [dependencies]

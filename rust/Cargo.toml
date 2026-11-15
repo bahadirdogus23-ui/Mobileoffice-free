@@ -68,6 +68,7 @@ debug = false
 
 [profile.release]
 opt-level = "s"
+# Takes effect only because mo-ffi builds a cdylib alone (see its Cargo.toml and docs/BOYUT.md).
 lto = "fat"
 codegen-units = 1
 strip = true
