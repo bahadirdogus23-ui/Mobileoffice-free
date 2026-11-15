@@ -936,4 +936,10 @@ fn indices(pages: &[u32]) -> Vec<usize> {
 }
 
 #[cfg(test)]
+mod robustness;
+#[cfg(test)]
 mod tests;
+
+#[cfg(test)]
+#[global_allocator]
+static ALLOC: mo_fuzz::CountingAlloc = mo_fuzz::CountingAlloc;

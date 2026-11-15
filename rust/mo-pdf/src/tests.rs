@@ -1,7 +1,7 @@
 use super::*;
 
 /// A PDF of `n` A4 pages reading "Sayfa 1" … "Sayfa n", from the spreadsheet's PDF writer.
-fn pdf(n: usize, label: &str) -> Vec<u8> {
+pub(crate) fn pdf(n: usize, label: &str) -> Vec<u8> {
     let mut d = gridcraft_pdf::PdfDoc::new();
     for i in 1..=n {
         let p = d.add_page(595.0, 842.0);

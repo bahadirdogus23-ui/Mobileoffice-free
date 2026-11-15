@@ -96,6 +96,9 @@ pub(crate) fn typed_on(doc: &Document, page: usize) -> Vec<Typed> {
         .collect()
 }
 
+/// The most page-tree levels walked up from a page for its inherited resources.
+const MAX_TREE_DEPTH: usize = 64;
+
 /// Line spacing, in font sizes.
 const LEADING: f64 = 1.25;
 
@@ -262,8 +265,11 @@ pub(crate) fn add_invisible_words(doc: &mut Document, page: usize, words: &[OcrW
     // The page's own resources (copied from its parents when inherited) get the font.
     let page_ref = *annot::page_refs(doc).map_err(|e| edit(&e))?.get(page).ok_or_else(|| PdfError::Edit("no such page".into()))?;
     let mut resources = Dict::new();
+    // Up the page tree at most MAX_TREE_DEPTH levels: a damaged file whose /Parent leads back
+    // to the page itself looped forever.
     let mut at = Some(page_ref);
-    while let Some(r) = at {
+    for _ in 0..MAX_TREE_DEPTH {
+        let Some(r) = at else { break };
         let d = doc.get(r).as_dict().cloned();
         let Some(d) = d else { break };
         if let Some(res) = d.get(b"Resources").map(|o| doc.resolve(o)).and_then(|o| o.as_dict().cloned()) {

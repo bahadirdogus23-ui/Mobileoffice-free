@@ -26,4 +26,5 @@ ttf-parser = "0.25"
 wordcraft-fonts = { workspace = true }
 
 [dev-dependencies]
+mo-fuzz = { workspace = true }
 png = "0.18"
