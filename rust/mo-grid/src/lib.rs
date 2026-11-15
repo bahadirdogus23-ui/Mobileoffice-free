@@ -993,7 +993,13 @@ fn is_delimited_text(name: &str) -> bool {
 }
 
 #[cfg(test)]
+mod robustness;
+#[cfg(test)]
 mod tests;
+
+#[cfg(test)]
+#[global_allocator]
+static ALLOC: mo_fuzz::CountingAlloc = mo_fuzz::CountingAlloc;
 mod turkish;
 mod turkish_docs;
 mod xls_styles;

@@ -349,12 +349,18 @@ pub fn from_package(name: &str, bytes: &[u8]) -> Vec<Loss> {
     // Part names compare without case (OPC); the zip index of each.
     let entries: Vec<(String, usize)> =
         (0..zip.len()).filter_map(|i| zip.by_index_raw(i).ok().map(|f| (f.name().trim_start_matches('/').to_ascii_lowercase(), i))).collect();
-    let index_of = |part: &str| entries.iter().find(|(n, _)| *n == part.to_ascii_lowercase()).map(|&(_, i)| i);
+    // Looked up by name for every relationship target: a hostile package has a hundred thousand
+    // of each, too many to compare one by one. The first entry of a name wins, as in the engine.
+    let by_name: std::collections::HashMap<&str, usize> = entries.iter().rev().map(|(n, i)| (n.as_str(), *i)).collect();
+    let index_of = |part: &str| by_name.get(part.to_ascii_lowercase().as_str()).copied();
+    // What the relationship, workbook and drawing parts together may inflate to (entries of a
+    // hostile zip can share one compressed stream that unpacks to gigabytes).
+    let mut meta_left = MAX_META_TOTAL;
     let mut out = Vec::new();
     let mut workbook = String::from("xl/workbook.xml");
     let mut sheets: Vec<String> = Vec::new();
     for (rels_name, i) in entries.iter().filter(|(n, _)| n.ends_with(".rels")) {
-        let xml = read_entry(&mut zip, *i, MAX_META);
+        let xml = read_entry(&mut zip, *i, MAX_META, &mut meta_left);
         // `xl/worksheets/_rels/sheet1.xml.rels` is the relationships of `xl/worksheets/sheet1.xml`.
         let source = rels_name.strip_suffix(".rels").map(|s| s.replacen("_rels/", "", 1)).unwrap_or_default();
         let dir = source.rsplit_once('/').map(|(d, _)| d).unwrap_or("");
@@ -372,7 +378,7 @@ pub fn from_package(name: &str, bytes: &[u8]) -> Vec<Loss> {
         }
     }
     if let Some(i) = index_of(&workbook) {
-        out.extend(workbook_losses(&read_entry(&mut zip, i, MAX_META)));
+        out.extend(workbook_losses(&read_entry(&mut zip, i, MAX_META, &mut meta_left)));
     }
     sheets.sort();
     sheets.dedup();
@@ -389,7 +395,7 @@ pub fn from_package(name: &str, bytes: &[u8]) -> Vec<Loss> {
         entries.iter().filter(|(n, _)| n.starts_with("xl/drawings/") && n.ends_with(".xml") && !n.contains("/_rels/")).map(|&(_, i)| i).collect();
     for i in drawings {
         let mut ink = false;
-        visit(&read_entry(&mut zip, i, MAX_META), &mut Vec::new(), &mut |_, name| ink |= name == "contentPart");
+        visit(&read_entry(&mut zip, i, MAX_META, &mut meta_left), &mut Vec::new(), &mut |_, name| ink |= name == "contentPart");
         if ink {
             out.push(Loss::Drawings);
         }
@@ -402,11 +408,16 @@ pub fn from_package(name: &str, bytes: &[u8]) -> Vec<Loss> {
 /// Largest relationships, workbook or drawing part read here (passthrough.rs `MAX_META`).
 const MAX_META: u64 = 16 * 1024 * 1024;
 
-fn read_entry(zip: &mut zip::ZipArchive<Cursor<&[u8]>>, i: usize, limit: u64) -> Vec<u8> {
+/// The most all those parts together are read to (256 MB).
+const MAX_META_TOTAL: u64 = 256 * 1024 * 1024;
+
+/// Entry `i`, at most `limit` bytes of it and at most `left` (which is lowered by what was read).
+fn read_entry(zip: &mut zip::ZipArchive<Cursor<&[u8]>>, i: usize, limit: u64, left: &mut u64) -> Vec<u8> {
     let mut out = Vec::new();
     if let Ok(f) = zip.by_index(i) {
-        let _ = f.take(limit).read_to_end(&mut out);
+        let _ = f.take(limit.min(*left)).read_to_end(&mut out);
     }
+    *left = left.saturating_sub(out.len() as u64);
     out
 }
 
@@ -516,7 +527,7 @@ fn workbook_losses(xml: &[u8]) -> Vec<Loss> {
 }
 
 /// `xml`: a worksheet's elements after its cells (`tail`), or the whole worksheet.
-fn sheet_losses(xml: &[u8], tail: bool) -> Vec<Loss> {
+pub(crate) fn sheet_losses(xml: &[u8], tail: bool) -> Vec<Loss> {
     let mut out = Vec::new();
     let mut stack = if tail { vec!["worksheet".to_string()] } else { Vec::new() };
     visit(xml, &mut stack, &mut |up, name| {
@@ -547,13 +558,19 @@ fn sheet_losses(xml: &[u8], tail: bool) -> Vec<Loss> {
 /// The part of a worksheet after its cells (everything after `</sheetData>`), read as a stream so
 /// the cells are never held. Every element the reader may skip comes after the cells in the
 /// schema order. A sheet without `<sheetData>` yields its first 16 MB, and `false`.
-fn sheet_tail(mut f: impl Read) -> (Vec<u8>, bool) {
+pub(crate) fn sheet_tail(mut f: impl Read) -> (Vec<u8>, bool) {
     const CHUNK: usize = 1 << 20;
     const NEEDLE: &[u8] = b"sheetData";
     let mut buf: Vec<u8> = Vec::new();
     let mut head: Vec<u8> = Vec::new();
     let mut found = false;
     let mut chunk = vec![0u8; CHUNK];
+    // Each byte is looked at a bounded number of times however the reads split the stream (a
+    // reader may hand out a few bytes at a time): markers are looked for from `from` on, and a
+    // marker whose `>` has not arrived yet waits in `pending` (its place, whether it is a start
+    // tag, and how far its `>` has been looked for).
+    let mut from = 0usize;
+    let mut pending: Option<(usize, bool, usize)> = None;
     loop {
         let n = match f.read(&mut chunk) {
             Ok(0) | Err(_) => break,
@@ -567,31 +584,58 @@ fn sheet_tail(mut f: impl Read) -> (Vec<u8>, bool) {
         // whose closing `>` has arrived. `<` is always escaped in text and attribute values, so a
         // name preceded by `<` or `</` (and maybe a prefix) is markup.
         let mut cut = None;
-        let mut from = 0;
-        while let Some(p) = find(&buf[from..], NEEDLE).map(|p| p + from) {
-            from = p + NEEDLE.len();
-            if let Some(open) = markup(&buf[..p])
-                && let Some(gt) = buf[from..].iter().position(|&b| b == b'>')
-            {
-                // An end tag, or an empty element; not the start tag of the cells.
-                let closing = !open || buf[from..from + gt].ends_with(b"/");
-                if closing {
-                    cut = Some(from + gt + 1);
+        loop {
+            let (p, open, searched) = match pending.take() {
+                Some(waiting) => waiting,
+                None => {
+                    let Some(p) = find(&buf[from..], NEEDLE).map(|p| p + from) else {
+                        // A marker may still start in the last few bytes.
+                        from = from.max(buf.len().saturating_sub(NEEDLE.len() - 1));
+                        break;
+                    };
+                    from = p + NEEDLE.len();
+                    match markup(&buf[..p]) {
+                        Some(open) => (p, open, from),
+                        None => continue,
+                    }
                 }
+            };
+            let after = p + NEEDLE.len();
+            let Some(gt) = buf[searched..].iter().position(|&b| b == b'>').map(|g| searched + g) else {
+                // No `>` yet, so none for a later marker either: wait for more bytes.
+                pending = Some((p, open, buf.len()));
+                break;
+            };
+            // An end tag, or an empty element; not the start tag of the cells.
+            if !open || buf[after..gt].ends_with(b"/") {
+                cut = Some(gt + 1);
             }
         }
-        match cut {
+        let drop_to = match cut {
             Some(c) => {
                 found = true;
                 head = Vec::new();
-                buf.drain(..c);
+                c
             }
-            // Nothing before the last few bytes can still start a marker.
-            None if !found && buf.len() > 4096 => {
+            // Nothing before the last few bytes can still start a marker (but a waiting one).
+            None if !found && buf.len() > 8192 => {
                 let keep = buf.len() - 4096;
-                buf.drain(..keep);
+                match pending {
+                    // A "marker" with no `>` in 16 MB is no markup.
+                    Some(_) if buf.len() > MAX_META as usize => {
+                        pending = None;
+                        keep
+                    }
+                    Some((p, _, _)) => keep.min(p),
+                    None => keep,
+                }
             }
-            None => {}
+            None => 0,
+        };
+        if drop_to > 0 {
+            buf.drain(..drop_to);
+            from = from.saturating_sub(drop_to);
+            pending = pending.filter(|w| w.0 >= drop_to).map(|(p, open, searched)| (p - drop_to, open, searched - drop_to));
         }
         if found && buf.len() > MAX_META as usize {
             break;

@@ -2405,6 +2405,7 @@ dependencies = [
  "gridcraft-engine",
  "gridcraft-functions",
  "gridcraft-pdf",
+ "mo-fuzz",
  "quick-xml 0.41.0",
  "serde_json",
  "thiserror 2.0.21",

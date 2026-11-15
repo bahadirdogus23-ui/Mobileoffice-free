@@ -17,6 +17,9 @@ const XF: u16 = 0x00E0;
 const PALETTE: u16 = 0x0092;
 const BOUNDSHEET: u16 = 0x0085;
 
+/// Columns of Excel's grid (16 384; an .xls file has 256).
+const MAX_COLS: u32 = 16_384;
+
 /// Excel 97's palette for colour indexes 8–63 (0–7 repeat the first eight).
 const PALETTE_97: [u32; 56] = [
     0x000000, 0xFFFFFF, 0xFF0000, 0x00FF00, 0x0000FF, 0xFFFF00, 0xFF00FF, 0x00FFFF, 0x800000, 0x008000, 0x000080, 0x808000, 0x800080, 0x008080,
@@ -34,11 +37,14 @@ struct Records<'a> {
 impl<'a> Iterator for Records<'a> {
     type Item = (u16, &'a [u8]);
     fn next(&mut self) -> Option<Self::Item> {
-        let head = self.data.get(self.pos..self.pos + 4)?;
+        // `pos` may come from the file (a sheet's offset): checked, so a 32-bit build does not wrap.
+        let start = self.pos.checked_add(4)?;
+        let head = self.data.get(self.pos..start)?;
         let kind = u16::from_le_bytes([head[0], head[1]]);
         let len = usize::from(u16::from_le_bytes([head[2], head[3]]));
-        let body = self.data.get(self.pos + 4..self.pos + 4 + len)?;
-        self.pos += 4 + len;
+        let end = start.checked_add(len)?;
+        let body = self.data.get(start..end)?;
+        self.pos = end;
         Some((kind, body))
     }
 }
@@ -271,6 +277,10 @@ pub(crate) fn apply(wb: &mut Workbook, bytes: &[u8]) -> usize {
         let mut sheet = Arc::clone(&wb.sheets[index]);
         let sh = Arc::make_mut(&mut sheet);
         for (r, c, x) in cells {
+            // Past Excel's grid (a damaged MULBLANK spans up to 65 535 columns from its first).
+            if c >= MAX_COLS {
+                continue;
+            }
             let Some((font, fill, borders, align)) = g.xfs.get(usize::from(x)) else { continue };
             let at = gridcraft_engine::cell(r, c);
             let old = sh.style_id(at);
