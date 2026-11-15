@@ -195,8 +195,11 @@ class TextViewModel(app: Application) : AndroidViewModel(app) {
         viewModelScope.launch {
             val result = withContext(Dispatchers.IO) {
                 runCatching {
+                    android.util.Log.i(LOG_TAG, "save: encoding ${text.length} chars")
                     val bytes = encodeInPlace(withLineEnds(text, s.crlf), s.encoding)
+                    android.util.Log.i(LOG_TAG, "save: writing ${bytes.size} bytes to ${s.uri}")
                     app.contentResolver.openOutputStream(s.uri, "wt")?.use { it.write(bytes) } ?: error("cannot write")
+                    android.util.Log.i(LOG_TAG, "save: written")
                     stateFor(s.uri, s.fileName, text, s.encoding, truncated = false, crlf = s.crlf)
                 }
             }

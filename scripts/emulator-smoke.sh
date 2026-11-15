@@ -990,7 +990,7 @@ save_text() {
     else
         # The app's own explanation (a toast uiautomator cannot see) is also logged.
         local why
-        why=$(sh_adb logcat -d -s 'BadoText:*' 2>/dev/null | grep -E 'save |Exception|Error' | head -n 4 | tr '\n' ' ' || true)
+        why=$(sh_adb logcat -d -s 'BadoText:*' 2>/dev/null | grep -E 'save|Exception|Error' | tail -n 6 | tr '\n' ' ' || true)
         save_outcome FAIL "the file did not change within 15 s of tapping Save${why:+ (app log: $why)}"
     fi
 }
