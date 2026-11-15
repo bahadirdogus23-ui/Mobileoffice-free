@@ -67,6 +67,9 @@ mo-fuzz = { path = "mo-fuzz" }
 debug = false
 
 [profile.release]
+# Measured against "z" (docs/BOYUT.md, Nov 2026): "z" saves 6% of the .so but makes Word layout, slide and
+# PDF drawing and spreadsheet opening 1.3-1.8x slower; "z" only for export/legacy crates saves 0.8% and
+# slows PPTX-to-PDF export by 20%. Keep "s".
 opt-level = "s"
 # Takes effect only because mo-ffi builds a cdylib alone (see its Cargo.toml and docs/BOYUT.md).
 lto = "fat"

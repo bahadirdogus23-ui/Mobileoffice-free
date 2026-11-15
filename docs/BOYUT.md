@@ -95,7 +95,7 @@ LTO'dan sonra: `.text` 42,6 → 37,0 MB, `.eh_frame` 4,9 → 2,7 MB, `.gcc_excep
 `.rela.dyn` 3,6 → 1,7 MB (paketlemeyle ~0). Aynı oran arm64'e uyarsa 48 MB'lık kitaplık ~37 MB'a
 iner.
 
-**CI ölçümü (15 Kasım, ilk arm64 derlemesi):** yayın APK'sındaki `lib/arm64-v8a/libmo_ffi.so` **45,2 MB** (önceki raporda 48,0 MB; arada başka özellikler de eklendi). Kazanç arm64'te x86_64 tahmininden çok küçük çıktı (~%6): Android derlemesinde bağlama zamanı iyileştirmesinin bir kısmı zaten etkiliydi ya da arm64 kodu bu değişikliklerden daha az etkileniyor. APK boyutu ~60,2 MB. Sıradaki seçenekler (ölçerek): `opt-level = "z"` (hız ölçümüyle), `--icf=all`.
+**CI ölçümü (15 Kasım, ilk arm64 derlemesi):** yayın APK'sındaki `lib/arm64-v8a/libmo_ffi.so` **45,2 MB** (önceki raporda 48,0 MB; arada başka özellikler de eklendi). Kazanç arm64'te x86_64 tahmininden çok küçük çıktı (~%6): Android derlemesinde bağlama zamanı iyileştirmesinin bir kısmı zaten etkiliydi ya da arm64 kodu bu değişikliklerden daha az etkileniyor. APK boyutu ~60,2 MB. Sıradaki seçenekler: `opt-level = "z"` ölçüldü ve açılmadı (aşağıda "Boyut mu hız mı?"); `--icf=all` duruyor.
 
 **İndirme ve kurulum boyutu:**
 
@@ -123,7 +123,7 @@ iner.
 
 | Seçenek | Ölçülen ek kazanç | Neden açılmadı |
 |---|---:|---|
-| `opt-level = "z"` (CAD crate'leri 3'te kalarak) | 53,52 → 50,16 MB (−%6,3); hepsiyle birlikte 48,16 MB | Döngü vektörleştirmesini ve satır içi açmayı kısıyor; PDF/Word/slayt çizimi yavaşlayabilir. Depoda çizim hızı ölçen bench yok; ölçmeden hızdan feragat edilmedi. Önce cihazda PDF ve CAD çizim süresi ölçülmeli (`docs/olcumler.md`). |
+| `opt-level = "z"` (CAD crate'leri 3'te kalarak) | 53,44 → 50,12 MB (−%6,2) | Ölçüldü: Word dizgisi, slayt ve PDF çizimi, tablo açma 1,3–1,8 kat yavaşlıyor. Ayrıntı: aşağıda "Boyut mu hız mı?" |
 | `-Wl,--icf=all` (özdeş fonksiyon/sabit birleştirme) | −0,59 MB (−%1,1) | Salt okunur `static`'leri de birleştirebilir; adres kimliğine dayanan bir kod varsa sessizce bozulur. Kazanç küçük. `--icf=safe` hiçbir şey kazandırmıyor (rustc adres-önem tablosu üretmiyor). |
 | `--pack-dyn-relocs=relr` | `android`'den biraz daha iyi | Android'de API 28+ (standart RELR API 30+) gerekiyor; minSdk 26. minSdk 28'e çıkarsa `android+relr` kullanılabilir. |
 | `panic = "abort"` | `.eh_frame` + `.gcc_except_table` (LTO sonrası ~4 MB) | Motor panikleri Kotlin'e istisna olarak gelmek yerine uygulamayı düşürür. Açılmayacak. |
@@ -138,5 +138,60 @@ iner.
 - WordCraft'ın Source Sans 3/Source Serif 4 kesimleri (2,7 MiB): yukarı akışa yazı tiplerini
   çalışma anında verme API'si önerilebilir; o zaman bile boyut APK varlıklarına taşınır, indirme
   azalmaz.
-- `opt-level = "z"`: cihazda çizim süreleri ölçülüp kabul edilebilir bulunursa, yalnızca çizimde
-  sıcak olmayan crate'ler (biçim okuyucular/yazıcılar, formüller) için paket bazında açılabilir.
+- `opt-level = "z"`: ölçüldü, açılmadı (aşağıda). Yalnızca motorlar bölünüp çizimde/açmada kullanılmayan
+  kod ayrı crate'lere taşınırsa yeniden denenebilir.
+
+## Boyut mu hız mı? `opt-level` ölçümü (15 Kasım 2026)
+
+Ana makinede (x86_64, 4 çekirdek) gerçek sürüm profiliyle (fat LTO, `codegen-units = 1`, `strip`,
+`panic = "unwind"`) üç profil derlendi. Her biri için `libmo_ffi.so` boyutu ve aynı profille, depo
+crate'lerine bağlı geçici bir ölçüm programının (depoya girmedi) süreleri ölçüldü; her işlem 5 kez,
+en iyisi. Örnekler duman testinin büyük dosyaları: 300 sayfalık DOCX, 45 002 × 10 hücrelik XLSX,
+60 slaytlık PPTX, 200 sayfalık PDF, 16 MB'lık üretilmiş DXF (kat planı ızgarası).
+
+- **A (şimdiki):** her yerde `"s"`, CAD crate'leri + kurbo + tiny-skia `3`.
+- **B:** her yerde `"z"`, CAD crate'leri + kurbo + tiny-skia `3`'te kalıyor.
+- **C:** A gibi, ama yalnızca soğuk crate'ler `"z"`: PDF yazıcıları (krilla, pdf-writer, subsetter,
+  write-fonts, wordcraft-pdf, deckcraft-pdf, gridcraft-pdf, craft-pdf, pdfcraft-create/optimize/redact/
+  edit/annot/forms/organize/xfa), eski biçim okuyucuları (wordcraft-docbin, craft-xls, cfb,
+  craft-offcrypto), WMF/EMF (wordcraft-/deckcraft-metafile), formül dizgisi (ratex-*), seyrek görüntü
+  çözücüleri (hayro-jpeg2000/jbig2/ccitt, image-webp, tiff).
+
+| | A (şimdiki) | B (`"z"` her yerde) | C (soğuk crate'ler `"z"`) |
+|---|---:|---:|---:|
+| `.so` (x86_64, `size -A`) | 53,45 MB | 50,12 MB (**−%6,2**) | 53,03 MB (**−%0,8**) |
+| `.text` | 36,98 MB | 32,00 MB | 36,28 MB |
+| gzip -9 | 24,64 MB | 22,58 MB (−%8,4) | 24,43 MB (−%0,9) |
+| Word: açma + 300 sayfa dizgi | 617 ms | 1056 ms (**+%71**) | 660 ms (+%4) |
+| Word: yeniden dizgi | 598 ms | 1035 ms (**+%73**) | 652 ms (+%9) |
+| Word: 20 sayfa çizim (2×) | 96 ms | 126 ms (**+%31**) | 96 ms (±0) |
+| Word: DOCX kaydet | 38 ms | — | 37 ms (±0) |
+| Word: PDF'ye aktar (300 sayfa) | 372 ms | — | 386 ms (+%4) |
+| XLSX: 45k satır açma | 464 ms | 664 ms (**+%43**) | 480 ms (+%3) |
+| XLSX: 40 blok × 60×20 hücre metni+görünüşü | 17,9 ms | 23,6 ms (**+%32**) | 17,9 ms (±0) |
+| XLSX: kaydet | 323 ms | — | 327 ms (+%1) |
+| XLSX: 2000 satırı PDF'ye aktar | 119 ms | — | 131 ms (+%10) |
+| PPTX: açma | 9,3 ms | 13,7 ms (**+%47**) | 9,7 ms (+%4) |
+| PPTX: 60 slayt çizim (1600 px) | 150 ms | 276 ms (**+%83**) | 156 ms (+%4) |
+| PPTX: PDF'ye aktar | 1421 ms | — | 1699 ms (**+%20**) |
+| PDF: 40 sayfa çizim (2,5×) | 666 ms | 1222 ms (**+%83**) | 675 ms (+%1) |
+| CAD: DXF açma | 555 ms | 552 ms (±0) | 562 ms (+%1) |
+| CAD: ilk çizim (kapsam + görüntü listesi) | 958 ms | 956 ms (±0) | 997 ms (+%4) |
+| CAD: 4 yakınlıkta çizim (1080×2340) | 450 ms | 435 ms (−%3) | 434–472 ms (±%5) |
+
+"—": B ölçülürken aktarma işlemleri programda yoktu; B zaten çizimde elendiği için yeniden derlenmedi.
+C'nin aktarma süreleri, aynı programla ayrıca derlenen A ile karşılaştırıldı. Ölçüm gürültüsü
+±%5 civarında (A ve C sırayla dönüşümlü çalıştırıldığında çizim süreleri birbirinin içinde kaldı).
+
+**Karar: değişiklik yok, `opt-level = "s"` kalıyor.**
+
+- B, %6,2 küçültme için Word, slayt, PDF ve tablo işlemlerinin hepsini %31–83 yavaşlatıyor. Yavaşlama
+  birkaç sıcak crate'te değil her yerde (zip/XML okuma, dizgi, yazı tipi şekillendirme, tarama): tüm
+  bu crate'ler yeniden `"s"`'ye alınırsa geriye kazanılacak boyut kalmıyor; C bunun üst sınırını
+  gösteriyor.
+- C, açma ve çizimi etkilemiyor ama yalnızca %0,8 (~0,4 MB) küçültüyor ve PPTX'i PDF'ye aktarmayı
+  %20 yavaşlatıyor (%10 eşiğinin üstünde). deckcraft-pdf ve krilla listeden çıkarılırsa kazanç
+  %0,5'in altına düşer; bu kadar küçük bir kazanç için profile 30 satırlık bir liste eklenmedi.
+- CAD crate'lerinin `3` olması B'de CAD sürelerinin hiç değişmemesiyle de doğrulandı.
+- Ölçüm x86_64'te; arm64'te mutlak süreler farklıdır ama `"z"`'nin kıstığı satır içi açma ve
+  döngü iyileştirmeleri iki mimaride de aynı, oranların benzer kalması beklenir.
