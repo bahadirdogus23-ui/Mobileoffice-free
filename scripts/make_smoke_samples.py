@@ -22,6 +22,17 @@ files here: upper-case extensions, Turkish letters, a space. An extension contai
 this pass is for. Its rows have a sixth column, the ASCII step name used in the smoke test's
 output files.
 
+`samples-save.tsv` lists what the smoke test's save pass edits and saves over (section "Kaydetme"
+in scripts/emulator-smoke.sh): the five columns above, the step name, then the case:
+
+    docx, xlsx, txt-utf8, txt-1254   saving in place must work (the file changes and stays valid)
+    block-xlsx, block-txt            saving in place must be refused (the file keeps its bytes)
+
+They are separate copies ("mo-save-…"), so the open-only passes never see an edited file. The
+blocked ones mirror rust/mo-grid's tests (an .xlsx with a slicer part, `Loss::Slicers`, and one
+with a VBA project, `Loss::Macros`) and the text viewer's rule for a file that mixes CRLF and LF
+line ends (saved only as a copy).
+
 Legacy binary formats: only .xls has a file in the repository's test data (mo-grid); there is no
 .doc or .ppt file to copy, so those two are not covered here.
 
@@ -312,7 +323,7 @@ def make_ics(path):
 # Spreadsheets
 
 
-def make_xlsx(path):
+def make_xlsx(path, **package):
     strings = ["Şehir", "Nüfus", "İstanbul", "Ağrı", "Toplam"]
     rows = [
         [("s", 0), ("s", 1)],
@@ -332,11 +343,15 @@ def make_xlsx(path):
         f'<row r="{r + 1}">' + "".join(cell(f"{'AB'[c]}{r + 1}", k, v) for c, (k, v) in enumerate(row)) + "</row>"
         for r, row in enumerate(rows)
     )
-    write_xlsx(path, sheet_rows, strings)
+    write_xlsx(path, sheet_rows, strings, **package)
 
 
-def write_xlsx(path, sheet_rows, strings, sheet_name="Veri"):
-    """A minimal XLSX package with one sheet whose <sheetData> holds `sheet_rows`."""
+def write_xlsx(path, sheet_rows, strings, sheet_name="Veri", sheet_tail="", sheet_rels="", workbook_rels="",
+               content_types="", extra_parts=()):
+    """A minimal XLSX package with one sheet whose <sheetData> holds `sheet_rows`. The rest is for
+    the save pass's blocked files: `sheet_tail` goes after </sheetData>, `sheet_rels` are the
+    sheet's relationships (no part when empty), `workbook_rels` and `content_types` are added to
+    those parts, `extra_parts` are more (name, data) entries."""
     main = 'xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"'
     rel = 'xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"'
     ct = "application/vnd.openxmlformats-officedocument.spreadsheetml"
@@ -354,7 +369,7 @@ def write_xlsx(path, sheet_rows, strings, sheet_name="Veri"):
                 f'<Override PartName="/xl/worksheets/sheet1.xml" ContentType="{ct}.worksheet+xml"/>'
                 f'<Override PartName="/xl/sharedStrings.xml" ContentType="{ct}.sharedStrings+xml"/>'
                 f'<Override PartName="/xl/styles.xml" ContentType="{ct}.styles+xml"/>'
-                "</Types>",
+                f"{content_types}</Types>",
             ),
             (
                 "_rels/.rels",
@@ -373,12 +388,13 @@ def write_xlsx(path, sheet_rows, strings, sheet_name="Veri"):
                 '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">'
                 f'<Relationship Id="rId1" Type="{rt}/worksheet" Target="worksheets/sheet1.xml"/>'
                 f'<Relationship Id="rId2" Type="{rt}/sharedStrings" Target="sharedStrings.xml"/>'
-                f'<Relationship Id="rId3" Type="{rt}/styles" Target="styles.xml"/></Relationships>',
+                f'<Relationship Id="rId3" Type="{rt}/styles" Target="styles.xml"/>{workbook_rels}</Relationships>',
             ),
             (
                 "xl/worksheets/sheet1.xml",
-                f'<?xml version="1.0" encoding="UTF-8" standalone="yes"?><worksheet {main}>'
-                f"<sheetData>{sheet_rows}</sheetData></worksheet>",
+                f'<?xml version="1.0" encoding="UTF-8" standalone="yes"?><worksheet {main}'
+                + (f" {rel}" if sheet_rels else "")
+                + f"><sheetData>{sheet_rows}</sheetData>{sheet_tail}</worksheet>",
             ),
             (
                 "xl/sharedStrings.xml",
@@ -399,6 +415,19 @@ def write_xlsx(path, sheet_rows, strings, sheet_name="Veri"):
                 '<cellStyles count="1"><cellStyle name="Normal" xfId="0" builtinId="0"/></cellStyles>'
                 "</styleSheet>",
             ),
+            *(
+                [
+                    (
+                        "xl/worksheets/_rels/sheet1.xml.rels",
+                        '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+                        '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">'
+                        f"{sheet_rels}</Relationships>",
+                    )
+                ]
+                if sheet_rels
+                else []
+            ),
+            *extra_parts,
         ],
     )
 
@@ -468,6 +497,77 @@ def make_zip(path, docx, txt):
     with zipfile.ZipFile(path, "w", zipfile.ZIP_DEFLATED) as z:
         z.write(docx, "belgeler/rapor.docx")
         z.write(txt, "notlar.txt")
+
+
+# --------------------------------------------------------------------------------------------
+# The save pass (samples-save.tsv)
+
+XLSX_MIME = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+NS_X14 = "http://schemas.microsoft.com/office/spreadsheetml/2009/9/main"
+# (name, MIME type, step, case). The clean .xlsx comes before the blocked ones: it shows that the
+# cell edit itself works, so a missing Save button there means the guard, not a lost edit.
+SAVE_CASES = [
+    ("mo-save-docx.docx", "application/vnd.openxmlformats-officedocument.wordprocessingml.document", "save-docx", "docx"),
+    ("mo-save-xlsx.xlsx", XLSX_MIME, "save-xlsx", "xlsx"),
+    ("mo-save-utf8.txt", "text/plain", "save-txt-utf8", "txt-utf8"),
+    ("mo-save-1254.txt", "text/plain", "save-txt-1254", "txt-1254"),
+    ("mo-save-slicer.xlsx", XLSX_MIME, "block-xlsx-slicer", "block-xlsx"),
+    ("mo-save-vba.xlsx", XLSX_MIME, "block-xlsx-vba", "block-xlsx"),
+    ("mo-save-mixed.txt", "text/plain", "block-txt-mixed", "block-txt"),
+]
+
+
+def make_slicer_xlsx(path):
+    """make_xlsx's workbook with a slicer on its sheet (the x14 slicer list in the sheet's
+    extensions, its relationship and part), as rust/mo-grid's
+    `content_the_engine_skips_silently_blocks_saving_over_the_file` builds it: GridCraft neither
+    models nor writes slicers back (`Loss::Slicers`)."""
+    make_xlsx(
+        path,
+        sheet_tail=f'<extLst><ext uri="{{A8765BA9-456A-4dab-B4F3-ACF838C121DE}}" xmlns:x14="{NS_X14}">'
+        '<x14:slicerList><x14:slicer r:id="rId7"/></x14:slicerList></ext></extLst>',
+        sheet_rels='<Relationship Id="rId7" Type="http://schemas.microsoft.com/office/2007/relationships/slicer" '
+        'Target="../slicers/slicer1.xml"/>',
+        content_types='<Override PartName="/xl/slicers/slicer1.xml" ContentType="application/vnd.ms-excel.slicer+xml"/>',
+        extra_parts=[
+            (
+                "xl/slicers/slicer1.xml",
+                f'<?xml version="1.0" encoding="UTF-8" standalone="yes"?><slicers xmlns="{NS_X14}">'
+                '<slicer name="Ay" cache="Slicer_Ay" caption="Ay" rowHeight="241300"/></slicers>',
+            )
+        ],
+    )
+
+
+def make_vba_xlsx(path):
+    """make_xlsx's workbook with a VBA project, as in rust/mo-grid's
+    `macros_block_saving_over_an_xlsx_but_not_an_xlsm`: an .xlsx package cannot hold one, so the
+    engine would not write it back (`Loss::Macros`)."""
+    make_xlsx(
+        path,
+        workbook_rels='<Relationship Id="rId8" Type="http://schemas.microsoft.com/office/2006/relationships/vbaProject" '
+        'Target="vbaProject.bin"/>',
+        content_types='<Default Extension="bin" ContentType="application/vnd.ms-office.vbaProject"/>',
+        extra_parts=[("xl/vbaProject.bin", "not really an OLE file")],
+    )
+
+
+def make_save_samples(out):
+    """Writes the save pass's files into `out`; returns the rows of samples-save.tsv."""
+    make_docx(out / "mo-save-docx.docx")
+    make_xlsx(out / "mo-save-xlsx.xlsx")
+    # LF line ends and no byte order mark: saving must add neither.
+    (out / "mo-save-utf8.txt").write_bytes(f"Duman testi\n\n{TURKISH}\nSatır 4\n".encode("utf-8"))
+    # Windows-1254 with CRLF, as old Turkish Windows programs write it. No em dash: its byte (0x97)
+    # is a control character in ISO-8859-9, so the Turkish letters alone pick the code page.
+    (out / "mo-save-1254.txt").write_bytes(
+        f"Duman testi\r\n\r\n{TURKISH.replace(' — ', ' - ')}\r\nSatır 4\r\n".encode("cp1254")
+    )
+    make_slicer_xlsx(out / "mo-save-slicer.xlsx")
+    make_vba_xlsx(out / "mo-save-vba.xlsx")
+    # CRLF and LF mixed: saving would write one kind throughout, so the viewer refuses to save in place.
+    (out / "mo-save-mixed.txt").write_bytes("Satır bir\r\nSatır iki\nSatır üç: ığüşöç\r\n".encode("utf-8"))
+    return [(name, mime, "filter", "viewer", "small", step, case) for name, mime, step, case in SAVE_CASES]
 
 
 # --------------------------------------------------------------------------------------------
@@ -717,6 +817,12 @@ def main(out, big=True):
     print("second pass (tr-TR, font scale 2.0, dark):")
     for name, mime, route, expect, size, step in tr_rows:
         print(f"{name:24} {(out / name).stat().st_size:>9} B  {route:8} {expect:16} {step:14} {mime}")
+
+    save_rows = make_save_samples(out)
+    (out / "samples-save.tsv").write_text("".join("\t".join(r) + "\n" for r in save_rows), encoding="utf-8")
+    print("save pass (edit and save over the file):")
+    for name, mime, route, expect, size, step, case in save_rows:
+        print(f"{name:24} {(out / name).stat().st_size:>9} B  {route:8} {step:18} {case:10} {mime}")
 
 
 if __name__ == "__main__":

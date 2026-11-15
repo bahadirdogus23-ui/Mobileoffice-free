@@ -123,4 +123,9 @@ U+FFFD'ye dönüşür ve kayıtta öyle yazılır; karışık satır sonları te
   `reads_the_engines_loss_warnings`, `what_the_engine_writes_back_does_not_block_saving_over_the_file`,
   `content_the_engine_skips_silently_blocks_saving_over_the_file`, `macros_block_saving_over_an_xlsx_but_not_an_xlsm`,
   `losses_the_engine_warns_about_block_saving_over_the_file`, `losses::tests`.
+- Emülatör (`scripts/emulator-smoke.sh`, özette "Kaydetme"): sürüm APK'sında arayüzden düzenleyip üzerine kaydeder,
+  dosyayı `adb pull` ile denetler. Temiz DOCX, XLSX, UTF-8 ve Windows-1254 (CRLF) TXT üzerine kaydedilmeli (geçerli
+  dosya, düzenleme ve eski içerik yerinde; metin bayt bayt aynı kodlama ve satır sonlarıyla); dilimleyicili ve VBA
+  projeli `.xlsx` ile karışık satır sonlu TXT'nin baytları değişmemeli ("Kaydet" düğmesi yok, Ctrl+S "Farklı kaydet"
+  açar). Dosyalar `make_smoke_samples.py` ile çalışırken üretilir.
 - `tools/jvm-smoke`: `WordDocumentTest.tellsWhatOpeningLeftOut`, `PdfDocumentTest.tellsWhatOpeningRepaired`, `PdfDocumentTest.refusesAFileWithoutReadablePages`, `BlankDocumentTest`, `SheetDocumentTest` (`tellsWhatSavingBackWouldNotKeep`).

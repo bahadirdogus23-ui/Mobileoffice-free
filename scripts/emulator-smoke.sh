@@ -45,6 +45,30 @@
 # pass has its own section in the summary and metrics-tr.tsv; the font scale, night mode and the
 # app's locale are put back afterwards (also when the script stops early).
 #
+# Third pass, "Kaydetme" (saving; AGENTS.md invariant 4): back in English, the files in
+# SAMPLES_DIR/samples-save.tsv are edited through the UI and saved over, and the file is then
+# pulled with adb and checked on the host. Each case is a cold start (open_document), then:
+#   - save-docx: "Edit", `input text` at the caret (the start of the document), Ctrl+S
+#     (`input keycombination`); if the file did not change, Back out of editing and the top bar's
+#     "Save". The pulled file must differ, be a valid ZIP and hold the typed word and the old text.
+#   - save-xlsx: the formula bar's field (A1 is selected), its text deleted, a number typed, Enter;
+#     then the top bar's "Save" (shown only when `canSaveInPlace && hasUnsaved`) and the "Saved"
+#     snackbar. The pulled file must differ, be a valid ZIP and hold the number and the old text.
+#   - save-txt-utf8, save-txt-1254: "Edit", a tap in the text, a word typed, "Save". Removing the
+#     typed word from the pulled file must give back the original bytes: the same encoding
+#     (Windows-1254 letters stay single bytes), no byte order mark added, CRLF kept.
+#   - block-xlsx-slicer, block-xlsx-vba (the engine cannot write a slicer / a VBA project in an
+#     .xlsx back): the same cell edit, then there must be no "Save" in the top bar, Ctrl+S must not
+#     write (it opens "Save as", which is cancelled) and the file keeps its bytes. The Save-button
+#     check counts only after save-xlsx showed that the same edit makes the button appear.
+#   - block-txt-mixed (CRLF and LF mixed): edit and "Save"; the viewer refuses (a toast) and the
+#     file keeps its bytes.
+# Toasts (Word, text) are not in uiautomator's tree, so their messages are not checked; snackbars
+# (sheets) are. A UI path that cannot be found (no Edit button, no text field…) is a SKIP with the
+# reason and a warning, not a failure; a file that changed when it must not, or a valid save path
+# that left the file unchanged or broken, is a failure. Its own summary section and
+# metrics-save.tsv (for the opens).
+#
 # Environment: SMOKE_OPEN_TIMEOUT (s, default 60) and SMOKE_BIG_OPEN_TIMEOUT (s, default 180, for
 # the samples marked "big" in samples.tsv), SMOKE_OPEN_BUDGET (s, default 15) and
 # SMOKE_BIG_OPEN_BUDGET (s, default 45), SMOKE_PSS_BUDGET_MB (default 768) (budgets are whole
@@ -52,7 +76,10 @@
 # on the picture), SMOKE_LOG_IGNORE (extended regex of logcat lines to disregard, for a known
 # harmless message), SMOKE_SECOND_PASS (1/0, default 1), SMOKE_TR_LOCALE (default tr-TR),
 # SMOKE_TR_FONT_SCALE (default 2.0), SMOKE_TIME_LIMIT (min since the script started, default 34:
-# second-pass steps that would start later are skipped, so the CI job stays within its timeout).
+# second-pass steps that would start later are skipped, so the CI job stays within its timeout),
+# SMOKE_SAVE_PASS (1/0, default 1), SMOKE_SAVE_TIME_LIMIT (min since the script started, default
+# SMOKE_TIME_LIMIT + 4: save cases that would start later are skipped, and the whole pass when
+# fewer than 4 min are left).
 
 set -euo pipefail
 
@@ -81,6 +108,8 @@ SECOND_PASS=${SMOKE_SECOND_PASS:-1}
 TR_LOCALE=${SMOKE_TR_LOCALE:-tr-TR}
 TR_FONT_SCALE=${SMOKE_TR_FONT_SCALE:-2.0}
 TIME_LIMIT=${SMOKE_TIME_LIMIT:-34}
+SAVE_PASS=${SMOKE_SAVE_PASS:-1}
+SAVE_TIME_LIMIT=${SMOKE_SAVE_TIME_LIMIT:-$((TIME_LIMIT + 4))}
 
 # What the app says on screen (English and Turkish, android/app/src/main/res/values*/strings.xml).
 FAILURE_TEXTS=(
@@ -98,6 +127,15 @@ OCR_DONE=("No text was found" "Metin bulunamadı" "Recognised on the phone" "Tel
 # recently_opened).
 HOME_TR=("Ayarlar" "Belgeler" "Dosya adında ara" "Son açılanlar")
 HOME_EN=("Settings" "Documents" "Search file names" "Recently opened")
+# The save pass (save, saved, edit, tool_keyboard, save_failed, save_over_incomplete, save_over_truncated).
+SAVE_LABELS=("Save" "Kaydet")
+SAVED_TEXTS=("Saved" "Kaydedildi")
+EDIT_LABELS=("Edit" "Düzenle")
+KEYBOARD_LABELS=("Keyboard" "Klavye")
+SAVE_PROBLEM_TEXTS=("Could not save" "Kaydedilemedi" "Not saved:" "Kaydedilmedi:")
+# What is typed: ASCII, as `input text` sends it; the cell gets a number.
+TYPED_WORD=Smoke42
+TYPED_NUMBER=4242
 
 # Logcat lines from the app's own process that mean a crash or a build that R8 broke.
 PID_PATTERNS='FATAL EXCEPTION|JNI DETECTED ERROR|UnsatisfiedLinkError|ClassNotFoundException|NoClassDefFoundError|NoSuchMethodError|NoSuchFieldError|ExceptionInInitializerError|AbstractMethodError|VerifyError|Fatal signal|Abort message'
@@ -111,10 +149,14 @@ LOGCAT="$OUT/logcat.txt"
 METRICS="$OUT/metrics.tsv"
 RESULTS=()
 RESULTS_TR=()
+RESULTS_SAVE=()
 FAILED=0
 SLOW=0
 SLOW_TR=0
-# 1: en-US as the emulator comes; 2: tr-TR, font scale 2.0, dark (second_pass).
+SLOW_SAVE=0
+# The result of the last record() call.
+LAST_RESULT=""
+# 1: en-US as the emulator comes; 2: tr-TR, font scale 2.0, dark (second_pass); 3: saving (save_pass).
 PASS=1
 # How the file name is looked for in the title bar (ui_query mode).
 TITLE_MODE=exact
@@ -152,7 +194,9 @@ ui_dump() {  # ui_dump FILE: the active window's UI tree, or an empty file if ui
 # "exact" (equals a label, or one comma-separated part of a merged node does), "title" (like exact,
 # Unicode-normalised, and a value cut with "…" matches when what is left is a prefix of a label
 # at least 6 characters long, or the whole label if shorter), "center" (prints "x y" of the first
-# node containing a label) or "show" (prints every value containing a label).
+# node containing a label), "center-exact" (the same for the first node matching like "exact"),
+# "show" (prints every value containing a label), "field-center" / "field-text" (no labels: "x y"
+# or the text of the first text field, class EditText, on screen).
 # Exit status 0 when found.
 ui_query() {
     python3 - "$@" << 'PY'
@@ -160,6 +204,11 @@ import re
 import sys
 import unicodedata
 import xml.etree.ElementTree as ET
+
+
+def center(node):
+    x1, y1, x2, y2 = map(int, re.findall(r"\d+", node.get("bounds", "[0,0][0,0]")))
+    return f"{(x1 + x2) // 2} {(y1 + y2) // 2}"
 
 
 def title_hit(value, labels):
@@ -180,11 +229,17 @@ try:
     nodes = list(ET.parse(path).getroot().iter("node"))
 except (ET.ParseError, OSError):
     sys.exit(1)
+if mode in ("field-center", "field-text"):
+    for node in nodes:
+        if node.get("class", "").endswith("EditText"):
+            print(center(node) if mode == "field-center" else node.get("text") or "")
+            sys.exit(0)
+    sys.exit(1)
 for node in nodes:
     for value in (node.get("text") or "", node.get("content-desc") or ""):
         if not value:
             continue
-        if mode == "exact":
+        if mode in ("exact", "center-exact"):
             hit = any(value == l or l in [p.strip() for p in value.split(",")] for l in labels)
         elif mode == "title":
             hit = any(title_hit(p, labels) for p in [value] + value.split(","))
@@ -195,9 +250,8 @@ for node in nodes:
                 print(value[:300])
                 found = True
                 continue
-            if mode == "center":
-                x1, y1, x2, y2 = map(int, re.findall(r"\d+", node.get("bounds", "[0,0][0,0]")))
-                print((x1 + x2) // 2, (y1 + y2) // 2)
+            if mode in ("center", "center-exact"):
+                print(center(node))
             sys.exit(0)
 sys.exit(0 if found else 1)
 PY
@@ -269,7 +323,13 @@ measure_memory() {
     M_GRAPHICS=$(sed -n 's/^ *Graphics: *\([0-9][0-9]*\).*/\1/p' "$file" | head -1)
 }
 
-count_slow() { if [ "$PASS" = 1 ]; then SLOW=$((SLOW + 1)); else SLOW_TR=$((SLOW_TR + 1)); fi; }
+count_slow() {
+    case "$PASS" in
+        1) SLOW=$((SLOW + 1)) ;;
+        2) SLOW_TR=$((SLOW_TR + 1)) ;;
+        *) SLOW_SAVE=$((SLOW_SAVE + 1)) ;;
+    esac
+}
 
 record() {  # record STEP RESULT DETAIL
     local step=$1 result=$2 detail=$3 start="" visible="" pss=""
@@ -290,11 +350,12 @@ record() {  # record STEP RESULT DETAIL
         pss="$pss ⚠"
         echo "::warning title=Large memory use on the emulator: $step::TOTAL PSS $(megabytes "$M_PSS") MB, over the soft budget of $PSS_BUDGET_MB MB"
     fi
-    if [ "$PASS" = 1 ]; then
-        RESULTS+=("| $step | $result | $start | $visible | $pss | ${detail//|//} |")
-    else
-        RESULTS_TR+=("| $step | $result | $start | $visible | $pss | ${detail//|//} |")
-    fi
+    case "$PASS" in
+        1) RESULTS+=("| $step | $result | $start | $visible | $pss | ${detail//|//} |") ;;
+        2) RESULTS_TR+=("| $step | $result | $start | $visible | $pss | ${detail//|//} |") ;;
+        *) RESULTS_SAVE+=("| $step | $result | $start | $visible | $pss | ${detail//|//} |") ;;
+    esac
+    LAST_RESULT=$result
     if [ -n "$M_TOTAL$M_SEEN$M_PSS" ]; then
         local v row=("$step" "$result")
         for v in "${M_FIELDS[@]}"; do row+=("${!v}"); done
@@ -631,6 +692,393 @@ second_pass() {
     PASS2_ENDED=$(date +%s)
 }
 
+# --------------------------------------------------------------------------------------------
+# Third pass: edit, save over the file, check it with adb ("Kaydetme")
+
+SAVE_STARTED=""
+SAVE_ENDED=""
+# 1 once save-xlsx showed that the cell edit brings up the top bar's Save button.
+SHEET_EDIT_SEEN=0
+# A save case's outcome as its driver leaves it: S_RESULT is PASS, FAIL, SKIP or WRITTEN (the file
+# changed; save_case then checks S_COPY, the pulled file), S_DETAIL says what happened.
+S_RESULT=""
+S_DETAIL=""
+S_COPY=""
+
+save_note() { S_DETAIL="${S_DETAIL:+$S_DETAIL; }$*"; }
+save_outcome() { S_RESULT=$1; save_note "$2"; }
+
+hash_of() { sha256sum "$1" 2> /dev/null | cut -d' ' -f1; }
+
+# pull_sample NAME DEST: copies the device's NAME to DEST; status 1 if adb could not read it.
+pull_sample() {
+    rm -f "$2"
+    timeout 60 adb pull "$DEVICE_DIR/$1" "$2" > /dev/null 2>&1 < /dev/null && [ -f "$2" ]
+}
+
+# wait_written NAME HASH SECONDS: pulls NAME to S_COPY until its hash is not HASH (status 0) or
+# SECONDS have passed (status 1).
+wait_written() {
+    local deadline=$(($(date +%s) + $3))
+    while :; do
+        if pull_sample "$1" "$S_COPY" && [ "$(hash_of "$S_COPY")" != "$2" ]; then return 0; fi
+        [ "$(date +%s)" -lt "$deadline" ] || return 1
+        sleep 2
+    done
+}
+
+tap_at() { sh_adb input tap "${1% *}" "${1#* }"; }
+
+# tap_label STEP MODE LABEL...: taps the first node matching (ui_query center MODE); status 1 if none.
+tap_label() {
+    local xml="$OUT/$1.window.xml" mode=$2 at
+    shift 2
+    ui_dump "$xml" || return 1
+    at=$(ui_query "$xml" "$mode" "$@") || return 1
+    tap_at "$at"
+}
+
+# wait_label STEP SECONDS MODE LABEL...: polls the screen until a node matches; status 1 if none did.
+wait_label() {
+    local xml="$OUT/$1.window.xml" deadline=$(($(date +%s) + $2)) mode=$3
+    shift 3
+    while :; do
+        if ui_dump "$xml" && ui_query "$xml" "$mode" "$@"; then return 0; fi
+        [ "$(date +%s)" -lt "$deadline" ] || return 1
+        sleep 1
+    done
+}
+
+field_text() { ui_query "$OUT/$1.window.xml" field-text 2> /dev/null || true; }
+
+# Ctrl+S as a keyboard sends it; MainActivity turns it into Shortcut.SAVE.
+press_ctrl_s() { sh_adb input keycombination KEYCODE_CTRL_LEFT KEYCODE_S > /dev/null 2>&1 || true; }
+
+# The system's file picker ("Save as") in front: prints its package.
+picker_package() { sh_adb dumpsys window 2> /dev/null | grep -m1 'mCurrentFocus' | grep -oiE '[a-z.]*documentsui' || true; }
+
+# close_picker: Back out of the picker (the app gets "cancelled"; the first Back may only close
+# the keyboard over its file name field); stopped if it stays.
+close_picker() {
+    local pkg
+    for _ in 1 2; do
+        sh_adb input keyevent KEYCODE_BACK || true
+        sleep 2
+        pkg=$(picker_package)
+        [ -n "$pkg" ] || return 0
+    done
+    sh_adb am force-stop "$pkg" || true
+}
+
+# verify_saved CASE ORIGINAL SAVED: what the pulled file holds; status 1 when it is not what
+# saving in place must write.
+verify_saved() {
+    python3 - "$@" "$TYPED_WORD" "$TYPED_NUMBER" << 'PY'
+import re
+import sys
+import zipfile
+
+case, original, saved, word, number = sys.argv[1:6]
+old = open(original, "rb").read()
+new = open(saved, "rb").read()
+good, bad = [], []
+
+
+def check(ok, yes, no):
+    (good if ok else bad).append(yes if ok else no)
+
+
+def package(required):
+    try:
+        z = zipfile.ZipFile(saved)
+    except zipfile.BadZipFile as e:
+        bad.append(f"not a ZIP package any more ({e})")
+        return None
+    broken = z.testzip()
+    check(broken is None, f"valid ZIP ({len(z.namelist())} parts)", f"ZIP entry {broken} fails its CRC check")
+    missing = [n for n in required if n not in z.namelist()]
+    check(not missing, "its main parts are there", "parts missing: " + ", ".join(missing))
+    return z
+
+
+def part(z, name):
+    try:
+        return z.read(name).decode("utf-8")
+    except (KeyError, UnicodeDecodeError):
+        return ""
+
+
+if case == "docx":
+    z = package(["[Content_Types].xml", "word/document.xml"])
+    if z:
+        text = "".join(re.findall(r"<w:t(?:\s[^>]*)?>([^<]*)</w:t>", part(z, "word/document.xml")))
+        check(word in text, f"holds the typed \"{word}\"", f"the typed \"{word}\" is not in word/document.xml")
+        check("Duman testi" in text and "İstanbul" in text, "the old text is kept", "the old text (\"Duman testi\", \"İstanbul\") is missing")
+elif case == "xlsx":
+    z = package(["[Content_Types].xml", "xl/workbook.xml"])
+    if z:
+        xml = "".join(part(z, n) for n in z.namelist() if n.startswith("xl/worksheets/") or n == "xl/sharedStrings.xml")
+        check(re.search(rf">{number}<", xml), f"holds the typed {number}", f"the typed {number} is not in the sheet")
+        check("İstanbul" in xml and "Ağrı" in xml, "the other cells are kept", "other cells (\"İstanbul\", \"Ağrı\") are missing")
+elif case in ("txt-utf8", "txt-1254"):
+    encoding = "utf-8" if case == "txt-utf8" else "cp1254"
+    check(new.count(word.encode()) == 1, f"holds the typed \"{word}\" once", f"\"{word}\" is in it {new.count(word.encode())} times")
+    check(new.startswith(b"\xef\xbb\xbf") == old.startswith(b"\xef\xbb\xbf"), "no byte order mark added", "a UTF-8 byte order mark was added or removed")
+    if b"\r\n" in old:
+        check(new.count(b"\n") == new.count(b"\r\n"), "CRLF line ends kept", "line ends changed (bare LF in a CRLF file)")
+    else:
+        check(b"\r" not in new, "LF line ends kept", "CR added to the line ends")
+    letters = "ığüşöç İĞÜŞÖÇ"
+    check(letters.encode(encoding) in new, f"Turkish letters still in {encoding}", f"the Turkish letters are no longer {encoding} bytes")
+    if encoding != "utf-8":
+        check(letters.encode("utf-8") not in new, "not re-encoded to UTF-8", "the Turkish letters were re-encoded to UTF-8")
+    rest = new.replace(word.encode(), b"", 1)
+    first = next((i for i, (a, b) in enumerate(zip(rest, old)) if a != b), min(len(rest), len(old)))
+    check(rest == old, "every other byte as before", f"other bytes changed too (from byte {first}; {len(old)} → {len(rest)} B without the typed word)")
+else:
+    bad.append(f"no check for case {case}")
+print("; ".join(bad + good))
+sys.exit(1 if bad else 0)
+PY
+}
+
+# save_word STEP NAME HASH: "Edit", the word typed at the caret (start of the document), Ctrl+S;
+# if that did not write, out of editing with Back and the top bar's (or the leave dialog's) Save.
+save_word() {
+    local step=$1 name=$2 old=$3 xml="$OUT/$1.window.xml" how="" picker
+    tap_label "$step" center-exact "${EDIT_LABELS[@]}" || { save_outcome SKIP "no \"Edit\" on the document screen"; return; }
+    wait_label "$step" 15 exact "${KEYBOARD_LABELS[@]}" || { save_outcome SKIP "the editing tool bar did not come up after \"Edit\""; return; }
+    sleep 1
+    sh_adb input text "$TYPED_WORD"
+    sleep 2
+    press_ctrl_s
+    if wait_written "$name" "$old" 15; then
+        how="Ctrl+S"
+    else
+        picker=$(picker_package)
+        if [ -n "$picker" ]; then
+            close_picker
+            save_outcome FAIL "Ctrl+S opened \"Save as\" ($picker) instead of saving over the file: in-place save is off for a clean .docx"
+            return
+        fi
+        # The first Back may only close the keyboard; leaving editing brings Save to the top bar.
+        for _ in 1 2 3; do
+            if ui_dump "$xml" && ui_query "$xml" exact "${SAVE_LABELS[@]}"; then break; fi
+            sh_adb input keyevent KEYCODE_BACK || true
+            sleep 2
+        done
+        if ! tap_label "$step" center-exact "${SAVE_LABELS[@]}"; then
+            save_outcome SKIP "Ctrl+S did not write and no \"Save\" button came up after leaving editing (did the typed text reach the document?)"
+            return
+        fi
+        if wait_written "$name" "$old" 20; then
+            how="the Save button (Ctrl+S did not write)"
+        else
+            picker=$(picker_package)
+            [ -z "$picker" ] || close_picker
+            save_outcome FAIL "the file did not change after Ctrl+S and the Save button${picker:+ (\"Save as\" opened instead)}"
+            return
+        fi
+    fi
+    save_outcome WRITTEN "typed \"$TYPED_WORD\", saved with $how"
+}
+
+# sheet_edit STEP: A1 (selected on opening) changed in the formula bar: its text deleted,
+# TYPED_NUMBER typed, Enter. Status 1 (and a SKIP) without a formula bar field.
+sheet_edit() {
+    local step=$1 xml="$OUT/$1.window.xml" at before keys=(KEYCODE_MOVE_END)
+    ui_dump "$xml" || true
+    at=$(ui_query "$xml" field-center) || { save_outcome SKIP "no formula bar field on the sheet screen"; return 1; }
+    before=$(field_text "$step")
+    tap_at "$at"
+    sleep 1
+    for _ in $(seq 1 24); do keys+=(KEYCODE_DEL); done
+    sh_adb input keyevent "${keys[@]}"
+    sh_adb input text "$TYPED_NUMBER"
+    sleep 1
+    sh_adb input keyevent KEYCODE_ENTER
+    sleep 2
+    save_note "A1 \"$before\" → $TYPED_NUMBER in the formula bar, Enter"
+}
+
+# save_sheet STEP NAME HASH: the cell edit, then the top bar's Save; the "Saved" snackbar is noted.
+save_sheet() {
+    local step=$1 name=$2 old=$3 xml="$OUT/$1.window.xml" said="" deadline
+    sheet_edit "$step" || return
+    if ! wait_label "$step" 10 exact "${SAVE_LABELS[@]}"; then
+        save_outcome SKIP "no \"Save\" in the top bar after the edit (field shows \"$(field_text "$step")\"): the edit was not committed"
+        return
+    fi
+    SHEET_EDIT_SEEN=1
+    tap_label "$step" center-exact "${SAVE_LABELS[@]}" || { save_outcome SKIP "the \"Save\" button went away before it could be tapped"; return; }
+    deadline=$(($(date +%s) + 20))
+    while :; do
+        if [ -z "$said" ] && ui_dump "$xml"; then
+            if ui_query "$xml" contains "${SAVE_PROBLEM_TEXTS[@]}"; then
+                save_outcome FAIL "the app reported: $(ui_query "$xml" show "${SAVE_PROBLEM_TEXTS[@]}" | head -1)"
+                return
+            fi
+            if ui_query "$xml" exact "${SAVED_TEXTS[@]}"; then said="\"Saved\" shown"; fi
+        fi
+        if pull_sample "$name" "$S_COPY" && [ "$(hash_of "$S_COPY")" != "$old" ]; then
+            # Written: one more look for the snackbar, which stays a few seconds.
+            if [ -z "$said" ] && ui_dump "$xml" && ui_query "$xml" exact "${SAVED_TEXTS[@]}"; then said="\"Saved\" shown"; fi
+            save_outcome WRITTEN "saved with the top bar's Save, ${said:-no \"Saved\" snackbar seen}"
+            return
+        fi
+        if [ "$(date +%s)" -ge "$deadline" ]; then
+            save_outcome FAIL "the file did not change within 20 s of tapping Save (${said:-no message})"
+            return
+        fi
+        sleep 1
+    done
+}
+
+# block_sheet STEP NAME HASH: a workbook that must not be saved over: the same edit, then no Save
+# in the top bar, Ctrl+S must not write, and the bytes stay.
+block_sheet() {
+    local step=$1 name=$2 old=$3 button=0 picker shown ctrl_s="did not write"
+    sheet_edit "$step" || return
+    # About as long as the button takes to appear in save-xlsx.
+    if wait_label "$step" 6 exact "${SAVE_LABELS[@]}"; then button=1; fi
+    shown=$(field_text "$step")
+    press_ctrl_s
+    sleep 4
+    picker=$(picker_package)
+    if [ -n "$picker" ]; then
+        ctrl_s="opened \"Save as\" (cancelled)"
+        close_picker
+    fi
+    sleep 2
+    if ! pull_sample "$name" "$S_COPY"; then
+        save_outcome SKIP "adb could not pull the file back"
+    elif [ "$(hash_of "$S_COPY")" != "$old" ]; then
+        save_outcome FAIL "the file was written over (its hash changed) although the engine did not read it whole"
+    elif [ "$button" = 1 ]; then
+        save_outcome FAIL "the top bar offers \"Save\" for a workbook that was not read whole (the file is still unchanged)"
+    elif [ "$SHEET_EDIT_SEEN" = 1 ]; then
+        save_outcome PASS "field shows \"$shown\", no \"Save\" in the top bar, Ctrl+S $ctrl_s, the bytes are unchanged"
+    else
+        save_outcome SKIP "the bytes are unchanged after Ctrl+S, but save-xlsx did not show that this edit brings up Save, so its absence here proves nothing"
+    fi
+}
+
+# text_edit STEP: "Edit", a tap in the text (below it: the caret goes to the end), the word typed,
+# "Save". Status 1 (and a SKIP) when a step is not there.
+text_edit() {
+    local step=$1 xml="$OUT/$1.window.xml" at typed
+    tap_label "$step" center-exact "${EDIT_LABELS[@]}" || { save_outcome SKIP "no \"Edit\" on the text screen"; return 1; }
+    sleep 2
+    ui_dump "$xml" || true
+    at=$(ui_query "$xml" field-center) || { save_outcome SKIP "no text field after \"Edit\""; return 1; }
+    tap_at "$at"
+    sleep 1
+    sh_adb input text "$TYPED_WORD"
+    sleep 1
+    ui_dump "$xml" || true
+    typed=$(field_text "$step")
+    [[ "$typed" == *"$TYPED_WORD"* ]] || { save_outcome SKIP "the typed \"$TYPED_WORD\" did not reach the text field"; return 1; }
+    tap_label "$step" center-exact "${SAVE_LABELS[@]}" || { save_outcome SKIP "no \"Save\" while editing"; return 1; }
+    save_note "typed \"$TYPED_WORD\", tapped Save"
+}
+
+save_text() {
+    local step=$1 name=$2 old=$3
+    text_edit "$step" || return
+    if wait_written "$name" "$old" 15; then
+        save_outcome WRITTEN "written"
+    else
+        save_outcome FAIL "the file did not change within 15 s of tapping Save"
+    fi
+}
+
+block_text() {
+    local step=$1 name=$2 old=$3
+    text_edit "$step" || return
+    sleep 5
+    if ! pull_sample "$name" "$S_COPY"; then
+        save_outcome SKIP "adb could not pull the file back"
+    elif [ "$(hash_of "$S_COPY")" != "$old" ]; then
+        save_outcome FAIL "the file was written over although its line ends would not come back the same"
+    else
+        save_outcome PASS "the bytes are unchanged (the refusal itself is a toast, which uiautomator does not see)"
+    fi
+}
+
+# save_case NAME MIME ROUTE STEP CASE: cold start with the document, then the case's driver.
+save_case() {
+    local name=$1 mime=$2 route=$3 step=$4 case=$5 old mark found
+    S_RESULT=""
+    S_DETAIL=""
+    S_COPY="$OUT/$step.saved-$name"
+    old=$(hash_of "$SAMPLES/$name")
+    open_document "$name" "$mime" "$route" viewer small "$step-open"
+    if [ "$LAST_RESULT" != PASS ]; then
+        record "$step" SKIP "the document did not open (see $step-open)"
+        return
+    fi
+    mark=$(log_mark)
+    case "$case" in
+        docx) save_word "$step" "$name" "$old" ;;
+        xlsx) save_sheet "$step" "$name" "$old" ;;
+        txt-utf8 | txt-1254) save_text "$step" "$name" "$old" ;;
+        block-xlsx) block_sheet "$step" "$name" "$old" ;;
+        block-txt) block_text "$step" "$name" "$old" ;;
+        *) save_outcome SKIP "unknown case \"$case\" in samples-save.tsv" ;;
+    esac
+    if [ "$S_RESULT" = WRITTEN ]; then
+        if found=$(verify_saved "$case" "$SAMPLES/$name" "$S_COPY" 2>&1); then S_RESULT=PASS; else S_RESULT=FAIL; fi
+        save_note "pulled file: $found"
+    fi
+    if ! alive; then
+        S_RESULT=FAIL
+        save_note "the app process is gone after saving"
+    fi
+    screenshot "$step"
+    if ! check_logs "$step" "$mark"; then
+        S_RESULT=FAIL
+        save_note "crash signals in logcat (see the log above and $step.logcat.txt)"
+    fi
+    if [ "$S_RESULT" = SKIP ]; then echo "::warning title=Emulator smoke test: $step skipped::$S_DETAIL"; fi
+    record "$step" "${S_RESULT:-SKIP}" "${S_DETAIL:-the driver decided nothing}"
+    sh_adb am force-stop "$PKG" || true
+    if [ "$S_RESULT" = FAIL ]; then clear_crash_report; fi
+}
+
+save_pass() {
+    local list="$SAMPLES/samples-save.tsv" elapsed name mime route step case
+    # Shorter than the open-only passes: the edit that follows also gives a late crash time.
+    local SETTLE=3
+    PASS=3
+    TITLE_MODE=title
+    METRICS="$OUT/metrics-save.tsv"
+    (IFS=$'\t'; columns=(step result "${M_COLUMNS[@]}"); printf '%s\n' "${columns[*]}") > "$METRICS"
+    SAVE_STARTED=$(date +%s)
+    elapsed=$(((SAVE_STARTED - RUN_STARTED) / 60))
+    if [ ! -s "$list" ]; then
+        record save-setup SKIP "no samples-save.tsv in $SAMPLES"
+        return
+    fi
+    if [ "$elapsed" -ge $((SAVE_TIME_LIMIT - 4)) ]; then
+        echo "::warning title=Emulator smoke test: save pass skipped::the earlier passes took $elapsed min (limit $SAVE_TIME_LIMIT min)"
+        record save-setup SKIP "skipped: the earlier passes took $elapsed min, too close to the $SAVE_TIME_LIMIT min limit"
+        return
+    fi
+    log "save pass: edit, save over the file, check it with adb"
+    while IFS=$'\t' read -r name _ <&3; do
+        timeout 60 adb push "$SAMPLES/$name" "$DEVICE_DIR/$name" > /dev/null < /dev/null
+    done 3< "$list"
+    while IFS=$'\t' read -r name mime route _ _ step case <&3; do
+        if [ $((($(date +%s) - RUN_STARTED) / 60)) -ge "$SAVE_TIME_LIMIT" ]; then
+            record "$step" SKIP "skipped: the run reached its $SAVE_TIME_LIMIT min limit"
+            continue
+        fi
+        save_case "$name" "$mime" "$route" "$step" "$case"
+    done 3< "$list"
+    sh_adb am force-stop "$PKG" || true
+    SAVE_ENDED=$(date +%s)
+}
+
 finish() {
     local status=$?
     [ -n "${LOGCAT_PID:-}" ] && kill "$LOGCAT_PID" 2> /dev/null || true
@@ -663,6 +1111,21 @@ finish() {
                 "and on copies with upper-case extensions, Turkish letters and a space in their names; a document" \
                 "screen passes only if its Back button says \"Geri\". ${SLOW_TR} over budget (⚠)." \
                 "Pass: $(((${PASS2_ENDED:-$(date +%s)} - ${PASS2_STARTED:-$(date +%s)}) / 60)) min."
+        fi
+        if [ "${#RESULTS_SAVE[@]}" -gt 0 ]; then
+            echo
+            echo "### Kaydetme"
+            echo
+            echo "| Step | Result | am start | Visible | PSS | Detail |"
+            echo "|---|---|---|---|---|---|"
+            printf '%s\n' "${RESULTS_SAVE[@]}"
+            echo
+            echo "Edit and save over the file through the UI, then \`adb pull\` it and check it on the host" \
+                "(*-open* rows: opening it, as above). *save-*: saving in place must write a valid file that holds" \
+                "the edit and everything else (text files byte for byte, in their own encoding and line ends)." \
+                "*block-*: files the app must not save over (a slicer, a VBA project in .xlsx; mixed line ends);" \
+                "the file must keep its bytes. Pulled copies are in the logs artifact as *.saved-*. ${SLOW_SAVE} over budget (⚠)." \
+                "Pass: $(((${SAVE_ENDED:-$(date +%s)} - ${SAVE_STARTED:-$(date +%s)}) / 60)) min."
         fi
     } > "$OUT/summary.md"
     cat "$OUT/summary.md"
@@ -732,6 +1195,11 @@ sh_adb am force-stop "$PKG" || true
 
 if [ "$SECOND_PASS" = 1 ]; then
     second_pass
+fi
+
+# Last, in English again (second_pass put the app's locale back): it changes files.
+if [ "$SAVE_PASS" = 1 ]; then
+    save_pass
 fi
 
 if [ "$FAILED" -gt 0 ]; then

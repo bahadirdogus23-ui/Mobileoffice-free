@@ -184,6 +184,10 @@ jobs:
   # are soft (warnings only). A second, shorter pass repeats a subset in Turkish (tr-TR), at font
   # scale 2.0 and in the dark theme, with upper-case and Turkish-letter file names (summary section
   # "tr-TR · yazı 2× · koyu", metrics-tr.tsv); its steps stop at SMOKE_TIME_LIMIT minutes.
+  # A third pass edits and saves over a few files through the UI and checks them with adb pull
+  # (summary section "Kaydetme"): a clean DOCX, XLSX and two TXT (UTF-8, Windows-1254 with CRLF)
+  # must save in place; an XLSX with a slicer or a VBA project and a TXT with mixed line ends must
+  # not. Its cases stop at SMOKE_SAVE_TIME_LIMIT minutes.
   emulator-smoke:
     name: Release APK on an emulator
     needs: android
@@ -207,6 +211,8 @@ jobs:
         env:
           # Minutes after the script starts; later second-pass steps are skipped (job timeout 45).
           SMOKE_TIME_LIMIT: 34
+          # The same for the save pass, which runs last.
+          SMOKE_SAVE_TIME_LIMIT: 38
         with:
           api-level: 34
           target: google_apis
