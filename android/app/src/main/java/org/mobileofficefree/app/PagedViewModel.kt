@@ -21,6 +21,9 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
+/** Logcat tag of the Word and slide saves (requested, refused, written, failed); the emulator smoke test prints these lines. */
+internal const val SAVE_LOG_TAG = "BadoSave"
+
 /** One rectangle of search match [index] on page [page], in page points. */
 data class FoundRect(val index: Int, val page: Int, val left: Float, val top: Float, val right: Float, val bottom: Float)
 

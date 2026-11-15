@@ -263,8 +263,10 @@ class WordViewModel(app: Application) : PagedViewModel(app, DocumentKind.WORD) {
     fun save(dest: Uri, name: String, then: () -> Unit = {}) {
         val d = doc ?: return
         val app = getApplication<Application>()
+        android.util.Log.i(SAVE_LOG_TAG, "Word save requested: $name, over the opened file=${dest == source}, read whole=${!incomplete}")
         if (incomplete && dest == source) {
             // Never over a file the engine did not read whole: what it left out would be lost.
+            android.util.Log.i(SAVE_LOG_TAG, "Word save refused: $name was not read whole")
             tell(app.getString(R.string.save_over_incomplete))
             return
         }
@@ -274,9 +276,11 @@ class WordViewModel(app: Application) : PagedViewModel(app, DocumentKind.WORD) {
                     val bytes = Measurements.time("Word: kaydetme") { d.export(name) }
                     Diagnostics.event("Word kaydedildi: ${bytes.size / 1024} KB")
                     app.contentResolver.openOutputStream(dest, "wt")?.use { it.write(bytes) } ?: error("cannot write")
+                    android.util.Log.i(SAVE_LOG_TAG, "Word save written: $name, ${bytes.size} bytes")
                     d.markSaved()
                 }
             }
+            result.exceptionOrNull()?.let { android.util.Log.w(SAVE_LOG_TAG, "Word save failed: $name", it) }
             if (result.isSuccess) {
                 dirty = false
                 savedCleanly()

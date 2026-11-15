@@ -369,8 +369,10 @@ class SlidesViewModel(app: Application) : PagedViewModel(app, DocumentKind.SLIDE
     fun save(dest: Uri, name: String, then: () -> Unit = {}) {
         val d = doc ?: return
         val app = getApplication<Application>()
+        android.util.Log.i(SAVE_LOG_TAG, "Slides save requested: $name, over the opened file=${dest == source}, read whole=${!incomplete}")
         if (incomplete && dest == source) {
             // Never over a file DeckCraft did not read whole: what it left out would be lost.
+            android.util.Log.i(SAVE_LOG_TAG, "Slides save refused: $name was not read whole")
             tell(app.getString(R.string.save_over_incomplete))
             return
         }
@@ -380,8 +382,10 @@ class SlidesViewModel(app: Application) : PagedViewModel(app, DocumentKind.SLIDE
                     val bytes = Measurements.time("Sunu: kaydetme") { d.save(name) }
                     Diagnostics.event("Sunu kaydedildi: ${bytes.size / 1024} KB")
                     app.contentResolver.openOutputStream(dest, "wt")?.use { it.write(bytes) } ?: error("cannot write")
+                    android.util.Log.i(SAVE_LOG_TAG, "Slides save written: $name, ${bytes.size} bytes")
                 }
             }
+            result.exceptionOrNull()?.let { android.util.Log.w(SAVE_LOG_TAG, "Slides save failed: $name", it) }
             if (result.isSuccess) {
                 dirty = false
                 savedCleanly()

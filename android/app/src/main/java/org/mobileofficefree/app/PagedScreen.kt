@@ -217,6 +217,7 @@ fun PagedScreen(vm: PagedViewModel, state: PagedUiState, reading: ReadingSetting
         if (word?.savesInPlace == true) {
             word.saveInPlace(then = { if (close) vm.answerClose(true) })
         } else {
+            android.util.Log.i(SAVE_LOG_TAG, "Word save as: in-place save is off for ${state.fileName}")
             closeAfterWordSave = close
             saveWordAs.launch(CreateFile.Request(wordName, "application/vnd.openxmlformats-officedocument.wordprocessingml.document"))
         }
@@ -232,6 +233,7 @@ fun PagedScreen(vm: PagedViewModel, state: PagedUiState, reading: ReadingSetting
         if (slides?.savesInPlace == true) {
             slides.saveInPlace(then = { if (close) vm.answerClose(true) })
         } else {
+            android.util.Log.i(SAVE_LOG_TAG, "Slides save as: in-place save is off for ${state.fileName}")
             closeAfterWordSave = close
             saveSlidesAs.launch(CreateFile.Request(slidesName, "application/vnd.openxmlformats-officedocument.presentationml.presentation"))
         }

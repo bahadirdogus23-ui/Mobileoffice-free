@@ -54,6 +54,10 @@
 #   - save-xlsx: the formula bar's field (A1 is selected), its text deleted, a number typed, Enter;
 #     then the top bar's "Save" (shown only when `canSaveInPlace && hasUnsaved`) and the "Saved"
 #     snackbar. The pulled file must differ, be a valid ZIP and hold the number and the old text.
+#   - save-pptx (three slides): "Edit", the slide bar's "Text box", the word typed into its dialog,
+#     "Apply" (a new text box on the first slide), then the top bar's "Save". The pulled file must
+#     differ, be a valid ZIP with as many slides as before, hold the typed word on one slide and
+#     every old text (taking the typed word away gives the old texts back).
 #   - save-txt-utf8, save-txt-1254: "Edit", a tap in the text, a word typed, "Save". Removing the
 #     typed word from the pulled file must give back the original bytes: the same encoding
 #     (Windows-1254 letters stay single bytes), no byte order mark added, CRLF kept.
@@ -61,8 +65,15 @@
 #     .xlsx back): the same cell edit, then there must be no "Save" in the top bar, Ctrl+S must not
 #     write (it opens "Save as", which is cancelled) and the file keeps its bytes. The Save-button
 #     check counts only after save-xlsx showed that the same edit makes the button appear.
+#   - block-docx-damaged (a comments part cut short: mo-word's `Loss::Damaged`), block-pptx-slide (a
+#     slide whose XML does not parse: DeckCraft leaves it out): the same edit as save-docx /
+#     save-pptx, then Ctrl+S (and, if nothing came up, the top bar's "Save", which Word shows after
+#     leaving editing) must open "Save as" instead of saving over the file; it is cancelled and the
+#     file keeps its bytes. Without "Save as" coming up an unchanged file proves nothing: SKIP.
 #   - block-txt-mixed (CRLF and LF mixed): edit and "Save"; the viewer refuses (a toast) and the
 #     file keeps its bytes.
+# When a Word or slides case fails, the app's own "BadoSave" log lines for the file (save
+# requested, refused and why, written, failed) are added to its detail, as "BadoText" for text.
 # Toasts (Word, text) are not in uiautomator's tree, so their messages are not checked; snackbars
 # (sheets) are. A UI path that cannot be found (no Edit button, no text field…) is a SKIP with the
 # reason and a warning, not a failure; a file that changed when it must not, or a valid save path
@@ -133,6 +144,11 @@ SAVED_TEXTS=("Saved" "Kaydedildi")
 EDIT_LABELS=("Edit" "Düzenle")
 KEYBOARD_LABELS=("Keyboard" "Klavye")
 SAVE_PROBLEM_TEXTS=("Could not save" "Kaydedilemedi" "Not saved:" "Kaydedilmedi:")
+# The slide editing bar's new text box and its dialog's button (slide_add_text, apply).
+TEXT_BOX_LABELS=("Text box" "Metin kutusu")
+APPLY_LABELS=("Apply" "Uygula")
+# The app's logcat tag for Word and slide saves (SAVE_LOG_TAG in PagedViewModel.kt).
+SAVE_LOG_TAG=BadoSave
 # What is typed: ASCII, as `input text` sends it; the cell gets a number.
 TYPED_WORD=Smoke42
 TYPED_NUMBER=4242
@@ -195,7 +211,8 @@ ui_dump() {  # ui_dump FILE: the active window's UI tree, or an empty file if ui
 # Unicode-normalised, and a value cut with "…" matches when what is left is a prefix of a label
 # at least 6 characters long, or the whole label if shorter), "center" (prints "x y" of the first
 # node containing a label), "center-exact" (the same for the first node matching like "exact"),
-# "show" (prints every value containing a label), "field-center" / "field-text" (no labels: "x y"
+# "enabled" / "center-enabled" (like "exact" / "center-exact", skipping nodes that are, or sit in,
+# a disabled control: the slide bar keeps a greyed-out Save), "show" (prints every value containing a label), "field-center" / "field-text" (no labels: "x y"
 # or the text of the first text field, class EditText, on screen).
 # Exit status 0 when found.
 ui_query() {
@@ -226,9 +243,21 @@ def title_hit(value, labels):
 path, mode, labels = sys.argv[1], sys.argv[2], sys.argv[3:]
 found = False
 try:
-    nodes = list(ET.parse(path).getroot().iter("node"))
+    root = ET.parse(path).getroot()
 except (ET.ParseError, OSError):
     sys.exit(1)
+nodes = list(root.iter("node"))
+parents = {child: parent for parent in root.iter() for child in parent}
+
+
+def disabled(node):
+    while node is not None:
+        if node.get("enabled") == "false":
+            return True
+        node = parents.get(node)
+    return False
+
+
 if mode in ("field-center", "field-text"):
     for node in nodes:
         if node.get("class", "").endswith("EditText"):
@@ -239,7 +268,9 @@ for node in nodes:
     for value in (node.get("text") or "", node.get("content-desc") or ""):
         if not value:
             continue
-        if mode in ("exact", "center-exact"):
+        if mode in ("enabled", "center-enabled") and disabled(node):
+            continue
+        if mode in ("exact", "center-exact", "enabled", "center-enabled"):
             hit = any(value == l or l in [p.strip() for p in value.split(",")] for l in labels)
         elif mode == "title":
             hit = any(title_hit(p, labels) for p in [value] + value.split(","))
@@ -250,7 +281,7 @@ for node in nodes:
                 print(value[:300])
                 found = True
                 continue
-            if mode in ("center", "center-exact"):
+            if mode in ("center", "center-exact", "center-enabled"):
                 print(center(node))
             sys.exit(0)
 sys.exit(0 if found else 1)
@@ -774,6 +805,7 @@ close_picker() {
 # saving in place must write.
 verify_saved() {
     python3 - "$@" "$TYPED_WORD" "$TYPED_NUMBER" << 'PY'
+import collections
 import re
 import sys
 import zipfile
@@ -820,6 +852,23 @@ elif case == "xlsx":
         xml = "".join(part(z, n) for n in z.namelist() if n.startswith("xl/worksheets/") or n == "xl/sharedStrings.xml")
         check(re.search(rf">{number}<", xml), f"holds the typed {number}", f"the typed {number} is not in the sheet")
         check("İstanbul" in xml and "Ağrı" in xml, "the other cells are kept", "other cells (\"İstanbul\", \"Ağrı\") are missing")
+elif case == "pptx":
+    z = package(["[Content_Types].xml", "ppt/presentation.xml"])
+    if z:
+        def slides(pkg):
+            names = [n for n in pkg.namelist() if re.fullmatch(r"ppt/slides/slide\d+\.xml", n)]
+            return {n: re.findall(r"<a:t(?:\s[^>]*)?>([^<]*)</a:t>", part(pkg, n)) for n in names}
+
+        before, after = slides(zipfile.ZipFile(original)), slides(z)
+        listed = len(re.findall(r"<p:sldId\s", part(z, "ppt/presentation.xml")))
+        check(len(after) == len(before) == listed, f"{len(after)} slides as before", f"{len(after)} slide parts and {listed} listed, not {len(before)}")
+        typed_on = [n for n, texts in after.items() if word in texts]
+        check(len(typed_on) == 1, f"holds the typed \"{word}\" on {''.join(typed_on)}", f"the typed \"{word}\" is on {len(typed_on)} slides, not 1")
+        old_texts = collections.Counter(t for texts in before.values() for t in texts)
+        new_texts = collections.Counter(t for texts in after.values() for t in texts)
+        new_texts[word] = max(new_texts[word] - 1, 0)
+        lost = old_texts - new_texts
+        check(not lost, f"every old text kept ({sum(old_texts.values())})", "old texts missing: " + ", ".join(sorted(lost)))
 elif case in ("txt-utf8", "txt-1254"):
     encoding = "utf-8" if case == "txt-utf8" else "cp1254"
     check(new.count(word.encode()) == 1, f"holds the typed \"{word}\" once", f"\"{word}\" is in it {new.count(word.encode())} times")
@@ -842,15 +891,22 @@ sys.exit(1 if bad else 0)
 PY
 }
 
-# save_word STEP NAME HASH: "Edit", the word typed at the caret (start of the document), Ctrl+S;
-# if that did not write, out of editing with Back and the top bar's (or the leave dialog's) Save.
-save_word() {
-    local step=$1 name=$2 old=$3 xml="$OUT/$1.window.xml" how="" picker
-    tap_label "$step" center-exact "${EDIT_LABELS[@]}" || { save_outcome SKIP "no \"Edit\" on the document screen"; return; }
-    wait_label "$step" 15 exact "${KEYBOARD_LABELS[@]}" || { save_outcome SKIP "the editing tool bar did not come up after \"Edit\""; return; }
+# word_edit STEP: "Edit", then the word typed at the caret (the start of the document). Status 1
+# (and a SKIP) when the editor does not come up.
+word_edit() {
+    local step=$1
+    tap_label "$step" center-exact "${EDIT_LABELS[@]}" || { save_outcome SKIP "no \"Edit\" on the document screen"; return 1; }
+    wait_label "$step" 15 exact "${KEYBOARD_LABELS[@]}" || { save_outcome SKIP "the editing tool bar did not come up after \"Edit\""; return 1; }
     sleep 1
     sh_adb input text "$TYPED_WORD"
     sleep 2
+}
+
+# save_word STEP NAME HASH: word_edit, Ctrl+S; if that did not write, out of editing with Back and
+# the top bar's (or the leave dialog's) Save.
+save_word() {
+    local step=$1 name=$2 old=$3 xml="$OUT/$1.window.xml" how="" picker
+    word_edit "$step" || return 0
     press_ctrl_s
     if wait_written "$name" "$old" 15; then
         how="Ctrl+S"
@@ -904,7 +960,7 @@ sheet_edit() {
 # save_sheet STEP NAME HASH: the cell edit, then the top bar's Save; the "Saved" snackbar is noted.
 save_sheet() {
     local step=$1 name=$2 old=$3 xml="$OUT/$1.window.xml" said="" deadline
-    sheet_edit "$step" || return
+    sheet_edit "$step" || return 0
     if ! wait_label "$step" 10 exact "${SAVE_LABELS[@]}"; then
         save_outcome SKIP "no \"Save\" in the top bar after the edit (field shows \"$(field_text "$step")\"): the edit was not committed"
         return
@@ -938,7 +994,7 @@ save_sheet() {
 # in the top bar, Ctrl+S must not write, and the bytes stay.
 block_sheet() {
     local step=$1 name=$2 old=$3 button=0 picker shown ctrl_s="did not write"
-    sheet_edit "$step" || return
+    sheet_edit "$step" || return 0
     # About as long as the button takes to appear in save-xlsx.
     if wait_label "$step" 6 exact "${SAVE_LABELS[@]}"; then button=1; fi
     shown=$(field_text "$step")
@@ -963,6 +1019,105 @@ block_sheet() {
     fi
 }
 
+# slide_edit STEP: "Edit", the slide bar's "Text box", the word typed into its dialog's field,
+# "Apply": a new text box on the slide shown (the first after opening), made on the engine thread;
+# an enabled "Save" comes up once the slides are edited (the slide bar greys its own out until
+# then). Status 1 (and a SKIP) when a step is not there.
+slide_edit() {
+    local step=$1 xml="$OUT/$1.window.xml" at typed
+    tap_label "$step" center-exact "${EDIT_LABELS[@]}" || { save_outcome SKIP "no \"Edit\" on the slides screen"; return 1; }
+    wait_label "$step" 10 exact "${TEXT_BOX_LABELS[@]}" || { save_outcome SKIP "the slide editing bar (\"Text box\") did not come up after \"Edit\""; return 1; }
+    tap_label "$step" center-exact "${TEXT_BOX_LABELS[@]}" || { save_outcome SKIP "\"Text box\" went away before it could be tapped"; return 1; }
+    sleep 2
+    ui_dump "$xml" || true
+    at=$(ui_query "$xml" field-center) || { save_outcome SKIP "no text field in the \"Text box\" dialog"; return 1; }
+    tap_at "$at"
+    sleep 1
+    sh_adb input text "$TYPED_WORD"
+    sleep 1
+    ui_dump "$xml" || true
+    typed=$(field_text "$step")
+    [[ "$typed" == *"$TYPED_WORD"* ]] || { save_outcome SKIP "the typed \"$TYPED_WORD\" did not reach the dialog's field (it shows \"$typed\")"; return 1; }
+    tap_label "$step" center-exact "${APPLY_LABELS[@]}" || { save_outcome SKIP "no \"Apply\" in the \"Text box\" dialog"; return 1; }
+    if ! wait_label "$step" 10 enabled "${SAVE_LABELS[@]}"; then
+        save_outcome SKIP "no enabled \"Save\" after \"Apply\": the text box was not added"
+        return 1
+    fi
+    save_note "\"Edit\", \"Text box\", typed \"$TYPED_WORD\", \"Apply\""
+}
+
+# save_slides STEP NAME HASH: slide_edit, then the top bar's Save must write the file.
+save_slides() {
+    local step=$1 name=$2 old=$3 picker
+    slide_edit "$step" || return 0
+    tap_label "$step" center-enabled "${SAVE_LABELS[@]}" || { save_outcome SKIP "the \"Save\" button went away before it could be tapped"; return; }
+    if wait_written "$name" "$old" 20; then
+        save_outcome WRITTEN "saved with the top bar's Save"
+        return
+    fi
+    picker=$(picker_package)
+    if [ -n "$picker" ]; then
+        close_picker
+        save_outcome FAIL "Save opened \"Save as\" ($picker) instead of saving over the file: in-place save is off for a clean .pptx"
+    else
+        save_outcome FAIL "the file did not change within 20 s of tapping Save"
+    fi
+}
+
+# expect_save_as STEP NAME HASH: after an edit of a document the app must not save over (Word,
+# slides): Ctrl+S and, if no "Save as" came up and nothing was written, the top bar's Save (Word
+# shows it once editing is left; the first Back may only close the keyboard) must open the
+# system's "Save as", which is cancelled; the file must keep its bytes. Only "Save as" coming up
+# shows that the guard kept the file, rather than a key press or tap that went nowhere.
+expect_save_as() {
+    local step=$1 name=$2 old=$3 xml="$OUT/$1.window.xml" picker how=""
+    press_ctrl_s
+    sleep 4
+    picker=$(picker_package)
+    if [ -n "$picker" ]; then
+        how="Ctrl+S opened \"Save as\" (cancelled)"
+        close_picker
+    elif pull_sample "$name" "$S_COPY" && [ "$(hash_of "$S_COPY")" = "$old" ]; then
+        for _ in 1 2 3; do
+            if ui_dump "$xml" && ui_query "$xml" enabled "${SAVE_LABELS[@]}"; then break; fi
+            sh_adb input keyevent KEYCODE_BACK || true
+            sleep 2
+        done
+        if tap_label "$step" center-enabled "${SAVE_LABELS[@]}"; then
+            sleep 4
+            picker=$(picker_package)
+            if [ -n "$picker" ]; then
+                how="Ctrl+S did not, but the Save button opened \"Save as\" (cancelled)"
+                close_picker
+            fi
+        fi
+    fi
+    sleep 2
+    if ! pull_sample "$name" "$S_COPY"; then
+        save_outcome SKIP "adb could not pull the file back"
+    elif [ "$(hash_of "$S_COPY")" != "$old" ]; then
+        save_outcome FAIL "the file was written over (its hash changed) although the engine did not read it whole"
+    elif [ -n "$how" ]; then
+        save_outcome PASS "$how, the bytes are unchanged"
+    else
+        save_outcome SKIP "the bytes are unchanged, but neither Ctrl+S nor a Save button opened \"Save as\", so this proves nothing about the guard"
+    fi
+}
+
+block_word() {
+    word_edit "$1" || return 0
+    save_note "typed \"$TYPED_WORD\" after \"Edit\""
+    expect_save_as "$@"
+}
+
+block_slides() {
+    slide_edit "$1" || return 0
+    expect_save_as "$@"
+}
+
+# app_log TAG [TEXT]: the app's last logcat lines with TAG (those containing TEXT), on one line.
+app_log() { sh_adb logcat -d -s "$1:*" 2> /dev/null | grep -F -- "${2:-}" | tail -n 6 | tr '\n' ' ' || true; }
+
 # text_edit STEP: "Edit", a tap in the text (below it: the caret goes to the end), the word typed,
 # "Save". Status 1 (and a SKIP) when a step is not there.
 text_edit() {
@@ -984,7 +1139,7 @@ text_edit() {
 
 save_text() {
     local step=$1 name=$2 old=$3
-    text_edit "$step" || return
+    text_edit "$step" || return 0
     if wait_written "$name" "$old" 15; then
         save_outcome WRITTEN "written"
     else
@@ -997,7 +1152,7 @@ save_text() {
 
 block_text() {
     local step=$1 name=$2 old=$3
-    text_edit "$step" || return
+    text_edit "$step" || return 0
     sleep 5
     if ! pull_sample "$name" "$S_COPY"; then
         save_outcome SKIP "adb could not pull the file back"
@@ -1010,7 +1165,7 @@ block_text() {
 
 # save_case NAME MIME ROUTE STEP CASE: cold start with the document, then the case's driver.
 save_case() {
-    local name=$1 mime=$2 route=$3 step=$4 case=$5 old mark found
+    local name=$1 mime=$2 route=$3 step=$4 case=$5 old mark found why
     S_RESULT=""
     S_DETAIL=""
     S_COPY="$OUT/$step.saved-$name"
@@ -1021,11 +1176,16 @@ save_case() {
         return
     fi
     mark=$(log_mark)
+    # A driver leaves its outcome in S_RESULT and returns 0: under set -e any other status would
+    # end the whole run.
     case "$case" in
         docx) save_word "$step" "$name" "$old" ;;
         xlsx) save_sheet "$step" "$name" "$old" ;;
+        pptx) save_slides "$step" "$name" "$old" ;;
         txt-utf8 | txt-1254) save_text "$step" "$name" "$old" ;;
         block-xlsx) block_sheet "$step" "$name" "$old" ;;
+        block-docx) block_word "$step" "$name" "$old" ;;
+        block-pptx) block_slides "$step" "$name" "$old" ;;
         block-txt) block_text "$step" "$name" "$old" ;;
         *) save_outcome SKIP "unknown case \"$case\" in samples-save.tsv" ;;
     esac
@@ -1041,6 +1201,14 @@ save_case() {
     if ! check_logs "$step" "$mark"; then
         S_RESULT=FAIL
         save_note "crash signals in logcat (see the log above and $step.logcat.txt)"
+    fi
+    if [ "$S_RESULT" = FAIL ]; then
+        case "$case" in
+            docx | pptx | block-docx | block-pptx)
+                why=$(app_log "$SAVE_LOG_TAG" "$name")
+                [ -z "$why" ] || save_note "app log: $why"
+                ;;
+        esac
     fi
     if [ "$S_RESULT" = SKIP ]; then echo "::warning title=Emulator smoke test: $step skipped::$S_DETAIL"; fi
     record "$step" "${S_RESULT:-SKIP}" "${S_DETAIL:-the driver decided nothing}"
@@ -1126,7 +1294,8 @@ finish() {
             echo "Edit and save over the file through the UI, then \`adb pull\` it and check it on the host" \
                 "(*-open* rows: opening it, as above). *save-*: saving in place must write a valid file that holds" \
                 "the edit and everything else (text files byte for byte, in their own encoding and line ends)." \
-                "*block-*: files the app must not save over (a slicer, a VBA project in .xlsx; mixed line ends);" \
+                "*block-*: files the app must not save over (a slicer, a VBA project in .xlsx; a damaged part in" \
+                ".docx and an unreadable slide in .pptx, for which \"Save as\" must come up instead; mixed line ends);" \
                 "the file must keep its bytes. Pulled copies are in the logs artifact as *.saved-*. ${SLOW_SAVE} over budget (⚠)." \
                 "Pass: $(((${SAVE_ENDED:-$(date +%s)} - ${SAVE_STARTED:-$(date +%s)}) / 60)) min."
         fi

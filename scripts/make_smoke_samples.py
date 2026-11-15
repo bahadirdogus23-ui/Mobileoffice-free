@@ -25,13 +25,17 @@ output files.
 `samples-save.tsv` lists what the smoke test's save pass edits and saves over (section "Kaydetme"
 in scripts/emulator-smoke.sh): the five columns above, the step name, then the case:
 
-    docx, xlsx, txt-utf8, txt-1254   saving in place must work (the file changes and stays valid)
-    block-xlsx, block-txt            saving in place must be refused (the file keeps its bytes)
+    docx, xlsx, pptx, txt-utf8, txt-1254            saving in place must work (the file changes
+                                                    and stays valid)
+    block-xlsx, block-docx, block-pptx, block-txt   saving in place must be refused (the file
+                                                    keeps its bytes)
 
 They are separate copies ("mo-save-…"), so the open-only passes never see an edited file. The
 blocked ones mirror rust/mo-grid's tests (an .xlsx with a slicer part, `Loss::Slicers`, and one
-with a VBA project, `Loss::Macros`) and the text viewer's rule for a file that mixes CRLF and LF
-line ends (saved only as a copy).
+with a VBA project, `Loss::Macros`), rust/mo-word's `a_docx_part_the_engine_skips_is_reported` (a
+comments part cut short, `Loss::Damaged`), rust/mo-deck's
+`what_deckcraft_leaves_out_on_opening_is_flagged` (a slide whose XML does not parse) and the text
+viewer's rule for a file that mixes CRLF and LF line ends (saved only as a copy).
 
 Legacy binary formats: only .xls has a file in the repository's test data (mo-grid); there is no
 .doc or .ppt file to copy, so those two are not covered here.
@@ -503,16 +507,21 @@ def make_zip(path, docx, txt):
 # The save pass (samples-save.tsv)
 
 XLSX_MIME = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+DOCX_MIME = "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+PPTX_MIME = "application/vnd.openxmlformats-officedocument.presentationml.presentation"
 NS_X14 = "http://schemas.microsoft.com/office/spreadsheetml/2009/9/main"
 # (name, MIME type, step, case). The clean .xlsx comes before the blocked ones: it shows that the
 # cell edit itself works, so a missing Save button there means the guard, not a lost edit.
 SAVE_CASES = [
-    ("mo-save-docx.docx", "application/vnd.openxmlformats-officedocument.wordprocessingml.document", "save-docx", "docx"),
+    ("mo-save-docx.docx", DOCX_MIME, "save-docx", "docx"),
     ("mo-save-xlsx.xlsx", XLSX_MIME, "save-xlsx", "xlsx"),
+    ("mo-save-pptx.pptx", PPTX_MIME, "save-pptx", "pptx"),
     ("mo-save-utf8.txt", "text/plain", "save-txt-utf8", "txt-utf8"),
     ("mo-save-1254.txt", "text/plain", "save-txt-1254", "txt-1254"),
     ("mo-save-slicer.xlsx", XLSX_MIME, "block-xlsx-slicer", "block-xlsx"),
     ("mo-save-vba.xlsx", XLSX_MIME, "block-xlsx-vba", "block-xlsx"),
+    ("mo-save-damaged.docx", DOCX_MIME, "block-docx-damaged", "block-docx"),
+    ("mo-save-badslide.pptx", PPTX_MIME, "block-pptx-slide", "block-pptx"),
     ("mo-save-mixed.txt", "text/plain", "block-txt-mixed", "block-txt"),
 ]
 
@@ -552,10 +561,60 @@ def make_vba_xlsx(path):
     )
 
 
+def zip_parts(path):
+    """The entries of the ZIP at `path`, in their order, as a dict of name to bytes."""
+    with zipfile.ZipFile(path) as z:
+        return {info.filename: z.read(info.filename) for info in z.infolist()}
+
+
+def make_damaged_docx(path):
+    """make_docx's document with a comments part cut off in the middle (its relationship and
+    content type are there), like a file whose writing stopped half way. WordCraft opens the rest
+    and skips the part with only a log line; mo-word reports `Loss::Damaged`, so the app must not
+    save over it."""
+    make_docx(path)
+    parts = zip_parts(path)
+    w = "http://schemas.openxmlformats.org/wordprocessingml/2006/main"
+    comments = (
+        f'<?xml version="1.0" encoding="UTF-8" standalone="yes"?><w:comments xmlns:w="{w}">'
+        '<w:comment w:id="0" w:author="Duman" w:date="2026-11-15T00:00:00Z" w:initials="D">'
+        '<w:p><w:r><w:t xml:space="preserve">Bu açıklama kaydedilince silinirdi.</w:t></w:r></w:p></w:comment>'
+        '<w:comment w:id="1" w:author="Duman" w:date="2026-11-15T00:00:00Z" w:initials="D">'
+        '<w:p><w:r><w:t xml:space="preserve">İkinci açıklama: ığüşöç İĞÜŞÖÇ.</w:t></w:r></w:p></w:comment>'
+        "</w:comments>"
+    ).encode("utf-8")
+    # Cut inside the second comment's text: its elements and the root are left open.
+    parts["word/comments.xml"] = comments[: comments.index("İkinci".encode("utf-8")) + 4]
+    parts["[Content_Types].xml"] = parts["[Content_Types].xml"].replace(
+        b"</Types>",
+        b'<Override PartName="/word/comments.xml" '
+        b'ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.comments+xml"/></Types>',
+    )
+    parts["word/_rels/document.xml.rels"] = parts["word/_rels/document.xml.rels"].replace(
+        b"</Relationships>",
+        b'<Relationship Id="rId2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/comments" '
+        b'Target="comments.xml"/></Relationships>',
+    )
+    write_zip(path, parts.items())
+
+
+def make_bad_slide_pptx(path, source):
+    """make_big_pptx's three-slide copy of `source` whose second slide is not XML any more (cut in
+    the middle of a tag, end tags that match nothing after it): DeckCraft leaves the slide out with
+    a warning and mo-deck reports the deck as opened incomplete, so the app must not save over it."""
+    make_big_pptx(path, source, slides=3)
+    parts = zip_parts(path)
+    slide = parts["ppt/slides/slide2.xml"]
+    parts["ppt/slides/slide2.xml"] = slide[: len(slide) // 2] + b"</p:cSld></p:sld><p:sld"
+    write_zip(path, parts.items())
+
+
 def make_save_samples(out):
     """Writes the save pass's files into `out`; returns the rows of samples-save.tsv."""
     make_docx(out / "mo-save-docx.docx")
     make_xlsx(out / "mo-save-xlsx.xlsx")
+    # Three slides, so the check can tell that the slides not edited were kept.
+    make_big_pptx(out / "mo-save-pptx.pptx", REPO / "rust/mo-deck/testdata/grouped-text.pptx", slides=3)
     # LF line ends and no byte order mark: saving must add neither.
     (out / "mo-save-utf8.txt").write_bytes(f"Duman testi\n\n{TURKISH}\nSatır 4\n".encode("utf-8"))
     # Windows-1254 with CRLF, as old Turkish Windows programs write it. No em dash: its byte (0x97)
@@ -565,6 +624,8 @@ def make_save_samples(out):
     )
     make_slicer_xlsx(out / "mo-save-slicer.xlsx")
     make_vba_xlsx(out / "mo-save-vba.xlsx")
+    make_damaged_docx(out / "mo-save-damaged.docx")
+    make_bad_slide_pptx(out / "mo-save-badslide.pptx", REPO / "rust/mo-deck/testdata/grouped-text.pptx")
     # CRLF and LF mixed: saving would write one kind throughout, so the viewer refuses to save in place.
     (out / "mo-save-mixed.txt").write_bytes("Satır bir\r\nSatır iki\nSatır üç: ığüşöç\r\n".encode("utf-8"))
     return [(name, mime, "filter", "viewer", "small", step, case) for name, mime, step, case in SAVE_CASES]
