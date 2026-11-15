@@ -349,10 +349,15 @@ class PdfViewModel(app: Application) : PagedViewModel(app, DocumentKind.PDF) {
         compressed = null
         if (dest == null) return
         val app = getApplication<Application>()
+        val name = state?.fileName ?: "?"
         viewModelScope.launch {
             val result = withContext(engine) {
                 runCatching { app.contentResolver.openOutputStream(dest, "wt")?.use { it.write(c.bytes) } ?: error("cannot write") }
             }
+            result.fold(
+                onSuccess = { android.util.Log.i(SAVE_LOG_TAG, "PDF smaller copy written: $name, ${c.bytes.size} bytes, into a new file") },
+                onFailure = { android.util.Log.w(SAVE_LOG_TAG, "PDF smaller copy failed: $name", it) },
+            )
             tell(
                 result.fold(
                     onSuccess = { app.getString(R.string.compress_saved, Formatter.formatShortFileSize(app, c.before), Formatter.formatShortFileSize(app, c.after)) },
@@ -465,6 +470,7 @@ class PdfViewModel(app: Application) : PagedViewModel(app, DocumentKind.PDF) {
     private fun openEngine(bytes: ByteArray, pass: String?): PdfDocument = try {
         PdfDocument.open(bytes, pass)
     } catch (e: MoException.NoPages) {
+        android.util.Log.i(SAVE_LOG_TAG, "PDF open refused: no readable page in ${source?.lastPathSegment}")
         throw IllegalStateException(getApplication<Application>().getString(R.string.pdf_no_pages), e)
     }
 
@@ -530,6 +536,8 @@ class PdfViewModel(app: Application) : PagedViewModel(app, DocumentKind.PDF) {
 
     private fun write(dest: Uri, done: () -> Unit = {}, bytes: (PdfDocument) -> ByteArray) {
         val app = getApplication<Application>()
+        val name = state?.fileName ?: "?"
+        android.util.Log.i(SAVE_LOG_TAG, "PDF save requested: $name, into a new file=${dest != source}")
         busy = true
         viewModelScope.launch {
             val result = withContext(engine) {
@@ -537,8 +545,10 @@ class PdfViewModel(app: Application) : PagedViewModel(app, DocumentKind.PDF) {
                     val out = Measurements.time("PDF: kaydetme") { bytes(editor()) }
                     Diagnostics.event("PDF kaydedildi: ${out.size / 1024} KB")
                     app.contentResolver.openOutputStream(dest, "wt")?.use { it.write(out) } ?: error("cannot write")
+                    android.util.Log.i(SAVE_LOG_TAG, "PDF save written: $name, ${out.size} bytes")
                 }
             }
+            result.exceptionOrNull()?.let { android.util.Log.w(SAVE_LOG_TAG, "PDF save failed: $name", it) }
             busy = false
             if (result.isSuccess) done()
             tell(result.fold(onSuccess = { app.getString(R.string.saved) }, onFailure = { app.getString(R.string.save_failed, it.message ?: "") }))
@@ -570,7 +580,10 @@ class PdfViewModel(app: Application) : PagedViewModel(app, DocumentKind.PDF) {
         }
         // A heavily damaged file can open in Android's renderer with no pages: an empty viewer
         // would let the person take a copy saved from it for their document.
-        if (pages.isEmpty()) error(app.getString(R.string.pdf_no_pages))
+        if (pages.isEmpty()) {
+            android.util.Log.i(SAVE_LOG_TAG, "PDF open refused: Android's renderer found no page in $name")
+            error(app.getString(R.string.pdf_no_pages))
+        }
         return pages
     }
 

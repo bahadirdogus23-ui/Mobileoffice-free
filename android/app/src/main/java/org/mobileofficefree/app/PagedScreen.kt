@@ -244,6 +244,7 @@ fun PagedScreen(vm: PagedViewModel, state: PagedUiState, reading: ReadingSetting
             showRedact = true
             Toast.makeText(context, R.string.redact_before_save, Toast.LENGTH_LONG).show()
         } else {
+            android.util.Log.i(SAVE_LOG_TAG, "PDF save as: picker for $editedName (opened: ${state.fileName})")
             saveEdited.launch(CreateFile.Request(editedName, "application/pdf"))
         }
     }

@@ -72,8 +72,23 @@
 #     file keeps its bytes. Without "Save as" coming up an unchanged file proves nothing: SKIP.
 #   - block-txt-mixed (CRLF and LF mixed): edit and "Save"; the viewer refuses (a toast) and the
 #     file keeps its bytes.
-# When a Word or slides case fails, the app's own "BadoSave" log lines for the file (save
-# requested, refused and why, written, failed) are added to its detail, as "BadoText" for text.
+#   - save-pdf (a copy of rust/mo-pdf/testdata/jspdf-form.pdf): a PDF is never saved over
+#     (docs/KAYIP-DENETIMI.md). The tool bar's "Fill in form" (the bar is swiped sideways until it
+#     shows), the word typed into the form's first field (a text field), "Apply", then the top
+#     bar's "Save", which must open the system's "Save as" with "<name>-duzenlendi.pdf" suggested;
+#     its save button is tapped in the folder it opens on (Downloads on a fresh device). The opened
+#     file must keep its bytes, nothing else may appear next to it, and the new file (found by name
+#     anywhere in shared storage, pulled) must be a whole PDF ("%PDF-", "%%EOF") whose field holds
+#     the word, with the form's fields and pages (and, when pdftotext is installed, the word and
+#     the old text on the page). Without "Save as" or its save button the case is a SKIP that still
+#     checks the opened file's bytes.
+#   - block-pdf-nopages (a page tree that lists no page; mo-pdf's `PdfError::NoPages`): not opened
+#     first; the cold start with it must show "Could not open the file: no page of this PDF could
+#     be read…" (`pdf_no_pages`), not a document screen, keep its bytes and add nothing to its
+#     folder.
+# When a Word, slides or PDF case fails, the app's own "BadoSave" log lines for the file (save
+# requested, refused and why, written, failed; for PDF also an opening refused) are added to its
+# detail, as "BadoText" for text.
 # Toasts (Word, text) are not in uiautomator's tree, so their messages are not checked; snackbars
 # (sheets) are. A UI path that cannot be found (no Edit button, no text field…) is a SKIP with the
 # reason and a warning, not a failure; a file that changed when it must not, or a valid save path
@@ -147,7 +162,13 @@ SAVE_PROBLEM_TEXTS=("Could not save" "Kaydedilemedi" "Not saved:" "Kaydedilmedi:
 # The slide editing bar's new text box and its dialog's button (slide_add_text, apply).
 TEXT_BOX_LABELS=("Text box" "Metin kutusu")
 APPLY_LABELS=("Apply" "Uygula")
-# The app's logcat tag for Word and slide saves (SAVE_LOG_TAG in PagedViewModel.kt).
+# The PDF screen's form tool, two tools that are always on screen at the start of its tool bar
+# (to find the bar to swipe), and the reason a PDF without a readable page does not open
+# (form_fill; pages, reading; pdf_no_pages).
+FORM_FILL_LABELS=("Fill in form" "Formu doldur")
+TOOLBAR_LABELS=("Pages" "Sayfalar" "Reading" "Okuma")
+NO_PAGES_TEXTS=("no page of this PDF could be read" "hiçbir sayfası okunamadı")
+# The app's logcat tag for Word, slide and PDF saves (SAVE_LOG_TAG in PagedViewModel.kt).
 SAVE_LOG_TAG=BadoSave
 # What is typed: ASCII, as `input text` sends it; the cell gets a number.
 TYPED_WORD=Smoke42
@@ -213,7 +234,9 @@ ui_dump() {  # ui_dump FILE: the active window's UI tree, or an empty file if ui
 # node containing a label), "center-exact" (the same for the first node matching like "exact"),
 # "enabled" / "center-enabled" (like "exact" / "center-exact", skipping nodes that are, or sit in,
 # a disabled control: the slide bar keeps a greyed-out Save), "show" (prints every value containing a label), "field-center" / "field-text" (no labels: "x y"
-# or the text of the first text field, class EditText, on screen).
+# or the text of the first text field, class EditText, on screen), "picker-save" / "picker-name"
+# (no labels: "x y" of the system file picker's enabled save button, its android:id/button1 or a
+# button reading "Save" in any case, or the text of its file name field).
 # Exit status 0 when found.
 ui_query() {
     python3 - "$@" << 'PY'
@@ -258,6 +281,21 @@ def disabled(node):
     return False
 
 
+if mode in ("picker-save", "picker-name"):
+    mine = [n for n in nodes if "documentsui" in n.get("package", "")]
+    if mode == "picker-name":
+        for node in mine:
+            if node.get("class", "").endswith("EditText"):
+                print(node.get("text") or "")
+                sys.exit(0)
+        sys.exit(1)
+    for pick in (lambda n: n.get("resource-id", "").endswith(":id/button1"),
+                 lambda n: (n.get("text") or "").strip().casefold() == "save"):
+        for node in mine:
+            if pick(node) and not disabled(node):
+                print(center(node))
+                sys.exit(0)
+    sys.exit(1)
 if mode in ("field-center", "field-text"):
     for node in nodes:
         if node.get("class", "").endswith("EditText"):
@@ -786,7 +824,7 @@ field_text() { ui_query "$OUT/$1.window.xml" field-text 2> /dev/null || true; }
 press_ctrl_s() { sh_adb input keycombination KEYCODE_CTRL_LEFT KEYCODE_S > /dev/null 2>&1 || true; }
 
 # The system's file picker ("Save as") in front: prints its package.
-picker_package() { sh_adb dumpsys window 2> /dev/null | grep -m1 'mCurrentFocus' | grep -oiE '[a-z.]*documentsui' || true; }
+picker_package() { sh_adb dumpsys window 2> /dev/null | grep -m1 'mCurrentFocus' | grep -oiE '[a-z.]*documentsui' | head -n 1 || true; }
 
 # close_picker: Back out of the picker (the app gets "cancelled"; the first Back may only close
 # the keyboard over its file name field); stopped if it stays.
@@ -807,8 +845,11 @@ verify_saved() {
     python3 - "$@" "$TYPED_WORD" "$TYPED_NUMBER" << 'PY'
 import collections
 import re
+import shutil
+import subprocess
 import sys
 import zipfile
+import zlib
 
 case, original, saved, word, number = sys.argv[1:6]
 old = open(original, "rb").read()
@@ -884,6 +925,47 @@ elif case in ("txt-utf8", "txt-1254"):
     rest = new.replace(word.encode(), b"", 1)
     first = next((i for i, (a, b) in enumerate(zip(rest, old)) if a != b), min(len(rest), len(old)))
     check(rest == old, "every other byte as before", f"other bytes changed too (from byte {first}; {len(old)} → {len(rest)} B without the typed word)")
+elif case == "pdf":
+    # A new file (the opened one is not written): a complete PDF holding the filled-in value and
+    # every field and page of the form. PdfCraft writes objects into compressed object streams,
+    # so the streams are inflated before looking.
+    def readable(data):
+        parts = [data]
+        for m in re.finditer(rb"stream\r?\n(.*?)endstream", data, re.S):
+            try:
+                parts.append(zlib.decompressobj().decompress(m.group(1)))
+            except zlib.error:
+                pass  # not Flate (or not compressed): already in the raw bytes
+        return b"\n".join(parts)
+
+    def pages(text):
+        return len(re.findall(rb"/Type\s*/Page(?![A-Za-z])", text))
+
+    def text_of(path):
+        try:
+            run = subprocess.run(["pdftotext", "-q", path, "-"], capture_output=True, timeout=60)
+        except (OSError, subprocess.TimeoutExpired):
+            return None
+        return run.stdout.decode("utf-8", "replace") if run.returncode == 0 else None
+
+    check(new.startswith(b"%PDF-"), f"a PDF ({new[:8].decode('latin-1').strip()}, {len(new)} B)", f"no %PDF- header (starts {new[:8]!r})")
+    check(b"%%EOF" in new[-1024:], "ends with %%EOF (written whole)", "no %%EOF at the end: cut short")
+    before, after = readable(old), readable(new)
+    check(re.search(rb"/V\s*\(" + word.encode() + rb"\)", after), f"the field's value is \"{word}\"", f"no field value (/V ({word})) in the PDF")
+    names = sorted(set(re.findall(rb"/T\s*\(([^()]*)\)", before)))
+    lost = [n.decode("latin-1") for n in names if not re.search(rb"/T\s*\(" + re.escape(n) + rb"\)", after)]
+    check(names and not lost, f"its {len(names)} fields kept", "fields missing: " + (", ".join(lost) or "none found in the original"))
+    check(pages(after) == pages(before) > 0, f"{pages(after)} page(s) as before", f"{pages(after)} pages, not {pages(before)}")
+    if shutil.which("pdftotext"):
+        shown, was = text_of(saved), text_of(original)
+        if shown is None:
+            bad.append("pdftotext could not read it")
+        else:
+            check(word in shown, f"pdftotext shows \"{word}\"", f"pdftotext does not show \"{word}\"")
+            kept = [line for line in (was or "").split("\n") if line.strip() and line.strip() not in shown]
+            check(not kept, "and the old text", "pdftotext no longer shows: " + ", ".join(kept[:3]))
+    else:
+        good.append("pdftotext not installed: text not rendered")
 else:
     bad.append(f"no check for case {case}")
 print("; ".join(bad + good))
@@ -1163,17 +1245,228 @@ block_text() {
     fi
 }
 
-# save_case NAME MIME ROUTE STEP CASE: cold start with the document, then the case's driver.
+# PDF: the opened file is never written; an edited PDF goes into a new file the person picks
+# (PagedScreen's "Save" opens the system's "Save as" with "<name>-duzenlendi.pdf" suggested).
+
+# device_find GLOB: the files in shared storage named like GLOB, one device path per line.
+device_find() { sh_adb "find /storage/emulated/0/ -type f -name '$1' 2> /dev/null" 2> /dev/null | tr -d '\r' || true; }
+
+# folder_list: the names in the samples' folder, sorted (to see whether anything was added to it).
+folder_list() { sh_adb ls -a "$DEVICE_DIR" 2> /dev/null | tr -d '\r' | sort || true; }
+
+# added_files BEFORE AFTER [SKIP_GLOB]: the names in the AFTER listing that are not in BEFORE
+# (except those matching SKIP_GLOB), on one line.
+added_files() {
+    local name out=""
+    while IFS= read -r name; do
+        [ -n "$name" ] || continue
+        if [ -n "${3:-}" ]; then
+            # shellcheck disable=SC2053  # a glob on purpose
+            [[ "$name" == $3 ]] && continue
+        fi
+        grep -qxF -- "$name" <<< "$1" || out="$out $name"
+    done <<< "$2"
+    printf '%s' "${out# }"
+}
+
+# pdf_complete FILE: the file ends like a PDF written whole (%%EOF in its last KiB).
+pdf_complete() { [ "$(tail -c 1024 "$1" 2> /dev/null | grep -ac '%%EOF' || true)" -gt 0 ]; }
+
+screen_width() {
+    local w
+    w=$(sh_adb wm size 2> /dev/null | tr -d '\r' | tail -n 1 | sed -n 's/.*: *\([0-9][0-9]*\)x[0-9]*.*/\1/p')
+    echo "${w:-1080}"
+}
+
+# pdf_tool STEP LABEL...: taps a tool of the PDF screen's bottom bar, which scrolls sideways: the
+# bar is swiped (at the height of its first tools) until the tool is on screen. Status 1 if it
+# never is.
+pdf_tool() {
+    local step=$1 xml="$OUT/$1.window.xml" at y="" width
+    shift
+    width=$(screen_width)
+    for _ in 1 2 3 4 5; do
+        ui_dump "$xml" || return 1
+        if at=$(ui_query "$xml" center-exact "$@"); then
+            tap_at "$at"
+            return 0
+        fi
+        if [ -z "$y" ]; then
+            at=$(ui_query "$xml" center-exact "${TOOLBAR_LABELS[@]}") || return 1
+            y=${at#* }
+        fi
+        sh_adb input swipe $((width * 4 / 5)) "$y" $((width / 5)) "$y" 400 || true
+        sleep 1
+    done
+    return 1
+}
+
+# original_kept NAME HASH: status 0 when the device's NAME still has HASH; ORIGINAL_STATE says what
+# was found (status 1 also when adb could not read it back).
+ORIGINAL_STATE=""
+original_kept() {
+    if ! pull_sample "$1" "$OUT/original-check.tmp"; then
+        ORIGINAL_STATE="adb could not pull the opened file back"
+        return 1
+    fi
+    if [ "$(hash_of "$OUT/original-check.tmp")" != "$2" ]; then
+        ORIGINAL_STATE="the opened file was written over (its hash changed)"
+        return 1
+    fi
+    ORIGINAL_STATE="the opened file keeps its bytes"
+}
+
+# save_pdf STEP NAME HASH: "Fill in form", the word typed into the first field (the form's text
+# field), "Apply", then the top bar's "Save", which must open the system's "Save as" with
+# "<name>-duzenlendi.pdf" suggested; its save button is tapped in the folder it opens on
+# (Downloads on a fresh device). The new file is looked for in the whole shared storage and pulled
+# into S_COPY; the opened file must keep its bytes and nothing else may appear next to it.
+save_pdf() {
+    local step=$1 name=$2 old=$3 xml="$OUT/$1.window.xml" at typed picker="" suggested before after added path out="" deadline
+    local stem="${name%.*}-duzenlendi"
+    # A copy left by an earlier run would make the picker call the new one "… (1)".
+    while IFS= read -r path; do
+        [ -z "$path" ] || sh_adb "rm -f '$path'" || true
+    done <<< "$(device_find "$stem*.pdf")"
+    before=$(folder_list)
+    pdf_tool "$step" "${FORM_FILL_LABELS[@]}" || { save_outcome SKIP "no \"Fill in form\" in the PDF tool bar"; return 0; }
+    wait_label "$step" 15 exact "${APPLY_LABELS[@]}" || { save_outcome SKIP "the form sheet (\"Apply\") did not come up after \"Fill in form\""; return 0; }
+    at=$(ui_query "$xml" field-center) || { save_outcome SKIP "no text field in the form sheet"; return 0; }
+    tap_at "$at"
+    sleep 1
+    sh_adb input text "$TYPED_WORD"
+    sleep 1
+    ui_dump "$xml" || true
+    typed=$(field_text "$step")
+    [[ "$typed" == *"$TYPED_WORD"* ]] || { save_outcome SKIP "the typed \"$TYPED_WORD\" did not reach the form's first field (it shows \"$typed\")"; return 0; }
+    tap_label "$step" center-enabled "${APPLY_LABELS[@]}" || { save_outcome SKIP "no enabled \"Apply\" in the form sheet"; return 0; }
+    wait_label "$step" 20 enabled "${SAVE_LABELS[@]}" || { save_outcome SKIP "no enabled \"Save\" in the top bar after \"Apply\": the form was not filled"; return 0; }
+    save_note "\"Fill in form\", typed \"$TYPED_WORD\" into its first field, \"Apply\""
+    tap_label "$step" center-enabled "${SAVE_LABELS[@]}" || { save_outcome SKIP "the \"Save\" button went away before it could be tapped"; return 0; }
+    deadline=$(($(date +%s) + 10))
+    while [ -z "$picker" ] && [ "$(date +%s)" -lt "$deadline" ]; do
+        sleep 1
+        picker=$(picker_package)
+    done
+    if [ -z "$picker" ]; then
+        if original_kept "$name" "$old"; then
+            save_outcome SKIP "\"Save\" did not bring up the system's \"Save as\" within 10 s; $ORIGINAL_STATE"
+        else
+            save_outcome FAIL "\"Save\" did not bring up \"Save as\"; $ORIGINAL_STATE"
+        fi
+        return 0
+    fi
+    # The picker lists its folder and fills in the name.
+    sleep 3
+    ui_dump "$xml" || true
+    suggested=$(ui_query "$xml" picker-name 2> /dev/null || true)
+    if ! at=$(ui_query "$xml" picker-save); then
+        close_picker
+        if original_kept "$name" "$old"; then
+            save_outcome SKIP "\"Save as\" ($picker) came up for \"$suggested\", but no enabled save button was found in it: the new file was not checked; $ORIGINAL_STATE"
+        else
+            save_outcome FAIL "$ORIGINAL_STATE (\"Save as\" came up, its save button was not found)"
+        fi
+        return 0
+    fi
+    tap_at "$at"
+    save_note "\"Save\" opened \"Save as\" ($picker) for \"$suggested\", its save button tapped"
+    deadline=$(($(date +%s) + 30))
+    while :; do
+        out=$(device_find "$stem*.pdf" | head -n 1)
+        if [ -n "$out" ] && timeout 60 adb pull "$out" "$S_COPY" > /dev/null 2>&1 < /dev/null && pdf_complete "$S_COPY"; then break; fi
+        if [ "$(date +%s)" -ge "$deadline" ]; then
+            out=""
+            break
+        fi
+        sleep 2
+    done
+    picker=$(picker_package)
+    [ -z "$picker" ] || close_picker
+    after=$(folder_list)
+    added=$(added_files "$before" "$after" "$stem*")
+    if ! original_kept "$name" "$old"; then
+        save_outcome FAIL "$ORIGINAL_STATE"
+    elif [ -n "$added" ]; then
+        save_outcome FAIL "files appeared next to the opened one: $added"
+    elif [ -n "$out" ]; then
+        save_outcome WRITTEN "written as $out, $ORIGINAL_STATE"
+    elif [ -n "$picker" ]; then
+        save_outcome SKIP "\"Save as\" was still open after its save button was tapped (closed now): no new file to check; $ORIGINAL_STATE"
+    else
+        save_outcome FAIL "no complete $stem*.pdf appeared in shared storage within 30 s of saving in \"Save as\"; $ORIGINAL_STATE"
+    fi
+}
+
+# refused_open STEP NAME MIME ROUTE HASH: a file the app must not open (a PDF without a readable
+# page). A cold start with it must show the open failure with that reason instead of a document
+# screen, keep the file's bytes and add nothing to its folder.
+refused_open() {
+    local step=$1 name=$2 mime=$3 route=$4 old=$5 xml="$OUT/$1.window.xml" uri output before after added deadline
+    local seen=0 opened=0 shown=""
+    uri="$URI_BASE/$(uri_encode "$name")"
+    before=$(folder_list)
+    sh_adb am force-stop "$PKG" || true
+    if [ "$route" = filter ]; then
+        output=$(sh_adb am start -W -a android.intent.action.VIEW -d "$uri" -t "$mime" -p "$PKG" 2>&1 || true)
+    else
+        output=$(sh_adb am start -W -a android.intent.action.VIEW -d "$uri" -t "$mime" -n "$ACTIVITY" 2>&1 || true)
+    fi
+    echo "$output" > "$OUT/$step.am.txt"
+    if grep -qE '^Error|Exception|unable to resolve' <<< "$output"; then
+        save_outcome SKIP "the intent did not start the app: $(grep -m1 -E 'Error|Exception|unable' <<< "$output")"
+        return 0
+    fi
+    deadline=$(($(date +%s) + OPEN_TIMEOUT))
+    while :; do
+        if ui_dump "$xml"; then
+            if ui_query "$xml" contains "${FAILURE_TEXTS[@]}"; then
+                shown=$(ui_query "$xml" show "${FAILURE_TEXTS[@]}" | head -n 1 || true)
+                if ui_query "$xml" contains "${NO_PAGES_TEXTS[@]}"; then seen=1; fi
+                break
+            fi
+            if ui_query "$xml" exact "${BACK_LABELS[@]}" && ui_query "$xml" "$TITLE_MODE" "${name%.*}" "$name"; then
+                opened=1
+                break
+            fi
+        fi
+        alive || break
+        [ "$(date +%s)" -lt "$deadline" ] || break
+        sleep "$POLL"
+    done
+    # Anything written after the message (a copy, a repaired file) has time to show.
+    sleep 3
+    after=$(folder_list)
+    added=$(added_files "$before" "$after")
+    if ! original_kept "$name" "$old"; then
+        save_outcome FAIL "$ORIGINAL_STATE"
+    elif [ -n "$added" ]; then
+        save_outcome FAIL "files appeared next to it: $added"
+    elif [ "$opened" = 1 ]; then
+        save_outcome FAIL "a document screen opened for a PDF without a readable page (an empty viewer, from which an empty PDF could be saved); $ORIGINAL_STATE"
+    elif [ "$seen" = 1 ]; then
+        save_outcome PASS "\"$shown\" shown, $ORIGINAL_STATE, nothing added to its folder"
+    elif [ -n "$shown" ]; then
+        save_outcome FAIL "opening failed for another reason: \"$shown\" (expected \"${NO_PAGES_TEXTS[0]}\"); $ORIGINAL_STATE"
+    else
+        save_outcome SKIP "neither the open failure nor a document screen was seen within $OPEN_TIMEOUT s; $ORIGINAL_STATE, nothing added to its folder"
+    fi
+}
+
+# save_case NAME MIME ROUTE STEP CASE: cold start with the document, then the case's driver
+# (block-pdf-open: the start itself is the case).
 save_case() {
     local name=$1 mime=$2 route=$3 step=$4 case=$5 old mark found why
     S_RESULT=""
     S_DETAIL=""
     S_COPY="$OUT/$step.saved-$name"
     old=$(hash_of "$SAMPLES/$name")
-    open_document "$name" "$mime" "$route" viewer small "$step-open"
-    if [ "$LAST_RESULT" != PASS ]; then
-        record "$step" SKIP "the document did not open (see $step-open)"
-        return
+    if [ "$case" != block-pdf-open ]; then
+        open_document "$name" "$mime" "$route" viewer small "$step-open"
+        if [ "$LAST_RESULT" != PASS ]; then
+            record "$step" SKIP "the document did not open (see $step-open)"
+            return
+        fi
     fi
     mark=$(log_mark)
     # A driver leaves its outcome in S_RESULT and returns 0: under set -e any other status would
@@ -1187,6 +1480,8 @@ save_case() {
         block-docx) block_word "$step" "$name" "$old" ;;
         block-pptx) block_slides "$step" "$name" "$old" ;;
         block-txt) block_text "$step" "$name" "$old" ;;
+        pdf) save_pdf "$step" "$name" "$old" ;;
+        block-pdf-open) refused_open "$step" "$name" "$mime" "$route" "$old" ;;
         *) save_outcome SKIP "unknown case \"$case\" in samples-save.tsv" ;;
     esac
     if [ "$S_RESULT" = WRITTEN ]; then
@@ -1204,7 +1499,7 @@ save_case() {
     fi
     if [ "$S_RESULT" = FAIL ]; then
         case "$case" in
-            docx | pptx | block-docx | block-pptx)
+            docx | pptx | block-docx | block-pptx | pdf | block-pdf-open)
                 why=$(app_log "$SAVE_LOG_TAG" "$name")
                 [ -z "$why" ] || save_note "app log: $why"
                 ;;
@@ -1294,9 +1589,10 @@ finish() {
             echo "Edit and save over the file through the UI, then \`adb pull\` it and check it on the host" \
                 "(*-open* rows: opening it, as above). *save-*: saving in place must write a valid file that holds" \
                 "the edit and everything else (text files byte for byte, in their own encoding and line ends)." \
+                "*save-pdf*: a filled-in form saved through \"Save as\" as a new *-duzenlendi.pdf*, the opened PDF unchanged." \
                 "*block-*: files the app must not save over (a slicer, a VBA project in .xlsx; a damaged part in" \
-                ".docx and an unreadable slide in .pptx, for which \"Save as\" must come up instead; mixed line ends);" \
-                "the file must keep its bytes. Pulled copies are in the logs artifact as *.saved-*. ${SLOW_SAVE} over budget (⚠)." \
+                ".docx and an unreadable slide in .pptx, for which \"Save as\" must come up instead; mixed line ends)" \
+                "or open (a PDF without a readable page); the file must keep its bytes. Pulled copies are in the logs artifact as *.saved-*. ${SLOW_SAVE} over budget (⚠)." \
                 "Pass: $(((${SAVE_ENDED:-$(date +%s)} - ${SAVE_STARTED:-$(date +%s)}) / 60)) min."
         fi
     } > "$OUT/summary.md"

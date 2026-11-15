@@ -27,15 +27,21 @@ in scripts/emulator-smoke.sh): the five columns above, the step name, then the c
 
     docx, xlsx, pptx, txt-utf8, txt-1254            saving in place must work (the file changes
                                                     and stays valid)
+    pdf                                             a form field filled and saved as a new
+                                                    "-duzenlendi" file; the opened one keeps its bytes
     block-xlsx, block-docx, block-pptx, block-txt   saving in place must be refused (the file
                                                     keeps its bytes)
+    block-pdf-open                                  opening must fail with "no readable page" and
+                                                    write nothing
 
 They are separate copies ("mo-save-…"), so the open-only passes never see an edited file. The
 blocked ones mirror rust/mo-grid's tests (an .xlsx with a slicer part, `Loss::Slicers`, and one
 with a VBA project, `Loss::Macros`), rust/mo-word's `a_docx_part_the_engine_skips_is_reported` (a
 comments part cut short, `Loss::Damaged`), rust/mo-deck's
 `what_deckcraft_leaves_out_on_opening_is_flagged` (a slide whose XML does not parse) and the text
-viewer's rule for a file that mixes CRLF and LF line ends (saved only as a copy).
+viewer's rule for a file that mixes CRLF and LF line ends (saved only as a copy). The PDF form is
+a copy of rust/mo-pdf/testdata/jspdf-form.pdf; the PDF without pages mirrors the "empty page tree"
+file of rust/mo-pdf's `a_file_whose_pages_cannot_be_found_does_not_open` (`PdfError::NoPages`).
 
 Legacy binary formats: only .xls has a file in the repository's test data (mo-grid); there is no
 .doc or .ppt file to copy, so those two are not covered here.
@@ -518,11 +524,13 @@ SAVE_CASES = [
     ("mo-save-pptx.pptx", PPTX_MIME, "save-pptx", "pptx"),
     ("mo-save-utf8.txt", "text/plain", "save-txt-utf8", "txt-utf8"),
     ("mo-save-1254.txt", "text/plain", "save-txt-1254", "txt-1254"),
+    ("mo-save-pdf.pdf", "application/pdf", "save-pdf", "pdf"),
     ("mo-save-slicer.xlsx", XLSX_MIME, "block-xlsx-slicer", "block-xlsx"),
     ("mo-save-vba.xlsx", XLSX_MIME, "block-xlsx-vba", "block-xlsx"),
     ("mo-save-damaged.docx", DOCX_MIME, "block-docx-damaged", "block-docx"),
     ("mo-save-badslide.pptx", PPTX_MIME, "block-pptx-slide", "block-pptx"),
     ("mo-save-mixed.txt", "text/plain", "block-txt-mixed", "block-txt"),
+    ("mo-save-nopages.pdf", "application/pdf", "block-pdf-nopages", "block-pdf-open"),
 ]
 
 
@@ -609,6 +617,28 @@ def make_bad_slide_pptx(path, source):
     write_zip(path, parts.items())
 
 
+def make_pdf_without_pages(path):
+    """A two-page PDF whose page tree lists no page (`/Kids []`, `/Count 0`) while both page
+    objects are still in the file, like rust/mo-pdf's "empty page tree" file in
+    `a_file_whose_pages_cannot_be_found_does_not_open`. PdfCraft opens it with no pages; mo-pdf
+    refuses it with `PdfError::NoPages` and the app shows `pdf_no_pages` instead of an empty viewer
+    from which an empty PDF could be saved."""
+    objects = [
+        b"<< /Type /Catalog /Pages 2 0 R >>",
+        b"<< /Type /Pages /Kids [] /Count 0 >>",
+        b"<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>",
+    ]
+    for page in (1, 2):
+        content = f"BT /F1 24 Tf 72 760 Td (Sayfa {page}) Tj ET".encode()
+        first = len(objects) + 1
+        objects += [
+            f"<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Resources << /Font << /F1 3 0 R >> >> "
+            f"/Contents {first + 1} 0 R >>".encode(),
+            b"<< /Length " + str(len(content)).encode() + b" >>\nstream\n" + content + b"\nendstream",
+        ]
+    write_pdf(path, objects)
+
+
 def make_save_samples(out):
     """Writes the save pass's files into `out`; returns the rows of samples-save.tsv."""
     make_docx(out / "mo-save-docx.docx")
@@ -626,6 +656,9 @@ def make_save_samples(out):
     make_vba_xlsx(out / "mo-save-vba.xlsx")
     make_damaged_docx(out / "mo-save-damaged.docx")
     make_bad_slide_pptx(out / "mo-save-badslide.pptx", REPO / "rust/mo-deck/testdata/grouped-text.pptx")
+    # An AcroForm with a text field first ("adSoyad"): the save pass fills it and saves a copy.
+    shutil.copyfile(REPO / "rust/mo-pdf/testdata/jspdf-form.pdf", out / "mo-save-pdf.pdf")
+    make_pdf_without_pages(out / "mo-save-nopages.pdf")
     # CRLF and LF mixed: saving would write one kind throughout, so the viewer refuses to save in place.
     (out / "mo-save-mixed.txt").write_bytes("Satır bir\r\nSatır iki\nSatır üç: ığüşöç\r\n".encode("utf-8"))
     return [(name, mime, "filter", "viewer", "small", step, case) for name, mime, step, case in SAVE_CASES]
@@ -881,7 +914,7 @@ def main(out, big=True):
 
     save_rows = make_save_samples(out)
     (out / "samples-save.tsv").write_text("".join("\t".join(r) + "\n" for r in save_rows), encoding="utf-8")
-    print("save pass (edit and save over the file):")
+    print("save pass (edit and save over the file, or as a new PDF):")
     for name, mime, route, expect, size, step, case in save_rows:
         print(f"{name:24} {(out / name).stat().st_size:>9} B  {route:8} {step:18} {case:10} {mime}")
 

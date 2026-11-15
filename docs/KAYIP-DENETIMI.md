@@ -128,7 +128,10 @@ U+FFFD'ye dönüşür ve kayıtta öyle yazılır; karışık satır sonları te
   TXT üzerine kaydedilmeli (geçerli dosya, düzenleme ve eski içerik yerinde, slayt sayısı aynı; metin bayt bayt aynı
   kodlama ve satır sonlarıyla); dilimleyicili ve VBA projeli `.xlsx`, açıklama parçası yarıda kesilmiş DOCX
   (`Loss::Damaged`), bir slaydı ayrıştırılamayan PPTX ile karışık satır sonlu TXT'nin baytları değişmemeli ("Kaydet"
-  düğmesi yok ya da "Farklı kaydet" açar; DOCX/PPTX'te Ctrl+S "Farklı kaydet" açmalı). Word ve Sunu kayıtları
+  düğmesi yok ya da "Farklı kaydet" açar; DOCX/PPTX'te Ctrl+S "Farklı kaydet" açmalı). PDF formu (`jspdf-form.pdf`
+  kopyası) doldurulup "Kaydet" ile açılan "Farklı kaydet"ten yeni "-duzenlendi.pdf" dosyasına kaydedilir: açılan PDF'in
+  baytları değişmemeli, yanına başka dosya eklenmemeli, yeni dosya tam bir PDF olmalı ve alanın değerini tutmalı.
+  Sayfa ağacı boş PDF açılmamalı (`pdf_no_pages` iletisi), baytları ve klasörü değişmemeli. Word, Sunu ve PDF kayıtları
   `BadoSave` etiketiyle günlüğe yazılır, başarısız adımda özete eklenir. Dosyalar `make_smoke_samples.py` ile
   çalışırken üretilir.
 - `tools/jvm-smoke`: `WordDocumentTest.tellsWhatOpeningLeftOut`, `PdfDocumentTest.tellsWhatOpeningRepaired`, `PdfDocumentTest.refusesAFileWithoutReadablePages`, `BlankDocumentTest`, `SheetDocumentTest` (`tellsWhatSavingBackWouldNotKeep`).
