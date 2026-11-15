@@ -1312,8 +1312,10 @@ pdf_tool() {
             at=$(ui_query "$xml" center-exact "${TOOLBAR_LABELS[@]}") || return 1
             y=${at#* }
         fi
-        sh_adb input swipe $((width * 4 / 5)) "$y" $((width / 5)) "$y" 400 || true
-        sleep 1
+        # A slow drag (a fast one is a fling the bar may ignore on a busy emulator), from the
+        # middle of the bar's height (the label's own centre sits low in the tool).
+        sh_adb input touchscreen swipe $((width * 9 / 10)) "$((y - 20))" $((width / 10)) "$((y - 20))" 900 || true
+        sleep 2
     done
     return 1
 }
