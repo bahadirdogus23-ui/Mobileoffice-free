@@ -1281,6 +1281,23 @@ screen_width() {
 # pdf_tool STEP LABEL...: taps a tool of the PDF screen's bottom bar, which scrolls sideways: the
 # bar is swiped (at the height of its first tools) until the tool is on screen. Status 1 if it
 # never is.
+# ui_labels XML: the texts and content descriptions on screen, for a SKIP's detail.
+ui_labels() {
+    python3 - "$1" <<'PY' 2>/dev/null || true
+import sys, xml.etree.ElementTree as ET
+try:
+    seen = []
+    for n in ET.parse(sys.argv[1]).iter("node"):
+        for k in ("text", "content-desc"):
+            v = (n.get(k) or "").strip()
+            if v and v not in seen and len(v) < 40:
+                seen.append(v)
+    print(" | ".join(seen[:40]))
+except Exception:
+    pass
+PY
+}
+
 pdf_tool() {
     local step=$1 xml="$OUT/$1.window.xml" at y="" width
     shift
@@ -1329,7 +1346,7 @@ save_pdf() {
         [ -z "$path" ] || sh_adb "rm -f '$path'" || true
     done <<< "$(device_find "$stem*.pdf")"
     before=$(folder_list)
-    pdf_tool "$step" "${FORM_FILL_LABELS[@]}" || { save_outcome SKIP "no \"Fill in form\" in the PDF tool bar"; return 0; }
+    pdf_tool "$step" "${FORM_FILL_LABELS[@]}" || { save_outcome SKIP "no \"Fill in form\" in the PDF tool bar (on screen: $(ui_labels "$OUT/$step.window.xml"))"; return 0; }
     wait_label "$step" 15 exact "${APPLY_LABELS[@]}" || { save_outcome SKIP "the form sheet (\"Apply\") did not come up after \"Fill in form\""; return 0; }
     at=$(ui_query "$xml" field-center) || { save_outcome SKIP "no text field in the form sheet"; return 0; }
     tap_at "$at"
