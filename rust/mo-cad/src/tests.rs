@@ -310,3 +310,112 @@ fn turkish_dos_code_page_reads_right() {
         assert_eq!(strings(&CadDoc::open("a.dwg", &dwg).unwrap()), expected, "{v}");
     }
 }
+
+/// The Turkish sample line of the stroke-letter tests.
+const TURKISH_SAMPLE: &str = "İSTANBUL Şişli Çağrı Ölçü Ünvanı ığüşöçİĞÜŞÖÇ";
+
+/// A UTF-8 (2007) DXF of TEXT entities, `(text, x, y, height, rotation°, width factor,
+/// oblique°, horizontal alignment)`, and an MTEXT at (0, -40), all in the default (SHX) style.
+type Text<'a> = (&'a str, f64, f64, f64, f64, f64, f64, i32);
+fn text_dxf(texts: &[Text], mtext: &str) -> Vec<u8> {
+    let mut s = String::from("0\nSECTION\n2\nHEADER\n9\n$ACADVER\n1\nAC1021\n0\nENDSEC\n0\nSECTION\n2\nENTITIES\n");
+    for &(t, x, y, h, rot, wf, obl, align) in texts {
+        s += &format!(
+            "0\nTEXT\n8\n0\n10\n{x}\n20\n{y}\n30\n0\n40\n{h}\n1\n{t}\n50\n{rot}\n41\n{wf}\n51\n{obl}\n72\n{align}\n11\n{x}\n21\n{y}\n31\n0\n"
+        );
+    }
+    if !mtext.is_empty() {
+        s += &format!("0\nMTEXT\n8\n0\n10\n0\n20\n-40\n30\n0\n40\n4\n41\n200\n1\n{mtext}\n");
+    }
+    s += "0\nENDSEC\n0\nEOF\n";
+    s.into_bytes()
+}
+
+/// The sample drawing at several heights, a rotation, a width factor with an oblique angle, a
+/// centred alignment and an MTEXT.
+fn turkish_sample() -> CadDoc {
+    let t = TURKISH_SAMPLE;
+    let dxf = text_dxf(
+        &[
+            (t, 0.0, 0.0, 2.5, 0.0, 1.0, 0.0, 0),
+            (t, 0.0, 6.0, 5.0, 0.0, 1.0, 0.0, 0),
+            (t, 0.0, 16.0, 8.0, 0.0, 1.0, 0.0, 0),
+            ("ASCII: Istanbul Sisli Cagri Olcu", 0.0, -10.0, 4.0, 0.0, 1.0, 0.0, 0),
+            ("Döndürülmüş ŞİĞ", 150.0, -30.0, 4.0, 30.0, 1.0, 0.0, 0),
+            ("Dar İĞNE çöp", 0.0, -20.0, 4.0, 0.0, 0.7, 15.0, 0),
+            ("Ortalı ÇİĞ ışık", 90.0, -20.0, 4.0, 0.0, 1.0, 0.0, 1),
+        ],
+        "MTEXT: Kâğıt İŞÇİ ölçüsü\\Pikinci satır ğüşıöç",
+    );
+    CadDoc::open("tr.dxf", &dxf).unwrap()
+}
+
+/// Writes premultiplied RGBA views of the sample to `$MO_CAD_PNG_DIR`, to look at by eye
+/// (nothing without it).
+#[test]
+fn turkish_sample_views() {
+    let Some(dir) = std::env::var_os("MO_CAD_PNG_DIR") else { return };
+    let mut doc = turkish_sample();
+    let views = [
+        ("whole", 95.0, -6.0, 6.5, 1400u32, 600u32),
+        ("close", 45.0, 19.0, 22.0, 1400, 400),
+        ("close2", 135.0, 19.0, 16.0, 1400, 400),
+        ("turned", 165.0, -22.0, 20.0, 1000, 500),
+        ("small", 40.0, 1.0, 12.0, 1000, 240),
+    ];
+    for (name, cx, cy, scale, w, h) in views {
+        let r = doc.render(0, cx, cy, scale, w, h, false).unwrap();
+        std::fs::write(std::path::Path::new(&dir).join(format!("{name}-{w}x{h}.rgba")), &r.pixels).unwrap();
+    }
+}
+
+/// The display list of model space and the frame drawn from it at `scale`, centred on `c`.
+fn text_frame(doc: &mut CadDoc, c: Vec2, scale: f64) -> (DisplayList, DisplayList) {
+    let list = doc.lists(0).unwrap().overview.clone();
+    let (mut frame, mut dots) = (DisplayList::default(), Vec::new());
+    frame_list(&list, &View { center: c, scale, width: 400, height: 400 }, &mut frame, &mut dots);
+    (list, frame)
+}
+
+/// "Ş" is drawn like the drafting font's letters: the strokes of its "S" plus a cedilla below
+/// the middle of it, as hairlines (no filled outline left), at every zoom.
+#[test]
+fn turkish_letters_are_drawn_in_strokes() {
+    let one = |t: &str| CadDoc::open("a.dxf", &text_dxf(&[(t, 0.0, 0.0, 6.0, 0.0, 1.0, 0.0, 0)], "")).unwrap();
+    let mut s = one("S");
+    let mut s_cedilla = one("Ş");
+    for scale in [8.0, 40.0, 150.0] {
+        let (list, frame) = text_frame(&mut s_cedilla, Vec2::new(2.0, 2.0), scale);
+        assert!(list.prims.iter().any(|p| p.kind == Kind::Tris), "the engine fills the fallback glyph");
+        assert!(frame.prims.iter().all(|p| p.kind == Kind::Polyline && p.lw == 0.0), "{scale}");
+        let segs: Vec<(Vec2, Vec2)> = frame.prims.iter().map(|p| (frame.verts[p.start as usize], frame.verts[p.start as usize + 1])).collect();
+        let near = |q: Vec2| {
+            segs.iter().any(|&(a, b)| {
+                let t = ((q - a).dot(b - a) / (b - a).len2().max(1e-12)).clamp(0.0, 1.0);
+                (a + (b - a) * t - q).len() < 0.02
+            })
+        };
+        // Every point of the drafting font's "S" lies on the strokes of "Ş".
+        let (_, plain) = text_frame(&mut s, Vec2::new(2.0, 2.0), scale);
+        assert!(plain.prims.iter().all(|p| p.kind == Kind::Polyline));
+        assert!(plain.prims.iter().flat_map(|p| plain.points(p)).all(|&q| near(q)), "{scale}");
+        // And the cedilla hangs below the baseline from the middle of the letter.
+        assert!(near(Vec2::new(2.0, -0.3)) && segs.iter().any(|(a, b)| a.y.min(b.y) < -1.2), "{scale}");
+        assert!(segs.iter().all(|(a, b)| a.y.min(b.y) > -1.6 && a.x.min(b.x) > -0.1 && a.x.max(b.x) < 4.1));
+    }
+}
+
+/// Text the drafting font has is drawn as before, and an ordinary fill stays filled.
+#[test]
+fn ascii_text_and_fills_are_left_alone() {
+    let mut doc = CadDoc::open("a.dxf", &text_dxf(&[("ASCII: Istanbul Sisli 0123", 0.0, 0.0, 6.0, 0.0, 1.0, 0.0, 0)], "")).unwrap();
+    let (list, frame) = text_frame(&mut doc, Vec2::new(40.0, 3.0), 4.0);
+    // All of it is the drafting font's strokes (no glyph from a fallback font).
+    assert!(list.prims.iter().all(|p| p.kind == Kind::Polyline));
+    assert!(frame.prims.iter().all(|p| p.kind == Kind::Polyline) && frame.prims.len() > 20);
+    let (o, a, thin) = (Vec2::new(0.0, 0.0), Vec2::new(10.0, 0.0), Vec2::new(0.0, 0.05));
+    assert!(!hairline_tris(&[o, a, Vec2::new(0.0, 10.0)], 0.1), "a solid triangle");
+    assert!(!hairline_tris(&[o, Vec2::new(1.0, 0.0), thin], 0.1), "a band thick for its length");
+    assert!(hairline_tris(&[o, a, thin], 0.1), "a long sub-pixel band");
+    assert!(!hairline_tris(&[o, a, thin], 0.01), "the same band close up, thicker than a pixel");
+}

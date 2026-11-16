@@ -102,7 +102,13 @@ tepeyi tahmin ediyor (`CadMemory.kt`) ve `ActivityManager.getMemoryInfo()` ile k
 | ASCII DXF | 6 MB → 142 MB · 16 MB → 363 MB · 31 MB → 691 MB · 96 MB → 2,1 GB · 118 MB → 2,6 GB | 23–25× |
 | İkili DXF | 4,5 MB → 140 MB · 23 MB → 684 MB · 71 MB → 2,1 GB | 31–33× |
 
-Tepe dosya boyutuyla doğrusal. Tahmin = 32 MB + dosya × (DWG 200, DXF 24, ikili DXF 32);
+Sahada (S25 Ultra sınıfı telefon, kişilerin çizdiği gerçek DWG'ler, ölçüm raporundaki VmHWM
+olayları): 16,9 MB DWG → 2,9 GB (≈ 172×); aynı süreçte ardından açılan 20,0 MB DWG tepeyi 2,9 GB'ın
+üstüne çıkarmadı (yeni bir süreçte tek başına ölçülmedi; 2,9 GB'ı aşmadığına göre ≤ 145×). Gerçek
+çizimler sentetik planlardan az bellek istiyor; DWG katsayısı bu yüzden saha ölçüsüne pay
+eklenerek 180× yapıldı (sentetik planlardaki 194–201× olası bir üst sınır olarak kalıyor).
+
+Tepe dosya boyutuyla doğrusal. Tahmin = 32 MB + dosya × (DWG 180, DXF 24, ikili DXF 32);
 bütçe = `availMem` − en az 256 MB ya da Android'in `threshold` değeri (hangisi büyükse).
 Tahmin bütçeyi aşarsa kişiye sorulur ("Yine de aç" / "Vazgeç"); "Yine de aç"tan önce diğer
 açık belgelerin kurtarma kopyası alınır (`RecoveryHub.copyAllAndWait`, en çok 5 sn).

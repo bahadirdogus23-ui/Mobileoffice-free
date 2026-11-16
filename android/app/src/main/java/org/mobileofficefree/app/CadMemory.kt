@@ -22,9 +22,12 @@ internal object CadMemory {
      * Peak resident memory (VmHWM) while opening, per byte of file. Measured on the pinned engine
      * (release build, synthetic plans of 32k–612k objects written by the engine itself):
      * DWG 1.0–18.2 MB → 185 MB–3.5 GB (194–201×), ASCII DXF 6–118 MB → 23×,
-     * binary DXF 4.5–71 MB → 31×. Linear in the file size; the largest measured factor is used.
+     * binary DXF 4.5–71 MB → 31×. Linear in the file size. On a real phone (S25 Ultra class) a
+     * 16.9 MB DWG drawn by a person peaked at 2.9 GB (≈172×), and a 20.0 MB one did not raise that
+     * process's 2.9 GB peak: real drawings take less than the synthetic plans, so DWG uses the
+     * field factor with a margin (180×); the DXF factors are the largest measured.
      */
-    const val DWG_FACTOR = 200.0
+    const val DWG_FACTOR = 180.0
     const val DXF_FACTOR = 24.0
     const val BINARY_DXF_FACTOR = 32.0
 

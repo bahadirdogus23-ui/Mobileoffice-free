@@ -6,7 +6,8 @@
 //! else as an empty box. It looks for installed fonts in the desktop systems' font folders
 //! (`cadcraft_fonts::ttf`, `scan`), never in Android's `/system/fonts`, so on a phone all those
 //! letters were boxes. Opening the first drawing registers one of Android's own Latin fonts as
-//! the fallback.
+//! the fallback. The Turkish letters themselves come first from [`crate::stroke_letters`], drawn
+//! in the drafting font's own strokes; this font stays the fallback for every other script.
 
 use std::path::Path;
 use std::sync::Arc;
