@@ -1,6 +1,5 @@
 package org.mobileofficefree.app
 
-import android.content.Intent
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
@@ -81,8 +80,8 @@ fun DiagnosticsScreen(onBack: () -> Unit) {
     }
 }
 
-/** Hands [text] to any app the person picks (mail, messaging); the app itself never goes online. */
-fun shareText(context: android.content.Context, text: String) {
-    val send = Intent(Intent.ACTION_SEND).setType("text/plain").putExtra(Intent.EXTRA_TEXT, text)
-    context.startActivity(Intent.createChooser(send, null))
-}
+/**
+ * Hands [text] to any app the person picks (mail, messaging); the app itself never goes online.
+ * A long text is cut and sent whole as an attached file (see [Share.text]).
+ */
+fun shareText(context: android.content.Context, text: String) = Share.text(context, text)

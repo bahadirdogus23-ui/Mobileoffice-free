@@ -1,6 +1,5 @@
 package org.mobileofficefree.app
 
-import android.content.Intent
 import android.widget.Toast
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -229,13 +228,7 @@ fun TextScreen(vm: TextViewModel, state: TextUiState, reading: ReadingSettings) 
                 }
                 ToolItem(if (night) "☀" else "☾", stringResource(if (night) R.string.day_short else R.string.night_short), onClick = { reading.updateNight(!night) })
                 ToolItem("⇄", stringResource(R.string.convert), onClick = { showConvert = true })
-                ToolItem("⇪", stringResource(R.string.share)) {
-                    val send = Intent(Intent.ACTION_SEND)
-                        .setType(context.contentResolver.getType(state.uri) ?: "text/plain")
-                        .putExtra(Intent.EXTRA_STREAM, state.uri)
-                        .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-                    context.startActivity(Intent.createChooser(send, state.fileName))
-                }
+                ToolItem("⇪", stringResource(R.string.share)) { Share.file(context, state.uri, state.fileName) }
             }
         }
     }

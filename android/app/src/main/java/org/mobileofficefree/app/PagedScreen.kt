@@ -866,13 +866,7 @@ fun PagedScreen(vm: PagedViewModel, state: PagedUiState, reading: ReadingSetting
                     ToolItem("⇄", stringResource(R.string.convert), onClick = { showConvert = true })
                 }
                 ToolItem("⎙", stringResource(R.string.print), onClick = { DocumentPrinter.print(context, vm, state) })
-                ToolItem("⇪", stringResource(R.string.share)) {
-                    val send = Intent(Intent.ACTION_SEND)
-                        .setType(context.contentResolver.getType(state.uri) ?: "*/*")
-                        .putExtra(Intent.EXTRA_STREAM, state.uri)
-                        .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-                    context.startActivity(Intent.createChooser(send, state.fileName))
-                }
+                ToolItem("⇪", stringResource(R.string.share)) { Share.file(context, state.uri, state.fileName) }
             }
         }
     }
@@ -898,9 +892,7 @@ fun PagedScreen(vm: PagedViewModel, state: PagedUiState, reading: ReadingSetting
                             TextButton(onClick = {
                                 scope.launch {
                                     val uri = word.attachmentFile(i) ?: return@launch
-                                    val send = Intent(Intent.ACTION_SEND).setType(context.contentResolver.getType(uri) ?: "*/*")
-                                        .putExtra(Intent.EXTRA_STREAM, uri).addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-                                    context.startActivity(Intent.createChooser(send, name))
+                                    Share.file(context, uri, name)
                                 }
                             }) { Text(stringResource(R.string.share)) }
                         }

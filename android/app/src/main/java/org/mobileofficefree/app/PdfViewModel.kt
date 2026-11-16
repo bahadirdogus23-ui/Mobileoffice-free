@@ -34,6 +34,10 @@ import org.mobileofficefree.engine.SensitiveKind
  *
  * Password-protected files are opened by the engine and shown from a copy without the password
  * kept in the app's cache (PdfRenderer cannot open them); what the person saves keeps it.
+ *
+ * Whole documents never pass through the Java heap (256 MB on most phones; a 171 MB PDF did not
+ * fit twice): the engine reads the file and writes its copies through file descriptors, in native
+ * memory (see [openEngine] and [writeInto]).
  */
 class PdfViewModel(app: Application) : PagedViewModel(app, DocumentKind.PDF) {
     private var fd: ParcelFileDescriptor? = null
@@ -300,9 +304,8 @@ class PdfViewModel(app: Application) : PagedViewModel(app, DocumentKind.PDF) {
     /** Appends every page of the PDF at [uri] (combining files); one without a readable page is refused. */
     fun appendPdf(uri: Uri) = edit { doc ->
         val app = getApplication<Application>()
-        val bytes = app.contentResolver.openInputStream(uri)?.use { it.readBytes() } ?: error("no data")
         try {
-            doc.append(bytes, null)
+            (app.contentResolver.openFileDescriptor(uri, "r") ?: error("no data")).use { doc.appendFd(it.fd, null) }
         } catch (e: MoException.NoPages) {
             val name = runCatching { FileInfo.of(app.contentResolver, uri).name }.getOrDefault("PDF")
             throw IllegalStateException(app.getString(R.string.merge_no_pages, name), e)
@@ -310,10 +313,10 @@ class PdfViewModel(app: Application) : PagedViewModel(app, DocumentKind.PDF) {
     }
 
     /** Writes a new PDF of just [pages] into [dest]. */
-    fun extractTo(dest: Uri, pages: List<Int>) = write(dest) { it.extract(pages.map(Int::toUInt)) }
+    fun extractTo(dest: Uri, pages: List<Int>) = write(dest) { doc, fd -> doc.extractToFd(pages.map(Int::toUInt), fd) }
 
-    /** A smaller copy waiting for the file it goes into, with the sizes before and after. */
-    class Compressed(val bytes: ByteArray, val before: Long, val after: Long)
+    /** A smaller copy (in the app's cache) waiting for the file it goes into, with the sizes before and after. */
+    class Compressed(val file: File, val before: Long, val after: Long)
 
     var compressed by mutableStateOf<Compressed?>(null)
         private set
@@ -326,19 +329,32 @@ class PdfViewModel(app: Application) : PagedViewModel(app, DocumentKind.PDF) {
             val result = withContext(engine) {
                 runCatching {
                     val doc = editor()
-                    val out = doc.compress(forScreen)
                     val uri = source ?: error("no document")
-                    val before = if (edited) doc.save().size.toLong() else FileInfo.of(app.contentResolver, uri).size
-                    Compressed(out, before, out.size.toLong())
+                    val dir = File(app.cacheDir, COMPRESS_DIR).apply { mkdirs() }
+                    dir.listFiles()?.forEach { it.delete() }
+                    val file = File(dir, "smaller.pdf")
+                    val after = try {
+                        writeFd(file) { doc.compressToFd(forScreen, it) }.toLong()
+                    } catch (e: Throwable) {
+                        file.delete()
+                        throw e
+                    }
+                    val before = if (edited) doc.savedSize().toLong() else FileInfo.of(app.contentResolver, uri).size
+                    Compressed(file, before, after)
                 }
             }
             busy = false
             result.fold(
                 onSuccess = {
                     // Not worth a new file unless it is clearly smaller.
-                    if (it.before > 0 && it.after > it.before * 0.95) tell(app.getString(R.string.compress_no_gain)) else compressed = it
+                    if (it.before > 0 && it.after > it.before * 0.95) {
+                        it.file.delete()
+                        tell(app.getString(R.string.compress_no_gain))
+                    } else {
+                        compressed = it
+                    }
                 },
-                onFailure = { tell(app.getString(R.string.pdf_edit_failed, it.message ?: it.javaClass.simpleName)) },
+                onFailure = { tell(editFailed(it)) },
             )
         }
     }
@@ -347,21 +363,32 @@ class PdfViewModel(app: Application) : PagedViewModel(app, DocumentKind.PDF) {
     fun saveCompressed(dest: Uri?) {
         val c = compressed ?: return
         compressed = null
-        if (dest == null) return
+        if (dest == null) {
+            c.file.delete()
+            return
+        }
         val app = getApplication<Application>()
         val name = state?.fileName ?: "?"
         viewModelScope.launch {
             val result = withContext(engine) {
-                runCatching { app.contentResolver.openOutputStream(dest, "wt")?.use { it.write(c.bytes) } ?: error("cannot write") }
+                try {
+                    runCatching {
+                        // Copied in chunks: the copy never sits whole in the Java heap.
+                        val out = app.contentResolver.openOutputStream(dest, "wt") ?: error("cannot write")
+                        out.use { o -> c.file.inputStream().use { it.copyTo(o, COPY_BUFFER) } }
+                    }
+                } finally {
+                    c.file.delete()
+                }
             }
             result.fold(
-                onSuccess = { android.util.Log.i(SAVE_LOG_TAG, "PDF smaller copy written: $name, ${c.bytes.size} bytes, into a new file") },
+                onSuccess = { android.util.Log.i(SAVE_LOG_TAG, "PDF smaller copy written: $name, ${c.after} bytes, into a new file") },
                 onFailure = { android.util.Log.w(SAVE_LOG_TAG, "PDF smaller copy failed: $name", it) },
             )
             tell(
                 result.fold(
                     onSuccess = { app.getString(R.string.compress_saved, Formatter.formatShortFileSize(app, c.before), Formatter.formatShortFileSize(app, c.after)) },
-                    onFailure = { app.getString(R.string.save_failed, it.message ?: "") },
+                    onFailure = { saveFailed(it) },
                 ),
             )
         }
@@ -372,7 +399,6 @@ class PdfViewModel(app: Application) : PagedViewModel(app, DocumentKind.PDF) {
         private set
 
     fun loadForm() {
-        val app = getApplication<Application>()
         busy = true
         viewModelScope.launch {
             val result = withContext(engine) {
@@ -387,7 +413,7 @@ class PdfViewModel(app: Application) : PagedViewModel(app, DocumentKind.PDF) {
                 onSuccess = { (fields, none) ->
                     if (none) findPrintedFields() else formFields = fields
                 },
-                onFailure = { tell(app.getString(R.string.pdf_edit_failed, it.message ?: it.javaClass.simpleName)) },
+                onFailure = { tell(editFailed(it)) },
             )
         }
     }
@@ -443,13 +469,12 @@ class PdfViewModel(app: Application) : PagedViewModel(app, DocumentKind.PDF) {
                 edited = false
                 savedCleanly()
             }
-        }) { it.save() }
+        }) { doc, fd -> doc.saveToFd(fd) }
     }
 
     private fun editor(): PdfDocument = editor ?: run {
         val uri = source ?: error("no document")
-        val bytes = getApplication<Application>().contentResolver.openInputStream(uri)?.use { it.readBytes() } ?: error("no data")
-        openEngine(bytes, null).also {
+        openEngine(uri, null).also {
             editor = it
             isProtected = it.isProtected()
             restricted = it.isRestricted()
@@ -463,15 +488,65 @@ class PdfViewModel(app: Application) : PagedViewModel(app, DocumentKind.PDF) {
     }
 
     /**
-     * [bytes] opened by the engine. A file it finds no page in (too damaged: no usable page tree)
-     * fails with [R.string.pdf_no_pages] instead of opening empty, so nothing empty is shown or
-     * saved as if it were the person's document. Engine thread.
+     * The file at [uri] opened by the engine, which reads it itself through a file descriptor (in
+     * native memory: a large PDF never sits whole in the Java heap). A file it finds no page in
+     * (too damaged: no usable page tree) fails with [R.string.pdf_no_pages] instead of opening
+     * empty, so nothing empty is shown or saved as if it were the person's document. The file is
+     * only read. Engine thread.
      */
-    private fun openEngine(bytes: ByteArray, pass: String?): PdfDocument = try {
-        PdfDocument.open(bytes, pass)
+    private fun openEngine(uri: Uri, pass: String?): PdfDocument = try {
+        val pfd = getApplication<Application>().contentResolver.openFileDescriptor(uri, "r") ?: error("no data")
+        pfd.use { PdfDocument.openFd(it.fd, pass) }
     } catch (e: MoException.NoPages) {
         android.util.Log.i(SAVE_LOG_TAG, "PDF open refused: no readable page in ${source?.lastPathSegment}")
         throw IllegalStateException(getApplication<Application>().getString(R.string.pdf_no_pages), e)
+    }
+
+    /** [file] (in the app's cache) created or emptied, and handed to [block] as a descriptor. */
+    private fun <T> writeFd(file: File, block: (Int) -> T): T =
+        ParcelFileDescriptor.open(
+            file,
+            ParcelFileDescriptor.MODE_WRITE_ONLY or ParcelFileDescriptor.MODE_CREATE or ParcelFileDescriptor.MODE_TRUNCATE,
+        ).use { block(it.fd) }
+
+    /**
+     * What [block] writes to a descriptor, put into the new file [dest] (never the opened one):
+     * straight into it when its app hands out a descriptor, else through a cache file copied in
+     * chunks. Returns the size written. Engine thread.
+     */
+    private fun writeInto(dest: Uri, block: (Int) -> ULong): Long {
+        val app = getApplication<Application>()
+        check(dest != source) { "the opened file is never written" }
+        val direct = try {
+            app.contentResolver.openFileDescriptor(dest, "wt")
+        } catch (e: SecurityException) {
+            throw e
+        } catch (_: Exception) {
+            null
+        }
+        if (direct != null) return direct.use { block(it.fd).toLong() }
+        val dir = File(app.cacheDir, OUT_DIR).apply { mkdirs() }
+        val tmp = File(dir, "out.pdf")
+        try {
+            val size = writeFd(tmp, block).toLong()
+            val out = app.contentResolver.openOutputStream(dest, "wt") ?: error("cannot write")
+            out.use { o -> tmp.inputStream().use { it.copyTo(o, COPY_BUFFER) } }
+            return size
+        } finally {
+            tmp.delete()
+        }
+    }
+
+    /** Why an edit failed, for the person: running out of memory is said plainly. */
+    private fun editFailed(e: Throwable): String {
+        val app = getApplication<Application>()
+        return if (e.isOutOfMemory()) app.getString(R.string.pdf_out_of_memory) else app.getString(R.string.pdf_edit_failed, e.message ?: e.javaClass.simpleName)
+    }
+
+    /** Why saving failed, for the person. */
+    private fun saveFailed(e: Throwable): String {
+        val app = getApplication<Application>()
+        return if (e.isOutOfMemory()) app.getString(R.string.pdf_out_of_memory) else app.getString(R.string.save_failed, e.message ?: "")
     }
 
     /** What the engine repaired to open [doc], for the person; null for a sound file. Engine thread. */
@@ -509,7 +584,7 @@ class PdfViewModel(app: Application) : PagedViewModel(app, DocumentKind.PDF) {
                     // A new cache file per edit: the renderer still has the previous one open.
                     val dir = File(app.cacheDir, "pdf-edit").apply { mkdirs() }
                     val file = File(dir, "edit-${++editCount}.pdf")
-                    Measurements.time("PDF: düzenleme sonrası yeniden yükleme") { file.writeBytes(doc.displayCopy()) }
+                    Measurements.time("PDF: düzenleme sonrası yeniden yükleme") { writeFd(file) { doc.displayCopyToFd(it) } }
                     closeRenderer()
                     dir.listFiles()?.filter { it != file }?.forEach { it.delete() }
                     openRenderer(ParcelFileDescriptor.open(file, ParcelFileDescriptor.MODE_READ_ONLY))
@@ -529,12 +604,16 @@ class PdfViewModel(app: Application) : PagedViewModel(app, DocumentKind.PDF) {
                     if (it == state?.pages) pagesEdited(it) else pagesChanged(it)
                     after()
                 },
-                onFailure = { tell(app.getString(R.string.pdf_edit_failed, it.message ?: it.javaClass.simpleName)) },
+                onFailure = {
+                    if (it.isOutOfMemory()) Diagnostics.event("PDF düzenleme: bellek yetmedi (${state?.fileName})")
+                    tell(editFailed(it))
+                },
             )
         }
     }
 
-    private fun write(dest: Uri, done: () -> Unit = {}, bytes: (PdfDocument) -> ByteArray) {
+    /** Writes what [produce] writes to a descriptor into the new file [dest]. */
+    private fun write(dest: Uri, done: () -> Unit = {}, produce: (PdfDocument, Int) -> ULong) {
         val app = getApplication<Application>()
         val name = state?.fileName ?: "?"
         android.util.Log.i(SAVE_LOG_TAG, "PDF save requested: $name, into a new file=${dest != source}")
@@ -542,16 +621,16 @@ class PdfViewModel(app: Application) : PagedViewModel(app, DocumentKind.PDF) {
         viewModelScope.launch {
             val result = withContext(engine) {
                 runCatching {
-                    val out = Measurements.time("PDF: kaydetme") { bytes(editor()) }
-                    Diagnostics.event("PDF kaydedildi: ${out.size / 1024} KB")
-                    app.contentResolver.openOutputStream(dest, "wt")?.use { it.write(out) } ?: error("cannot write")
-                    android.util.Log.i(SAVE_LOG_TAG, "PDF save written: $name, ${out.size} bytes")
+                    val doc = editor()
+                    val size = Measurements.time("PDF: kaydetme") { writeInto(dest) { fd -> produce(doc, fd) } }
+                    Diagnostics.event("PDF kaydedildi: ${size / 1024} KB")
+                    android.util.Log.i(SAVE_LOG_TAG, "PDF save written: $name, $size bytes")
                 }
             }
             result.exceptionOrNull()?.let { android.util.Log.w(SAVE_LOG_TAG, "PDF save failed: $name", it) }
             busy = false
             if (result.isSuccess) done()
-            tell(result.fold(onSuccess = { app.getString(R.string.saved) }, onFailure = { app.getString(R.string.save_failed, it.message ?: "") }))
+            tell(result.fold(onSuccess = { app.getString(R.string.saved) }, onFailure = { saveFailed(it) }))
         }
     }
 
@@ -568,14 +647,13 @@ class PdfViewModel(app: Application) : PagedViewModel(app, DocumentKind.PDF) {
             // Encrypted: the engine opens it (asking for the password) and gives a copy to show.
             val pass = password
             password = null
-            val bytes = app.contentResolver.openInputStream(uri)?.use { it.readBytes() } ?: error("no data")
-            val doc = openEngine(bytes, pass)
+            val doc = openEngine(uri, pass)
             editor = doc
             isProtected = doc.isProtected()
             restricted = doc.isRestricted()
             val dir = File(app.cacheDir, "pdf-edit").apply { mkdirs() }
             val file = File(dir, "edit-${++editCount}.pdf")
-            file.writeBytes(doc.displayCopy())
+            writeFd(file) { doc.displayCopyToFd(it) }
             openRenderer(ParcelFileDescriptor.open(file, ParcelFileDescriptor.MODE_READ_ONLY))
         }
         // A heavily damaged file can open in Android's renderer with no pages: an empty viewer
@@ -596,13 +674,12 @@ class PdfViewModel(app: Application) : PagedViewModel(app, DocumentKind.PDF) {
         val app = getApplication<Application>()
         val size = runCatching { app.contentResolver.openAssetFileDescriptor(uri, "r")?.use { it.length } }.getOrNull() ?: -1L
         if (size !in 1..MAX_ANNOTATED_BYTES) return null
-        val bytes = app.contentResolver.openInputStream(uri)?.use { it.readBytes() } ?: return null
         // Opened by the engine even without annotations: it tells whether the file needed repair
         // (see openedNotice), and the first edit or search then needs no second read.
         // A file the engine finds no page in fails to open (see openEngine); other engine
         // failures leave it to Android's renderer, as before.
         val doc = try {
-            openEngine(bytes, null)
+            openEngine(uri, null)
         } catch (e: IllegalStateException) {
             if (e.cause is MoException.NoPages) throw e
             return null
@@ -610,12 +687,16 @@ class PdfViewModel(app: Application) : PagedViewModel(app, DocumentKind.PDF) {
             return null
         }
         editor = doc
-        // Annotations live in /Annots arrays, written plainly or inside object streams.
-        if (!bytes.containsAscii("/Annots") && !bytes.containsAscii("/ObjStm")) return null
+        // Annotations live in /Annots arrays, written plainly or inside object streams; the file
+        // is read in chunks for them, not whole.
+        val mayHaveAnnotations = runCatching {
+            app.contentResolver.openInputStream(uri)?.use { it.containsAnyAscii("/Annots", "/ObjStm") }
+        }.getOrNull() ?: true
+        if (!mayHaveAnnotations) return null
         if (!doc.hasDrawnAnnotations()) return null
         val dir = File(app.cacheDir, "pdf-edit").apply { mkdirs() }
         val file = File(dir, "edit-${++editCount}.pdf")
-        file.writeBytes(doc.displayCopy())
+        writeFd(file) { doc.displayCopyToFd(it) }
         closeRenderer()
         return openRenderer(ParcelFileDescriptor.open(file, ParcelFileDescriptor.MODE_READ_ONLY))
     }
@@ -745,7 +826,10 @@ class PdfViewModel(app: Application) : PagedViewModel(app, DocumentKind.PDF) {
         editor?.close()
         editor = null
         source = null
-        File(getApplication<Application>().cacheDir, "pdf-edit").deleteRecursively()
+        val cache = getApplication<Application>().cacheDir
+        File(cache, "pdf-edit").deleteRecursively()
+        File(cache, COMPRESS_DIR).deleteRecursively()
+        File(cache, OUT_DIR).deleteRecursively()
         val session = documentSession
         viewModelScope.launch {
             if (session != documentSession) return@launch
@@ -772,19 +856,57 @@ private const val MAX_ANNOTATED_BYTES = 40L * 1024 * 1024
 /** Repair lines from the engine shown after the explanation (the rest are alike). */
 private const val MAX_REPAIR_LINES = 3
 
-/** Whether these bytes hold the ASCII text [word]. */
-internal fun ByteArray.containsAscii(word: String): Boolean {
-    val w = word.toByteArray(Charsets.US_ASCII)
-    if (w.isEmpty()) return true
+/** Cache folders for a smaller copy waiting for its file, and for saves copied in chunks. */
+private const val COMPRESS_DIR = "pdf-compress"
+private const val OUT_DIR = "pdf-out"
+private const val COPY_BUFFER = 256 * 1024
+
+/** Whether this, or what caused it, is the Java heap running out. */
+internal fun Throwable.isOutOfMemory(): Boolean {
+    var e: Throwable? = this
+    var depth = 0
+    while (e != null && depth < 8) {
+        if (e is OutOfMemoryError) return true
+        e = e.cause
+        depth++
+    }
+    return false
+}
+
+/**
+ * Whether the stream holds any of the ASCII [words], read in chunks (a word split between two
+ * chunks is found too) so a large file is never held whole.
+ */
+internal fun java.io.InputStream.containsAnyAscii(vararg words: String, chunk: Int = 64 * 1024): Boolean {
+    val ws = words.map { it.toByteArray(Charsets.US_ASCII) }.filter { it.isNotEmpty() }
+    if (ws.size < words.size) return true
+    if (ws.isEmpty()) return false
+    val keep = ws.maxOf { it.size } - 1
+    val buf = ByteArray(keep + chunk.coerceAtLeast(1))
+    var have = 0
+    while (true) {
+        val n = read(buf, have, buf.size - have)
+        if (n < 0) return false
+        have += n
+        if (ws.any { buf.indexOfBytes(it, have) >= 0 }) return true
+        // The tail that could begin a word goes to the front of the next round.
+        val tail = minOf(keep, have)
+        System.arraycopy(buf, have - tail, buf, 0, tail)
+        have = tail
+    }
+}
+
+/** Where [w] starts within the first [limit] bytes, or -1. */
+private fun ByteArray.indexOfBytes(w: ByteArray, limit: Int): Int {
     var i = 0
-    val last = size - w.size
+    val last = limit - w.size
     while (i <= last) {
         if (this[i] == w[0]) {
             var k = 1
             while (k < w.size && this[i + k] == w[k]) k++
-            if (k == w.size) return true
+            if (k == w.size) return i
         }
         i++
     }
-    return false
+    return -1
 }

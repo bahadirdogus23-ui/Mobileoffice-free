@@ -58,22 +58,29 @@ fun rememberPdfMerge(onOpen: (Uri) -> Unit): PdfMergeAction {
             val result = withContext(Dispatchers.IO) {
                 runCatching {
                     val resolver = context.contentResolver
-                    fun bytesOf(uri: Uri) = resolver.openInputStream(uri)?.use { it.readBytes() } ?: error("no data")
+                    // The engine reads each file itself (native memory): large PDFs never sit whole in the Java heap.
+                    fun <T> readFd(uri: Uri, block: (Int) -> T): T = (resolver.openFileDescriptor(uri, "r") ?: error("no data")).use { block(it.fd) }
                     // A file without a single readable page (too damaged) is refused by name, not merged as nothing.
                     fun unreadable(name: String, e: Throwable) = IllegalStateException(
                         resources.getString(if (e is MoException.NoPages) R.string.merge_no_pages else R.string.merge_cannot_read, name),
                         e,
                     )
                     val (firstUri, firstName) = files.first()
-                    val merged = runCatching { PdfDocument.open(bytesOf(firstUri), null) }
+                    val merged = runCatching { readFd(firstUri) { PdfDocument.openFd(it, null) } }
                         .getOrElse { throw unreadable(firstName, it) }
                     try {
                         for ((uri, name) in files.drop(1)) {
-                            runCatching { merged.append(bytesOf(uri), null) }
+                            runCatching { readFd(uri) { merged.appendFd(it, null) } }
                                 .onFailure { throw unreadable(name, it) }
                         }
-                        val out = merged.save()
-                        resolver.openOutputStream(dest, "wt")?.use { it.write(out) } ?: error("cannot write")
+                        val direct = runCatching { resolver.openFileDescriptor(dest, "wt") }.getOrNull()
+                        if (direct != null) {
+                            direct.use { merged.saveToFd(it.fd) }
+                        } else {
+                            // An app that hands out no descriptor: written as a stream, as before.
+                            val out = merged.save()
+                            resolver.openOutputStream(dest, "wt")?.use { it.write(out) } ?: error("cannot write")
+                        }
                     } finally {
                         merged.close()
                     }
@@ -87,7 +94,8 @@ fun rememberPdfMerge(onOpen: (Uri) -> Unit): PdfMergeAction {
                 },
                 onFailure = {
                     choosing = true
-                    Toast.makeText(context, it.message ?: resources.getString(R.string.save_failed, ""), Toast.LENGTH_LONG).show()
+                    val message = if (it.isOutOfMemory()) resources.getString(R.string.pdf_out_of_memory) else it.message ?: resources.getString(R.string.save_failed, "")
+                    Toast.makeText(context, message, Toast.LENGTH_LONG).show()
                 },
             )
         }

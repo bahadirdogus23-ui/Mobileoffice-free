@@ -1,6 +1,5 @@
 package org.mobileofficefree.app
 
-import android.content.Intent
 import android.text.format.Formatter
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.Image
@@ -129,13 +128,7 @@ fun ImageScreen(vm: ImageViewModel, state: ImageUiState) {
                 shift = Offset.Zero
             }
             ToolItem("⎙", stringResource(R.string.print)) { DocumentPrinter.printImage(context, vm.viewModelScope, state.fileName, state.bitmap) }
-            ToolItem("⇪", stringResource(R.string.share)) {
-                val send = Intent(Intent.ACTION_SEND)
-                    .setType(context.contentResolver.getType(state.uri) ?: "image/*")
-                    .putExtra(Intent.EXTRA_STREAM, state.uri)
-                    .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-                context.startActivity(Intent.createChooser(send, state.fileName))
-            }
+            ToolItem("⇪", stringResource(R.string.share)) { Share.file(context, state.uri, state.fileName) }
         }
     }
 }

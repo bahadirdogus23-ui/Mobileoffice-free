@@ -65,6 +65,8 @@ class MobileOfficeApp : Application() {
 object Diagnostics {
     private const val CRASH_FILE = "last-crash.txt"
     private const val CRASH_SHOT = "last-crash.png"
+    /** The whole report attached to an e-mail when it is too long for the message itself. */
+    private const val REPORT_FILE = "BadoOffice-hata-bildirimi.txt"
     // Kept across sessions (see [load]), so measurements gather up until the person sends them.
     private const val MAX_TIMINGS = 500
     private const val MAX_EVENTS = 1000
@@ -237,27 +239,47 @@ object Diagnostics {
                 runCatching { androidx.core.content.FileProvider.getUriForFile(context, "${context.packageName}.files", f) }.getOrNull()
             },
         )
+        // A report too long for an intent (Android then finds no app to take it) is cut, and
+        // goes along whole as a text file.
+        var text = body
+        var hasText = false
+        if (body.length > Share.MAX_TEXT_CHARS) {
+            val file = runCatching { Share.textFile(context, body, REPORT_FILE) }.getOrNull()
+            if (file != null) {
+                uris.add(file)
+                hasText = true
+            }
+            text = Share.clipText(body, Share.MAX_TEXT_CHARS, context.getString(if (file != null) R.string.share_text_cut else R.string.share_text_cut_no_file))
+        }
         val subject = "BadoOffice hata bildirimi · ${appVersion(context)} · ${Build.MODEL}"
+        val type = when {
+            uris.isEmpty() -> "text/plain"
+            hasText -> "*/*"
+            else -> "image/png"
+        }
         val send = Intent(if (uris.size > 1) Intent.ACTION_SEND_MULTIPLE else Intent.ACTION_SEND)
-            .setType(if (uris.isEmpty()) "text/plain" else "image/png")
+            .setType(type)
             .putExtra(Intent.EXTRA_EMAIL, arrayOf(REPORT_EMAIL))
             .putExtra(Intent.EXTRA_SUBJECT, subject)
-            .putExtra(Intent.EXTRA_TEXT, body)
-            .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+            .putExtra(Intent.EXTRA_TEXT, text)
         when (uris.size) {
             0 -> {}
             1 -> send.putExtra(Intent.EXTRA_STREAM, uris[0])
             else -> send.putParcelableArrayListExtra(Intent.EXTRA_STREAM, uris)
         }
-        // Mail apps only, when there is one; any app that takes text otherwise.
-        send.selector = Intent(Intent.ACTION_SENDTO, android.net.Uri.parse("mailto:"))
-        val chooser = Intent.createChooser(send, context.getString(R.string.report_send)).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-        try {
-            context.startActivity(chooser)
-        } catch (_: android.content.ActivityNotFoundException) {
-            send.selector = null
-            context.startActivity(Intent.createChooser(send, context.getString(R.string.report_send)).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+        if (uris.isNotEmpty()) {
+            // The addresses a read grant covers are those in ClipData.
+            val clip = android.content.ClipData(subject, arrayOf(type), android.content.ClipData.Item(uris[0]))
+            for (u in uris.drop(1)) clip.addItem(android.content.ClipData.Item(u))
+            send.clipData = clip
+            send.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
         }
+        // Mail apps only, when the phone has one. A chooser shows "no app can perform this
+        // action" (it does not fail) when its selector finds nothing, so ask first.
+        val mailto = Intent(Intent.ACTION_SENDTO, android.net.Uri.parse("mailto:"))
+        val hasMailApp = runCatching { context.packageManager.queryIntentActivities(mailto, 0).isNotEmpty() }.getOrDefault(false)
+        if (hasMailApp) send.selector = mailto
+        Share.start(context, Intent.createChooser(send, context.getString(R.string.report_send)))
     }
 
     private fun appVersion(context: Context): String =

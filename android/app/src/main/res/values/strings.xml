@@ -170,6 +170,11 @@
     <string name="extract">Save as new PDF</string>
     <string name="add_pdf">Add PDF</string>
     <string name="pdf_edit_failed">The PDF could not be changed: %1$s</string>
+    <string name="pdf_out_of_memory">This PDF is too large for the memory the phone gives the app. Close other apps and try again, or work on a smaller part of it (Save as new PDF).</string>
+    <string name="share_text_cut">… (shortened here; the full text is in the attached file)</string>
+    <string name="share_text_cut_no_file">… (shortened: too long to share in full)</string>
+    <string name="share_no_app">No app on this phone can take this.</string>
+    <string name="share_failed">Could not share this file.</string>
     <plurals name="pages_selected">
         <item quantity="one">%1$d page selected</item>
         <item quantity="other">%1$d pages selected</item>

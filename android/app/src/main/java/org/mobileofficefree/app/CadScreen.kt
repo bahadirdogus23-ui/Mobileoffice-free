@@ -182,13 +182,7 @@ fun CadScreen(vm: CadViewModel, state: CadUiState) {
             ToolItem("☰", stringResource(R.string.cad_layers), onClick = { showLayers = true })
             ToolItem(if (state.dark) "☀" else "☾", stringResource(if (state.dark) R.string.cad_white_sheet else R.string.cad_dark_sheet), onClick = vm::toggleBackground)
             ToolItem("⇩", stringResource(R.string.cad_save_pdf)) { askPdfArea = true }
-            ToolItem("⇪", stringResource(R.string.share)) {
-                val send = android.content.Intent(android.content.Intent.ACTION_SEND)
-                    .setType("application/octet-stream")
-                    .putExtra(android.content.Intent.EXTRA_STREAM, state.uri)
-                    .addFlags(android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION)
-                context.startActivity(android.content.Intent.createChooser(send, state.fileName))
-            }
+            ToolItem("⇪", stringResource(R.string.share)) { Share.file(context, state.uri, state.fileName, "application/octet-stream") }
         }
     }
 

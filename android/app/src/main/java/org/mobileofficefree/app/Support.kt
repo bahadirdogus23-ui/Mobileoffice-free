@@ -76,7 +76,7 @@ object Support {
         val send = Intent(Intent.ACTION_SEND)
             .setType("text/plain")
             .putExtra(Intent.EXTRA_TEXT, context.getString(R.string.support_share_text, PROJECT_URL))
-        context.startActivity(Intent.createChooser(send, context.getString(R.string.support_share_app)))
+        Share.start(context, Intent.createChooser(send, context.getString(R.string.support_share_app)))
     }
 }
 

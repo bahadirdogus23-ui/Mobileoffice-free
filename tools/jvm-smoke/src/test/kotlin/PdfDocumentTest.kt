@@ -1,4 +1,6 @@
+import java.io.File
 import kotlin.test.Test
+import kotlin.test.assertContentEquals
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
 import kotlin.test.assertTrue
@@ -9,6 +11,18 @@ import org.mobileofficefree.engine.Pen
 import org.mobileofficefree.engine.imagesToPdf
 import org.mobileofficefree.engine.SensitiveKind
 import org.mobileofficefree.engine.SheetDocument
+
+/** The C library's open and close, for file descriptors like the ones Android hands out. */
+private interface LibC : com.sun.jna.Library {
+    fun open(path: String, flags: Int, vararg mode: Any): Int
+    fun close(fd: Int): Int
+}
+
+private val libc: LibC = com.sun.jna.Native.load("c", LibC::class.java)
+private const val O_RDONLY = 0
+private const val O_WRONLY = 1
+private const val O_CREAT = 0x40
+private const val O_TRUNC = 0x200
 
 class PdfDocumentTest {
     /** A small PDF made by the spreadsheet engine: one page per sheet. */
@@ -134,5 +148,44 @@ class PdfDocumentTest {
         val pdf = imagesToPdf(listOf(NamedFile("a.png", png), NamedFile("b.png", png)), true)
         PdfDocument.open(pdf, null).use { assertEquals(2u, it.pageCount()) }
         assertFailsWith<MoException.Command> { imagesToPdf(emptyList(), true) }
+    }
+
+    @Test
+    fun opensAndWritesThroughFileDescriptors() {
+        val bytes = SheetDocument.blank().use { sheet ->
+            sheet.execute("cell.set", """{"cell":"A1","input":"IBAN TR33 0006 1005 1978 6457 8413 26"}""")
+            sheet.exportPdf(true, null, false)
+        }
+        val dir = kotlin.io.path.createTempDirectory("mo-pdf-fd").toFile()
+        try {
+            val input = File(dir, "in.pdf").apply { writeBytes(bytes) }
+            val inFd = libc.open(input.path, O_RDONLY)
+            assertTrue(inFd >= 0)
+            val doc = try {
+                PdfDocument.openFd(inFd, null)
+            } finally {
+                libc.close(inFd)
+            }
+            doc.use {
+                assertEquals(1, it.markRedactions(listOf(SensitiveKind.IBAN), emptyList()).size)
+                assertEquals(1u, it.applyRedactions())
+                val out = File(dir, "out.pdf")
+                val outFd = libc.open(out.path, O_WRONLY or O_CREAT or O_TRUNC, 0x1a4)
+                assertTrue(outFd >= 0)
+                val written = try {
+                    it.saveToFd(outFd)
+                } finally {
+                    libc.close(outFd)
+                }
+                assertEquals(out.length().toULong(), written)
+                assertEquals(written, it.savedSize())
+                PdfDocument.open(out.readBytes(), null).use { saved -> assertEquals(false, saved.pageText(0u).contains("TR33")) }
+            }
+            // The opened file was only read.
+            assertContentEquals(bytes, input.readBytes())
+            assertFailsWith<MoException.Open> { PdfDocument.openFd(-1, null) }
+        } finally {
+            dir.deleteRecursively()
+        }
     }
 }

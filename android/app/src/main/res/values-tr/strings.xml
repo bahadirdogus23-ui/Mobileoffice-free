@@ -169,6 +169,11 @@
     <string name="extract">Yeni PDF yap</string>
     <string name="add_pdf">PDF ekle</string>
     <string name="pdf_edit_failed">PDF değiştirilemedi: %1$s</string>
+    <string name="pdf_out_of_memory">Bu PDF, telefonun uygulamaya ayırdığı bellek için çok büyük. Diğer uygulamaları kapatıp yeniden deneyin ya da daha küçük bir bölümüyle çalışın (Yeni PDF yap).</string>
+    <string name="share_text_cut">… (burada kısaltıldı; tamamı ekteki dosyada)</string>
+    <string name="share_text_cut_no_file">… (kısaltıldı: tamamını paylaşmak için çok uzun)</string>
+    <string name="share_no_app">Bu telefonda bunu alabilecek bir uygulama yok.</string>
+    <string name="share_failed">Bu dosya paylaşılamadı.</string>
     <plurals name="pages_selected">
         <item quantity="one">%1$d sayfa seçili</item>
         <item quantity="other">%1$d sayfa seçili</item>

@@ -1,6 +1,5 @@
 package org.mobileofficefree.app
 
-import android.content.Intent
 import android.print.PrintAttributes
 import android.print.PrintManager
 import android.webkit.WebView
@@ -120,13 +119,7 @@ fun InvoiceScreen(vm: InvoiceViewModel, state: InvoiceUiState) {
                 val manager = context.getSystemService(PrintManager::class.java) ?: return@ToolItem
                 manager.print(name, w.createPrintDocumentAdapter(name), PrintAttributes.Builder().setMediaSize(PrintAttributes.MediaSize.ISO_A4).build())
             }
-            ToolItem("⇪", stringResource(R.string.share)) {
-                val send = Intent(Intent.ACTION_SEND)
-                    .setType("application/xml")
-                    .putExtra(Intent.EXTRA_STREAM, state.uri)
-                    .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-                context.startActivity(Intent.createChooser(send, state.fileName))
-            }
+            ToolItem("⇪", stringResource(R.string.share)) { Share.file(context, state.uri, state.fileName, "application/xml") }
         }
     }
 }

@@ -1574,6 +1574,13 @@ impl PdfDocument {
         Ok(PdfDocument { doc: Mutex::new(PdfDoc::open(bytes, password.as_deref())?) })
     }
 
+    /// Opens the PDF behind the open file descriptor `fd` (read here, in native memory, so a
+    /// large file never passes through the Java heap). `fd` stays open: the caller closes it.
+    #[uniffi::constructor]
+    pub fn open_fd(fd: i32, password: Option<String>) -> Result<Self, MoError> {
+        Ok(PdfDocument { doc: Mutex::new(PdfDoc::open(fd_io::read(fd)?, password.as_deref())?) })
+    }
+
     pub fn page_count(&self) -> Result<u32, MoError> {
         Ok(self.doc().page_count()?)
     }
@@ -1598,9 +1605,21 @@ impl PdfDocument {
         Ok(self.doc().append(bytes, password.as_deref())?)
     }
 
+    /// Appends every page of the PDF behind `fd` (left open for the caller to close).
+    pub fn append_fd(&self, fd: i32, password: Option<String>) -> Result<(), MoError> {
+        let bytes = fd_io::read(fd)?;
+        Ok(self.doc().append(bytes, password.as_deref())?)
+    }
+
     /// A new PDF of just `pages`, in that order.
     pub fn extract(&self, pages: Vec<u32>) -> Result<Vec<u8>, MoError> {
         Ok(self.doc().extract(&pages)?)
+    }
+
+    /// [`PdfDocument::extract`] written to `fd` (left open); returns the bytes written.
+    pub fn extract_to_fd(&self, pages: Vec<u32>, fd: i32) -> Result<u64, MoError> {
+        let bytes = self.doc().extract(&pages)?;
+        fd_io::write(fd, &bytes)
     }
 
     /// Puts a hand-drawn signature on `page`. Each stroke is flat `x, y` pairs, fractions of the
@@ -1724,9 +1743,21 @@ impl PdfDocument {
         Ok(self.doc().display_copy()?)
     }
 
+    /// [`PdfDocument::display_copy`] written to `fd` (left open); returns the bytes written.
+    pub fn display_copy_to_fd(&self, fd: i32) -> Result<u64, MoError> {
+        let bytes = self.doc().display_copy()?;
+        fd_io::write(fd, &bytes)
+    }
+
     /// A smaller copy (pictures resampled to 150 ppi, or 96 `for_screen`); this one is unchanged.
     pub fn compress(&self, for_screen: bool) -> Result<Vec<u8>, MoError> {
         Ok(self.doc().compress(for_screen)?)
+    }
+
+    /// [`PdfDocument::compress`] written to `fd` (left open); returns the bytes written.
+    pub fn compress_to_fd(&self, for_screen: bool, fd: i32) -> Result<u64, MoError> {
+        let bytes = self.doc().compress(for_screen)?;
+        fd_io::write(fd, &bytes)
     }
 
     /// The form's fields (none when there is no form).
@@ -1796,5 +1827,158 @@ impl PdfDocument {
     /// The whole document as a new file.
     pub fn save(&self) -> Result<Vec<u8>, MoError> {
         Ok(self.doc().save()?)
+    }
+
+    /// [`PdfDocument::save`] written to `fd` (left open): the whole file is made first, so
+    /// nothing is written when saving fails. Returns the bytes written.
+    pub fn save_to_fd(&self, fd: i32) -> Result<u64, MoError> {
+        let bytes = self.doc().save()?;
+        fd_io::write(fd, &bytes)
+    }
+
+    /// How large [`PdfDocument::save`] would be, without handing the file over.
+    pub fn saved_size(&self) -> Result<u64, MoError> {
+        Ok(self.doc().save()?.len() as u64)
+    }
+}
+
+/// Reading and writing whole files through descriptors the app opened (Android hands out
+/// `ParcelFileDescriptor`s for content URIs), so large PDFs stay out of the Java heap. Each call
+/// works on a duplicate: the caller's descriptor stays open and the caller closes it.
+mod fd_io {
+    use super::MoError;
+
+    #[cfg(unix)]
+    fn duplicate(fd: i32) -> std::io::Result<std::fs::File> {
+        use std::os::fd::BorrowedFd;
+        if fd < 0 {
+            return Err(std::io::Error::from(std::io::ErrorKind::InvalidInput));
+        }
+        // SAFETY: the caller promises `fd` is an open descriptor for the length of this call
+        // (Kotlin holds its ParcelFileDescriptor open around it); it is only borrowed to be
+        // duplicated, and the duplicate is owned and closed here.
+        let borrowed = unsafe { BorrowedFd::borrow_raw(fd) };
+        Ok(std::fs::File::from(borrowed.try_clone_to_owned()?))
+    }
+
+    #[cfg(not(unix))]
+    fn duplicate(_fd: i32) -> std::io::Result<std::fs::File> {
+        Err(std::io::Error::from(std::io::ErrorKind::Unsupported))
+    }
+
+    /// Everything from the start of the file behind `fd` (or what is left of a pipe).
+    pub fn read(fd: i32) -> Result<Vec<u8>, MoError> {
+        use std::io::{Read, Seek, SeekFrom};
+        let fail = |e: std::io::Error| MoError::Open(format!("cannot read the file: {e}"));
+        let mut file = duplicate(fd).map_err(fail)?;
+        // A pipe cannot seek; it is read from where it is.
+        let _ = file.seek(SeekFrom::Start(0));
+        let size = file.metadata().map(|m| m.len()).unwrap_or(0);
+        let mut bytes = Vec::with_capacity(usize::try_from(size).unwrap_or(0));
+        file.read_to_end(&mut bytes).map_err(fail)?;
+        Ok(bytes)
+    }
+
+    /// `bytes` written to `fd` (opened for writing, and truncated, by the caller).
+    pub fn write(fd: i32, bytes: &[u8]) -> Result<u64, MoError> {
+        use std::io::Write;
+        let fail = |e: std::io::Error| MoError::Save(format!("cannot write the file: {e}"));
+        let mut file = duplicate(fd).map_err(fail)?;
+        file.write_all(bytes).map_err(fail)?;
+        file.flush().map_err(fail)?;
+        Ok(bytes.len() as u64)
+    }
+}
+
+#[cfg(all(test, unix))]
+mod fd_tests {
+    use super::*;
+    use std::os::fd::AsRawFd;
+
+    fn scratch(test: &str, name: &str) -> std::path::PathBuf {
+        let dir = std::env::temp_dir().join(format!("mo-ffi-fd-{}-{test}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        dir.join(name)
+    }
+
+    fn sample_pdf() -> Vec<u8> {
+        let sheet = SheetDocument::blank();
+        sheet.execute("cell.set".into(), r#"{"cell":"A1","input":"IBAN TR33 0006 1005 1978 6457 8413 26"}"#.into()).unwrap();
+        sheet.export_pdf(true, None, false).unwrap()
+    }
+
+    fn reopened(path: &std::path::Path) -> PdfDocument {
+        PdfDocument::open(std::fs::read(path).unwrap(), None).unwrap()
+    }
+
+    #[test]
+    fn opens_edits_and_writes_through_descriptors() {
+        let input = scratch("edit", "in.pdf");
+        std::fs::write(&input, sample_pdf()).unwrap();
+        let original = std::fs::read(&input).unwrap();
+
+        let reader = std::fs::File::open(&input).unwrap();
+        let doc = PdfDocument::open_fd(reader.as_raw_fd(), None).unwrap();
+        // The caller's descriptor is still open after the engine read it.
+        assert!(reader.metadata().is_ok());
+        drop(reader);
+        assert_eq!(doc.page_count().unwrap(), 1);
+
+        let other = std::fs::File::open(&input).unwrap();
+        doc.append_fd(other.as_raw_fd(), None).unwrap();
+        drop(other);
+        assert_eq!(doc.page_count().unwrap(), 2);
+
+        assert_eq!(doc.mark_redactions(vec![SensitiveKind::Iban], vec![]).unwrap().len(), 2);
+        assert_eq!(doc.apply_redactions().unwrap(), 2);
+
+        let output = scratch("edit", "out.pdf");
+        let writer = std::fs::File::create(&output).unwrap();
+        let written = doc.save_to_fd(writer.as_raw_fd()).unwrap();
+        drop(writer);
+        assert_eq!(std::fs::metadata(&output).unwrap().len(), written);
+        assert_eq!(doc.saved_size().unwrap(), written);
+        let saved = reopened(&output);
+        assert_eq!(saved.page_count().unwrap(), 2);
+        assert!(!saved.page_text(0).unwrap().contains("TR33"));
+
+        let shown = scratch("edit", "shown.pdf");
+        let f = std::fs::File::create(&shown).unwrap();
+        assert!(doc.display_copy_to_fd(f.as_raw_fd()).unwrap() > 0);
+        drop(f);
+        assert_eq!(reopened(&shown).page_count().unwrap(), 2);
+
+        let part = scratch("edit", "part.pdf");
+        let f = std::fs::File::create(&part).unwrap();
+        assert!(doc.extract_to_fd(vec![1], f.as_raw_fd()).unwrap() > 0);
+        drop(f);
+        assert_eq!(reopened(&part).page_count().unwrap(), 1);
+
+        let small = scratch("edit", "small.pdf");
+        let f = std::fs::File::create(&small).unwrap();
+        assert!(doc.compress_to_fd(true, f.as_raw_fd()).unwrap() > 0);
+        drop(f);
+        assert_eq!(reopened(&small).page_count().unwrap(), 2);
+
+        // The opened file was only read.
+        assert_eq!(std::fs::read(&input).unwrap(), original);
+        let _ = std::fs::remove_dir_all(input.parent().unwrap());
+    }
+
+    #[test]
+    fn bad_descriptors_fail_cleanly() {
+        assert!(matches!(PdfDocument::open_fd(-1, None), Err(MoError::Open(_))));
+        let doc = PdfDocument::open(sample_pdf(), None).unwrap();
+        assert!(matches!(doc.save_to_fd(-1), Err(MoError::Save(_))));
+        // A descriptor opened only for reading cannot be written, and the file stays as it was.
+        let path = scratch("bad", "readonly.pdf");
+        std::fs::write(&path, b"x").unwrap();
+        let f = std::fs::File::open(&path).unwrap();
+        assert!(matches!(doc.save_to_fd(f.as_raw_fd()), Err(MoError::Save(_))));
+        assert_eq!(std::fs::read(&path).unwrap(), b"x");
+        // Not a PDF: refused without a panic.
+        assert!(PdfDocument::open_fd(f.as_raw_fd(), None).is_err());
+        drop(f);
+        let _ = std::fs::remove_dir_all(path.parent().unwrap());
     }
 }
