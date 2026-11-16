@@ -43,6 +43,23 @@ Türkçe harfleri olan ilk Latin yazı tipi (`RobotoStatic-Regular.ttf`, `Roboto
 `NotoSans-Regular.ttf`, `DroidSans.ttf`, `DejaVuSans.ttf`) `cadcraft_fonts::ttf::register` ile
 motora yedek yazı tipi olarak veriliyor (≈ 0,2–1 MB, bir kez).
 
+**Saha geri bildirimi: "Türkçe özel harfler bold görünüyor".** Yedek yazı tipinden gelen harfler
+dolu Roboto anahatları olarak çiziliyor; yanlarındaki ince tek çizgili harflerin yanında kalın ve
+uyumsuz duruyordu. Motorun tek çizgili yazı tipi derlenmiş bir tablo (`stroke.rs`, `glyph` crate
+içi), çalışırken harf eklenemiyor; metin çizimine kanca da yok. **Köprüdeki çözüm**
+(`rust/mo-cad/src/stroke_letters.rs`): bellekte küçük bir TrueType yazı tipi üretiliyor; harfleri
+motorun tek çizgili harfleri gibi: temel harfin aynı çizgileri + işaret çizgileri (Ç/ç, Ş/ş çengel;
+Ğ/ğ kısa işareti; İ nokta; ı noktasız `i` gövdesi; Ö/ö, Ü/ü iki nokta; Â/â, Î/î, Û/û düzeltme
+işareti), aynı ızgarada, aynı ilerleme (harf genişliği + 1,6 boşluk) ve aynı büyük harf
+yüksekliğiyle. Yazı tipi kaydedilip FONTFALLBACK listesinin başına konuyor; motor bu harfleri
+kendi yedek kodu ile yerleştirdiği için döndürme, genişlik çarpanı, eğiklik, hizalama, MTEXT,
+bloklar ve ölçüler kendiliğinden doğru. TrueType harfi dolu çizildiği için her çizgi parçası
+büyük harf yüksekliğinin ≈ 1/1900'ü genişliğinde bir şerit; görüntü çizilirken (`frame_list`) her
+üçgeni bir pikselden ince olan dolu bir şekil üçgenlerinin orta çizgisi boyunca kıl çizgi olarak
+çiziliyor (`hairline_tris`), böylece harf komşularıyla aynı kalınlıkta. PDF'e aktarma aynı
+`render` yolunu kullandığından PDF'te de aynı. Kiril, Yunan, Arapça, CJK vb. harfler eskisi gibi
+Roboto'dan (ya da bulunan başka yazı tipinden) geliyor.
+
 **Önerilen upstream yaması** (`crates/fonts/src/ttf.rs`, `scan`):
 
 ```rust
@@ -116,3 +133,10 @@ yapmak ya da çıktıyı R2007+ sürümüyle yazmak).
 - Yedek yazı tipi Latin/Yunan/Kiril harflerini kapsıyor; Çince/Japonca/Arapça metin telefonda hâlâ
   kutu olabilir (o yazı tipleri büyük, belleğe yük; ayrı iş).
 - İkili (binary) DXF dosyalarına 2. ve 3. madde uygulanmıyor (nadir).
+- Tek çizgili Türkçe harfler motorun yedek yolundan geçtiği için satır sonundaki harften sonra
+  harf boşluğu (yüksekliğin ≈ 0,27'si) düşülmüyor: sağa/ortaya hizalı ve Türkçe harfle biten bir
+  metin bu kadar sola kayar (Roboto'yla da benzerdi). TrueType yazı tipli bir metnin kendi yazı
+  tipinde olmayan Türkçe harf (nadir) de tek çizgili çizilir.
+- Her üçgeni bir pikselden ince ve boyutunun %1'inden ince dolu şekiller (çok ince dolgu ya da
+  kalın çoklu çizgi) o yakınlıkta kıl çizgi olarak çiziliyor; dolu hâlleri zaten silik bir
+  pikselaltı çizgiydi.

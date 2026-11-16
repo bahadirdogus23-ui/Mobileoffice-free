@@ -113,6 +113,7 @@ impl CadDoc {
         static FALLBACK_FONT: std::sync::Once = std::sync::Once::new();
         FALLBACK_FONT.call_once(|| {
             fonts::register_fallback(std::path::Path::new(fonts::SYSTEM_FONTS));
+            stroke_letters::register();
         });
         let drawing = read(name, bytes).map_err(|e| CadError::Open(e.to_string()))?;
         let mut layouts: Vec<_> = drawing.layouts.iter().map(|l| (l.tab_order, l.name.clone())).collect();
@@ -336,8 +337,66 @@ fn frame_list(list: &DisplayList, view: &View, out: &mut DisplayList, dots: &mut
                 q.len = (out.verts.len() - start) as u32;
                 out.prims.push(q);
             }
+            Kind::Tris if hairline_tris(pts, px) => {
+                // Spines closer than half a pixel at both ends are the same line drawn twice.
+                let tol2 = 0.25 * px * px;
+                let first = out.prims.len();
+                for &[ta, tb, tc] in pts.as_chunks::<3>().0 {
+                    let (a, b) = spine(ta, tb, tc);
+                    let seen = out.prims[first..].iter().any(|q| {
+                        let (c, d) = (out.verts[q.start as usize], out.verts[q.start as usize + 1]);
+                        ((a - c).len2() < tol2 && (b - d).len2() < tol2) || ((a - d).len2() < tol2 && (b - c).len2() < tol2)
+                    });
+                    if !seen {
+                        let mut q = *p;
+                        q.kind = Kind::Polyline;
+                        q.lw = 0.0;
+                        push(out, &q, &[a, b]);
+                    }
+                }
+            }
             _ => push(out, p, pts),
         }
+    }
+}
+
+/// Most triangles a filled shape may have to be drawn as hairlines.
+const MAX_HAIRLINE_TRIS: usize = 1024;
+
+/// Whether filled triangles `pts` are line art to draw as hairlines at `px` drawing units per
+/// pixel: every triangle thinner than a pixel, and all of them thin next to the shape's size
+/// (under 1 % of its diagonal). Filled, such a shape is a faint, broken sub-pixel line; it is
+/// what the stroke-style Turkish letters' glyphs are made of ([`stroke_letters`]), and what a
+/// very thin solid fill or wide polyline is at this zoom.
+fn hairline_tris(pts: &[Vec2], px: f64) -> bool {
+    if pts.len() < 3 || pts.len() > 3 * MAX_HAIRLINE_TRIS || !pts.len().is_multiple_of(3) {
+        return false;
+    }
+    let mut thickest = 0.0f64;
+    for &[a, b, c] in pts.as_chunks::<3>().0 {
+        let longest = (b - a).len2().max((c - b).len2()).max((a - c).len2()).sqrt();
+        if longest.is_nan() || longest <= 0.0 {
+            continue;
+        }
+        let height = (b - a).cross(c - a).abs() / longest;
+        if height.is_nan() || height >= px {
+            return false;
+        }
+        thickest = thickest.max(height);
+    }
+    let b = Bounds2::from_points(pts.iter().copied());
+    thickest <= 0.01 * b.width().hypot(b.height())
+}
+
+/// A thin triangle's centre line: from the middle of its shortest side to the opposite corner.
+fn spine(a: Vec2, b: Vec2, c: Vec2) -> (Vec2, Vec2) {
+    let (ab, bc, ca) = ((b - a).len2(), (c - b).len2(), (a - c).len2());
+    if ab <= bc && ab <= ca {
+        ((a + b) * 0.5, c)
+    } else if bc <= ca {
+        ((b + c) * 0.5, a)
+    } else {
+        ((c + a) * 0.5, b)
     }
 }
 
@@ -352,6 +411,7 @@ fn push(out: &mut DisplayList, p: &cadcraft_render::DPrim, pts: &[Vec2]) {
 }
 
 mod fonts;
+mod stroke_letters;
 mod text;
 
 #[cfg(test)]

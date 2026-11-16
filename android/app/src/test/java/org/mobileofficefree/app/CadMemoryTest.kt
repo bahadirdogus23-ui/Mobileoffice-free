@@ -21,9 +21,12 @@ class CadMemoryTest {
 
     @Test
     fun estimateFollowsTheMeasuredPeaks() {
-        // Measured: 18.2 MB DWG -> 3.5 GB peak; 118 MB ASCII DXF -> 2.6 GB; 71 MB binary DXF -> 2.1 GB.
-        val dwg = CadMemory.estimate(CadFormat.DWG, 18_247_222)
-        assertTrue(dwg in 3400 * mb..3900 * mb)
+        // Measured: 16.9 MB DWG -> 2.9 GB peak on a phone (172x); 118 MB ASCII DXF -> 2.6 GB;
+        // 71 MB binary DXF -> 2.1 GB.
+        val dwg = CadMemory.estimate(CadFormat.DWG, 16_900_000)
+        assertTrue(dwg in 2850 * mb..3100 * mb)
+        // Above the field peak, with a margin of at most about 10 %.
+        assertTrue(dwg > (16_900_000 * 172.0).toLong() && dwg < (16_900_000 * 172.0 * 1.1).toLong())
         val dxf = CadMemory.estimate(CadFormat.DXF, 118_454_581)
         assertTrue(dxf in 2550 * mb..2900 * mb)
         val binary = CadMemory.estimate(CadFormat.BINARY_DXF, 71_000_000)
