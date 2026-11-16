@@ -32,3 +32,9 @@ Metin tanıma **Tesseract** ile, tamamen telefonda yapılır:
   seçilir, kopyalanır, paylaşılır ya da TXT olarak kaydedilir. Taranmış PDF'e görünmez metin
   katmanı eklenir (“Aranabilir yap”): metni olmayan her sayfa okunur, kelimeler yerlerine görünmez metin (render mode 3) olarak yazılır.
 - Tanıma süreleri Ölçümler'de “OCR: tanıma” olarak görünür.
+- Resim Tesseract'a verilmeden önce telefonda hazırlanır (`OcrPrep.kt`, saf Kotlin, birim
+  testli): uzun kenarı yaklaşık 2600 piksele ölçeklenir, griye çevrilir, karşıtlığı gerilir ve
+  Otsu ile yerel ortalamayı birlikte kullanan eşikleme ile siyah-beyaz yapılır. Tesseract'a
+  300 DPI bildirilir. Kelime güveni düşük (ortalama < 40) ya da çoğu harf olmayan satırlar
+  (fotoğraftaki duvar dokusu, çerçeve) sonuçtan çıkarılır; “Aranabilir yap” da aynı süzgeci
+  kullanır. `osd.traineddata` uygulamada olmadığından `PSM_AUTO_OSD` kullanılmaz.

@@ -40,6 +40,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
+import kotlin.math.roundToInt
 
 /**
  * Text recognition on the phone (Tesseract with its Turkish model, bundled in the app; no
@@ -63,38 +64,86 @@ object Ocr {
         return root
     }
 
-    /** The words in [bitmap] with their boxes as fractions of it, for an invisible text layer. */
+    /**
+     * What Tesseract reads in [bitmap], after [OcrImage] has prepared it: the lines with their
+     * words' confidences and boxes (pixels of the prepared picture), in reading order, and the
+     * prepared picture's size. Runs on the caller's thread (never the main one).
+     */
+    private fun read(context: Context, bitmap: Bitmap): Triple<List<OcrReadLine>, Int, Int> {
+        val prepared = prepare(bitmap)
+        val api = TessBaseAPI()
+        try {
+            if (!api.init(dataDir(context).absolutePath, LANG)) error("OCR model could not be loaded")
+            // PSM_AUTO_OSD would need osd.traineddata, which the app does not carry: plain
+            // automatic layout. The prepared picture has no DPI of its own; 300 is what Tesseract
+            // is tuned for, and it stops the "Invalid resolution" guess.
+            api.setPageSegMode(TessBaseAPI.PageSegMode.PSM_AUTO)
+            api.setVariable("user_defined_dpi", "300")
+            api.setVariable("preserve_interword_spaces", "1")
+            api.setImage(prepared)
+            api.getUTF8Text()
+            val lines = ArrayList<OcrReadLine>()
+            val it = api.getResultIterator() ?: return Triple(emptyList(), prepared.width, prepared.height)
+            try {
+                it.begin()
+                val word = TessBaseAPI.PageIteratorLevel.RIL_WORD
+                var words = ArrayList<OcrReadWord>()
+                var newBlock = false
+                do {
+                    // A new line (and maybe paragraph) starts: the words so far are one line.
+                    if (it.isAtBeginningOf(TessBaseAPI.PageIteratorLevel.RIL_TEXTLINE)) {
+                        if (words.isNotEmpty()) lines += OcrReadLine(words, newBlock)
+                        words = ArrayList()
+                        newBlock = it.isAtBeginningOf(TessBaseAPI.PageIteratorLevel.RIL_PARA)
+                    }
+                    val text = it.getUTF8Text(word)?.trim().orEmpty()
+                    val r = it.getBoundingRect(word)
+                    if (text.isNotEmpty() && r.width() > 0 && r.height() > 0) {
+                        words += OcrReadWord(text, it.confidence(word), r.left, r.top, r.right, r.bottom)
+                    }
+                } while (it.next(word))
+                if (words.isNotEmpty()) lines += OcrReadLine(words, newBlock)
+            } finally {
+                it.delete()
+            }
+            return Triple(lines, prepared.width, prepared.height)
+        } finally {
+            api.recycle()
+            prepared.recycle()
+        }
+    }
+
+    /** [bitmap] scaled ([OcrImage.scaleFactor]) and made black on white ([OcrImage.prepare]); a new bitmap. */
+    private fun prepare(bitmap: Bitmap): Bitmap {
+        val f = OcrImage.scaleFactor(bitmap.width, bitmap.height)
+        val w = (bitmap.width * f).roundToInt().coerceAtLeast(1)
+        val h = (bitmap.height * f).roundToInt().coerceAtLeast(1)
+        // A hardware or 16-bit bitmap is copied first: its pixels cannot be read as they are.
+        val readable = if (bitmap.config == Bitmap.Config.ARGB_8888) bitmap else bitmap.copy(Bitmap.Config.ARGB_8888, false)
+        val scaled = if (w == readable.width && h == readable.height) readable else Bitmap.createScaledBitmap(readable, w, h, true)
+        val pixels = IntArray(w * h)
+        scaled.getPixels(pixels, 0, w, 0, 0, w, h)
+        if (scaled !== bitmap) scaled.recycle()
+        if (readable !== bitmap && readable !== scaled) readable.recycle()
+        return Bitmap.createBitmap(OcrImage.prepare(pixels, w, h), w, h, Bitmap.Config.ARGB_8888)
+    }
+
+    /**
+     * The words in [bitmap] with their boxes as fractions of it, for an invisible text layer.
+     * Only words of lines that are text ([OcrLines.keep]); fractions of the prepared picture are
+     * fractions of the original, as it is only scaled, never cropped.
+     */
     suspend fun recognizeWords(context: Context, bitmap: Bitmap): List<org.mobileofficefree.engine.OcrWord> = lock.withLock {
         withContext(Dispatchers.Default) {
             val started = SystemClock.elapsedRealtime()
-            val api = TessBaseAPI()
-            try {
-                if (!api.init(dataDir(context).absolutePath, LANG)) error("OCR model could not be loaded")
-                api.setPageSegMode(TessBaseAPI.PageSegMode.PSM_AUTO)
-                api.setImage(bitmap)
-                api.getUTF8Text()
-                val w = bitmap.width.toDouble()
-                val h = bitmap.height.toDouble()
-                val out = ArrayList<org.mobileofficefree.engine.OcrWord>()
-                val it = api.getResultIterator() ?: return@withContext emptyList()
-                try {
-                    it.begin()
-                    val level = TessBaseAPI.PageIteratorLevel.RIL_WORD
-                    do {
-                        val text = it.getUTF8Text(level)?.trim().orEmpty()
-                        val r = it.getBoundingRect(level)
-                        if (text.isNotEmpty() && r.width() > 0 && r.height() > 0) {
-                            out += org.mobileofficefree.engine.OcrWord(text, r.left / w, r.top / h, r.right / w, r.bottom / h)
-                        }
-                    } while (it.next(level))
-                } finally {
-                    it.delete()
-                }
-                Measurements.sample("OCR: sayfa kelimeleri (${bitmap.width}×${bitmap.height})", SystemClock.elapsedRealtime() - started)
-                out
-            } finally {
-                api.recycle()
+            val (lines, pw, ph) = read(context, bitmap)
+            val w = pw.toDouble()
+            val h = ph.toDouble()
+            val out = OcrLines.kept(lines).flatMap { line ->
+                line.words.map { org.mobileofficefree.engine.OcrWord(it.text, it.left / w, it.top / h, it.right / w, it.bottom / h) }
             }
+            Measurements.sample("OCR: sayfa kelimeleri (${bitmap.width}×${bitmap.height})", SystemClock.elapsedRealtime() - started)
+            out
         }
     }
 
@@ -102,17 +151,13 @@ object Ocr {
     suspend fun recognize(context: Context, bitmap: Bitmap): String = lock.withLock {
         withContext(Dispatchers.Default) {
             val started = SystemClock.elapsedRealtime()
-            val api = TessBaseAPI()
-            try {
-                if (!api.init(dataDir(context).absolutePath, LANG)) error("OCR model could not be loaded")
-                api.setPageSegMode(TessBaseAPI.PageSegMode.PSM_AUTO)
-                api.setImage(bitmap)
-                api.getUTF8Text().orEmpty().trim().also {
-                    Measurements.sample("OCR: tanıma (${bitmap.width}×${bitmap.height})", SystemClock.elapsedRealtime() - started)
-                    Diagnostics.event("OCR: ${it.length} karakter, ${api.meanConfidence()} güven")
-                }
-            } finally {
-                api.recycle()
+            val (lines, _, _) = read(context, bitmap)
+            val kept = OcrLines.kept(lines)
+            val words = kept.flatMap { it.words }
+            val confidence = if (words.isEmpty()) 0 else words.sumOf { it.confidence.toDouble() }.div(words.size).roundToInt()
+            OcrLines.text(lines).trim().also {
+                Measurements.sample("OCR: tanıma (${bitmap.width}×${bitmap.height})", SystemClock.elapsedRealtime() - started)
+                Diagnostics.event("OCR: ${it.length} karakter, ${kept.size}/${lines.size} satır, $confidence güven")
             }
         }
     }
