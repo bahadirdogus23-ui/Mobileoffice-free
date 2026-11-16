@@ -130,7 +130,13 @@
     <string name="save">Save</string>
     <string name="done">Done</string>
     <string name="edit">Edit</string>
-    <string name="discard">Don\'t save</string>
+    <string name="leave_discard">Exit without saving</string>
+    <string name="leave_stay">Keep editing</string>
+    <string name="save_blocked_incomplete">Saving over the original is off: the file was not read whole. It is saved as a new file.</string>
+    <string name="save_blocked_format">%1$s files are not saved over: this is saved as a new %2$s file.</string>
+    <string name="save_blocked_copy">This is a temporary copy (from an archive or an attachment): it is saved as a new file.</string>
+    <string name="save_blocked_pdf">PDF changes are saved as a new file; the original stays as it is.</string>
+    <string name="text_blocked_inexact">This file (%1$s) would not be written back byte for byte: it is saved as a new file.</string>
     <string name="unsaved_title">Unsaved changes</string>
     <string name="unsaved_body">Save the changes you made?</string>
     <string name="text_save_encoding">Save with another encoding (TXT)</string>

@@ -129,7 +129,13 @@
     <string name="save">Kaydet</string>
     <string name="done">Bitti</string>
     <string name="edit">Düzenle</string>
-    <string name="discard">Kaydetme</string>
+    <string name="leave_discard">Kaydetmeden çık</string>
+    <string name="leave_stay">Vazgeç</string>
+    <string name="save_blocked_incomplete">Asıl dosyanın üzerine kaydetme kapalı: dosya tam okunamadı. Yeni bir dosya olarak kaydedilir.</string>
+    <string name="save_blocked_format">%1$s dosyalarının üzerine kaydedilmez: yeni bir %2$s dosyası olarak kaydedilir.</string>
+    <string name="save_blocked_copy">Bu geçici bir kopya (arşivden ya da ekten): yeni bir dosya olarak kaydedilir.</string>
+    <string name="save_blocked_pdf">PDF değişiklikleri yeni bir dosyaya kaydedilir; asıl dosya olduğu gibi kalır.</string>
+    <string name="text_blocked_inexact">Bu dosya (%1$s) bayt bayt aynı geri yazılamıyor: yeni bir dosya olarak kaydedilir.</string>
     <string name="unsaved_title">Kaydedilmemiş değişiklikler</string>
     <string name="unsaved_body">Yaptığın değişiklikler kaydedilsin mi?</string>
     <string name="text_save_encoding">Farklı kodlamayla kaydet (TXT)</string>
