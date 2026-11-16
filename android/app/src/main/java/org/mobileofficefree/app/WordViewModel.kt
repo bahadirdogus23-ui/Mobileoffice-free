@@ -80,7 +80,24 @@ class WordViewModel(app: Application) : PagedViewModel(app, DocumentKind.WORD) {
      * Saving writes the opened file again only in formats the engine writes faithfully, and only
      * when the engine read all of it.
      */
-    val savesInPlace: Boolean get() = !incomplete && fileName.substringAfterLast('.', "").lowercase(Locale.ROOT) in IN_PLACE
+    val savesInPlace: Boolean get() = inPlaceBlock == null && source != null
+
+    /**
+     * Why "Save" cannot write over the opened file, in one line (null when it can): not read
+     * whole, a format saved as DOCX, or a temporary copy in the app's cache (an archive entry, an
+     * attachment), which would be thrown away with the work in it.
+     */
+    val inPlaceBlock: String?
+        get() {
+            val app = getApplication<Application>()
+            val ext = fileName.substringAfterLast('.', "").lowercase(Locale.ROOT)
+            return when {
+                incomplete -> app.getString(R.string.save_blocked_incomplete)
+                ext !in IN_PLACE -> app.getString(R.string.save_blocked_format, ext.uppercase(Locale.ROOT), "DOCX")
+                source?.let { ArchiveFiles.isCacheCopy(app, it) } == true -> app.getString(R.string.save_blocked_copy)
+                else -> null
+            }
+        }
 
     fun startEditing() {
         editing = true
