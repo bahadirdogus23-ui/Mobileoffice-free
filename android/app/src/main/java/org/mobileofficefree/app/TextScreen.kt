@@ -25,12 +25,13 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.ListItem
@@ -96,9 +97,23 @@ fun TextScreen(vm: TextViewModel, state: TextUiState, reading: ReadingSettings) 
     val createFile = rememberLauncherForActivityResult(CreateFile()) { uri ->
         when (val t = target) {
             is ExportFormat -> if (uri != null) vm.exportTo(uri, t, pageSetup)
-            is TextEncoding -> if (uri != null) vm.saveAs(uri, t)
+            is TextEncoding -> if (uri != null) vm.saveAs(uri, t) else vm.saveAsCancelled()
         }
         target = null
+    }
+    // "Save as…": a new text file in the file's own encoding (other encodings are under Convert).
+    val startSaveAs = {
+        target = vm.saveAsEncoding()
+        createFile.launch(CreateFile.Request(state.fileName, "text/plain"))
+    }
+    // "Save": over the file when allowed; otherwise it says why and opens "Save as".
+    val startSave = {
+        if (vm.inPlaceBlock == null) {
+            vm.save()
+        } else {
+            vm.explainSaveAs()
+            startSaveAs()
+        }
     }
     BackHandler { vm.requestClose() }
     LaunchedEffect(vm.notice) {
@@ -131,12 +146,25 @@ fun TextScreen(vm: TextViewModel, state: TextUiState, reading: ReadingSettings) 
             },
             actions = {
                 if (vm.editing) {
-                    TextButton(onClick = { vm.save() }, enabled = vm.dirty && !vm.busy) { Text(stringResource(R.string.save)) }
+                    TextButton(onClick = startSave, enabled = vm.dirty && !vm.busy) { Text(stringResource(R.string.save)) }
                     TextButton(onClick = vm::finishEditing) { Text(stringResource(R.string.done)) }
                 } else {
                     TextButton(onClick = { fontSize = (fontSize - 2f).coerceAtLeast(8f) }, modifier = Modifier.described(stringResource(R.string.a11y_text_smaller))) { Text("A−") }
                     TextButton(onClick = { fontSize = (fontSize + 2f).coerceAtMost(32f) }, modifier = Modifier.described(stringResource(R.string.a11y_text_larger))) { Text("A+") }
                     if (state.editable) TextButton(onClick = vm::startEditing) { Text(stringResource(R.string.edit)) }
+                }
+                // "Save as…" a new file is always within reach.
+                var more by remember { mutableStateOf(false) }
+                Box {
+                    IconButton(onClick = { more = true }, modifier = Modifier.described(stringResource(R.string.a11y_more))) {
+                        Text("⋮", style = MaterialTheme.typography.titleLarge)
+                    }
+                    DropdownMenu(expanded = more, onDismissRequest = { more = false }) {
+                        DropdownMenuItem(text = { Text(stringResource(R.string.save_as)) }, enabled = !vm.busy, onClick = {
+                            more = false
+                            startSaveAs()
+                        })
+                    }
                 }
             },
         )
@@ -300,17 +328,16 @@ fun TextScreen(vm: TextViewModel, state: TextUiState, reading: ReadingSettings) 
     }
 
     vm.pendingLeave?.let {
-        AlertDialog(
-            onDismissRequest = { vm.answerLeave(null) },
-            title = { Text(stringResource(R.string.unsaved_title)) },
-            text = { Text(stringResource(R.string.unsaved_body)) },
-            confirmButton = { TextButton(onClick = { vm.answerLeave(true) }) { Text(stringResource(R.string.save)) } },
-            dismissButton = {
-                Row {
-                    TextButton(onClick = { vm.answerLeave(null) }) { Text(stringResource(R.string.cancel)) }
-                    TextButton(onClick = { vm.answerLeave(false) }) { Text(stringResource(R.string.discard)) }
-                }
+        val blocked = vm.inPlaceBlock
+        UnsavedChangesDialog(
+            onSave = { vm.answerLeave(true) }.takeIf { blocked == null },
+            blockedReason = blocked,
+            onSaveAs = {
+                vm.leaveBySaveAs()
+                startSaveAs()
             },
+            onDiscard = { vm.answerLeave(false) },
+            onStay = { vm.answerLeave(null) },
         )
     }
 }
