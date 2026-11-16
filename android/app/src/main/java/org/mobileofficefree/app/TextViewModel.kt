@@ -155,6 +155,46 @@ class TextViewModel(app: Application) : AndroidViewModel(app) {
         if (dirty) pendingLeave = PendingLeave.Close else close()
     }
 
+    /**
+     * Why "Save" cannot write over the opened file, in one line (null when it can): a copy in the
+     * app's cache (an archive entry), or bytes that would not be written back the same.
+     */
+    val inPlaceBlock: String?
+        get() {
+            val s = state ?: return null
+            val app = getApplication<Application>()
+            return when {
+                ArchiveFiles.isCacheCopy(app, s.uri) -> app.getString(R.string.save_blocked_copy)
+                !s.encoding.exact -> app.getString(R.string.text_blocked_inexact, s.encoding.label)
+                else -> null
+            }
+        }
+
+    /** The encoding "Save as" writes in: the file's own when the app has it, else UTF-8. */
+    fun saveAsEncoding(): TextEncoding {
+        val s = state ?: return TextEncoding.UTF8
+        return TextEncoding.entries.firstOrNull { it.matches(s.encoding) } ?: TextEncoding.UTF8
+    }
+
+    /** "Save" when it cannot write over the file: says why (a toast) before "Save as" opens. */
+    fun explainSaveAs() {
+        inPlaceBlock?.let { notice = it }
+    }
+
+    /** What to do once a "Save as" chosen in the unsaved-changes question is written. */
+    private var afterSaveAs: PendingLeave? = null
+
+    /** "Save as" in the unsaved-changes question: the leave waits for the new file to be written. */
+    fun leaveBySaveAs() {
+        afterSaveAs = pendingLeave
+        pendingLeave = null
+    }
+
+    /** The system's "Save as" was cancelled: stay. */
+    fun saveAsCancelled() {
+        afterSaveAs = null
+    }
+
     /** The answer to "save the changes?": save, discard, or (null) stay. */
     fun answerLeave(save: Boolean?) {
         val leave = pendingLeave ?: return
@@ -229,6 +269,8 @@ class TextViewModel(app: Application) : AndroidViewModel(app) {
         val s = state ?: return
         val app = getApplication<Application>()
         val text = if (editing) draft.text else s.text
+        val then = afterSaveAs
+        afterSaveAs = null
         busy = true
         viewModelScope.launch {
             val result = withContext(Dispatchers.IO) {
@@ -239,6 +281,14 @@ class TextViewModel(app: Application) : AndroidViewModel(app) {
             }
             busy = false
             notice = result.fold(onSuccess = { app.getString(R.string.saved) }, onFailure = ::saveProblem)
+            // Leaving only once the text is safely in the new file (a failure stays, with the reason).
+            if (result.isSuccess && state === s) {
+                when (then) {
+                    PendingLeave.Close -> close()
+                    PendingLeave.StopEditing -> editing = false
+                    null -> Unit
+                }
+            }
         }
     }
 
@@ -289,6 +339,7 @@ class TextViewModel(app: Application) : AndroidViewModel(app) {
     fun close() {
         editing = false
         pendingLeave = null
+        afterSaveAs = null
         state = null
         query = ""
         matches = emptyList()

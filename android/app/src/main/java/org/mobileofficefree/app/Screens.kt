@@ -125,7 +125,12 @@ internal fun SheetScreen(vm: SheetViewModel, state: SheetUiState) {
         activity?.shortcutHandler = { key ->
             when (key) {
                 Shortcut.SAVE -> {
-                    if (vm.canSaveInPlace) vm.saveInPlace() else saveAs.launch(saveName(state.fileName))
+                    if (vm.canSaveInPlace) {
+                        vm.saveInPlace()
+                    } else {
+                        vm.explainSaveAs()
+                        saveAs.launch(saveName(state.fileName))
+                    }
                     true
                 }
                 Shortcut.FIND -> { finding = true; true }
@@ -167,8 +172,17 @@ internal fun SheetScreen(vm: SheetViewModel, state: SheetUiState) {
                 }
             },
             actions = {
-                if (vm.canSaveInPlace && vm.hasUnsaved) {
-                    TextButton(onClick = vm::saveInPlace) { Text(stringResource(R.string.save)) }
+                // After any change "Save" is here. When it cannot write over the opened file (not
+                // read whole, not an .xlsx, a cache copy, a new workbook) it says why and opens "Save as".
+                if (vm.hasUnsaved) {
+                    TextButton(onClick = {
+                        if (vm.canSaveInPlace) {
+                            vm.saveInPlace()
+                        } else {
+                            vm.explainSaveAs()
+                            saveAs.launch(saveName(state.fileName))
+                        }
+                    }) { Text(stringResource(R.string.save)) }
                 }
                 TextButton(onClick = { finding = !finding }, modifier = Modifier.described(stringResource(R.string.a11y_find))) { Text("🔍") }
                 // PDF and "Save as" sit behind ⋮: with large text (and Turkish's longer words) they
@@ -369,22 +383,15 @@ internal fun SheetScreen(vm: SheetViewModel, state: SheetUiState) {
 
     BackHandler { vm.requestClose() }
     if (vm.askClose) {
-        AlertDialog(
-            onDismissRequest = { vm.answerClose(null) },
-            title = { Text(stringResource(R.string.unsaved_title)) },
-            text = { Text(stringResource(R.string.unsaved_body)) },
-            confirmButton = {
-                TextButton(onClick = {
-                    vm.answerClose(true)
-                    saveAs.launch(saveName(state.fileName))
-                }) { Text(stringResource(R.string.save_as)) }
+        UnsavedChangesDialog(
+            onSave = if (vm.canSaveInPlace) vm::saveInPlaceAndClose else null,
+            blockedReason = vm.inPlaceBlock,
+            onSaveAs = {
+                vm.answerClose(true)
+                saveAs.launch(saveName(state.fileName))
             },
-            dismissButton = {
-                Row {
-                    TextButton(onClick = { vm.answerClose(null) }) { Text(stringResource(R.string.cancel)) }
-                    TextButton(onClick = { vm.answerClose(false) }) { Text(stringResource(R.string.discard)) }
-                }
-            },
+            onDiscard = { vm.answerClose(false) },
+            onStay = { vm.answerClose(null) },
         )
     }
 

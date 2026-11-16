@@ -135,6 +135,12 @@ class SheetViewModel(app: Application) : AndroidViewModel(app) {
     @Volatile private var rowsCut = false
     var canSaveInPlace by mutableStateOf(false)
         private set
+    /**
+     * Why "Save" cannot write over the opened file, in one line for the person (null when it can,
+     * or when there is no file yet: a new workbook). "Save" then goes to "Save as".
+     */
+    var inPlaceBlock by mutableStateOf<String?>(null)
+        private set
     var hasUnsaved by mutableStateOf(false)
         private set
 
@@ -266,6 +272,19 @@ class SheetViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
+    /** "Save" in the unsaved-changes question: writes over the opened file, then closes. */
+    fun saveInPlaceAndClose() {
+        askClose = false
+        if (!canSaveInPlace) return
+        closeAfterSave = true
+        saveInPlace()
+    }
+
+    /** "Save" when it cannot write over the opened file: says why (a snackbar) before "Save as" opens. */
+    fun explainSaveAs() {
+        inPlaceBlock?.let { message = it }
+    }
+
     /** "Save as" was cancelled: stay open. */
     fun saveCancelled() {
         closeAfterSave = false
@@ -290,7 +309,17 @@ class SheetViewModel(app: Application) : AndroidViewModel(app) {
                     source = uri
                     truncated = doc?.openedIncomplete() == true
                     rowsCut = doc?.truncatedSheets().orEmpty().isNotEmpty() || doc?.sharedStringsKept() != null
-                    canSaveInPlace = name.endsWith(".xlsx", ignoreCase = true) && !truncated
+                    val xlsx = name.endsWith(".xlsx", ignoreCase = true)
+                    // A copy in the app's cache (an archive entry, an attachment) is thrown away
+                    // later: saving "in place" there would lose the work.
+                    val cacheCopy = ArchiveFiles.isCacheCopy(getApplication(), uri)
+                    canSaveInPlace = xlsx && !truncated && !cacheCopy
+                    inPlaceBlock = when {
+                        truncated -> text(R.string.save_blocked_incomplete)
+                        !xlsx -> text(R.string.save_blocked_format, name.substringAfterLast('.', "").uppercase(Locale.ROOT), "XLSX")
+                        cacheCopy -> text(R.string.save_blocked_copy)
+                        else -> null
+                    }
                     Diagnostics.record("SHEET ${name.substringAfterLast('.')} açma (${sizeLabel(info.size)})", started)
                     RecentFiles(getApplication()).remember(uri, info.name, DocumentKind.SHEET, info.size)
                     state to name
@@ -331,6 +360,7 @@ class SheetViewModel(app: Application) : AndroidViewModel(app) {
             truncated = false
             rowsCut = false
             canSaveInPlace = false
+            inPlaceBlock = null
             screen = Screen.Sheet(withContext(engine) { replaceDocument(SheetDocument.blank()) }.copy(fileName = name))
         }
     }

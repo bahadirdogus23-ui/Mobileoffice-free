@@ -30,6 +30,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 
 class MainActivity : ComponentActivity() {
+    private val home: HomeViewModel by viewModels()
     private val sheet: SheetViewModel by viewModels()
     private val word: WordViewModel by viewModels()
     private val pdf: PdfViewModel by viewModels()
@@ -69,7 +70,7 @@ class MainActivity : ComponentActivity() {
                     LockScreen(onUnlock = ::askToUnlock)
                     LaunchedEffect(Unit) { askToUnlock() }
                 } else {
-                    AppRoot(sheet, word, pdf, slides, cad, image, text, archive, invoice, openRequest, onOpenHandled = { openRequest = null })
+                    AppRoot(home, sheet, word, pdf, slides, cad, image, text, archive, invoice, openRequest, onOpenHandled = { openRequest = null })
                 }
             }
         }

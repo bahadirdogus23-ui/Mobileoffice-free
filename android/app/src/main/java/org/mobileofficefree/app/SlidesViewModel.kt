@@ -39,7 +39,22 @@ class SlidesViewModel(app: Application) : PagedViewModel(app, DocumentKind.SLIDE
     override val hasUnsavedChanges: Boolean get() = dirty
 
     /** Saving writes the opened file again for the formats DeckCraft writes. */
-    val savesInPlace: Boolean get() = !incomplete && isPowerPoint(fileName)
+    val savesInPlace: Boolean get() = inPlaceBlock == null && source != null
+
+    /**
+     * Why "Save" cannot write over the opened file, in one line (null when it can): not read
+     * whole, a .ppt/.odp saved as PPTX, or a temporary copy in the app's cache.
+     */
+    val inPlaceBlock: String?
+        get() {
+            val app = getApplication<Application>()
+            return when {
+                incomplete -> app.getString(R.string.save_blocked_incomplete)
+                !isPowerPoint(fileName) -> app.getString(R.string.save_blocked_format, fileName.substringAfterLast('.', "").uppercase(Locale.ROOT), "PPTX")
+                source?.let { ArchiveFiles.isCacheCopy(app, it) } == true -> app.getString(R.string.save_blocked_copy)
+                else -> null
+            }
+        }
 
     private fun isPowerPoint(name: String) = name.substringAfterLast('.', "").lowercase(Locale.ROOT) in setOf("pptx", "ppsx", "potx")
 

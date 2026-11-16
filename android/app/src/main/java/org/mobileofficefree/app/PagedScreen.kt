@@ -213,13 +213,18 @@ fun PagedScreen(vm: PagedViewModel, state: PagedUiState, reading: ReadingSetting
         closeAfterWordSave = false
         if (uri != null) word?.save(uri, wordName, then = { if (close) vm.answerClose(true) })
     }
+    val startWordSaveAs = { close: Boolean ->
+        closeAfterWordSave = close
+        saveWordAs.launch(CreateFile.Request(wordName, "application/vnd.openxmlformats-officedocument.wordprocessingml.document"))
+    }
+    // "Save": over the opened file when allowed; otherwise it says why and opens "Save as".
     val startWordSave = { close: Boolean ->
         if (word?.savesInPlace == true) {
             word.saveInPlace(then = { if (close) vm.answerClose(true) })
         } else {
             android.util.Log.i(SAVE_LOG_TAG, "Word save as: in-place save is off for ${state.fileName}")
-            closeAfterWordSave = close
-            saveWordAs.launch(CreateFile.Request(wordName, "application/vnd.openxmlformats-officedocument.wordprocessingml.document"))
+            word?.inPlaceBlock?.let { Toast.makeText(context, it, Toast.LENGTH_LONG).show() }
+            startWordSaveAs(close)
         }
     }
     // Slides: save over the opened PPTX, else as a new one.
@@ -229,13 +234,17 @@ fun PagedScreen(vm: PagedViewModel, state: PagedUiState, reading: ReadingSetting
         closeAfterWordSave = false
         if (uri != null) slides?.save(uri, slidesName, then = { if (close) vm.answerClose(true) })
     }
+    val startSlidesSaveAs = { close: Boolean ->
+        closeAfterWordSave = close
+        saveSlidesAs.launch(CreateFile.Request(slidesName, "application/vnd.openxmlformats-officedocument.presentationml.presentation"))
+    }
     val startSlidesSave = { close: Boolean ->
         if (slides?.savesInPlace == true) {
             slides.saveInPlace(then = { if (close) vm.answerClose(true) })
         } else {
             android.util.Log.i(SAVE_LOG_TAG, "Slides save as: in-place save is off for ${state.fileName}")
-            closeAfterWordSave = close
-            saveSlidesAs.launch(CreateFile.Request(slidesName, "application/vnd.openxmlformats-officedocument.presentationml.presentation"))
+            slides?.inPlaceBlock?.let { Toast.makeText(context, it, Toast.LENGTH_LONG).show() }
+            startSlidesSaveAs(close)
         }
     }
     // Marks not yet blacked out would be saved with the text still under them: black them out first.
@@ -323,7 +332,7 @@ fun PagedScreen(vm: PagedViewModel, state: PagedUiState, reading: ReadingSetting
             val go = { target: Int -> scope.launch { list.animateScrollToItem(target.coerceIn(0, state.pages.lastIndex)) } }
             when (key) {
                 Shortcut.SAVE -> when {
-                    word != null && word.editing -> { startWordSave(false); true }
+                    word != null && (word.editing || word.dirty) -> { startWordSave(false); true }
                     slides != null && slides.dirty -> { startSlidesSave(false); true }
                     pdf != null && vm.hasUnsavedChanges -> { startSave(); true }
                     else -> false
@@ -374,7 +383,8 @@ fun PagedScreen(vm: PagedViewModel, state: PagedUiState, reading: ReadingSetting
                 if (slides?.dirty == true) {
                     TextButton(onClick = { startSlidesSave(false) }) { Text(stringResource(R.string.save)) }
                 }
-                if (word?.dirty == true && !word.editing) {
+                // After any change, also while editing (the edit bar keeps its own 💾 as well).
+                if (word?.dirty == true) {
                     TextButton(onClick = { startWordSave(false) }) { Text(stringResource(R.string.save)) }
                 }
                 if (pdf?.edited == true) {
@@ -393,6 +403,21 @@ fun PagedScreen(vm: PagedViewModel, state: PagedUiState, reading: ReadingSetting
                         stringResource(R.string.page_counter, current, state.pages.size),
                         style = MaterialTheme.typography.titleMedium,
                     )
+                }
+                // "Save as…" a new file is always within reach for documents and presentations.
+                if (word != null || slides != null) {
+                    var more by remember { mutableStateOf(false) }
+                    Box {
+                        IconButton(onClick = { more = true }, modifier = Modifier.described(stringResource(R.string.a11y_more))) {
+                            Text("⋮", style = MaterialTheme.typography.titleLarge)
+                        }
+                        DropdownMenu(expanded = more, onDismissRequest = { more = false }) {
+                            DropdownMenuItem(text = { Text(stringResource(R.string.save_as)) }, onClick = {
+                                more = false
+                                if (slides != null) startSlidesSaveAs(false) else startWordSaveAs(false)
+                            })
+                        }
+                    }
                 }
             },
         )
@@ -1242,29 +1267,36 @@ fun PagedScreen(vm: PagedViewModel, state: PagedUiState, reading: ReadingSetting
     }
 
     if (vm.askClose) {
-        AlertDialog(
-            onDismissRequest = { vm.answerClose(null) },
-            title = { Text(stringResource(R.string.unsaved_title)) },
-            text = { Text(stringResource(R.string.unsaved_body)) },
-            confirmButton = {
-                TextButton(onClick = {
-                    vm.answerClose(null)
-                    if (slides != null) {
-                        startSlidesSave(true)
-                    } else if (word != null) {
-                        startWordSave(true)
-                    } else {
+        // Word and slides: "Save" over the opened file when allowed. A PDF is never saved over
+        // (docs/KAYIP-DENETIMI.md): only "Save as" a new file.
+        val inPlace = when {
+            slides != null -> slides.savesInPlace
+            word != null -> word.savesInPlace
+            else -> false
+        }
+        UnsavedChangesDialog(
+            onSave = {
+                vm.answerClose(null)
+                if (slides != null) startSlidesSave(true) else startWordSave(true)
+            }.takeIf { inPlace },
+            blockedReason = when {
+                slides != null -> slides.inPlaceBlock
+                word != null -> word.inPlaceBlock
+                else -> stringResource(R.string.save_blocked_pdf)
+            },
+            onSaveAs = {
+                vm.answerClose(null)
+                when {
+                    slides != null -> startSlidesSaveAs(true)
+                    word != null -> startWordSaveAs(true)
+                    else -> {
                         closeAfterSave = pdf?.redactionMarks == 0
                         startSave()
                     }
-                }) { Text(stringResource(R.string.save)) }
-            },
-            dismissButton = {
-                Row {
-                    TextButton(onClick = { vm.answerClose(null) }) { Text(stringResource(R.string.cancel)) }
-                    TextButton(onClick = { vm.answerClose(true) }) { Text(stringResource(R.string.discard)) }
                 }
             },
+            onDiscard = { vm.answerClose(true) },
+            onStay = { vm.answerClose(null) },
         )
     }
 

@@ -27,7 +27,10 @@ Paket (zip) denetimi `mo-convert/src/package.rs` içindedir: her girdi açılır
 XML parçası motorun kendi sınırlarıyla (öğe sayısı, derinlik, öznitelik, bayt) ve kapanmamış öğe aranarak okunur.
 
 Uygulama (`WordViewModel`, `SlidesViewModel`, `SheetViewModel`) böyle bir dosyada:
-- "Kaydet"i kapatır, yalnızca "Farklı kaydet" sunar (`savesInPlace` / `canSaveInPlace` = `false`);
+- üzerine yazmaz (`savesInPlace` / `canSaveInPlace` = `false`): değişiklikten sonra üst çubukta "Kaydet" yine görünür, ama
+  nedenini tek satırla söyleyip (`inPlaceBlock`: tam okunmadı, eski biçim, önbellekteki geçici kopya) "Farklı kaydet"i açar;
+  kapatırken sorulan soruda (`UnsavedChangesDialog`) "Kaydet" yerine bu neden yazar, "Farklı kaydet", "Kaydetmeden çık",
+  "Vazgeç" kalır (2026-11-16);
 - "Farklı kaydet" ile asıl dosya seçilirse yazmaz, `save_over_incomplete` / `save_over_truncated` iletisini gösterir;
 - açılışta neyin okunamadığını Türkçe/İngilizce olarak (`values/`, `values-tr/`) notların **başında** gösterir.
 
