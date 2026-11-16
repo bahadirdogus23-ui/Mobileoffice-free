@@ -52,7 +52,7 @@
 #     (`input keycombination`); if the file did not change, Back out of editing and the top bar's
 #     "Save". The pulled file must differ, be a valid ZIP and hold the typed word and the old text.
 #   - save-xlsx: the formula bar's field (A1 is selected), its text deleted, a number typed, Enter;
-#     then the top bar's "Save" (shown only when `canSaveInPlace && hasUnsaved`) and the "Saved"
+#     then the top bar's "Save" (shown after any change: `hasUnsaved`) and the "Saved"
 #     snackbar. The pulled file must differ, be a valid ZIP and hold the number and the old text.
 #   - save-pptx (three slides): "Edit", the slide bar's "Text box", the word typed into its dialog,
 #     "Apply" (a new text box on the first slide), then the top bar's "Save". The pulled file must
@@ -62,16 +62,17 @@
 #     typed word from the pulled file must give back the original bytes: the same encoding
 #     (Windows-1254 letters stay single bytes), no byte order mark added, CRLF kept.
 #   - block-xlsx-slicer, block-xlsx-vba (the engine cannot write a slicer / a VBA project in an
-#     .xlsx back): the same cell edit, then there must be no "Save" in the top bar, Ctrl+S must not
-#     write (it opens "Save as", which is cancelled) and the file keeps its bytes. The Save-button
-#     check counts only after save-xlsx showed that the same edit makes the button appear.
+#     .xlsx back): the same cell edit, then the top bar's "Save" must come up (every editor shows it
+#     after a change) and tapping it must open the system's "Save as" (after a one-line reason in a
+#     snackbar) instead of writing; it is cancelled. Ctrl+S must do the same, and the file keeps its
+#     bytes. A missing "Save" fails only after save-xlsx showed that the same edit brings it up.
 #   - block-docx-damaged (a comments part cut short: mo-word's `Loss::Damaged`), block-pptx-slide (a
 #     slide whose XML does not parse: DeckCraft leaves it out): the same edit as save-docx /
 #     save-pptx, then Ctrl+S (and, if nothing came up, the top bar's "Save", which Word shows after
-#     leaving editing) must open "Save as" instead of saving over the file; it is cancelled and the
+#     any change, also while editing) must open "Save as" instead of saving over the file; it is cancelled and the
 #     file keeps its bytes. Without "Save as" coming up an unchanged file proves nothing: SKIP.
-#   - block-txt-mixed (CRLF and LF mixed): edit and "Save"; the viewer refuses (a toast) and the
-#     file keeps its bytes.
+#   - block-txt-mixed (CRLF and LF mixed): edit and "Save"; the viewer does not write over the file
+#     (a toast says why) but opens the system's "Save as", which is cancelled; the file keeps its bytes.
 #   - save-pdf (a copy of rust/mo-pdf/testdata/jspdf-form.pdf): a PDF is never saved over
 #     (docs/KAYIP-DENETIMI.md). The tool bar's "Fill in form" (the bar is swiped sideways until it
 #     shows), the word typed into the form's first field (a text field), "Apply", then the top
@@ -183,6 +184,11 @@ HOME_TR=("Ayarlar" "Belgeler" "Dosya adında ara" "Son açılanlar")
 HOME_EN=("Settings" "Documents" "Search file names" "Recently opened")
 # The save pass (save, saved, edit, tool_keyboard, save_failed, save_over_incomplete, save_over_truncated).
 SAVE_LABELS=("Save" "Kaydet")
+# The unsaved-changes question every editor asks on leaving (UnsavedChangesDialog: save_as,
+# leave_discard, leave_stay; "Save" is SAVE_LABELS). Matched exactly, so "Save as…" is not "Save".
+SAVE_AS_LABELS=("Save as…" "Farklı kaydet…")
+LEAVE_DISCARD_LABELS=("Exit without saving" "Kaydetmeden çık")
+LEAVE_STAY_LABELS=("Keep editing" "Vazgeç")
 SAVED_TEXTS=("Saved" "Kaydedildi")
 EDIT_LABELS=("Edit" "Düzenle")
 KEYBOARD_LABELS=("Keyboard" "Klavye")
@@ -1040,8 +1046,8 @@ word_edit() {
     sleep 2
 }
 
-# save_word STEP NAME HASH: word_edit, Ctrl+S; if that did not write, out of editing with Back and
-# the top bar's (or the leave dialog's) Save.
+# save_word STEP NAME HASH: word_edit, Ctrl+S; if that did not write, the top bar's Save (shown after
+# any change, also while editing), or, after Back, the leave dialog's Save.
 save_word() {
     local step=$1 name=$2 old=$3 xml="$OUT/$1.window.xml" how="" picker
     word_edit "$step" || return 0
@@ -1055,9 +1061,20 @@ save_word() {
             save_outcome FAIL "Ctrl+S opened \"Save as\" ($picker) instead of saving over the file: in-place save is off for a clean .docx"
             return
         fi
-        # The first Back may only close the keyboard; leaving editing brings Save to the top bar.
+        # Save is in the top bar after the change; Back (the first may only close the keyboard)
+        # ends in the leave dialog, which has its own Save.
         for _ in 1 2 3; do
-            if ui_dump "$xml" && ui_query "$xml" exact "${SAVE_LABELS[@]}"; then break; fi
+            if ui_dump "$xml" && ui_query "$xml" exact "${SAVE_LABELS[@]}"; then
+                if ui_query "$xml" exact "${LEAVE_DISCARD_LABELS[@]}"; then
+                    # The leave dialog: Save, Save as…, Exit without saving and Keep editing.
+                    if ui_query "$xml" exact "${SAVE_AS_LABELS[@]}" && ui_query "$xml" exact "${LEAVE_STAY_LABELS[@]}"; then
+                        save_note "the leave dialog (Save, Save as…, Exit without saving, Keep editing)"
+                    else
+                        save_note "the leave dialog lacks \"Save as…\" or \"Keep editing\""
+                    fi
+                fi
+                break
+            fi
             sh_adb input keyevent KEYCODE_BACK || true
             sleep 2
         done
@@ -1128,14 +1145,28 @@ save_sheet() {
     done
 }
 
-# block_sheet STEP NAME HASH: a workbook that must not be saved over: the same edit, then no Save
-# in the top bar, Ctrl+S must not write, and the bytes stay.
+# block_sheet STEP NAME HASH: a workbook that must not be saved over: the same edit, then the top
+# bar's Save must come up and open "Save as" (cancelled), Ctrl+S too, and the bytes stay.
 block_sheet() {
-    local step=$1 name=$2 old=$3 button=0 picker shown ctrl_s="did not write"
+    local step=$1 name=$2 old=$3 picker shown how="" ctrl_s="did not write"
     sheet_edit "$step" || return 0
-    # About as long as the button takes to appear in save-xlsx.
-    if wait_label "$step" 6 exact "${SAVE_LABELS[@]}"; then button=1; fi
+    if ! wait_label "$step" 10 exact "${SAVE_LABELS[@]}"; then
+        if [ "$SHEET_EDIT_SEEN" = 1 ]; then
+            save_outcome FAIL "no \"Save\" in the top bar after the edit (field shows \"$(field_text "$step")\"): it must show and lead to \"Save as\""
+        else
+            save_outcome SKIP "no \"Save\" in the top bar after the edit, and save-xlsx did not show that this edit brings it up"
+        fi
+        return
+    fi
     shown=$(field_text "$step")
+    if tap_label "$step" center-exact "${SAVE_LABELS[@]}"; then
+        sleep 4
+        picker=$(picker_package)
+        if [ -n "$picker" ]; then
+            how="the top bar's Save opened \"Save as\" (cancelled)"
+            close_picker
+        fi
+    fi
     press_ctrl_s
     sleep 4
     picker=$(picker_package)
@@ -1148,12 +1179,10 @@ block_sheet() {
         save_outcome SKIP "adb could not pull the file back"
     elif [ "$(hash_of "$S_COPY")" != "$old" ]; then
         save_outcome FAIL "the file was written over (its hash changed) although the engine did not read it whole"
-    elif [ "$button" = 1 ]; then
-        save_outcome FAIL "the top bar offers \"Save\" for a workbook that was not read whole (the file is still unchanged)"
-    elif [ "$SHEET_EDIT_SEEN" = 1 ]; then
-        save_outcome PASS "field shows \"$shown\", no \"Save\" in the top bar, Ctrl+S $ctrl_s, the bytes are unchanged"
+    elif [ -z "$how" ]; then
+        save_outcome FAIL "the top bar's \"Save\" neither wrote nor opened \"Save as\" (Ctrl+S $ctrl_s; the file is unchanged)"
     else
-        save_outcome SKIP "the bytes are unchanged after Ctrl+S, but save-xlsx did not show that this edit brings up Save, so its absence here proves nothing"
+        save_outcome PASS "field shows \"$shown\", $how, Ctrl+S $ctrl_s, the bytes are unchanged"
     fi
 }
 
@@ -1289,15 +1318,24 @@ save_text() {
 }
 
 block_text() {
-    local step=$1 name=$2 old=$3
+    local step=$1 name=$2 old=$3 picker how=""
     text_edit "$step" || return 0
-    sleep 5
+    sleep 4
+    # "Save" says why (a toast, which uiautomator does not see) and opens "Save as" instead.
+    picker=$(picker_package)
+    if [ -n "$picker" ]; then
+        how="\"Save\" opened \"Save as\" (cancelled)"
+        close_picker
+    fi
+    sleep 1
     if ! pull_sample "$name" "$S_COPY"; then
         save_outcome SKIP "adb could not pull the file back"
     elif [ "$(hash_of "$S_COPY")" != "$old" ]; then
         save_outcome FAIL "the file was written over although its line ends would not come back the same"
+    elif [ -z "$how" ]; then
+        save_outcome FAIL "the bytes are unchanged, but \"Save\" did not open \"Save as\" (it must lead there when it cannot write over the file)"
     else
-        save_outcome PASS "the bytes are unchanged (the refusal itself is a toast, which uiautomator does not see)"
+        save_outcome PASS "$how, the bytes are unchanged"
     fi
 }
 
@@ -1699,8 +1737,8 @@ recovery_open() {
     screenshot "$step"
 }
 
-# recovery_word_edit STEP: the save pass's Word edit, then Back out of editing until the top bar
-# shows "Save" (only a changed document has it). Status 1 (and a SKIP) when it does not.
+# recovery_word_edit STEP: the save pass's Word edit, then (Back out of editing if needed) until the
+# top bar shows "Save" (only a changed document has it). Status 1 (and a SKIP) when it does not.
 recovery_word_edit() {
     local step=$1 xml="$OUT/$1.window.xml" i
     word_edit "$step" || return 1
