@@ -33,7 +33,6 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Button
@@ -58,7 +57,6 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -178,24 +176,28 @@ private data class HomeItem(
 }
 
 @Composable
-fun HomeScreen(onOpen: (Uri) -> Unit, onNewSheet: () -> Unit, onDiagnostics: () -> Unit, engineVersion: String, onNeedEngineVersion: () -> Unit, reading: ReadingSettings) {
+fun HomeScreen(home: HomeViewModel, onOpen: (Uri) -> Unit, onNewSheet: () -> Unit, onDiagnostics: () -> Unit, engineVersion: String, onNeedEngineVersion: () -> Unit, reading: ReadingSettings) {
     val context = LocalContext.current
     val recents = remember { RecentFiles(context) }
-    // Re-read whenever the home screen comes back (it leaves composition while a document is open).
-    // Read off the main thread (preferences and JSON); null until the first read is done.
-    var files by remember { mutableStateOf<List<RecentFile>?>(null) }
+    // The lists, tab, filter, search and scroll position live in [home]: this screen leaves
+    // composition while a document is open, and coming back must show it as it was left.
+    // Recents are re-read whenever the screen comes back, off the main thread (preferences and
+    // JSON); the list is replaced only when they changed.
+    val files = home.files
     val homeScope = rememberCoroutineScope()
     val reloadRecents: () -> Unit = {
-        homeScope.launch { files = withContext(Dispatchers.IO) { recents.all() } }
+        homeScope.launch {
+            val read = withContext(Dispatchers.IO) { recents.all() }
+            if (read != home.files) home.files = read
+        }
     }
     var access by remember { mutableStateOf(DeviceFiles.hasAccess(context)) }
-    var device by remember { mutableStateOf<List<DeviceFile>?>(null) }
-    var refresh by remember { mutableIntStateOf(0) }
-    var tab by rememberSaveable { mutableIntStateOf(0) }
-    var source by rememberSaveable { mutableIntStateOf(0) } // 0: all documents, 1: recently opened
-    var query by rememberSaveable { mutableStateOf("") }
+    val device = home.device
+    val tab = home.tab
+    val source = home.source // 0: all documents, 1: recently opened
+    val query = home.query
     // A narrower family on the home tab: UDF, e-invoices, drawings, archives, text.
-    var extraName by rememberSaveable { mutableStateOf<String?>(null) }
+    val extraName = home.extraName
     val extra = extraName?.let { n -> ExtraFilter.entries.firstOrNull { it.name == n } }
     val folderAccess = remember { FolderAccess(context) }
     var folders by remember { mutableStateOf(folderAccess.all()) }
@@ -266,20 +268,36 @@ fun HomeScreen(onOpen: (Uri) -> Unit, onNewSheet: () -> Unit, onDiagnostics: () 
     // Coming back from Settings or from a document: re-check access and refresh both lists. The
     // first resume arrives with the screen itself, whose scan has just started: only later ones rescan.
     val firstResume = remember { booleanArrayOf(true) }
+    // Coming back from a document is such a first resume too (the activity never paused): it
+    // keeps the list it had.
     LifecycleResumeEffect(Unit) {
         access = DeviceFiles.hasAccess(context)
         reloadRecents()
-        if (firstResume[0]) firstResume[0] = false else refresh++
+        if (firstResume[0]) firstResume[0] = false else home.refresh++
         onPauseOrDispose { }
     }
     // With "All files access" the whole device is listed; without it, the folders the person picked.
     val listsDevice = access || folders.isNotEmpty()
-    LaunchedEffect(access, folders, refresh) {
-        device = when {
-            access -> withContext(Dispatchers.IO) { runCatching { DeviceFiles.scan(context, refreshFolders = true) }.getOrNull() }
-            folders.isNotEmpty() -> withContext(Dispatchers.IO) { runCatching { folderAccess.scan() }.getOrNull() }
-            else -> null
+    LaunchedEffect(access, folders, home.refresh) {
+        val key = listOf(access, folders, home.refresh)
+        // The same list again (back from a document): shown at once from [home], and looked at
+        // again quietly only when files may have changed (a save, a "Save as"), never walked in full.
+        val again = home.scannedFor == key
+        val generation = withContext(Dispatchers.IO) { HomeViewModel.storageGeneration(context) }
+        if (again && access && generation != null && generation == home.scannedGeneration) return@LaunchedEffect
+        val list = withContext(Dispatchers.IO) {
+            when {
+                access -> runCatching { DeviceFiles.scan(context, refreshFolders = !again) }.getOrNull()
+                folders.isNotEmpty() -> runCatching { folderAccess.scan() }.getOrNull()
+                else -> null
+            }
         }
+        // A quiet look that failed keeps the list shown (and is tried again next time); an
+        // unchanged list is not replaced, so the rows are not rebuilt and the scroll position stays.
+        if (again && list == null) return@LaunchedEffect
+        if (list != home.device) home.device = list
+        home.scannedGeneration = generation
+        home.scannedFor = key
     }
 
     val current = HomeTab.entries[tab]
@@ -367,7 +385,7 @@ fun HomeScreen(onOpen: (Uri) -> Unit, onNewSheet: () -> Unit, onDiagnostics: () 
                 HomeTab.entries.forEachIndexed { i, t ->
                     NavigationBarItem(
                         selected = i == tab,
-                        onClick = { tab = i },
+                        onClick = { home.tab = i },
                         icon = { KindBadge(t.badge, t.kind?.color() ?: MaterialTheme.colorScheme.primary, small = true) },
                         label = { Text(stringResource(t.label), maxLines = 1) },
                     )
@@ -394,7 +412,7 @@ fun HomeScreen(onOpen: (Uri) -> Unit, onNewSheet: () -> Unit, onDiagnostics: () 
                 ) { Text("⚙", fontSize = with(LocalDensity.current) { 20.dp.toSp() }, color = MaterialTheme.colorScheme.primary) }
             }
             // Search, as a soft pill.
-            SearchPill(query, onChange = { query = it }, modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp))
+            SearchPill(query, onChange = { home.query = it }, modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp))
             // Searching inside the files: started on purpose (it reads them), answered as it goes.
             var contentHits by remember(query, tab) { mutableStateOf<List<ContentSearch.Hit>?>(null) }
             var contentProgress by remember(query, tab) { mutableStateOf<Pair<Int, Int>?>(null) }
@@ -421,7 +439,7 @@ fun HomeScreen(onOpen: (Uri) -> Unit, onNewSheet: () -> Unit, onDiagnostics: () 
             }
             // Everything below the search scrolls together, so the list gets the screen; a new tab,
             // source, filter or sort starts at its top.
-            val listState = remember(tab, source, extraName, sort) { LazyListState() }
+            val listState = remember(tab, source, extraName, sort) { home.listStateFor(listOf(tab, source, extraName, sort)) }
             val windowWidth = with(androidx.compose.ui.platform.LocalDensity.current) { androidx.compose.ui.platform.LocalWindowInfo.current.containerSize.width.toDp() }
             val columns = if (windowWidth >= 720.dp) 2 else 1
             val docRow: @Composable (HomeItem) -> Unit = { f ->
@@ -475,7 +493,7 @@ fun HomeScreen(onOpen: (Uri) -> Unit, onNewSheet: () -> Unit, onDiagnostics: () 
                                 for (f in ExtraFilter.entries) {
                                     FilterChip(
                                         selected = extra == f,
-                                        onClick = { extraName = if (extra == f) null else f.name },
+                                        onClick = { home.extraName = if (extra == f) null else f.name },
                                         label = { Text(stringResource(f.label)) },
                                     )
                                 }
@@ -484,7 +502,7 @@ fun HomeScreen(onOpen: (Uri) -> Unit, onNewSheet: () -> Unit, onDiagnostics: () 
                         Segmented(
                             listOf(stringResource(R.string.all_documents), stringResource(R.string.recently_opened)),
                             source,
-                            { source = it },
+                            { home.source = it },
                             Modifier.padding(horizontal = 16.dp, vertical = 10.dp),
                         )
                         if (shown.isNotEmpty()) {

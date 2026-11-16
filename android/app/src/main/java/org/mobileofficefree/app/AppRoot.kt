@@ -39,7 +39,7 @@ import kotlinx.coroutines.withContext
 
 /** Routes between the home screen and the open document, and shows one-shot messages. */
 @Composable
-fun AppRoot(sheet: SheetViewModel, word: WordViewModel, pdf: PdfViewModel, slides: SlidesViewModel, cad: CadViewModel, image: ImageViewModel, text: TextViewModel, archive: ArchiveViewModel, invoice: InvoiceViewModel, openRequest: Uri?, onOpenHandled: () -> Unit) {
+fun AppRoot(home: HomeViewModel, sheet: SheetViewModel, word: WordViewModel, pdf: PdfViewModel, slides: SlidesViewModel, cad: CadViewModel, image: ImageViewModel, text: TextViewModel, archive: ArchiveViewModel, invoice: InvoiceViewModel, openRequest: Uri?, onOpenHandled: () -> Unit) {
     val context = LocalContext.current
     val resources = LocalResources.current
     val snackbar = remember { SnackbarHostState() }
@@ -195,6 +195,7 @@ fun AppRoot(sheet: SheetViewModel, word: WordViewModel, pdf: PdfViewModel, slide
                 archiveState != null -> ArchiveScreen(archive, archiveState, onOpen = openAny)
                 showDiagnostics -> DiagnosticsScreen(onBack = { showDiagnostics = false })
                 else -> HomeScreen(
+                    home = home,
                     onOpen = openAny,
                     onNewSheet = sheet::newBlank,
                     onDiagnostics = { showDiagnostics = true },
