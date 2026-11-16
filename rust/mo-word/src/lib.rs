@@ -5,11 +5,20 @@
 
 mod charset;
 mod find;
+mod fonts;
 mod losses;
 pub mod udf;
 
 pub use find::{Hit, MAX_MATCHES, fold};
 pub use losses::Loss;
+
+/// Hands the Office stand-in font files the app ships (Carlito, Caladea, Liberation Sans/Serif;
+/// see `src/fonts.rs`) to WordCraft's process-wide font database, unmodified, so documents naming
+/// Calibri, Cambria, Arial or Times New Roman lay out in their metric-compatible twins. Call
+/// before opening a document; calling again adds nothing. Returns the number of faces added.
+pub fn register_word_fonts(files: Vec<Vec<u8>>) -> usize {
+    fonts::register_files(wordcraft_fonts::FontDb::global(), files)
+}
 
 /// The text of a plain text file: UTF-8 or UTF-16 (with or without a byte order mark), else the
 /// legacy code page it looks like, Turkish Windows-1254 first (`mo_convert::text`).

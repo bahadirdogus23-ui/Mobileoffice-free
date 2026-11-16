@@ -60,6 +60,15 @@ fn package_reads_whole(bytes: &[u8]) -> bool {
     damaged_entries(bytes, parsed, &XML).is_empty()
 }
 
+/// Hands the Office stand-in font files the app ships (Carlito, Caladea, Liberation Sans/Serif;
+/// see `src/fonts.rs`) to DeckCraft's process-wide font database, unmodified, so slides naming
+/// Calibri, Cambria, Arial or Times New Roman draw in their metric-compatible twins. Call before
+/// opening a presentation; calling again adds nothing. Returns the number of faces added.
+pub fn register_slide_fonts(files: &[Vec<u8>]) -> usize {
+    fonts::register_global();
+    fonts::register_files(deckcraft_fonts::FontDb::global(), files)
+}
+
 /// How many changes can be taken back.
 const UNDO_STEPS: usize = 30;
 

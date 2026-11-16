@@ -14,6 +14,8 @@ wordcraft-layout = { workspace = true }
 wordcraft-render = { workspace = true }
 wordcraft-doc = { workspace = true }
 wordcraft-formats = { workspace = true }
+# The font database the bundled Office stand-ins are handed to (src/fonts.rs); already in the tree.
+wordcraft-fonts = { workspace = true }
 # E-books, e-mails, contacts and calendars, read as HTML (mo-convert).
 mo-convert = { workspace = true }
 serde_json = { workspace = true }
@@ -25,8 +27,6 @@ quick-xml = "0.41"
 
 [dev-dependencies]
 mo-fuzz = { workspace = true }
-# The tests look up fonts with only the bundled ones, as on a phone.
-wordcraft-fonts = { workspace = true }
 # Builds the small Word 97 file the tests open.
 cfb = "0.15"
 
