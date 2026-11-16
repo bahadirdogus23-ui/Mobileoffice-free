@@ -686,3 +686,50 @@ fn slide_text_lays_out_in_bold_and_italic_faces() {
     assert!(faces.len() >= 2, "{faces:?}");
     assert!(faces.iter().all(|(f, _)| f != deckcraft_fonts::LAST_RESORT_FAMILY), "{faces:?}");
 }
+
+/// Fill (Dolgu) shows on every kind of object the slide bar offers it for: a placeholder, a
+/// drawn shape, a text box, a group (its shapes) and a table (its cells); "no fill" clears it,
+/// and it is written to the saved slide. A picture has nothing to fill: an error, not silence.
+#[test]
+fn fill_shows_on_shapes_text_boxes_groups_and_tables() {
+    let mut d = DeckDoc::open(include_bytes!("../testdata/grouped-text.pptx")).unwrap();
+    let shape = d.add_shape(0, "rect", 0x0070C0).unwrap();
+    let text_box = d.add_text_box(0, "Merhaba").unwrap();
+    // A group (4, a text box inside) and a table (6) only lie under the others' boxes in part,
+    // so each is looked at a few points inside its top left corner.
+    let pixel = |d: &DeckDoc, id: u32| {
+        let o = d.objects(0).unwrap().into_iter().find(|o| o.id == id).unwrap();
+        let r = d.render_slide(0, 1.0).unwrap();
+        let (x, y) = ((o.x + 3.0) as u32, (o.y + 3.0) as u32);
+        let p = &r.pixels[((y * r.width + x) * 4) as usize..][..4];
+        [p[0], p[1], p[2]]
+    };
+    let ids = [2, shape, text_box, 4, 6];
+    for id in ids {
+        d.style_object(0, id, ObjectStyle::Fill(Some(0xFF0000))).unwrap();
+        assert_eq!(pixel(&d, id), [255, 0, 0], "object {id} filled red");
+    }
+    let bytes = d.save("x.pptx").unwrap();
+    let xml = String::from_utf8(entry(&bytes, "ppt/slides/slide1.xml")).unwrap();
+    // Title, shape, text box, the grouped text box and the table's four cells.
+    assert!(xml.matches(r#"<a:solidFill><a:srgbClr val="FF0000"/></a:solidFill>"#).count() >= 8, "{xml}");
+    let mut saved = DeckDoc::open(&bytes).unwrap();
+    for id in ids {
+        assert_eq!(pixel(&saved, id), [255, 0, 0], "object {id} red after saving");
+        saved.style_object(0, id, ObjectStyle::Fill(None)).unwrap();
+    }
+    // Cleared: the title and the group show the white page again.
+    assert_eq!(pixel(&saved, 2), [255, 255, 255]);
+    assert_eq!(pixel(&saved, 4), [255, 255, 255]);
+    let xml = String::from_utf8(entry(&saved.save("y.pptx").unwrap(), "ppt/slides/slide1.xml")).unwrap();
+    assert!(!xml.contains("FF0000"), "{xml}");
+
+    let mut png = Vec::new();
+    {
+        let mut enc = png::Encoder::new(&mut png, 1, 1);
+        enc.set_color(png::ColorType::Rgba);
+        enc.write_header().unwrap().write_image_data(&[0, 0, 255, 255]).unwrap();
+    }
+    let pic = saved.add_picture(0, png, 1, 1).unwrap();
+    assert!(saved.style_object(0, pic, ObjectStyle::Fill(Some(0xFF0000))).is_err());
+}

@@ -400,11 +400,11 @@ pub fn style_object(pres: &mut Presentation, index: usize, id: u32, style: Objec
     let slide = Arc::make_mut(pres.slides.get_mut(index).ok_or(DeckError::NoSlide(index as u32))?);
     let shape = slide.shapes.iter_mut().find(|s| s.id.0 == id).ok_or_else(|| edit_err("no such object"))?;
     if let ObjectStyle::Fill(fill) = style {
-        shape.fill = Some(match fill {
+        let fill = match fill {
             Some(c) => deckcraft_model::Fill::Solid { color: rgb(c) },
             None => deckcraft_model::Fill::None,
-        });
-        return Ok(());
+        };
+        return if fill_shape(shape, &fill) { Ok(()) } else { Err(edit_err("this object cannot be filled")) };
     }
     let body = shape.text.as_mut().ok_or_else(|| edit_err("this object has no text"))?;
     for (pi, para) in body.paragraphs.iter_mut().enumerate() {
@@ -437,6 +437,26 @@ pub fn style_object(pres: &mut Presentation, index: usize, id: u32, style: Objec
         }
     }
     Ok(())
+}
+
+/// `shape` given `fill` where it shows: its own box, every shape in a group (a group's own
+/// `grpSpPr` fill is drawn only by children that ask for it), every cell of a table. Returns
+/// whether anything took the fill (a picture, line, chart and the like do not).
+fn fill_shape(shape: &mut deckcraft_model::Shape, fill: &deckcraft_model::Fill) -> bool {
+    match &mut shape.kind {
+        ShapeKind::Shape => {
+            shape.fill = Some(fill.clone());
+            true
+        }
+        ShapeKind::Group { children, .. } => children.iter_mut().fold(false, |any, c| fill_shape(c, fill) || any),
+        ShapeKind::Table(t) => {
+            for cell in t.rows.iter_mut().flat_map(|r| r.cells.iter_mut()) {
+                cell.fill = Some(fill.clone());
+            }
+            !t.rows.is_empty()
+        }
+        _ => false,
+    }
 }
 
 /// Whether the first letter of object `id`'s text is bold (as shown).
