@@ -65,6 +65,7 @@ import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 
@@ -131,10 +132,12 @@ fun TextScreen(vm: TextViewModel, state: TextUiState, reading: ReadingSettings) 
         TopAppBar(
             title = {
                 Column {
-                    Text(state.fileName, maxLines = 1)
+                    Text(state.fileName, maxLines = 1, overflow = TextOverflow.Ellipsis)
                     Text(
                         pluralStringResource(R.plurals.text_info, state.lineCount, state.encoding.label, state.lineCount),
                         style = MaterialTheme.typography.bodySmall,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
                     )
                 }
             },
@@ -147,12 +150,11 @@ fun TextScreen(vm: TextViewModel, state: TextUiState, reading: ReadingSettings) 
                 if (vm.editing) {
                     TextButton(onClick = startSave, enabled = vm.dirty && !vm.busy) { Text(stringResource(R.string.save)) }
                     TextButton(onClick = vm::finishEditing) { Text(stringResource(R.string.done)) }
-                } else {
-                    TextButton(onClick = { fontSize = (fontSize - 2f).coerceAtLeast(8f) }, modifier = Modifier.described(stringResource(R.string.a11y_text_smaller))) { Text("A−") }
-                    TextButton(onClick = { fontSize = (fontSize + 2f).coerceAtMost(32f) }, modifier = Modifier.described(stringResource(R.string.a11y_text_larger))) { Text("A+") }
-                    if (state.editable) TextButton(onClick = vm::startEditing) { Text(stringResource(R.string.edit)) }
+                } else if (state.editable) {
+                    TextButton(onClick = vm::startEditing) { Text(stringResource(R.string.edit)) }
                 }
-                // "Save as…" a new file is always within reach.
+                // "Save as…" a new file is always within reach. A− / A+ sit behind ⋮ too: with large
+                // text (and Turkish's longer words) they took the bar and squeezed the file name out.
                 var more by remember { mutableStateOf(false) }
                 Box {
                     IconButton(onClick = { more = true }, modifier = Modifier.described(stringResource(R.string.a11y_more))) {
@@ -163,6 +165,19 @@ fun TextScreen(vm: TextViewModel, state: TextUiState, reading: ReadingSettings) 
                             more = false
                             startSaveAs()
                         })
+                        if (!vm.editing) {
+                            // The menu stays open so the size can be stepped several times.
+                            DropdownMenuItem(
+                                text = { Text("A−  " + stringResource(R.string.a11y_text_smaller)) },
+                                enabled = fontSize > 8f,
+                                onClick = { fontSize = (fontSize - 2f).coerceAtLeast(8f) },
+                            )
+                            DropdownMenuItem(
+                                text = { Text("A+  " + stringResource(R.string.a11y_text_larger)) },
+                                enabled = fontSize < 32f,
+                                onClick = { fontSize = (fontSize + 2f).coerceAtMost(32f) },
+                            )
+                        }
                     }
                 }
             },

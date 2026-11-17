@@ -593,7 +593,7 @@ open_document() {
         fi
         if [ "$(date +%s)" -ge "$deadline" ]; then
             outcome=FAIL
-            detail="no document screen for \"$base\" within $open_timeout s (see $step.png / $step.window.xml)"
+            detail="no document screen for \"$base\" within $open_timeout s (on screen: $(ui_labels "$xml"); see $step.png / $step.window.xml)"
             break
         fi
         sleep "$POLL"
