@@ -109,6 +109,23 @@ pub fn native_version() -> String {
     env!("CARGO_PKG_VERSION").to_string()
 }
 
+/// Hands the Office stand-in fonts the app ships as assets (Carlito, Caladea, Liberation Sans and
+/// Serif `.ttf` files, unmodified) to the slide engine, so Calibri, Cambria, Arial and Times New
+/// Roman draw in their metric-compatible twins. Call once, off the UI thread, before the first
+/// presentation opens; files of any other family are ignored and calling again adds nothing.
+/// Returns the number of font faces added.
+#[uniffi::export]
+pub fn register_slide_fonts(files: Vec<Vec<u8>>) -> u32 {
+    mo_deck::register_slide_fonts(&files) as u32
+}
+
+/// The same fonts as [`register_slide_fonts`], for the word-processing engine: call once, off the
+/// UI thread, before the first document opens. Returns the number of font faces added.
+#[uniffi::export]
+pub fn register_word_fonts(files: Vec<Vec<u8>>) -> u32 {
+    mo_word::register_word_fonts(files) as u32
+}
+
 /// A file picked by the person: its name and bytes.
 #[derive(uniffi::Record)]
 pub struct NamedFile {

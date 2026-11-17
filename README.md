@@ -56,4 +56,21 @@ Katkı kuralları: [AGENTS.md](AGENTS.md).
 
 ## Lisans
 
-MobileOffice'in kendi kodu, seçiminize göre [MIT](LICENSE-MIT) **veya** [Apache 2.0](LICENSE-APACHE) lisanslıdır (8 Kasım 2026 kararı). Kullanılan motorlar ve kitaplıklar kendi lisanslarıyla gelir: ArtCraft motorları MIT/Apache-2.0, Tesseract ve Türkçe modeli Apache-2.0, `acadrust` MPL-2.0. Uygulamaya gömülü yazı tipleri hep değiştirilmeden (Özgün Sürüm) kullanılır: Source Sans 3 ve Source Serif 4 (© Adobe, SIL Open Font License 1.1, Ayrılmış Yazı Tipi Adı "Source"), Inter (© The Inter Project Authors) ve JetBrains Mono (© The JetBrains Mono Project Authors) SIL OFL 1.1 (Ayrılmış Ad yok), Ubuntu Light Ubuntu Font Licence 1.0. Slaytlar bunlardan yalnız Inter'i kullanır; ad tablosu değiştirilmiş (OFL'de "Değiştirilmiş Sürüm") bir yüz hiçbir yerde kullanılmaz ve PDF'lere gömülmez (gerekçe: [docs/TURKCE-METIN-DENETIMI.md](docs/TURKCE-METIN-DENETIMI.md), açık konu 1). "ArtCraft" adı ve logoları uygulamada kullanılmaz.
+MobileOffice'in kendi kodu, seçiminize göre [MIT](LICENSE-MIT) **veya** [Apache 2.0](LICENSE-APACHE) lisanslıdır (8 Kasım 2026 kararı). Kullanılan motorlar ve kitaplıklar kendi lisanslarıyla gelir: ArtCraft motorları MIT/Apache-2.0, Tesseract ve Türkçe modeli Apache-2.0, `acadrust` MPL-2.0. Uygulamaya gömülü yazı tipleri hep değiştirilmeden (Özgün Sürüm) kullanılır: Source Sans 3 ve Source Serif 4 (© Adobe, SIL Open Font License 1.1, Ayrılmış Yazı Tipi Adı "Source"), Inter (© The Inter Project Authors) ve JetBrains Mono (© The JetBrains Mono Project Authors) SIL OFL 1.1 (Ayrılmış Ad yok), Ubuntu Light Ubuntu Font Licence 1.0. Slaytlar bunlardan yalnız Inter'i kullanır. ad tablosu değiştirilmiş (OFL'de "Değiştirilmiş Sürüm") bir yüz hiçbir yerde kullanılmaz ve PDF'lere gömülmez (gerekçe: [docs/TURKCE-METIN-DENETIMI.md](docs/TURKCE-METIN-DENETIMI.md), açık konu 1).
+
+### Office uyumlu yazı tipleri
+
+Slaytlar ve Word belgeleri için uygulama, Office yazı tipleriyle aynı harf genişliklerine sahip dört aileyi **değiştirilmeden** varlık (asset) olarak taşır (`android/app/src/main/assets/fonts/`, ilk sunum/belge açılırken arka planda motorlara verilir). Kaynak: Ubuntu 24.04 paketleri (`fonts-crosextra-carlito` 20230309-2, `fonts-crosextra-caladea` 20200211-2, `fonts-liberation` 1:2.1.5-3); dosyaların SHA-256 değerleri ve lisans metinleri `assets/fonts/LICENSES/` içinde, uygulamada Ayarlar › Hakkında › "Açık kaynak lisansları".
+
+| Aile (4 kesim) | Karşılığı | Telif | Lisans | Ayrılmış Yazı Tipi Adı |
+|---|---|---|---|---|
+| Carlito 1.104 | Calibri | © 2013 The Carlito Project Authors; © 2010-2013 tyPoland Łukasz Dziedzic | SIL OFL 1.1 | "Carlito" |
+| Caladea 1.001 | Cambria | © 2012 The Caladea Project Authors | SIL OFL 1.1 | yok |
+| Liberation Sans 2.1.5 | Arial | © 2010 Google Corporation; © 2012 Red Hat, Inc. | SIL OFL 1.1 | "Liberation" (ve Google'ın "Arimo", "Tinos", "Cousine") |
+| Liberation Serif 2.1.5 | Times New Roman | aynı | SIL OFL 1.1 | aynı |
+
+Dışa aktarılan PDF'ler bu yazı tiplerinin yalnız kullanılan harflerini (alt küme) gömer. OFL bir belgeye gömülen yazı tipini belgenin lisansından ayrı tutar ve gömme için alt kümelemeyi ad değiştirme gerektirmeden kabul eder (OFL SSS); dosyalar uygulama içinde hiç değiştirilmez. Liberation Mono (Courier New) boyut için eklenmedi: Word eşaralıklı metni gömülü JetBrains Mono ile, slaytlar Inter ile çizer. "Calibri", "Cambria", "Arial" ve "Times New Roman" sahiplerinin ticari markalarıdır; bu yazı tipleri onlar değildir.
+
+### Office-compatible fonts (English)
+
+The app ships Carlito, Caladea, Liberation Sans and Liberation Serif (Regular/Bold/Italic/Bold Italic, SIL OFL 1.1, unmodified) as assets so slides and Word documents set in Calibri, Cambria, Arial or Times New Roman keep their line breaks. Exported PDFs embed subsets, which the OFL permits without renaming. Licence texts, copyright, Reserved Font Names and SHA-256 hashes: `android/app/src/main/assets/fonts/LICENSES/`. "ArtCraft" adı ve logoları uygulamada kullanılmaz.

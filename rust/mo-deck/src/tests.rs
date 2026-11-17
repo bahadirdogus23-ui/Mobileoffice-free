@@ -622,6 +622,99 @@ fn slide_fonts_resolve_to_the_app_s_bundled_faces_without_system_fonts() {
     assert_eq!(crate::fonts::register(&db), 0);
 }
 
+/// The Office stand-in fonts the app ships as assets, read from the Android project.
+pub(crate) fn office_font_assets() -> Vec<(String, Vec<u8>)> {
+    let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../android/app/src/main/assets/fonts");
+    let mut files: Vec<_> = std::fs::read_dir(&dir)
+        .unwrap()
+        .map(|e| e.unwrap().path())
+        .filter(|p| p.extension().is_some_and(|e| e == "ttf"))
+        .map(|p| (p.file_name().unwrap().to_string_lossy().into_owned(), std::fs::read(&p).unwrap()))
+        .collect();
+    files.sort();
+    files
+}
+
+#[test]
+fn office_fonts_shipped_as_assets_resolve_for_the_families_slides_name() {
+    // As on a phone: no font folder DeckCraft knows, no craft-fonts faces; Inter as the app adds
+    // it on opening, then the assets.
+    let db = deckcraft_fonts::FontDb::with_font_dirs(Vec::new());
+    crate::fonts::register(&db);
+    let assets = office_font_assets();
+    assert_eq!(assets.len(), 16, "{:?}", assets.iter().map(|a| &a.0).collect::<Vec<_>>());
+    let files: Vec<Vec<u8>> = assets.iter().map(|a| a.1.clone()).collect();
+    assert_eq!(crate::fonts::register_files(&db, &files), 16);
+    assert_eq!(crate::fonts::register_files(&db, &files), 0, "registering again adds nothing");
+    // Another family's file is refused: it could take over a name DeckCraft resolves.
+    assert_eq!(crate::fonts::register_files(&db, &[wordcraft_fonts::bundled()[0].to_vec()]), 0);
+    // (family, style asked for) → (family, style, file) drawn.
+    let cases = [
+        ("Calibri", "Regular", "Carlito", "Regular", "Carlito-Regular.ttf"),
+        ("Calibri", "Bold", "Carlito", "Bold", "Carlito-Bold.ttf"),
+        ("Calibri", "Italic", "Carlito", "Italic", "Carlito-Italic.ttf"),
+        ("Calibri", "Bold Italic", "Carlito", "Bold Italic", "Carlito-BoldItalic.ttf"),
+        ("Calibri Light", "Regular", "Carlito", "Regular", "Carlito-Regular.ttf"),
+        ("Cambria", "Regular", "Caladea", "Regular", "Caladea-Regular.ttf"),
+        ("Cambria", "Bold", "Caladea", "Bold", "Caladea-Bold.ttf"),
+        ("Arial", "Regular", "Liberation Sans", "Regular", "LiberationSans-Regular.ttf"),
+        ("Arial", "Bold Italic", "Liberation Sans", "Bold Italic", "LiberationSans-BoldItalic.ttf"),
+        ("Helvetica", "Bold", "Liberation Sans", "Bold", "LiberationSans-Bold.ttf"),
+        ("Times New Roman", "Regular", "Liberation Serif", "Regular", "LiberationSerif-Regular.ttf"),
+        ("Times New Roman", "Italic", "Liberation Serif", "Italic", "LiberationSerif-Italic.ttf"),
+        ("Times New Roman", "Bold", "Liberation Serif", "Bold", "LiberationSerif-Bold.ttf"),
+        ("Times New Roman TUR", "Regular", "Liberation Serif", "Regular", "LiberationSerif-Regular.ttf"),
+        // A family the phone lacks and that has no stand-in draws in Calibri, as in PowerPoint.
+        ("Tahoma", "Regular", "Carlito", "Regular", "Carlito-Regular.ttf"),
+        ("Comic Sans MS", "Bold", "Carlito", "Bold", "Carlito-Bold.ttf"),
+    ];
+    for (family, style, want, want_style, file) in cases {
+        let face = db.document_face(family, style);
+        assert_eq!((face.family.as_str(), face.style.as_str()), (want, want_style), "{family} {style}");
+        let shipped = &assets.iter().find(|a| a.0 == file).unwrap().1;
+        assert!(face.data() == shipped.as_slice(), "{family} {style}: drawn from {file}, byte for byte");
+        let glyphs = deckcraft_fonts::shape(&face, TURKISH, &[], |c| c);
+        assert_eq!(glyphs.len(), TURKISH.chars().count());
+        assert!(glyphs.iter().all(|g| g.gid != 0), "{family} {style} → {want} draws .notdef");
+    }
+    // Office's cloud fonts and Courier New keep DeckCraft's own fallback (Liberation Mono and
+    // Aptos are not shipped).
+    assert_eq!(db.document_face("Aptos", "Regular").family, "Inter");
+    assert_eq!(db.document_face("Courier New", "Regular").family, "Inter");
+}
+
+#[test]
+fn office_stand_ins_keep_the_office_fonts_advance_widths() {
+    let db = deckcraft_fonts::FontDb::with_font_dirs(Vec::new());
+    let files: Vec<Vec<u8>> = office_font_assets().into_iter().map(|a| a.1).collect();
+    crate::fonts::register_files(&db, &files);
+    // Advance widths in units of a 2048-unit em, as the Office fonts' `hmtx` tables give them
+    // (Arial and Times New Roman from their published metrics, Calibri likewise): the stand-ins
+    // are drawn to the same widths, so a line breaks at the same word.
+    type Widths = &'static [(char, f64)];
+    let cases: [(&str, &str, Widths); 4] = [
+        ("Arial", "Regular", &[(' ', 569.0), ('a', 1139.0), ('i', 455.0), ('m', 1706.0), ('H', 1479.0), ('W', 1933.0), ('0', 1139.0)]),
+        ("Arial", "Bold", &[(' ', 569.0), ('a', 1139.0), ('i', 569.0), ('m', 1821.0), ('H', 1479.0), ('0', 1139.0)]),
+        ("Times New Roman", "Regular", &[(' ', 512.0), ('a', 909.0), ('i', 569.0), ('m', 1593.0), ('H', 1479.0), ('W', 1933.0), ('0', 1024.0)]),
+        ("Calibri", "Regular", &[(' ', 463.0), ('a', 981.0), ('i', 470.0), ('0', 1038.0)]),
+    ];
+    for (family, style, widths) in cases {
+        let face = db.document_face(family, style);
+        assert_eq!(face.units_per_em(), 2048.0, "{family} → {}", face.family);
+        for (c, w) in widths {
+            assert_eq!(face.advance(face.glyph_for(*c)), *w, "{family} {style} → {} {}: {c:?}", face.family, face.style);
+        }
+    }
+    // A Turkish line at 18 pt is as wide in Carlito as in Calibri, letter for letter: the Turkish
+    // letters take the widths of their base letters (İ as I, ş as s…), as in Calibri.
+    let carlito = db.document_face("Calibri", "Regular");
+    let width = |face: &deckcraft_fonts::FontFace, s: &str| s.chars().map(|c| face.advance(face.glyph_for(c))).sum::<f64>();
+    assert_eq!(width(&carlito, "İıŞşĞğÇçÖöÜü"), width(&carlito, "IıSsGgCcOoUu"));
+    let line = "Toplantı Çarşamba günü İstanbul'da";
+    let pt = width(&carlito, line) * 18.0 / 2048.0;
+    assert!(pt > 200.0 && pt < 300.0, "{pt}");
+}
+
 #[test]
 fn slide_text_lays_out_in_bold_and_italic_faces() {
     use deckcraft_model::text::{Paragraph, Run, RunProps, TextBody};

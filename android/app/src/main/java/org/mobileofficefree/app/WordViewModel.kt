@@ -310,6 +310,7 @@ class WordViewModel(app: Application) : PagedViewModel(app, DocumentKind.WORD) {
     override fun load(uri: Uri, name: String): List<Pair<Float, Float>> {
         val bytes = getApplication<Application>().contentResolver.openInputStream(uri)?.use { it.readBytes() }
             ?: error("no data")
+        OfficeFonts.forWord(getApplication<Application>())
         val next = WordDocument.open(name, bytes, null)
         doc = next
         source = uri
@@ -321,6 +322,7 @@ class WordViewModel(app: Application) : PagedViewModel(app, DocumentKind.WORD) {
     override fun recoveryBytes(): Pair<String, ByteArray>? = doc?.let { "recovery.docx" to it.export("recovery.docx") }
 
     override fun restoreFrom(name: String, bytes: ByteArray): List<Pair<Float, Float>> {
+        OfficeFonts.forWord(getApplication<Application>())
         val next = WordDocument.open(name, bytes, null)
         doc?.close()
         doc = next

@@ -422,6 +422,7 @@ class SlidesViewModel(app: Application) : PagedViewModel(app, DocumentKind.SLIDE
     override fun recoveryBytes(): Pair<String, ByteArray>? = doc?.let { "recovery.pptx" to it.save("recovery.pptx") }
 
     override fun restoreFrom(name: String, bytes: ByteArray): List<Pair<Float, Float>> {
+        OfficeFonts.forSlides(getApplication<Application>())
         val next = SlidesDocument.open(bytes)
         doc?.close()
         doc = next
@@ -437,6 +438,7 @@ class SlidesViewModel(app: Application) : PagedViewModel(app, DocumentKind.SLIDE
     override fun load(uri: Uri, name: String): List<Pair<Float, Float>> {
         val bytes = getApplication<Application>().contentResolver.openInputStream(uri)?.use { it.readBytes() }
             ?: error("no data")
+        OfficeFonts.forSlides(getApplication<Application>())
         val next = SlidesDocument.open(bytes)
         doc = next
         source = uri

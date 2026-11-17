@@ -402,6 +402,8 @@
     <string name="no_browser">No app on this phone can open the link.</string>
     <string name="about_version">Version</string>
     <string name="about_engines">Document engines</string>
+    <string name="about_licenses">Open source licences</string>
+    <string name="about_licenses_hint">Fonts shipped with the app: licences and copyright</string>
     <string name="about_diagnostics_hint">Opening times and memory, for checking speed</string>
     <string name="about_promise">No internet permission, no ads, no account, no tracking.</string>
     <string name="all_formulas">All formulas</string>

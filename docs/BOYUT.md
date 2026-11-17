@@ -195,3 +195,29 @@ C'nin aktarma süreleri, aynı programla ayrıca derlenen A ile karşılaştır�
 - CAD crate'lerinin `3` olması B'de CAD sürelerinin hiç değişmemesiyle de doğrulandı.
 - Ölçüm x86_64'te; arm64'te mutlak süreler farklıdır ama `"z"`'nin kıstığı satır içi açma ve
   döngü iyileştirmeleri iki mimaride de aynı, oranların benzer kalması beklenir.
+
+## Office uyumlu yazı tipleri: APK'ya +3,0 MB (17 Kasım 2026)
+
+Sahibinin onayıyla ("Office uyumlu yazı tipleri ekle") slaytlar ve Word için Calibri, Cambria, Arial ve
+Times New Roman'ın aynı genişlikli açık karşılıkları eklendi (ayrıntı ve lisans:
+[TURKCE-METIN-DENETIMI.md](TURKCE-METIN-DENETIMI.md), açık konu 1). `libmo_ffi.so` değişmedi: dosyalar
+`.so`'ya gömülmüyor, `android/app/src/main/assets/fonts/` varlıkları olarak geliyor ve çalışma anında
+motorlara veriliyor. `.ttf` varlıkları APK'da sıkıştırılarak (deflate) saklanıyor.
+
+| Aile (Regular/Bold/Italic/BoldItalic) | Ham | Sıkıştırılmış (gzip -9) |
+|---|---:|---:|
+| Carlito (Calibri) | 2 734 244 B | 1 152 843 B |
+| Liberation Sans (Arial) | 1 650 416 B | 856 180 B |
+| Liberation Serif (Times New Roman) | 1 516 540 B | 835 699 B |
+| Caladea (Cambria) | 333 228 B | 166 961 B |
+| **Toplam (16 dosya)** | **6 234 428 B (5,95 MiB)** | **3 011 683 B** |
+| Eklenmeyen: Liberation Mono (Courier New) | 1 193 484 B | 684 931 B |
+
+- **APK farkı: +3 014 298 bayt (~3,01 MB, 2,87 MiB)**: `assets/fonts/` klasörünün (16 `.ttf` + lisans
+  metinleri, NOTICE hariç) `zip -9` ile ölçülen boyutu; AGP'nin deflate düzeyinde `zip -6` ile 3 017 545 bayt. Kesin
+  değeri CI'nin paket boyutu raporu gösterecek.
+- Öncelik sırası Türkçe sunumlarda en sık görülenlere göre: Carlito, Liberation Sans, Liberation Serif,
+  sonra küçük olduğu için Caladea. ~3 MB hedefi için Liberation Mono dışarıda kaldı (eşaralıklı metni
+  Word JetBrains Mono ile, slaytlar Inter ile çiziyor).
+- Bellek: dosyalar yalnızca ilgili motor ilk kez belge açınca okunuyor; her motor kendi kopyasını tutuyor
+  (~6,2 MB; ikisi birden ~12,5 MB). Okuma ve kayıt süresi Ölçümler'de "Sunu/Word: yazı tiplerini yükleme".

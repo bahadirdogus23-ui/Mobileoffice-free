@@ -184,3 +184,29 @@ fn missing_fonts_fall_back_to_a_face_with_turkish_letters() {
         }
     }
 }
+
+#[test]
+fn office_font_assets_go_in_unrenamed_and_forget_earlier_lookups() {
+    // As on a phone: no font folders; the files the app ships for slides and documents.
+    let db = wordcraft_fonts::FontDb::with_font_dirs(Vec::new());
+    let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../android/app/src/main/assets/fonts");
+    let mut paths: Vec<_> =
+        std::fs::read_dir(dir).unwrap().map(|e| e.unwrap().path()).filter(|p| p.extension().is_some_and(|e| e == "ttf")).collect();
+    paths.sort();
+    let files: Vec<Vec<u8>> = paths.iter().map(|p| std::fs::read(p).unwrap()).collect();
+    assert!(!db.has_family("Carlito"));
+    let generation = db.generation();
+    assert_eq!(crate::fonts::register_files(&db, files.clone()), 16);
+    assert!(db.generation() > generation, "lookups made before are forgotten");
+    assert_eq!(crate::fonts::register_files(&db, files.clone()), 0);
+    // Another family's file is refused, and nothing is renamed.
+    assert_eq!(crate::fonts::register_files(&db, vec![wordcraft_fonts::bundled()[0].to_vec()]), 0);
+    for (family, style) in [("Carlito", "Bold"), ("Caladea", "Italic"), ("Liberation Sans", "Bold Italic"), ("Liberation Serif", "Regular")] {
+        let face = db.face(family, style);
+        assert_eq!((face.family.as_str(), face.style.as_str()), (family, style));
+        assert!(files.iter().any(|f| f.as_slice() == face.data()), "{family} {style}: a shipped file, byte for byte");
+        for c in TURKISH.chars() {
+            assert_ne!(face.glyph_for(c), 0, "{family} {style} has no {c}");
+        }
+    }
+}

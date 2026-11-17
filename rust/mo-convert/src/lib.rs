@@ -7,6 +7,7 @@ mod calendar;
 mod epub;
 mod mail;
 pub mod package;
+pub mod sfnt;
 pub mod text;
 mod vcard;
 
