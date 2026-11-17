@@ -390,6 +390,8 @@
     <string name="no_browser">Bu telefonda bağlantıyı açabilecek bir uygulama yok.</string>
     <string name="about_version">Sürüm</string>
     <string name="about_engines">Belge motorları</string>
+    <string name="about_licenses">Açık kaynak lisansları</string>
+    <string name="about_licenses_hint">Uygulamayla gelen yazı tipleri: lisanslar ve telif</string>
     <string name="about_diagnostics_hint">Açılış süreleri ve bellek; hız kontrolü için</string>
     <string name="about_promise">İnternet izni yok, reklam yok, hesap yok, takip yok.</string>
     <string name="all_formulas">Tüm formüller</string>

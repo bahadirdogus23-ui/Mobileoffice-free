@@ -1,0 +1,59 @@
+BadoOffice — Office uyumlu yazı tipleri / Office-compatible fonts
+=================================================================
+
+Bu klasördeki yazı tipleri DEĞİŞTİRİLMEDEN (Özgün Sürüm) dağıtılır. Slaytlarda ve Word
+belgelerinde Calibri, Cambria, Arial ve Times New Roman yerine, aynı harf genişlikleriyle
+çizilirler. Dışa aktarılan PDF'ler bu yazı tiplerinin yalnız kullanılan harflerini (alt küme)
+gömer; SIL Open Font License bunu ad değiştirmeden izin verir (OFL SSS: belgeye gömme).
+
+The fonts in this folder are distributed UNMODIFIED (Original Version). They draw text set in
+Calibri, Cambria, Arial and Times New Roman with the same advance widths. Exported PDFs embed
+subsets of them, which the SIL Open Font License allows without renaming (OFL FAQ: embedding
+in documents).
+
+Kaynak / Source: Ubuntu 24.04 (noble) packages, verified against the signed archive index:
+  fonts-crosextra-carlito 20230309-2, fonts-crosextra-caladea 20200211-2,
+  fonts-liberation 1:2.1.5-3.
+
+Carlito 1.104 — Regular, Bold, Italic, Bold Italic
+  Copyright 2013 The Carlito Project Authors (https://github.com/googlefonts/carlito)
+  Copyright (c) 2010-2013 by tyPoland Lukasz Dziedzic with Reserved Font Name "Carlito".
+  SIL Open Font License 1.1 — OFL-Carlito.txt. Reserved Font Name: Carlito.
+  Metric-compatible with Calibri.
+
+Caladea 1.001 — Regular, Bold, Italic, Bold Italic
+  Copyright 2012 The Caladea Project Authors (https://github.com/huertatipografica/Caladea)
+  SIL Open Font License 1.1 — OFL-Caladea.txt. No Reserved Font Name.
+  Metric-compatible with Cambria.
+
+Liberation Sans 2.1.5, Liberation Serif 2.1.5 — Regular, Bold, Italic, Bold Italic
+  Digitized data copyright (c) 2010 Google Corporation with Reserved Font Arimo, Tinos and Cousine.
+  Copyright (c) 2012 Red Hat, Inc. with Reserved Font Name Liberation.
+  SIL Open Font License 1.1 — OFL-Liberation.txt. Reserved Font Names: Liberation, Arimo, Tinos, Cousine.
+  Metric-compatible with Arial and Times New Roman.
+
+"Calibri", "Cambria", "Arial" and "Times New Roman" are trademarks of their owners; these fonts
+are not those fonts.
+
+SHA-256
+  f1e899278b7b4491aba5b6a8253c4b04c050cc59b21865be5c37559a775153cd  Caladea-Regular.ttf
+  ae3cb2dcbc925809dd29d2a44e9802211cab66be541bacbfc9c08c74b27c3742  Caladea-Bold.ttf
+  4359a8e24f748b6447b1ff6d7a174febe70961d29f8bb8634b56dacd740a3deb  Caladea-Italic.ttf
+  ccabaa7b7e2fdf253d2b1a5fa699dd8a3df8d835a9eb285ad82631a677eb76c0  Caladea-BoldItalic.ttf
+  f6418f708baede9789daef5d458c0f53d2a888af9820e8062934e504fedc6595  Carlito-Regular.ttf
+  bb5d20f79b82599ec72983597437373a80f2d2085fa91fc144fd74e876a594db  Carlito-Bold.ttf
+  0b019225e58d702bfedcbd35c21696769f8ee115cb6343f84c2f240312450d1c  Carlito-Italic.ttf
+  b32928186c119599e03ca6a1ffc680fdcb7fac95772f4b95d989cf6cd3861517  Carlito-BoldItalic.ttf
+  4659bc0c58c5028dd488ec928d41d9265db43d9b669fc14ca8b0832daca7b144  LiberationSans-Regular.ttf
+  3973aa5054fb467dd5627245d3dc82e37bf16fe075756156a570455871351582  LiberationSans-Bold.ttf
+  830c5fa600505fb4c1a271b4271c53c44bae43f492b2a240d0e98a3a7a380121  LiberationSans-Italic.ttf
+  c80fa7f2ffa0e01d4d8dcd6a6d1e43eda665222d1b4db597dde1174c456006cf  LiberationSans-BoldItalic.ttf
+  705903ae1382f0150f115d6f10a30f5b2f3d6ade649c474afe6366c39174fb65  LiberationSerif-Regular.ttf
+  9e66c25e20868756bf12eb24a520a4552727c9cd108f577f7ae33e3c0110e39c  LiberationSerif-Bold.ttf
+  eaeaf7f2b12544ecde64290c1fa7ec403ff70fd58b313637b265400b20249242  LiberationSerif-Italic.ttf
+  379010e87421a883f7bbfa7936d23dfe0257a54ce850819b74556e9f2c615a8a  LiberationSerif-BoldItalic.ttf
+
+Uygulamanın kendi kodu MIT veya Apache-2.0; belge motorları ve öteki bileşenler kendi
+lisanslarıyla gelir (README, "Lisans").
+The app's own code is MIT or Apache-2.0; the document engines and other components come with
+their own licences (README, "Lisans").

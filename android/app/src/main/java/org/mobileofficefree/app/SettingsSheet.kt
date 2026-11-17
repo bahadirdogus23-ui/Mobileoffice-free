@@ -31,6 +31,7 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -46,6 +47,8 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import kotlin.math.roundToInt
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 
 /**
  * The settings screen: reading, privacy, support and about, each in its own card. Shown full
@@ -71,6 +74,7 @@ fun SettingsSheet(
     var editProfile by remember { mutableStateOf(false) }
     val profile = remember { Profile.get(context) }
     var guide by remember { mutableStateOf(false) }
+    var licenses by remember { mutableStateOf(false) }
     Dialog(onDismissRequest = onDismiss, properties = DialogProperties(usePlatformDefaultWidth = false)) {
         Scaffold(
             topBar = {
@@ -137,6 +141,7 @@ fun SettingsSheet(
                     Item("✉", Color(0xFF0A84FF), stringResource(R.string.about_contact), Support.EMAIL) { Support.mail(context) }
                     Item("ℹ", Color(0xFF757575), stringResource(R.string.about_version), version)
                     Item("⚙", Color(0xFF757575), stringResource(R.string.about_engines), engineVersion)
+                    Item("§", Color(0xFF757575), stringResource(R.string.about_licenses), stringResource(R.string.about_licenses_hint)) { licenses = true }
                     Item("⏱", Color(0xFF757575), stringResource(R.string.diagnostics), stringResource(R.string.about_diagnostics_hint)) {
                         onDismiss()
                         onDiagnostics()
@@ -211,6 +216,7 @@ fun SettingsSheet(
         )
     }
     if (guide) GuideScreen { guide = false }
+    if (licenses) LicensesDialog { licenses = false }
     CoffeeDialog()
 }
 
@@ -262,5 +268,38 @@ private fun Toggle(sign: String, tint: Color, title: String, hint: String?, chec
         trailingContent = { Switch(checked = checked, onCheckedChange = null, enabled = enabled) },
         colors = ListItemDefaults.colors(containerColor = Color.Transparent),
         modifier = Modifier.toggleable(value = checked, enabled = enabled, role = Role.Switch, onValueChange = onChange),
+    )
+}
+
+/** Folder of the licence texts shipped with the bundled fonts (`assets/fonts/LICENSES`). */
+private const val LICENSE_DIR = "fonts/LICENSES"
+
+/**
+ * The open source licences of what the app ships beside its own code: the notice first, then each
+ * licence text. Read from the assets off the UI thread.
+ */
+@Composable
+private fun LicensesDialog(onDismiss: () -> Unit) {
+    val context = LocalContext.current
+    val text by produceState<String?>(null) {
+        value = withContext(Dispatchers.IO) {
+            runCatching {
+                val assets = context.applicationContext.assets
+                val names = assets.list(LICENSE_DIR).orEmpty().sortedWith(compareBy<String>({ it != "NOTICE.txt" }, { it }))
+                names.joinToString("\n\n────────\n\n") { name -> assets.open("$LICENSE_DIR/$name").use { it.readBytes().decodeToString() } }
+            }.getOrElse { it.message.orEmpty() }
+        }
+    }
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(stringResource(R.string.about_licenses)) },
+        text = {
+            Text(
+                text.orEmpty(),
+                style = MaterialTheme.typography.bodySmall,
+                modifier = Modifier.verticalScroll(rememberScrollState()),
+            )
+        },
+        confirmButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.close)) } },
     )
 }
