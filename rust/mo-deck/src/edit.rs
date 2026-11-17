@@ -448,7 +448,14 @@ fn fill_shape(shape: &mut deckcraft_model::Shape, fill: &deckcraft_model::Fill) 
             shape.fill = Some(fill.clone());
             true
         }
-        ShapeKind::Group { children, .. } => children.iter_mut().fold(false, |any, c| fill_shape(c, fill) || any),
+        ShapeKind::Group { children, .. } => {
+            // Fill every child: no short-circuit.
+            let mut any = false;
+            for c in children.iter_mut() {
+                any |= fill_shape(c, fill);
+            }
+            any
+        }
         ShapeKind::Table(t) => {
             for cell in t.rows.iter_mut().flat_map(|r| r.cells.iter_mut()) {
                 cell.fill = Some(fill.clone());
