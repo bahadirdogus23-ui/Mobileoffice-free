@@ -11,8 +11,9 @@ MD), into DIR/<locale>/, plus DIR/shots.tsv, which tells scripts/emulator-smoke.
 
 The content is made up: no real person, company or address, and nothing that names the
 upstream engines. Everything is written here with the Python standard library; the PDF uses the
-standard Helvetica fonts every PDF reader has (Turkish letters through a /Differences encoding),
-the Office files name Calibri, which the app replaces with its bundled, OFL-licensed Carlito. The
+standard Helvetica fonts every PDF reader has (Turkish letters through a /Differences encoding, as
+old Turkish PDFs write them: Android's renderer lacks Ğ ğ İ Ş ş in its built-in Helvetica, so the
+app shows such a file with a stand-in font embedded, rust/mo-pdf/src/standin.rs), the Office files name Calibri, which the app replaces with its bundled, OFL-licensed Carlito. The
 slide master and theme come from rust/mo-deck/testdata/grouped-text.pptx, which is already in
 the repository; its author metadata and thumbnail are dropped. Nothing is downloaded and no
 binary file is committed.
@@ -73,14 +74,14 @@ CONTENT = {
         },
         "budget": {
             "sheet": "Bütçe",
-            "title": "Aylık Ev Bütçesi · Kasım 2026",
-            "head": ["Kalem", "Planlanan", "Gerçekleşen", "Fark"],
+            "title": "Aylık Ev Bütçesi · Kasım 2026 (TL)",
+            "head": ["Kalem", "Bütçe", "Harcanan", "Fark"],
             "rows": [
                 ("Kira", 18000, 18000),
                 ("Market", 9500, 10240),
-                ("Elektrik, su, doğalgaz", 3200, 2870),
+                ("Faturalar", 3200, 2870),
                 ("Ulaşım", 2500, 2310),
-                ("İnternet ve telefon", 900, 900),
+                ("İnternet", 900, 900),
                 ("Eğitim", 4000, 4000),
                 ("Sağlık", 1000, 650),
                 ("Eğlence", 2000, 2460),
@@ -90,7 +91,7 @@ CONTENT = {
             "income": "Aylık gelir",
             "income_value": 48000,
             "left": "Kalan",
-            "format": '#,##0 "TL";[Red]-#,##0 "TL"',
+            "format": "#,##0;[Red]-#,##0",
         },
         "deck": {
             "title": "2026 Satış Stratejisi",
@@ -178,20 +179,20 @@ CONTENT = {
         "budget": {
             "sheet": "Budget",
             "title": "Monthly Household Budget · November 2026",
-            "head": ["Item", "Planned", "Actual", "Difference"],
+            "head": ["Item", "Budget", "Spent", "Diff."],
             "rows": [
                 ("Rent", 1800, 1800),
                 ("Groceries", 950, 1024),
-                ("Electricity, water, gas", 320, 287),
+                ("Utilities", 320, 287),
                 ("Transport", 250, 231),
-                ("Internet and phone", 90, 90),
+                ("Internet", 90, 90),
                 ("Education", 400, 400),
                 ("Health", 100, 65),
                 ("Leisure", 200, 246),
                 ("Savings", 600, 600),
             ],
-            "total": "Total spending",
-            "income": "Monthly income",
+            "total": "Total",
+            "income": "Income",
             "income_value": 4800,
             "left": "Left over",
             "format": '"$"#,##0;[Red]-"$"#,##0',
@@ -456,9 +457,12 @@ def make_budget(path, c):
          f'<Relationship Id="rId3" Type="{rt}/styles" Target="styles.xml"/></Relationships>'),
         ("xl/worksheets/sheet1.xml",
          f'<?xml version="1.0" encoding="UTF-8" standalone="yes"?><worksheet {main}>'
-         '<sheetViews><sheetView workbookViewId="0"><selection activeCell="A1" sqref="A1"/></sheetView></sheetViews>'
-         '<cols><col min="1" max="1" width="26" customWidth="1"/>'
-         '<col min="2" max="4" width="14" customWidth="1"/></cols>'
+         # The header row stays on screen; three columns fit a phone's width at the grid's zoom 1
+         # (1.7 dp per Excel pixel: 1080 px at 420 dpi less the row header hold about 214).
+         '<sheetViews><sheetView workbookViewId="0"><pane ySplit="3" topLeftCell="A4" activePane="bottomLeft" '
+         'state="frozen"/><selection pane="bottomLeft" activeCell="A4" sqref="A4"/></sheetView></sheetViews>'
+         '<cols><col min="1" max="1" width="13" customWidth="1"/>'
+         '<col min="2" max="4" width="8.5" customWidth="1"/></cols>'
          f"<sheetData>{sheet_rows}</sheetData></worksheet>"),
         ("xl/sharedStrings.xml",
          f'<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'

@@ -126,6 +126,16 @@ pub fn register_word_fonts(files: Vec<Vec<u8>>) -> u32 {
     mo_word::register_word_fonts(files) as u32
 }
 
+/// The same fonts as [`register_slide_fonts`], for PDFs that name a font without embedding it:
+/// where Android's renderer would leave letters out (Ğ ğ İ Ş ş by glyph name in non-embedded
+/// Helvetica, Times or Courier), [`PdfDocument::display_copy`] embeds the metric-compatible
+/// Liberation face in their place. Only Liberation Sans, Serif and Mono files are kept. Call off
+/// the UI thread; calling again adds nothing. Returns the number of font faces added.
+#[uniffi::export]
+pub fn register_pdf_fonts(files: Vec<Vec<u8>>) -> u32 {
+    mo_pdf::register_fonts(&files) as u32
+}
+
 /// A file picked by the person: its name and bytes.
 #[derive(uniffi::Record)]
 pub struct NamedFile {
@@ -1709,6 +1719,13 @@ impl PdfDocument {
     /// filled fields): the viewer then shows [`PdfDocument::display_copy`].
     pub fn has_drawn_annotations(&self) -> bool {
         self.doc().has_drawn_annotations()
+    }
+
+    /// Whether a page uses a font the file names without embedding whose letters Android's
+    /// renderer cannot draw (Ğ ğ İ Ş ş in old Turkish PDFs' Helvetica): the viewer then shows
+    /// [`PdfDocument::display_copy`], which embeds a stand-in (see [`register_pdf_fonts`]).
+    pub fn needs_stand_in_fonts(&self) -> bool {
+        self.doc().needs_stand_in_fonts()
     }
 
     /// Adds fillable fields where a printed form's boxes, lines and squares are (for forms whose

@@ -19,7 +19,9 @@
 # shows no "could not open" message, and logcat has no crash, ANR, JNI error or missing
 # class/method/native library for the app's process. R8 problems often surface as
 # NoClassDefFoundError inside runCatching, which the app shows as "could not open"; that is why the
-# screen is checked, not just logcat.
+# screen is checked, not just logcat. Two samples get one more step: the picture's text recognition
+# (ocr-png) and, for the PDF in a non-embedded Helvetica (mo-smoke-pdf-base14.pdf), whether its
+# Ğ ğ İ Ş ş are drawn, counted in the screenshot by colour (pdf-base14-letters).
 #
 # It is also the performance baseline (plan phase 5). For the home screen and every sample it
 # records, in the summary table and in metrics.tsv:
@@ -121,7 +123,10 @@
 # Last pass, "Mağaza ekran görüntüleri" (Google Play phone screenshots; cosmetic, never fails the
 # run, a problem is a warning): with SAMPLES_DIR/store from scripts/make_store_samples.py, the
 # display is set to 1080x1920 at 420 dpi (9:16, as Play recommends), the font scale to 1.0, the light
-# theme, and the status bar to System UI's demo mode (12:00, full battery, no notifications). For
+# theme, and the status bar to System UI's demo mode (12:00, full battery, no notifications). The
+# earlier passes' files are deleted from shared storage and from MediaStore's index (the home
+# screen lists what MediaStore knows, hidden folders included); 01-home is a SKIP if it still
+# shows one. For
 # each store language (tr-TR, en-US) the app's data is cleared (no recent files from the earlier
 # passes) and its locale set, that language's files are put in Documents (and the earlier
 # language's taken away), and `screencap` saves, in OUT_DIR/play-screenshots/<locale>/: 02-word,
@@ -649,7 +654,86 @@ open_document() {
     if [ "$outcome" = PASS ] && [ "$name" = mo-smoke-png.png ] && [ "$OCR" = 1 ] && [ "$PASS" = 1 ]; then
         recognise_text
     fi
+    if [ "$outcome" = PASS ] && [ "$name" = mo-smoke-pdf-base14.pdf ] && [ "$PASS" = 1 ]; then
+        check_pdf_letters "$step"
+    fi
     if [ "$outcome" = FAIL ]; then clear_crash_report; fi
+}
+
+# colour_pixels PNG: "RED BLUE", the number of pure red and pure blue pixels in a screenshot
+# (8-bit RGB or RGBA, not interlaced, as screencap writes it); status 1 if it cannot be read.
+colour_pixels() {
+    python3 - "$1" << 'PY'
+import struct, sys, zlib
+try:
+    data = open(sys.argv[1], "rb").read()
+    assert data[:8] == b"\x89PNG\r\n\x1a\n"
+    pos, idat = 8, b""
+    while pos < len(data):
+        length, kind = struct.unpack(">I4s", data[pos:pos + 8])
+        body = data[pos + 8:pos + 8 + length]
+        if kind == b"IHDR":
+            width, height, depth, ctype, _, _, interlace = struct.unpack(">IIBBBBB", body)
+            assert depth == 8 and ctype in (2, 6) and not interlace
+            bpp = 3 if ctype == 2 else 4
+        elif kind == b"IDAT":
+            idat += body
+        pos += 12 + length
+    raw = zlib.decompress(idat)
+except Exception:
+    sys.exit(1)
+stride = width * bpp
+prev = bytearray(stride)
+red = blue = i = 0
+for _ in range(height):
+    f, line = raw[i], bytearray(raw[i + 1:i + 1 + stride])
+    i += 1 + stride
+    if f:
+        for x in range(stride):
+            a = line[x - bpp] if x >= bpp else 0
+            b = prev[x]
+            c = prev[x - bpp] if x >= bpp else 0
+            if f == 1:
+                line[x] = (line[x] + a) & 255
+            elif f == 2:
+                line[x] = (line[x] + b) & 255
+            elif f == 3:
+                line[x] = (line[x] + (a + b) // 2) & 255
+            else:
+                p = a + b - c
+                pa, pb, pc = abs(p - a), abs(p - b), abs(p - c)
+                line[x] = (line[x] + (a if pa <= pb and pa <= pc else b if pb <= pc else c)) & 255
+    for x in range(0, stride, bpp):
+        r, g, bl = line[x], line[x + 1], line[x + 2]
+        if r > 190 and g < 70 and bl < 70:
+            red += 1
+        elif bl > 190 and r < 70 and g < 70:
+            blue += 1
+    prev = line
+print(red, blue)
+PY
+}
+
+# Letters of fonts a PDF names without embedding (mo-smoke-pdf-base14.pdf, see
+# make_smoke_samples.py): Android's renderer has no Ğ ğ İ Ş ş in its built-in Helvetica, so the
+# app shows such a file from a copy with a stand-in font (rust/mo-pdf/src/standin.rs). The letters
+# it would lose are pure red on the page, a control line it always draws pure blue: in the open
+# step's screenshot the red pixels must be at least a third of the blue ones. Too little blue (the
+# page not drawn, or not where the screenshot sees it) is a SKIP.
+check_pdf_letters() {
+    local step=pdf-base14-letters counts red blue
+    if ! counts=$(colour_pixels "$OUT/$1.png"); then
+        record "$step" SKIP "the screenshot $1.png could not be read"
+        return
+    fi
+    read -r red blue <<< "$counts"
+    if [ "$blue" -lt 500 ]; then
+        record "$step" SKIP "the control letters are not in $1.png ($blue blue pixels): the page was not drawn"
+    elif [ $((red * 3)) -lt "$blue" ]; then
+        record "$step" FAIL "Ğ ğ İ Ş ş of a non-embedded Helvetica are missing on screen ($red red pixels for $blue blue control ones; see $1.png)"
+    else
+        record "$step" PASS "Ğ ğ İ Ş ş of a non-embedded Helvetica drawn ($red red pixels, $blue blue control ones)"
+    fi
 }
 
 # Text recognition on the open picture: loads Tesseract's JNI library and its Java classes.
@@ -2156,8 +2240,13 @@ shot_home() {
         fi
     done
     sleep 2
+    ui_dump "$xml" || true
     shot_capture "$locale" 01-home
-    [ "$seen" = 1 ] || shot_note "$locale" 01-home SKIP "taken without seeing the language's home texts and \"$first\" in the list (on screen: $(ui_labels "$xml"))"
+    if [ "$seen" != 1 ]; then
+        shot_note "$locale" 01-home SKIP "taken without seeing the language's home texts and \"$first\" in the list (on screen: $(ui_labels "$xml"))"
+    elif ui_query "$xml" contains mo-smoke- mo-save- mo-recover- -duzenlendi; then
+        shot_note "$locale" 01-home SKIP "the list still shows earlier passes' files: $(ui_query "$xml" show mo-smoke- mo-save- mo-recover- -duzenlendi | head -3 | tr '\n' ' ')"
+    fi
 }
 
 # shots_locale LOCALE: every screenshot of one store language.
@@ -2204,6 +2293,26 @@ shots_locale() {
     sh_adb am force-stop "$PKG" || true
 }
 
+# What the earlier passes left in shared storage, deleted and forgotten by MediaStore: the home
+# screen lists every document MediaStore knows, and it indexes files pushed into the hidden smoke
+# folder too (the first run's home screenshot listed mo-smoke-big-xlsx and "22 documents"). That
+# folder (with the second pass's "RAPOR-İŞ.DOCX"-style copies), every "mo-smoke-", "mo-save-" and
+# "mo-recover-" file anywhere, and the save pass's "…-duzenlendi" copies (Download) go; MediaStore
+# rows left for them are deleted too. What MediaStore still lists is logged.
+SAMPLE_ROWS="_data LIKE '%/.mo-smoke/%' OR _display_name LIKE 'mo-smoke-%' OR _display_name LIKE 'mo-save-%'"
+SAMPLE_ROWS="$SAMPLE_ROWS OR _display_name LIKE 'mo-recover-%' OR _display_name LIKE '%-duzenlendi%'"
+shots_forget_samples() {
+    local left
+    sh_adb rm -rf "$DEVICE_DIR" > /dev/null 2>&1 || true
+    sh_adb "find /storage/emulated/0/ -type f \\( -name 'mo-smoke-*' -o -name 'mo-save-*' -o -name 'mo-recover-*' -o -name '*-duzenlendi*' \\) -delete" > /dev/null 2>&1 || true
+    sh_adb content delete --uri content://media/external/file --where "\"$SAMPLE_ROWS\"" > /dev/null 2>&1 || true
+    left=$(sh_adb content query --uri content://media/external/file --projection _data --where "\"$SAMPLE_ROWS\"" 2> /dev/null | grep -c '_data=' || true)
+    if [ "${left:-0}" -gt 0 ]; then
+        echo "::warning title=Play screenshots::MediaStore still lists $left of the earlier passes' files; the home screenshot may show them"
+    fi
+    log "screenshots: earlier passes' files deleted from shared storage and MediaStore (${left:-0} rows left)"
+}
+
 shots_pass() {
     local elapsed locale
     : > "$SHOTS_LOG"
@@ -2219,8 +2328,7 @@ shots_pass() {
     log "screenshots: $SHOTS_LOCALES at $SHOTS_SIZE, $SHOTS_DENSITY dpi, font scale 1.0, light theme, demo status bar"
     mkdir -p "$SHOTS_DIR"
     sh_adb am force-stop "$PKG" || true
-    # A form saved by the save pass ("…-duzenlendi.pdf" in Download) would be on the home screen.
-    sh_adb "find /storage/emulated/0/ -type f -name '*-duzenlendi*' -not -path '*/.*' -delete" > /dev/null 2>&1 || true
+    shots_forget_samples
     sh_adb mkdir -p "$SHOTS_DEVICE_DIR" || true
     sh_adb settings put system font_scale 1.0 || true
     sh_adb cmd uimode night no > /dev/null || true

@@ -502,6 +502,15 @@ class PdfViewModel(app: Application) : PagedViewModel(app, DocumentKind.PDF) {
         throw IllegalStateException(getApplication<Application>().getString(R.string.pdf_no_pages), e)
     }
 
+    /**
+     * [PdfDocument.displayCopyToFd] written to [file]: before the first copy that needs them, the
+     * stand-in fonts are handed to the engine (see [OfficeFonts.forPdf]). Engine thread.
+     */
+    private fun writeShown(file: File, doc: PdfDocument) {
+        if (doc.needsStandInFonts()) OfficeFonts.forPdf(getApplication<Application>())
+        writeFd(file) { doc.displayCopyToFd(it) }
+    }
+
     /** [file] (in the app's cache) created or emptied, and handed to [block] as a descriptor. */
     private fun <T> writeFd(file: File, block: (Int) -> T): T =
         ParcelFileDescriptor.open(
@@ -584,7 +593,7 @@ class PdfViewModel(app: Application) : PagedViewModel(app, DocumentKind.PDF) {
                     // A new cache file per edit: the renderer still has the previous one open.
                     val dir = File(app.cacheDir, "pdf-edit").apply { mkdirs() }
                     val file = File(dir, "edit-${++editCount}.pdf")
-                    Measurements.time("PDF: düzenleme sonrası yeniden yükleme") { writeFd(file) { doc.displayCopyToFd(it) } }
+                    Measurements.time("PDF: düzenleme sonrası yeniden yükleme") { writeShown(file, doc) }
                     closeRenderer()
                     dir.listFiles()?.filter { it != file }?.forEach { it.delete() }
                     openRenderer(ParcelFileDescriptor.open(file, ParcelFileDescriptor.MODE_READ_ONLY))
@@ -653,7 +662,7 @@ class PdfViewModel(app: Application) : PagedViewModel(app, DocumentKind.PDF) {
             restricted = doc.isRestricted()
             val dir = File(app.cacheDir, "pdf-edit").apply { mkdirs() }
             val file = File(dir, "edit-${++editCount}.pdf")
-            writeFd(file) { doc.displayCopyToFd(it) }
+            writeShown(file, doc)
             openRenderer(ParcelFileDescriptor.open(file, ParcelFileDescriptor.MODE_READ_ONLY))
         }
         // A heavily damaged file can open in Android's renderer with no pages: an empty viewer
@@ -667,8 +676,9 @@ class PdfViewModel(app: Application) : PagedViewModel(app, DocumentKind.PDF) {
 
     /**
      * Android's renderer draws no annotations (signatures, comments, filled form fields): when the
-     * file has some, the engine draws them into a copy that is shown instead. Very large files are
-     * shown as they are, to open quickly. Null when the file is shown as it is.
+     * file has some, the engine draws them into a copy that is shown instead, and the same copy
+     * embeds stand-ins for fonts whose letters the renderer lacks. Very large files are shown as
+     * they are, to open quickly. Null when the file is shown as it is.
      */
     private fun showingAnnotations(uri: Uri): List<Pair<Float, Float>>? {
         val app = getApplication<Application>()
@@ -692,11 +702,12 @@ class PdfViewModel(app: Application) : PagedViewModel(app, DocumentKind.PDF) {
         val mayHaveAnnotations = runCatching {
             app.contentResolver.openInputStream(uri)?.use { it.containsAnyAscii("/Annots", "/ObjStm") }
         }.getOrNull() ?: true
-        if (!mayHaveAnnotations) return null
-        if (!doc.hasDrawnAnnotations()) return null
+        // Fonts named but not embedded whose letters Android's renderer lacks (Ğ ğ İ Ş ş by glyph
+        // name in old Turkish PDFs' Helvetica) are shown from a copy with stand-ins embedded.
+        if (!(mayHaveAnnotations && doc.hasDrawnAnnotations()) && !doc.needsStandInFonts()) return null
         val dir = File(app.cacheDir, "pdf-edit").apply { mkdirs() }
         val file = File(dir, "edit-${++editCount}.pdf")
-        writeFd(file) { doc.displayCopyToFd(it) }
+        writeShown(file, doc)
         closeRenderer()
         return openRenderer(ParcelFileDescriptor.open(file, ParcelFileDescriptor.MODE_READ_ONLY))
     }

@@ -469,6 +469,36 @@ def make_pdf(path):
     write_pdf(path, objects)
 
 
+def make_pdf_base14_turkish(path):
+    """Old Turkish PDFs' fonts: standard Helvetica, not embedded, its `/Differences` naming the
+    letters WinAnsi lacks by glyph (Gbreve, gbreve, Idotaccent, Scedilla, scedilla; dotlessi too).
+    Android's renderer draws such fonts in built-in faces without those glyphs, so the app shows
+    them from a copy with a stand-in font embedded (rust/mo-pdf/src/standin.rs). The letters it
+    would lose are pure red, a control line of letters it always had (Ç ç Ö ö Ü) pure blue: the
+    smoke test compares the two colours' pixels in its screenshot (step pdf-base14-letters)."""
+    codes = {"Ğ": 128, "ğ": 129, "İ": 130, "ı": 131, "Ş": 132, "ş": 133}
+
+    def text(s):
+        return bytes(codes[c] if c in codes else ord(c.encode("cp1252")) for c in s)
+
+    content = (
+        b"BT /F1 20 Tf 0 0 0 rg 56 780 Td (" + text("Eski PDF yazı tipleri - old base-14 fonts") + b") Tj ET\n"
+        b"BT /F1 64 Tf 1 0 0 rg 56 640 Td (" + text("Ğ ğ İ Ş ş") + b") Tj ET\n"
+        b"BT /F1 64 Tf 0 0 1 rg 56 520 Td (" + text("Ç ç Ö ö Ü") + b") Tj ET\n"
+        b"BT /F1 16 Tf 0 0 0 rg 56 440 Td (" + text("Ağaç, işçi, İstanbul, Şişli, dağ başı") + b") Tj ET"
+    )
+    objects = [
+        b"<< /Type /Catalog /Pages 2 0 R >>",
+        b"<< /Type /Pages /Kids [3 0 R] /Count 1 >>",
+        b"<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Resources << /Font << /F1 4 0 R >> >> /Contents 6 0 R >>",
+        b"<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding 5 0 R >>",
+        b"<< /Type /Encoding /BaseEncoding /WinAnsiEncoding /Differences [128 /Gbreve /gbreve /Idotaccent /dotlessi "
+        b"/Scedilla /scedilla] >>",
+        b"<< /Length " + str(len(content)).encode() + b" >>\nstream\n" + content + b"\nendstream",
+    ]
+    write_pdf(path, objects)
+
+
 def write_pdf(path, objects):
     """A PDF of `objects` (object n is objects[n - 1], 1 the catalog) with a correct xref table."""
     out = bytearray(b"%PDF-1.4\n%\xe2\xe3\xcf\xd3\n")
@@ -900,6 +930,7 @@ def main(out, big=True):
     )
     make_pdf(p(sample("mo-smoke-pdf.pdf", "application/pdf")))
     shutil.copyfile(REPO / "rust/mo-pdf/testdata/jspdf-form.pdf", p(sample("mo-smoke-pdfform.pdf", "application/pdf")))
+    make_pdf_base14_turkish(p(sample("mo-smoke-pdf-base14.pdf", "application/pdf")))
     shutil.copyfile(REPO / "rust/mo-cad/tests/data/apartment.dxf", p(sample("mo-smoke-dxf.dxf", "image/vnd.dxf")))
     make_png(p(sample("mo-smoke-png.png", "image/png")))
     make_txt(p(sample("mo-smoke-txt.txt", "text/plain")))

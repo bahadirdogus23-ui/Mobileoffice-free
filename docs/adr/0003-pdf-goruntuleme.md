@@ -23,3 +23,8 @@ tutarlılık sorunu beklenmez.
 - Android 14 ve öncesinde PdfRenderer parolalı PDF açamaz → Faz 2'de PdfCraft ile çözülecek.
 - Metin seçme/arama PdfRenderer'da yalnız yeni sürümlerde var → Faz 2'de PdfCraft metin çıkarımı.
 - Eski cihazlarda gömülü PDFium sürümü eski kalabilir; sorun görülürse gömülü PDFium (bblanchon derlemeleri) değerlendirilir.
+- PdfRenderer (PDFium), gömülmemiş Helvetica/Times/Courier'yi kendi yerleşik Foxit yazı tipleriyle çizer; bunlarda
+  yalnız Adobe'nin 229 harflik standart Latin kümesi var. Eski Türkçe PDF'lerin `/Differences` ile adlandırdığı
+  Ğ ğ İ Ş ş (ve Orta Avrupa harfleri) boş kalıyordu. `mo-pdf` (`standin.rs`) böyle bir yazı tipini fark eder ve
+  ekranda gösterilen kopyaya aynı kodlar ve genişliklerle Liberation Sans/Serif'i (yoksa gömülü Source fontlarını)
+  gömer; kişinin dosyası değişmez (Kasım 2026, ilk mağaza ekran görüntülerinde görüldü).

@@ -1,6 +1,7 @@
 package org.mobileofficefree.app
 
 import android.content.Context
+import org.mobileofficefree.engine.registerPdfFonts
 import org.mobileofficefree.engine.registerSlideFonts
 import org.mobileofficefree.engine.registerWordFonts
 
@@ -19,6 +20,7 @@ object OfficeFonts {
 
     private var slides = false
     private var word = false
+    private var pdf = false
 
     /** Hands the fonts to the slide engine, the first time only. */
     @Synchronized
@@ -39,12 +41,25 @@ object OfficeFonts {
     }
 
     /**
+     * Hands Liberation Sans and Serif to the PDF engine, the first time only: it embeds them in the
+     * copy shown on screen for fonts a PDF names without embedding whose letters Android's renderer
+     * lacks (Ğ ğ İ Ş ş in old Turkish PDFs' Helvetica). Only called for such a file.
+     */
+    @Synchronized
+    fun forPdf(context: Context) {
+        if (pdf) return
+        pdf = true
+        val files = read(context) { it.startsWith("Liberation") } ?: return
+        Measurements.time("PDF: yazı tiplerini yükleme") { registerPdfFonts(files) }
+    }
+
+    /**
      * The `.ttf` assets, in name order; null when they cannot be read (the engines then keep their
      * compiled-in fonts: a document still opens).
      */
-    private fun read(context: Context): List<ByteArray>? = runCatching {
+    private fun read(context: Context, wanted: (String) -> Boolean = { true }): List<ByteArray>? = runCatching {
         val assets = context.applicationContext.assets
-        assets.list(DIR).orEmpty().filter { it.endsWith(".ttf") }.sorted().map { name ->
+        assets.list(DIR).orEmpty().filter { it.endsWith(".ttf") && wanted(it) }.sorted().map { name ->
             assets.open("$DIR/$name").use { it.readBytes() }
         }
     }.onFailure { Diagnostics.event("Yazı tipleri okunamadı: ${it.message}") }.getOrNull()

@@ -655,3 +655,92 @@ fn trailer_keywords_run_together_are_refused_quickly() {
     assert!(started.elapsed() < std::time::Duration::from_secs(2));
     assert!(PdfDoc::open(sound, None).is_ok());
 }
+
+/// A one-page PDF in non-embedded Helvetica with `encoding`, whose content shows codes
+/// 0x80-0x85: with [`TURKISH_DIFFERENCES`] (glyph names, as old Turkish PDFs and the store sample
+/// write them) it reads "Toplantı Tutanağı İş Şube".
+fn base14_turkish_pdf(encoding: &str) -> Vec<u8> {
+    let content: &[u8] = b"BT /F1 24 Tf 40 760 Td (Toplant\x83 Tutana\x81\x83 \x82\x85 \x84ube) Tj ET";
+    let objects: [Vec<u8>; 5] = [
+        b"<< /Type /Catalog /Pages 2 0 R >>".to_vec(),
+        b"<< /Type /Pages /Kids [3 0 R] /Count 1 >>".to_vec(),
+        b"<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Resources << /Font << /F1 4 0 R >> >> /Contents 5 0 R >>".to_vec(),
+        format!("<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding {encoding} >>").into_bytes(),
+        [format!("<< /Length {} >>\nstream\n", content.len()).as_bytes(), content, b"\nendstream"].concat(),
+    ];
+    let mut out = b"%PDF-1.4\n".to_vec();
+    let mut offsets = Vec::new();
+    for (i, o) in objects.iter().enumerate() {
+        offsets.push(out.len());
+        out.extend(format!("{} 0 obj\n", i + 1).bytes());
+        out.extend(o);
+        out.extend(b"\nendobj\n");
+    }
+    let xref = out.len();
+    out.extend(format!("xref\n0 {}\n0000000000 65535 f \n", objects.len() + 1).bytes());
+    for o in offsets {
+        out.extend(format!("{o:010} 00000 n \n").bytes());
+    }
+    out.extend(format!("trailer << /Size {} /Root 1 0 R >>\nstartxref\n{xref}\n%%EOF\n", objects.len() + 1).bytes());
+    out
+}
+
+const TURKISH_DIFFERENCES: &str =
+    "<< /Type /Encoding /BaseEncoding /WinAnsiEncoding /Differences [128 /Gbreve /gbreve /Idotaccent /dotlessi /Scedilla /scedilla] >>";
+
+#[test]
+fn shows_turkish_letters_of_non_embedded_standard_fonts_in_an_embedded_stand_in() {
+    let bytes = base14_turkish_pdf(TURKISH_DIFFERENCES);
+    let doc = reopened(bytes.clone());
+    assert!(doc.needs_stand_in_fonts());
+    let shown = doc.display_copy().unwrap();
+    // For looking at with another renderer (PDFium: scripts/make_smoke_samples.py has the sample).
+    if let Some(dir) = std::env::var_os("MO_PDF_STAND_IN_OUT") {
+        std::fs::write(std::path::Path::new(&dir).join("stand-in-original.pdf"), &bytes).unwrap();
+        std::fs::write(std::path::Path::new(&dir).join("stand-in-shown.pdf"), &shown).unwrap();
+    }
+    let mut copy = reopened(shown);
+    // The copy embeds a TrueType font with the same codes and Helvetica's widths, and reads the same.
+    assert!(!copy.needs_stand_in_fonts());
+    let font = copy.doc.get(pdfcraft_cos::ObjRef::new(4, 0));
+    let font = font.as_dict().unwrap();
+    assert_eq!(font.name(b"Subtype"), Some(&b"TrueType"[..]));
+    let widths = copy.doc.resolve(font.get(b"Widths").unwrap());
+    let widths = widths.as_array().unwrap();
+    assert_eq!(widths[usize::from(b'T')].as_int(), Some(611));
+    assert!(widths[0x81].as_int().is_some_and(|w| w > 400), "{:?}", widths[0x81]);
+    let text = copy.page_text(0).unwrap();
+    assert!(text.contains("Toplantı Tutanağı İş Şube"), "{text:?}");
+    // The document itself is not changed.
+    assert!(doc.needs_stand_in_fonts());
+    let saved = reopened(doc.save().unwrap());
+    assert_eq!(saved.doc.get(pdfcraft_cos::ObjRef::new(4, 0)).as_dict().unwrap().name(b"Subtype"), Some(&b"Type1"[..]));
+}
+
+#[test]
+fn stands_in_with_the_metric_compatible_fonts_the_app_ships() {
+    let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../android/app/src/main/assets/fonts");
+    let files: Vec<Vec<u8>> = ["LiberationSans-Regular.ttf", "LiberationSans-Bold.ttf", "LiberationSerif-Regular.ttf", "Carlito-Regular.ttf"]
+        .iter()
+        .filter_map(|f| std::fs::read(dir.join(f)).ok())
+        .collect();
+    assert_eq!(files.len(), 4, "fonts in {}", dir.display());
+    // Carlito is not taken; a second registration adds nothing.
+    let added = register_fonts(&files);
+    assert!(added <= 3);
+    assert_eq!(register_fonts(&files), 0);
+    let shown = reopened(reopened(base14_turkish_pdf(TURKISH_DIFFERENCES)).display_copy().unwrap());
+    let font = shown.doc.get(pdfcraft_cos::ObjRef::new(4, 0));
+    assert_eq!(font.as_dict().unwrap().name(b"BaseFont"), Some(&b"LiberationSans"[..]));
+}
+
+#[test]
+fn leaves_fonts_the_renderer_draws_alone() {
+    // ı and ç are in the renderer's built-in fonts; WinAnsi needs nothing.
+    for encoding in ["<< /Differences [131 /dotlessi 133 /ccedilla] >>", "/WinAnsiEncoding"] {
+        let doc = reopened(base14_turkish_pdf(encoding));
+        assert!(!doc.needs_stand_in_fonts(), "{encoding}");
+    }
+    // The spreadsheet writer, given no faces to embed (as here), names Ğ İ Ş by glyph too.
+    assert!(reopened(pdf(1, "İş Şube Ağ")).needs_stand_in_fonts());
+}

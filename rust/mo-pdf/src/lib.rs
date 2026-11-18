@@ -12,10 +12,12 @@ use pdfcraft_organize as organize;
 mod create;
 mod form;
 mod stamp;
+mod standin;
 mod text;
 pub use create::images_to_pdf;
 pub use form::{FieldKind, FormField};
 pub use stamp::TextFont;
+pub use standin::register_fonts;
 
 /// How typed text looks: `size` points, `font`, `color` 0–1 RGB.
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -452,20 +454,39 @@ impl PdfDoc {
     /// Android's renderer draws no annotations, so in this copy every comment, signature and form
     /// field with an appearance is drawn into its page (page by page: a page that cannot be is
     /// shown as it is).
+    ///
+    /// Fonts the file names without embedding whose letters Android's renderer would leave out
+    /// (Ğ ğ İ Ş ş named in old Turkish PDFs' Helvetica, see [`PdfDoc::needs_stand_in_fonts`]) get
+    /// an embedded stand-in with the same codes and widths in this copy.
     pub fn display_copy(&self) -> Result<Vec<u8>, PdfError> {
-        if !self.is_protected() && self.doc.security().is_none() && !self.has_drawn_annotations() {
+        let fonts = self.needs_stand_in_fonts();
+        let flatten = self.is_protected() || self.doc.security().is_some() || self.has_drawn_annotations();
+        if !flatten && !fonts {
             return self.save();
         }
         let mut copy = self.doc.clone();
         copy.remove_encryption();
-        let pages = annot::page_refs(&copy).map(|p| p.len()).unwrap_or(0);
-        for page in 0..pages {
-            let before = copy.clone();
-            if pdfcraft_edit::flatten(&mut copy, &[page], true, true).is_err() {
-                copy = before;
+        if flatten {
+            let pages = annot::page_refs(&copy).map(|p| p.len()).unwrap_or(0);
+            for page in 0..pages {
+                let before = copy.clone();
+                if pdfcraft_edit::flatten(&mut copy, &[page], true, true).is_err() {
+                    copy = before;
+                }
             }
         }
+        if fonts {
+            standin::embed(&mut copy);
+        }
         written(&copy)
+    }
+
+    /// Whether a page uses a font the file names without embedding whose letters Android's
+    /// renderer cannot draw: its built-in Helvetica, Times and Courier hold only the standard
+    /// Latin letters, so the Ğ ğ İ Ş ş an encoding names by glyph would be left out. The viewer
+    /// then shows [`PdfDoc::display_copy`].
+    pub fn needs_stand_in_fonts(&self) -> bool {
+        standin::needed(&self.doc)
     }
 
     /// Whether Android's renderer would leave something out: an annotation other than a link or
