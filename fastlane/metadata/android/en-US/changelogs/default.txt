@@ -1,7 +1,6 @@
-• Your data is safe: Word, Excel and slide files that open only in part are never saved over, and you are told what is missing
-• Excel sheets with more than 50,000 rows open whole
-• Much smoother panning and zooming in drawings (DWG/DXF); a memory warning for huge drawings
-• Faster, sturdier PDF engine; clear notes for damaged PDFs
-• .ppt and .odp presentations open
-• Screen reader (TalkBack) and large text support
-• Faster start-up
+• Office-compatible fonts: documents in Calibri, Cambria, Arial and Times look as they do in Office
+• Turkish letters ğ, ş, İ no longer vanish in older PDFs
+• Easier saving: Save in the top bar, Save as in the menu, a save prompt when closing
+• Redacting and editing large PDFs no longer runs out of memory
+• Turkish letters in drawings (DWG) match the drawing's lettering
+• Fill for groups and tables on slides; cleaner Turkish text recognition (OCR)

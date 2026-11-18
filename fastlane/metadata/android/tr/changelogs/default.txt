@@ -1,7 +1,6 @@
-• Verileriniz güvende: eksik açılan Word, Excel ve sunum dosyalarının üzerine kaydedilmez, ne eksik olduğu söylenir
-• 50 binden uzun satırlı Excel sayfaları eksiksiz açılır
-• Çizimlerde (DWG/DXF) çok daha akıcı kaydırma ve yakınlaştırma; büyük çizimlerde bellek uyarısı
-• Daha hızlı ve sağlam PDF motoru; bozuk PDF'ler için açık uyarılar
-• .ppt ve .odp sunumlar açılır
-• Ekran okuyucu (TalkBack) ve büyük yazı desteği
-• Daha hızlı açılış
+• Office uyumlu yazı tipleri: Calibri, Cambria, Arial ve Times yazılı belgeler Office'teki gibi görünür
+• Eski Türkçe PDF'lerde kaybolan ğ, ş, İ harfleri artık görünür
+• Kaydetme kolaylaştı: üst çubukta Kaydet, menüde Farklı kaydet, kapatırken kaydetme sorusu
+• Büyük PDF'lerde karartma ve düzenleme bellek hatası vermez
+• Çizimlerde (DWG) Türkçe harfler çizim yazısıyla aynı görünür
+• Slaytlarda grup ve tablo dolgusu; daha temiz Türkçe metin tanıma (OCR)
