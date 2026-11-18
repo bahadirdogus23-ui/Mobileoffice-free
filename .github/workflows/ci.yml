@@ -194,11 +194,15 @@ jobs:
   # the app's recovery copy, ends the app with `am force-stop` (like a crash) and reopens the file:
   # the copy must be offered, "Restore" must bring the edit back and "Discard" must delete it, and
   # the file itself must keep its bytes. Its cases stop at SMOKE_RECOVERY_TIME_LIMIT minutes.
+  # A last, cosmetic pass (summary section "Mağaza ekran görüntüleri") takes the Google Play phone
+  # screenshots in tr-TR and en-US (1080x1920, light theme, demo status bar) from the documents of
+  # scripts/make_store_samples.py; it never fails the job, and its PNGs are the "play-screenshots"
+  # artifact (docs/GOOGLE-PLAY.md). Its steps stop at SMOKE_SHOTS_TIME_LIMIT minutes.
   emulator-smoke:
     name: Release APK on an emulator
     needs: android
     runs-on: ubuntu-latest
-    timeout-minutes: 45
+    timeout-minutes: 50
     steps:
       - uses: actions/checkout@v4
       - uses: actions/download-artifact@v4
@@ -206,7 +210,9 @@ jobs:
           name: mobileoffice-release
           path: release
       - name: Make sample documents
-        run: python3 scripts/make_smoke_samples.py build/smoke-samples
+        run: |
+          python3 scripts/make_smoke_samples.py build/smoke-samples
+          python3 scripts/make_store_samples.py build/smoke-samples/store
       - name: Enable KVM
         run: |
           echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
@@ -215,12 +221,14 @@ jobs:
       - name: Open every format in the release APK
         uses: reactivecircus/android-emulator-runner@v2.38.0
         env:
-          # Minutes after the script starts; later second-pass steps are skipped (job timeout 45).
+          # Minutes after the script starts; later second-pass steps are skipped (job timeout 50).
           SMOKE_TIME_LIMIT: 34
           # The same for the save pass, which runs last.
           SMOKE_SAVE_TIME_LIMIT: 38
           # And for the recovery pass after it (about 4 min).
           SMOKE_RECOVERY_TIME_LIMIT: 40
+          # And for the Play screenshots, last and cosmetic (about 3 min; skipped when late).
+          SMOKE_SHOTS_TIME_LIMIT: 44
         with:
           api-level: 34
           target: google_apis
@@ -235,6 +243,12 @@ jobs:
         with:
           name: emulator-smoke-logs
           path: build/smoke-out
+          if-no-files-found: ignore
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: play-screenshots
+          path: build/smoke-out/play-screenshots
           if-no-files-found: ignore
 
   # Every green push replaces the APK on the "gelistirme" pre-release, so there is one fixed link:
@@ -286,3 +300,37 @@ jobs:
               --title "Geliştirme sürümü (test)" --notes "$notes"
           fi
           echo "https://github.com/$GH_REPO/releases/download/$TAG/MobileOffice-Free.apk" >> "$GITHUB_STEP_SUMMARY"
+
+  # The Play screenshots of the emulator job as play-screenshots.zip on the same pre-release. A job
+  # of its own, so the APKs above are published without waiting for the emulator (about 45 min) and
+  # whatever it does; it runs after them (the release must exist) and only adds or replaces the zip.
+  release-screenshots:
+    name: Publish Play screenshots
+    needs: [release, emulator-smoke]
+    if: ${{ !cancelled() && needs.release.result == 'success' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch') }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: ${{ github.repository }}
+      TAG: gelistirme
+    steps:
+      - uses: actions/download-artifact@v4
+        continue-on-error: true
+        with:
+          name: play-screenshots
+          path: play-screenshots
+      - name: Attach play-screenshots.zip to the pre-release
+        run: |
+          count=$(find play-screenshots -name '*.png' 2> /dev/null | wc -l)
+          if [ "$count" -eq 0 ]; then
+            echo "::warning title=Play screenshots::no screenshots from the emulator job; play-screenshots.zip not updated"
+            exit 0
+          fi
+          (cd play-screenshots && zip -q -r ../play-screenshots.zip .)
+          if ! gh release upload "$TAG" play-screenshots.zip --clobber; then
+            echo "::warning title=Play screenshots::could not attach play-screenshots.zip to the $TAG release"
+            exit 0
+          fi
+          echo "Play screenshots ($count): https://github.com/$GH_REPO/releases/download/$TAG/play-screenshots.zip" >> "$GITHUB_STEP_SUMMARY"

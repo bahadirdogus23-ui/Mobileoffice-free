@@ -70,7 +70,7 @@ yükleme anahtarı istenebilir ama zahmetlidir).
 | Uygulama adı | **Karar bekliyor** (ayırt edici yeni ad; aşağıya bakın) |
 | Kısa ve uzun açıklama (tr, en) | Hazır: `fastlane/metadata/android/` |
 | Simge 512×512, öne çıkan görsel 1024×500 (tr, en) | Hazır: `fastlane/metadata/android/<dil>/images/` |
-| Telefon ekran görüntüleri (en az 2, önerilen 4–8) | Telefonunuzdan çekilmeli (aşağıya bakın) |
+| Telefon ekran görüntüleri (en az 2, önerilen 4–8) | CI her derlemede otomatik çeker (tr, en; aşağıya bakın) |
 | Kategori | Verimlilik (Productivity) |
 | Gizlilik politikası adresi | `docs/GIZLILIK.md` (herkese açık bağlantısı verilecek) |
 | İletişim e-postası | bahadirdogus23@gmail.com |
@@ -97,19 +97,59 @@ Her yayından önce güncelleyin.
   Betik Node'daki Playwright'ın Chromium'unu ve yerel DejaVu Sans yazı tipini kullanır; internetten
   hiçbir şey indirmez. Slogan metinleri betiğin başındaki `LOCALES` tablosundadır.
 
-**Telefon ekran görüntüleri (siz):** Play en az 2 tane ister (önerilen 4–8); 9:16 (dikey) ya da
-16:9 oran önerilir, kenarlar 320–3840 piksel arası olmalı ve uzun kenar kısa kenarın en fazla 2
-katı olabilir; JPEG ya da saydamlıksız PNG. Yeni telefonların dikey görüntüleri (ör. 1080×2400,
-20:9) bu sınırı aşar: 1080×1920'ye (9:16) kırpın.
+### Telefon ekran görüntüleri (otomatik)
 
-1. Uygulamayı telefona kurun, örnek belgeler açın (kişisel bilgi içermeyen: ör. bir bütçe tablosu,
-   bir sunum, bir Word belgesi ve belge listesi). Bildirim çubuğunu sade tutun (saat, tam pil).
-2. Her ekranda **Güç + Ses kısma** tuşlarına birlikte basın; görüntüler Galeri → Ekran görüntüleri
-   klasörüne kaydedilir.
-3. Gerekirse Galeri'deki düzenleyiciyle 9:16 orana kırpın.
-4. Dosyaları `fastlane/metadata/android/tr/images/phoneScreenshots/` klasörüne `1.png`, `2.png`…
-   adlarıyla koyun (İngilizce arayüzle çekilenler `en-US/images/phoneScreenshots/` klasörüne) ya da
-   doğrudan Play Console'a yükleyin.
+Play en az 2 telefon ekran görüntüsü ister (önerilen 4–8); JPEG ya da saydamlıksız PNG, kenarlar
+320–3840 piksel arası, uzun kenar kısa kenarın en fazla 2 katı. CI bunları her derlemede
+emülatörde, küçültülmüş sürüm APK'sından kendisi çeker:
+
+- **Nerede:** emülatör işinin son geçişi (`scripts/emulator-smoke.sh`, özet bölümü “Mağaza ekran
+  görüntüleri”). Örnek belgeleri `scripts/make_store_samples.py` üretir: kısa bir faaliyet raporu
+  (başlık ve tablo, DOCX), bir ev bütçesi (XLSX), üç slaytlık bir satış sunumu (PPTX) ve tek
+  sayfalık bir toplantı tutanağı (PDF); Türkçe ekranlar için Türkçe, İngilizce ekranlar için
+  İngilizce içerik. İçerik uydurmadır (gerçek kişi, şirket ya da adres yok); dışarıdan yazı tipi
+  ya da görsel kullanılmaz.
+- **Nasıl:** ekran 1080×1920 (9:16) ve 420 dpi'ye, yazı boyutu 1.0'a, açık temaya alınır; durum
+  çubuğu Android'in tanıtım kipine (demo mode) geçer: saat 12:00, pil dolu, bildirim simgesi yok.
+  Her dil için uygulamanın verileri silinir (önceki testlerin “son açılanlar” listesi görünmesin),
+  uygulama dili `tr-TR` ya da `en-US` yapılır ve belgeler Documents klasörüne konur. Bitince
+  tanıtım kipi, ekran boyutu ve uygulama dili geri alınır.
+- **Hangi ekranlar** (fastlane'in sıralamasına uygun adlarla):
+  `01-home` (Belgeler / Documents ana ekranı), `02-word`, `03-sheet`, `04-slides`, `05-pdf` ve
+  ulaşılabilirse `06-pdf-annotate` (PDF'nin “Yaz ve çiz” araçları).
+- **Doğrulama durumu (18 Kasım 2026):** geçiş yerelde sahte bir `adb` ile denendi; gerçek
+  emülatördeki ilk görüntüler (boyut, demo kipi, belge görünümü) CI çıktısından gözle kontrol
+  edilmeli.
+- Bu geçiş yalnızca görünüş içindir: bir ekran çekilemezse iş **başarısız olmaz**, yalnızca uyarı
+  (⚠) verir. Ekran görüntüsü olmadan da APK yayımlanır.
+
+**Görüntüleri almak:**
+
+1. En kolayı: test sürümü sayfasındaki (`gelistirme`) **`play-screenshots.zip`** dosyası. Emülatör
+   işi bittikten sonra (APK'lardan yaklaşık 45 dakika sonra) eklenir ya da yenilenir:
+   `https://github.com/<sahip>/<depo>/releases/download/gelistirme/play-screenshots.zip`
+2. Ya da derlemenin (Actions → ilgili çalışma) “Artifacts” bölümündeki **`play-screenshots`**.
+
+Zip içinde `tr-TR/` ve `en-US/` klasörleri vardır, her birinde `01-home.png` … `06-pdf-annotate.png`.
+
+**fastlane klasörüne koymak** (depoda `tr` ve `en-US` klasörleri kullanılıyor):
+
+```sh
+unzip play-screenshots.zip -d /tmp/play
+mkdir -p fastlane/metadata/android/tr/images/phoneScreenshots fastlane/metadata/android/en-US/images/phoneScreenshots
+cp /tmp/play/tr-TR/*.png fastlane/metadata/android/tr/images/phoneScreenshots/
+cp /tmp/play/en-US/*.png fastlane/metadata/android/en-US/images/phoneScreenshots/
+```
+
+Göndermeden önce her görüntüye bakın: beğenmediğinizi silin (ör. `06-pdf-annotate.png`), en az 2
+tane kalsın. fastlane (`fastlane supply`) bu klasördeki görüntüleri ad sırasıyla yükler; ya da
+dosyaları doğrudan Play Console → Mağaza kaydı → Telefon ekran görüntüleri alanına sürükleyin.
+Görüntüler uygulama değiştikçe yeniden çekildiğinden depoya eklemek isteğe bağlıdır; ekleyecekseniz
+mağaza kaydını güncellediğiniz sürümün görüntülerini koyun.
+
+**Elle çekmek isterseniz:** telefonda kişisel bilgi içermeyen örnek belgeler açın, **Güç + Ses
+kısma** ile çekin, 9:16'ya kırpın (ör. 1080×2400 olan yeni telefon görüntüleri 2:1 sınırını aşar;
+1080×1920'ye kırpın) ve aynı klasörlere koyun.
 
 ## 5. Play Console formları (yanıtlar hazır)
 

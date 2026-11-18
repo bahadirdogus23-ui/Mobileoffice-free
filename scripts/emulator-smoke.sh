@@ -118,6 +118,19 @@
 # "BadoRecovery" log lines for the file are added to the detail. A UI path that cannot be found
 # is a SKIP, as in the save pass. Its own summary section.
 #
+# Last pass, "Mağaza ekran görüntüleri" (Google Play phone screenshots; cosmetic, never fails the
+# run, a problem is a warning): with SAMPLES_DIR/store from scripts/make_store_samples.py, the
+# display is set to 1080x1920 at 420 dpi (9:16, as Play recommends), the font scale to 1.0, the light
+# theme, and the status bar to System UI's demo mode (12:00, full battery, no notifications). For
+# each store language (tr-TR, en-US) the app's data is cleared (no recent files from the earlier
+# passes) and its locale set, that language's files are put in Documents (and the earlier
+# language's taken away), and `screencap` saves, in OUT_DIR/play-screenshots/<locale>/: 02-word,
+# 03-sheet, 04-slides, 05-pdf (each a cold start with a VIEW intent, once the document screen is
+# up), 06-pdf-annotate (the PDF's "Write & draw" tool, if it can be reached) and then 01-home (the
+# home screen listing those files). The names follow fastlane's phoneScreenshots order. Demo mode,
+# the display size and density and the app's locale are put back afterwards. Its notes go to
+# OUT_DIR/play-screenshots.tsv and its own summary section; its steps stop at SMOKE_SHOTS_TIME_LIMIT.
+#
 # Environment: SMOKE_OPEN_TIMEOUT (s, default 60) and SMOKE_BIG_OPEN_TIMEOUT (s, default 180, for
 # the samples marked "big" in samples.tsv), SMOKE_OPEN_BUDGET (s, default 15) and
 # SMOKE_BIG_OPEN_BUDGET (s, default 45), SMOKE_PSS_BUDGET_MB (default 768) (budgets are whole
@@ -131,7 +144,12 @@
 # fewer than 4 min are left), SMOKE_RECOVERY_PASS (1/0, default 1), SMOKE_RECOVERY_TIME_LIMIT (min
 # since the script started, default SMOKE_SAVE_TIME_LIMIT + 2: recovery cases that would start later
 # are skipped, and the whole pass when fewer than 3 min are left), SMOKE_RECOVERY_WAIT (s, default 7:
-# the least time between the edit and stopping the app).
+# the least time between the edit and stopping the app), SMOKE_SHOTS_PASS (1/0, default 1),
+# SMOKE_SHOTS_TIME_LIMIT (min since the script started, default SMOKE_RECOVERY_TIME_LIMIT + 4: the
+# whole pass is skipped when fewer than 3 min are left, later screenshots when it is reached),
+# SMOKE_SHOTS_LOCALES (default "tr-TR en-US"), SMOKE_SHOTS_SIZE (default 1080x1920),
+# SMOKE_SHOTS_DENSITY (default 420), SMOKE_SHOTS_SETTLE (s after a document is up, default 3),
+# SMOKE_SHOTS_OPEN_TIMEOUT (s, default 30).
 
 set -euo pipefail
 
@@ -165,6 +183,13 @@ SAVE_TIME_LIMIT=${SMOKE_SAVE_TIME_LIMIT:-$((TIME_LIMIT + 4))}
 RECOVERY_PASS=${SMOKE_RECOVERY_PASS:-1}
 RECOVERY_TIME_LIMIT=${SMOKE_RECOVERY_TIME_LIMIT:-$((SAVE_TIME_LIMIT + 2))}
 RECOVERY_WAIT=${SMOKE_RECOVERY_WAIT:-7}
+SHOTS_PASS=${SMOKE_SHOTS_PASS:-1}
+SHOTS_TIME_LIMIT=${SMOKE_SHOTS_TIME_LIMIT:-$((RECOVERY_TIME_LIMIT + 4))}
+SHOTS_LOCALES=${SMOKE_SHOTS_LOCALES:-tr-TR en-US}
+SHOTS_SIZE=${SMOKE_SHOTS_SIZE:-1080x1920}
+SHOTS_DENSITY=${SMOKE_SHOTS_DENSITY:-420}
+SHOTS_SETTLE=${SMOKE_SHOTS_SETTLE:-3}
+SHOTS_OPEN_TIMEOUT=${SMOKE_SHOTS_OPEN_TIMEOUT:-30}
 
 # What the app says on screen (English and Turkish, android/app/src/main/res/values*/strings.xml).
 FAILURE_TEXTS=(
@@ -213,6 +238,8 @@ DISCARD_LABELS=("Discard" "Sil")
 SEARCH_LABELS=("Search" "Ara")
 NO_MATCH_TEXTS=("None" "Yok")
 RECOVERY_LOG_TAG=BadoRecovery
+# The PDF screen's drawing tool (annotate), for the last store screenshot.
+ANNOTATE_LABELS=("Write & draw" "Yaz ve çiz")
 # What is typed: ASCII, as `input text` sends it; the cell gets a number.
 TYPED_WORD=Smoke42
 TYPED_NUMBER=4242
@@ -1999,6 +2026,218 @@ recovery_pass() {
     RECOVERY_ENDED=$(date +%s)
 }
 
+# --------------------------------------------------------------------------------------------
+# Last pass: Google Play phone screenshots ("Mağaza ekran görüntüleri"). Cosmetic: it runs in a
+# subshell whose errors are ignored, and a problem is a ::warning, never a failed step.
+
+SHOTS_STORE="$SAMPLES/store"
+SHOTS_DIR="$OUT/play-screenshots"
+# One line per screenshot: locale, name, OK/SKIP/FAIL, detail (finish() puts it in the summary).
+SHOTS_LOG="$OUT/play-screenshots.tsv"
+SHOTS_DEVICE_DIR=/sdcard/Documents
+SHOTS_URI_BASE=content://$PKG.files/storage/Documents
+SHOTS_STARTED=""
+SHOTS_ENDED=""
+
+# shot_note LOCALE NAME RESULT DETAIL
+shot_note() {
+    printf '%s\t%s\t%s\t%s\n' "$1" "$2" "$3" "$4" >> "$SHOTS_LOG"
+    log "screenshot $1/$2: $3 - $4"
+    [ "$3" = OK ] || echo "::warning title=Play screenshot $1/$2::$4"
+}
+
+shots_time_left() { [ $((($(date +%s) - RUN_STARTED) / 60)) -lt "$SHOTS_TIME_LIMIT" ]; }
+
+# A path quoted for the device's shell (adb shell joins its arguments into one command line).
+device_quote() { printf "'%s'" "${1//\'/\'\\\'\'}"; }
+
+# png_check FILE: prints "WIDTHxHEIGHT" of a PNG; status 1 if it is not one, 2 if Play would refuse
+# its size (each side 320-3840 px, the long side at most twice the short one).
+png_check() {
+    python3 - "$1" <<'PY'
+import struct, sys
+try:
+    head = open(sys.argv[1], "rb").read(24)
+except OSError:
+    sys.exit(1)
+if len(head) < 24 or head[:8] != b"\x89PNG\r\n\x1a\n" or head[12:16] != b"IHDR":
+    sys.exit(1)
+w, h = struct.unpack(">II", head[16:24])
+print(f"{w}x{h}")
+sys.exit(0 if 320 <= min(w, h) and max(w, h) <= 3840 and max(w, h) <= 2 * min(w, h) else 2)
+PY
+}
+
+# shot_capture LOCALE NAME: the screen as LOCALE/NAME.png.
+shot_capture() {
+    local file="$SHOTS_DIR/$1/$2.png" size status=0
+    timeout 30 adb exec-out screencap -p > "$file" 2> /dev/null < /dev/null || true
+    size=$(png_check "$file") || status=$?
+    case "$status" in
+        0) shot_note "$1" "$2" OK "$size" ;;
+        2) shot_note "$1" "$2" FAIL "$size is outside Play's limits (320-3840 px, at most 2:1); kept" ;;
+        *) rm -f "$file"; shot_note "$1" "$2" FAIL "screencap gave no PNG" ;;
+    esac
+}
+
+demo() { sh_adb am broadcast -a com.android.systemui.demo -e command "$@" > /dev/null 2>&1 || true; }
+
+# System UI's demo mode: a fixed clock, full battery and signal, no notification icons.
+demo_enter() {
+    sh_adb settings put global sysui_demo_allowed 1 || true
+    demo enter
+    demo clock -e hhmm 1200
+    demo battery -e level 100 -e plugged false -e powersave false
+    demo network -e wifi show -e level 4 -e fully true
+    demo network -e mobile show -e datatype none -e level 4 -e fully true
+    demo notifications -e visible false
+    demo status -e volume hide -e bluetooth hide -e location hide -e alarm hide -e sync hide -e mute hide -e speakerphone hide
+}
+
+# Puts back what shots_pass changed on the device (run in the main shell, whatever happened).
+shots_cleanup() {
+    log "screenshots: leaving demo mode, display size and density back, app locale follows the system"
+    demo exit
+    sh_adb settings put global sysui_demo_allowed 0 > /dev/null 2>&1 || true
+    sh_adb wm size reset > /dev/null 2>&1 || true
+    sh_adb wm density reset > /dev/null 2>&1 || true
+    sh_adb cmd locale set-app-locales "$PKG" > /dev/null 2>&1 || true
+    SHOTS_ENDED=$(date +%s)
+}
+
+# shot_document LOCALE NAME FILE MIME: cold start with FILE, then the screenshot once its document
+# screen (Back and the file name in the title bar) is up and has settled. Status 1 if it never was.
+shot_document() {
+    local locale=$1 shot=$2 name=$3 mime=$4 step="shot-$1-$2" uri base deadline notes=0 xml
+    xml="$OUT/$step.window.xml"
+    base="${name%.*}"
+    uri="$SHOTS_URI_BASE/$(uri_encode "$name")"
+    sh_adb am force-stop "$PKG" || true
+    sh_adb am start -W -a android.intent.action.VIEW -d "$uri" -t "$mime" -n "$ACTIVITY" > "$OUT/$step.am.txt" 2>&1 || true
+    deadline=$(($(date +%s) + SHOTS_OPEN_TIMEOUT))
+    while :; do
+        if ui_dump "$xml"; then
+            if ui_query "$xml" contains "${FAILURE_TEXTS[@]}"; then
+                shot_note "$locale" "$shot" FAIL "the app reported a problem opening $name: $(ui_query "$xml" show "${FAILURE_TEXTS[@]}" | head -1)"
+                return 1
+            fi
+            if [ "$notes" = 0 ] && ui_query "$xml" exact "${IMPORT_NOTES[@]}"; then
+                sh_adb input keyevent KEYCODE_BACK || true
+                notes=1
+                sleep 1
+                continue
+            fi
+            if ui_query "$xml" exact "${BACK_LABELS[@]}" && ui_query "$xml" title "$base" "$name"; then break; fi
+        fi
+        if [ "$(date +%s)" -ge "$deadline" ]; then
+            shot_note "$locale" "$shot" FAIL "no document screen for $name within $SHOTS_OPEN_TIMEOUT s (on screen: $(ui_labels "$xml"))"
+            return 1
+        fi
+        sleep 1
+    done
+    sleep "$SHOTS_SETTLE"
+    shot_capture "$locale" "$shot"
+}
+
+# shot_home LOCALE FIRST_NAME: cold start of the home screen; the screenshot once it shows the
+# language's own texts and FIRST_NAME in its list (or after 30 s, with a note).
+shot_home() {
+    local locale=$1 first="${2%.*}" step="shot-$1-01-home" xml deadline labels=("${HOME_EN[@]}") seen=0
+    xml="$OUT/$step.window.xml"
+    [ "${locale%%-*}" = tr ] && labels=("${HOME_TR[@]}")
+    sh_adb am force-stop "$PKG" || true
+    sh_adb am start -W -n "$ACTIVITY" > "$OUT/$step.am.txt" 2>&1 || true
+    deadline=$(($(date +%s) + 30))
+    while [ "$(date +%s)" -lt "$deadline" ]; do
+        sleep 1
+        if ui_dump "$xml" && ui_query "$xml" contains "${labels[@]}" && ui_query "$xml" contains "$first"; then
+            seen=1
+            break
+        fi
+    done
+    sleep 2
+    shot_capture "$locale" 01-home
+    [ "$seen" = 1 ] || shot_note "$locale" 01-home SKIP "taken without seeing the language's home texts and \"$first\" in the list (on screen: $(ui_labels "$xml"))"
+}
+
+# shots_locale LOCALE: every screenshot of one store language.
+shots_locale() {
+    local locale=$1 list="$SHOTS_STORE/shots.tsv" row_locale shot name mime first="" pushed=()
+    mkdir -p "$SHOTS_DIR/$locale"
+    # Only this language's files on the device: the home screen lists everything in shared storage.
+    while IFS=$'\t' read -r row_locale _ name _ <&3; do
+        sh_adb "rm -f $(device_quote "$SHOTS_DEVICE_DIR/$name")" > /dev/null 2>&1 || true
+        if [ "$row_locale" = "$locale" ]; then
+            timeout 60 adb push "$SHOTS_STORE/$row_locale/$name" "$SHOTS_DEVICE_DIR/$name" > /dev/null 2>&1 < /dev/null &&
+                pushed+=("$name")
+        fi
+    done 3< "$list"
+    log "screenshots $locale: ${#pushed[@]} files in $SHOTS_DEVICE_DIR"
+    # No recent files or settings from the earlier passes; the language is the app's own.
+    sh_adb pm clear "$PKG" > /dev/null 2>&1 || true
+    sh_adb appops set "$PKG" MANAGE_EXTERNAL_STORAGE allow || true
+    sh_adb cmd locale set-app-locales "$PKG" --locales "$locale" || true
+    sleep 2
+    demo_enter
+    while IFS=$'\t' read -r row_locale shot name mime <&3; do
+        [ "$row_locale" = "$locale" ] && [ "$shot" != "-" ] || continue
+        [ -n "$first" ] || first=$name
+        if ! shots_time_left; then
+            shot_note "$locale" "$shot" SKIP "the run reached its $SHOTS_TIME_LIMIT min limit"
+            continue
+        fi
+        if shot_document "$locale" "$shot" "$name" "$mime" && [ "$shot" = 05-pdf ]; then
+            # The PDF stays open: its drawing tools are the optional sixth screenshot.
+            if pdf_tool "shot-$locale-06-pdf-annotate" "${ANNOTATE_LABELS[@]}"; then
+                sleep 2
+                shot_capture "$locale" 06-pdf-annotate
+            else
+                shot_note "$locale" 06-pdf-annotate SKIP "no \"${ANNOTATE_LABELS[0]}\" tool found on the PDF screen"
+            fi
+        fi
+    done 3< "$list"
+    if shots_time_left; then
+        shot_home "$locale" "$first"
+    else
+        shot_note "$locale" 01-home SKIP "the run reached its $SHOTS_TIME_LIMIT min limit"
+    fi
+    sh_adb am force-stop "$PKG" || true
+}
+
+shots_pass() {
+    local elapsed locale
+    : > "$SHOTS_LOG"
+    if [ ! -s "$SHOTS_STORE/shots.tsv" ]; then
+        shot_note all setup SKIP "no store/shots.tsv in $SAMPLES (run scripts/make_store_samples.py $SAMPLES/store)"
+        return 0
+    fi
+    elapsed=$((($(date +%s) - RUN_STARTED) / 60))
+    if [ "$elapsed" -ge $((SHOTS_TIME_LIMIT - 3)) ]; then
+        shot_note all setup SKIP "the earlier passes took $elapsed min, too close to the $SHOTS_TIME_LIMIT min limit"
+        return 0
+    fi
+    log "screenshots: $SHOTS_LOCALES at $SHOTS_SIZE, $SHOTS_DENSITY dpi, font scale 1.0, light theme, demo status bar"
+    mkdir -p "$SHOTS_DIR"
+    sh_adb am force-stop "$PKG" || true
+    # A form saved by the save pass ("…-duzenlendi.pdf" in Download) would be on the home screen.
+    sh_adb "find /storage/emulated/0/ -type f -name '*-duzenlendi*' -not -path '*/.*' -delete" > /dev/null 2>&1 || true
+    sh_adb mkdir -p "$SHOTS_DEVICE_DIR" || true
+    sh_adb settings put system font_scale 1.0 || true
+    sh_adb cmd uimode night no > /dev/null || true
+    sh_adb wm size "$SHOTS_SIZE" || true
+    sh_adb wm density "$SHOTS_DENSITY" || true
+    # System UI redraws for the new size and density before demo mode is set.
+    sleep 4
+    for locale in $SHOTS_LOCALES; do
+        shots_locale "$locale"
+    done
+    # The last language's files are taken away again.
+    while IFS=$'\t' read -r _ _ name _ <&3; do
+        sh_adb "rm -f $(device_quote "$SHOTS_DEVICE_DIR/$name")" > /dev/null 2>&1 || true
+    done 3< "$SHOTS_STORE/shots.tsv"
+    log "screenshots: $(find "$SHOTS_DIR" -name '*.png' | wc -l) saved in $SHOTS_DIR"
+}
+
 finish() {
     local status=$?
     [ -n "${LOGCAT_PID:-}" ] && kill "$LOGCAT_PID" 2> /dev/null || true
@@ -2064,6 +2303,19 @@ finish() {
                 "viewer's search finds the typed word). *discard-*: \"Discard\" must show the file as it is and the next" \
                 "open must offer nothing. Every case: the opened file keeps its bytes and nothing appears next to it." \
                 "Pass: $(((${RECOVERY_ENDED:-$(date +%s)} - ${RECOVERY_STARTED:-$(date +%s)}) / 60)) min."
+        fi
+        if [ -s "$SHOTS_LOG" ]; then
+            echo
+            echo "### Mağaza ekran görüntüleri"
+            echo
+            echo "| Locale | Screenshot | Result | Detail |"
+            echo "|---|---|---|---|"
+            awk -F '\t' '{ gsub(/\|/, "\\|", $4); printf "| %s | %s | %s | %s |\n", $1, $2, $3, $4 }' "$SHOTS_LOG"
+            echo
+            echo "Google Play phone screenshots (cosmetic: problems are warnings, never a failure), in the logs" \
+                "artifact and the *play-screenshots* artifact as play-screenshots/<locale>/NN-name.png;" \
+                "see docs/GOOGLE-PLAY.md. $(find "$SHOTS_DIR" -name '*.png' 2> /dev/null | wc -l) saved." \
+                "Pass: $(((${SHOTS_ENDED:-$(date +%s)} - ${SHOTS_STARTED:-$(date +%s)}) / 60)) min."
         fi
     } > "$OUT/summary.md"
     cat "$OUT/summary.md"
@@ -2143,6 +2395,14 @@ fi
 # After saving, still in English: it leaves recovery copies in the app's own folder.
 if [ "$RECOVERY_PASS" = 1 ]; then
     recovery_pass
+fi
+
+# Last and cosmetic: the Google Play screenshots. A subshell on the left of `||` runs without
+# errexit, and nothing in it touches FAILED: whatever happens there, the run's result stays the same.
+if [ "$SHOTS_PASS" = 1 ]; then
+    SHOTS_STARTED=$(date +%s)
+    (shots_pass) || echo "::warning title=Play screenshots::the screenshot pass stopped early (status $?)"
+    shots_cleanup
 fi
 
 if [ "$FAILED" -gt 0 ]; then
