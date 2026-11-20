@@ -1304,6 +1304,7 @@ fun PagedScreen(vm: PagedViewModel, state: PagedUiState, reading: ReadingSetting
             onSave = {
                 vm.answerClose(null)
                 if (slides != null) startSlidesSave(true) else startWordSave(true)
+                Unit
             }.takeIf { inPlace },
             blockedReason = when {
                 slides != null -> slides.inPlaceBlock
