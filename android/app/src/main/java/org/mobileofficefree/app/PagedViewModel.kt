@@ -178,6 +178,15 @@ abstract class PagedViewModel(app: Application, private val kind: DocumentKind) 
         state?.uri?.let(recovery::clear)
     }
 
+    /**
+     * After "Save as" wrote the whole document into the new file [uri] named [name] (in a format
+     * the next "Save" writes over): the session goes on in it, as in Office. Call on the main thread.
+     */
+    protected fun continueIn(uri: Uri, name: String, size: Long) {
+        state = state?.copy(uri = uri, fileName = name)
+        viewModelScope.launch(Dispatchers.IO) { recents.remember(uri, name, kind, size) }
+    }
+
     /** After an edit changed the pages: show the new ones. Call on the main thread. */
     protected fun pagesChanged(pages: List<Pair<Float, Float>>) {
         state = state?.copy(pages = pages)

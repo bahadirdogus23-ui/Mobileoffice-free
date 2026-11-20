@@ -6,7 +6,7 @@ mod edit;
 mod fonts;
 mod odp;
 mod ppt;
-pub use edit::{ObjectKind, ObjectStyle, SlideObject, TextShape};
+pub use edit::{ObjectKind, ObjectStyle, SlideObject, TABLE_STYLES, TableStyleChoice, TextShape};
 
 use deckcraft_model::Presentation;
 use deckcraft_render::RenderOpts;
@@ -251,6 +251,17 @@ impl DeckDoc {
         Ok(())
     }
 
+    /// The table styles offered for tables on `slide`, with their colours in its theme.
+    pub fn table_style_choices(&self, slide: u32) -> Result<Vec<TableStyleChoice>, DeckError> {
+        edit::table_style_choices(&self.pres, slide as usize)
+    }
+
+    /// Gives table `id` on `slide` table style `style` (an id from [`TABLE_STYLES`]), header row
+    /// and banded rows on.
+    pub fn set_table_style(&mut self, slide: u32, id: u32, style: &str) -> Result<(), DeckError> {
+        self.change(|p| edit::set_table_style(p, slide as usize, id, style))
+    }
+
     /// Whether object `id`'s text starts bold.
     pub fn text_is_bold(&self, slide: u32, id: u32) -> bool {
         edit::text_is_bold(&self.pres, slide as usize, id)
@@ -298,7 +309,9 @@ impl DeckDoc {
     /// The presentation as PPTX bytes (`file_name`'s extension may also be ppsx or potx).
     pub fn save(&mut self, file_name: &str) -> Result<Vec<u8>, DeckError> {
         let ext = file_name.rsplit('.').next().unwrap_or("pptx").to_ascii_lowercase();
-        let bytes = deckcraft_pptx::export_as(&self.pres, &ext).map_err(|e| DeckError::Export(e.to_string()))?;
+        // Office's built-in table styles are written by their GUIDs (see `edit::TABLE_STYLES`).
+        let office = edit::with_office_table_styles(&self.pres);
+        let bytes = deckcraft_pptx::export_as(office.as_ref().unwrap_or(&self.pres), &ext).map_err(|e| DeckError::Export(e.to_string()))?;
         self.dirty = false;
         Ok(bytes)
     }

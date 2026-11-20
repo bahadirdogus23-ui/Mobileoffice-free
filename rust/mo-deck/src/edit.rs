@@ -466,6 +466,125 @@ fn fill_shape(shape: &mut deckcraft_model::Shape, fill: &deckcraft_model::Fill) 
     }
 }
 
+/// The table styles the app offers, with the GUIDs Office gives them: PowerPoint's built-in
+/// "Medium Style 2" (a header row in the colour, banded rows in its light tints, white lines) in
+/// the theme's six accent colours and its dark text colour. DeckCraft draws each from the theme
+/// under its own id; PowerPoint, LibreOffice and DeckCraft itself know the GUIDs without a
+/// definition in `tableStyles.xml` (DeckCraft's `pptx/src/tables.rs` maps them back on reading).
+pub const TABLE_STYLES: [(&str, &str); 7] = [
+    ("medium2-accent1", "{5C22544A-7EE6-4342-B048-85BDC9FD1C3A}"),
+    ("medium2-accent2", "{21E4AEA4-8DFA-4A89-87EB-49C32662AFE8}"),
+    ("medium2-accent3", "{F5AB1C69-6EDB-4FF4-983F-18BD219EF322}"),
+    ("medium2-accent4", "{00A15C55-8517-42AA-B614-E9B94910E393}"),
+    ("medium2-accent5", "{7DF18680-E054-41AD-8BC1-D1AEF772440D}"),
+    ("medium2-accent6", "{93296810-A885-4BE3-A3E7-6D5BEEA58F35}"),
+    ("medium2-tx1", "{073A0DAA-6AF3-43AB-8588-CEC1D06C72B9}"),
+];
+
+/// One of [`TABLE_STYLES`] and the colour it is made from in the slide's theme (0xRRGGBB), for a
+/// swatch in the picker.
+#[derive(Debug, Clone, PartialEq)]
+pub struct TableStyleChoice {
+    pub id: String,
+    pub color: u32,
+}
+
+/// [`TABLE_STYLES`] with their colours in the theme of slide `index`.
+pub fn table_style_choices(pres: &Presentation, index: usize) -> Result<Vec<TableStyleChoice>, DeckError> {
+    use deckcraft_model::SchemeSlot;
+    let slide = pres.slides.get(index).ok_or(DeckError::NoSlide(index as u32))?;
+    let theme = pres.master_for(slide).map(|(m, _)| &m.theme.colors);
+    Ok(TABLE_STYLES
+        .iter()
+        .map(|(id, _)| {
+            let slot = match id.rsplit('-').next() {
+                Some("accent2") => SchemeSlot::Accent2,
+                Some("accent3") => SchemeSlot::Accent3,
+                Some("accent4") => SchemeSlot::Accent4,
+                Some("accent5") => SchemeSlot::Accent5,
+                Some("accent6") => SchemeSlot::Accent6,
+                Some("tx1") => SchemeSlot::Dk1,
+                _ => SchemeSlot::Accent1,
+            };
+            let c = theme.map(|t| t.get(slot)).unwrap_or(deckcraft_model::Rgba::BLACK);
+            TableStyleChoice { id: id.to_string(), color: (c.r as u32) << 16 | (c.g as u32) << 8 | c.b as u32 }
+        })
+        .collect())
+}
+
+/// Gives table `id` on slide `index` table style `style` (one of [`TABLE_STYLES`]) with its
+/// header row and banded rows on, as PowerPoint's Table Design does. Cell fills of the table's
+/// own (from the file or from Fill) would cover the style, so they are taken off.
+pub fn set_table_style(pres: &mut Presentation, index: usize, id: u32, style: &str) -> Result<(), DeckError> {
+    if !TABLE_STYLES.iter().any(|(s, _)| *s == style) {
+        return Err(edit_err("no such table style"));
+    }
+    let slide = Arc::make_mut(pres.slides.get_mut(index).ok_or(DeckError::NoSlide(index as u32))?);
+    let shape = find_shape_mut(&mut slide.shapes, id).ok_or_else(|| edit_err("no such object"))?;
+    let ShapeKind::Table(t) = &mut shape.kind else { return Err(edit_err("this object is not a table")) };
+    t.style = style.to_string();
+    t.first_row = true;
+    t.band_row = true;
+    for cell in t.rows.iter_mut().flat_map(|r| r.cells.iter_mut()) {
+        cell.fill = None;
+    }
+    Ok(())
+}
+
+/// Shape `id` among `shapes`, also inside groups.
+fn find_shape_mut(shapes: &mut [Shape], id: u32) -> Option<&mut Shape> {
+    for s in shapes.iter_mut() {
+        if s.id.0 == id {
+            return Some(s);
+        }
+        if let ShapeKind::Group { children, .. } = &mut s.kind
+            && let Some(found) = find_shape_mut(children, id)
+        {
+            return Some(found);
+        }
+    }
+    None
+}
+
+/// `pres` with every table in one of [`TABLE_STYLES`] naming it by Office's GUID, for writing:
+/// DeckCraft's writer would otherwise give all but the first a style of its own, defined in
+/// `tableStyles.xml` under its own name. None when no table needs it.
+pub fn with_office_table_styles(pres: &Presentation) -> Option<Presentation> {
+    fn guid(style: &str) -> Option<&'static str> {
+        TABLE_STYLES.iter().find(|(s, _)| *s == style).map(|(_, g)| *g)
+    }
+    fn needs(shapes: &[Shape]) -> bool {
+        shapes.iter().any(|s| match &s.kind {
+            ShapeKind::Table(t) => guid(&t.style).is_some(),
+            ShapeKind::Group { children, .. } => needs(children),
+            _ => false,
+        })
+    }
+    fn map(shapes: &mut [Shape]) {
+        for s in shapes.iter_mut() {
+            match &mut s.kind {
+                ShapeKind::Table(t) => {
+                    if let Some(g) = guid(&t.style) {
+                        t.style = g.to_string();
+                    }
+                }
+                ShapeKind::Group { children, .. } => map(children),
+                _ => {}
+            }
+        }
+    }
+    if !pres.slides.iter().any(|s| needs(&s.shapes)) {
+        return None;
+    }
+    let mut out = pres.clone();
+    for slide in out.slides.iter_mut() {
+        if needs(&slide.shapes) {
+            map(&mut Arc::make_mut(slide).shapes);
+        }
+    }
+    Some(out)
+}
+
 /// Whether the first letter of object `id`'s text is bold (as shown).
 pub fn text_is_bold(pres: &Presentation, index: usize, id: u32) -> bool {
     let Some(slide) = pres.slides.get(index) else { return false };

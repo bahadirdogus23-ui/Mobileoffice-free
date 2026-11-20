@@ -355,7 +355,12 @@ object Diagnostics {
         }
         appendLine("Çalışma süresi: ${SystemClock.elapsedRealtime() / 60_000} dk (telefon)")
         val apk = File(context.packageCodePath)
-        appendLine("APK: ${mb(apk.length())}")
+        // The kind of build and the size in CI's decimal megabytes too: a debug APK (the main test
+        // download) is ~12 MB larger than a release one (not minified), which once read as growth
+        // (docs/BOYUT.md, 20 November).
+        val debuggable = (context.applicationInfo.flags and android.content.pm.ApplicationInfo.FLAG_DEBUGGABLE) != 0
+        val build = if (debuggable) "hata ayıklama derlemesi (debug)" else "yayın derlemesi (release)"
+        appendLine("APK: ${mb(apk.length())} (= ${"%.1f".format(java.util.Locale.ROOT, apk.length() / 1e6)} milyon bayt) · $build")
         nativeLibrarySize(context)?.let { appendLine("Motor kitaplığı (libmo_ffi.so): ${mb(it)}") }
         val rt = Runtime.getRuntime()
         appendLine("Java belleği: ${mb(rt.totalMemory() - rt.freeMemory())} / ${mb(rt.maxMemory())}")

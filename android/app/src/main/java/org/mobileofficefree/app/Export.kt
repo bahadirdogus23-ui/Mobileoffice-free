@@ -3,6 +3,7 @@ package org.mobileofficefree.app
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
+import android.provider.DocumentsContract
 import androidx.activity.result.contract.ActivityResultContract
 
 /** A format a document can be converted to: its extension, MIME type and menu label. */
@@ -41,13 +42,22 @@ val TEXT_FORMATS = listOf(
  * conversion picks its own.)
  */
 class CreateFile : ActivityResultContract<CreateFile.Request, Uri?>() {
-    data class Request(val name: String, val mime: String)
+    /** [near]: a file whose folder the picker should open in, when its provider says where that is. */
+    data class Request(val name: String, val mime: String, val near: Uri? = null)
 
     override fun createIntent(context: Context, input: Request): Intent =
         Intent(Intent.ACTION_CREATE_DOCUMENT)
             .addCategory(Intent.CATEGORY_OPENABLE)
             .setType(input.mime)
             .putExtra(Intent.EXTRA_TITLE, input.name)
+            .apply {
+                // Only a storage document has a folder the picker knows; other addresses (a share,
+                // the app's own provider) are left out and the picker opens where it last was.
+                val near = input.near
+                if (near != null && runCatching { DocumentsContract.isDocumentUri(context, near) }.getOrDefault(false)) {
+                    putExtra(DocumentsContract.EXTRA_INITIAL_URI, near)
+                }
+            }
 
     override fun parseResult(resultCode: Int, intent: Intent?): Uri? = intent?.data
 }

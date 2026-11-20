@@ -7,6 +7,8 @@ import androidx.compose.ui.semantics.Role
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -18,17 +20,20 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import org.mobileofficefree.engine.SlideObjectKind
 import org.mobileofficefree.engine.SlideStyle
+import org.mobileofficefree.engine.SlideTableStyle
 
 /** What can be done to a picked slide object: its text's look, its box, its place among the others. */
 @Composable
@@ -40,6 +45,7 @@ fun SlideObjectBar(vm: SlidesViewModel) {
     var alignMenu by remember { mutableStateOf(false) }
     var arrangeMenu by remember { mutableStateOf(false) }
     var fontMenu by remember { mutableStateOf(false) }
+    var tableStyleMenu by remember { mutableStateOf(false) }
     Row(Modifier.horizontalScroll(rememberScrollState())) {
         TextButton(onClick = vm::undo, enabled = vm.canUndo, modifier = Modifier.described(stringResource(R.string.undo))) { Text("↶") }
         if (vm.pickedHasText) TextButton(onClick = vm::editPickedText) { Text(stringResource(R.string.slide_edit_text)) }
@@ -77,6 +83,19 @@ fun SlideObjectBar(vm: SlidesViewModel) {
                             alignMenu = false
                             vm.stylePicked(SlideStyle.Align(i.toUByte()))
                         })
+                    }
+                }
+            }
+        }
+        if (o.kind == SlideObjectKind.TABLE) {
+            Box {
+                TextButton(onClick = { tableStyleMenu = true }) { Text(stringResource(R.string.slide_table_style)) }
+                DropdownMenu(expanded = tableStyleMenu, onDismissRequest = { tableStyleMenu = false }) {
+                    var styles by remember { mutableStateOf<List<SlideTableStyle>>(emptyList()) }
+                    LaunchedEffect(o.id) { styles = vm.pickedTableStyles() }
+                    TableStyleGrid(styles) {
+                        tableStyleMenu = false
+                        vm.tableStylePicked(it)
                     }
                 }
             }
@@ -123,6 +142,33 @@ fun SlideObjectBar(vm: SlidesViewModel) {
         }
         TextButton(onClick = vm::deletePicked) { Text(stringResource(R.string.delete)) }
         TextButton(onClick = vm::dropPick) { Text(stringResource(R.string.done)) }
+    }
+}
+
+/**
+ * Table styles as small tables, in rows of four: a header row in the style's colour over banded
+ * rows in its light tints, as the engine draws them (PowerPoint's Medium Style 2).
+ */
+@Composable
+private fun TableStyleGrid(styles: List<SlideTableStyle>, onPick: (String) -> Unit) {
+    styles.chunked(4).forEachIndexed { r, row ->
+        Row(Modifier.padding(horizontal = 12.dp, vertical = 4.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            row.forEachIndexed { c, style ->
+                val base = Color(0xFF000000.toInt() or style.color.toInt())
+                Column(
+                    Modifier
+                        .size(width = 48.dp, height = 36.dp)
+                        .border(1.dp, MaterialTheme.colorScheme.outlineVariant)
+                        .clickable(role = Role.Button) { onPick(style.id) }
+                        .described(stringResource(R.string.a11y_table_style_n, r * 4 + c + 1)),
+                ) {
+                    Box(Modifier.fillMaxWidth().weight(1f).background(base))
+                    Box(Modifier.fillMaxWidth().weight(1f).background(lerp(base, Color.White, 0.6f)))
+                    Box(Modifier.fillMaxWidth().weight(1f).background(lerp(base, Color.White, 0.8f)))
+                    Box(Modifier.fillMaxWidth().weight(1f).background(lerp(base, Color.White, 0.6f)))
+                }
+            }
+        }
     }
 }
 

@@ -20,8 +20,8 @@ import org.mobileofficefree.engine.SlidesDocument
 /** Presentations (PPTX, PPSX, POTX) drawn by the DeckCraft renderer, one slide per page. */
 class SlidesViewModel(app: Application) : PagedViewModel(app, DocumentKind.SLIDES) {
     private var doc: SlidesDocument? = null
-    private var source: Uri? = null
-    private var fileName = ""
+    @Volatile private var source: Uri? = null
+    @Volatile private var fileName = ""
     /**
      * Opening left out something the file holds (a slide, master or picture DeckCraft could not
      * read): saving over [source] would delete it, so only "Save as" is offered.
@@ -55,6 +55,19 @@ class SlidesViewModel(app: Application) : PagedViewModel(app, DocumentKind.SLIDE
                 else -> null
             }
         }
+
+    /**
+     * The opened file's extension ("ppt", "odp") when DeckCraft cannot write it back in that
+     * format: "Save" first explains that a new .pptx copy is made and the original stays as it is.
+     */
+    val convertsOnSave: String?
+        get() = fileName.substringAfterLast('.', "").lowercase(Locale.ROOT).takeIf { source != null && !isPowerPoint(fileName) }
+
+    /** Opening left something out: said again when "Save" makes a new copy. */
+    val isIncomplete: Boolean get() = incomplete
+
+    /** The opened file: "Save as" opens in its folder where it can. */
+    val openedUri: Uri? get() = source
 
     private fun isPowerPoint(name: String) = name.substringAfterLast('.', "").lowercase(Locale.ROOT) in setOf("pptx", "ppsx", "potx")
 
@@ -263,6 +276,16 @@ class SlidesViewModel(app: Application) : PagedViewModel(app, DocumentKind.SLIDE
     /** Changes the look of the picked object's text or box. */
     fun stylePicked(style: org.mobileofficefree.engine.SlideStyle) = restyle { d, slide, id -> d.styleObject(slide, id, style) }
 
+    /** The table styles offered for the picked object's slide, with their theme colours (empty when none). */
+    suspend fun pickedTableStyles(): List<org.mobileofficefree.engine.SlideTableStyle> {
+        val slide = picked?.first ?: return emptyList()
+        val d = doc ?: return emptyList()
+        return withContext(engine) { runCatching { d.tableStyles(slide.toUInt()) }.getOrDefault(emptyList()) }
+    }
+
+    /** Gives the picked table the table style [id] (header row and banded rows on): an engine command, saved into the PPTX. */
+    fun tableStylePicked(id: String) = restyle { d, slide, o -> d.setTableStyle(slide, o, id) }
+
     private fun restyle(op: (SlidesDocument, UInt, UInt) -> Unit) {
         val (slide, o) = picked ?: return
         change(slide) {
@@ -398,16 +421,36 @@ class SlidesViewModel(app: Application) : PagedViewModel(app, DocumentKind.SLIDE
                     Diagnostics.event("Sunu kaydedildi: ${bytes.size / 1024} KB")
                     app.contentResolver.openOutputStream(dest, "wt")?.use { it.write(bytes) } ?: error("cannot write")
                     android.util.Log.i(SAVE_LOG_TAG, "Slides save written: $name, ${bytes.size} bytes")
+                    newOpenedFile(dest, name, bytes.size.toLong())
                 }
             }
             result.exceptionOrNull()?.let { android.util.Log.w(SAVE_LOG_TAG, "Slides save failed: $name", it) }
             if (result.isSuccess) {
                 dirty = false
                 savedCleanly()
+                result.getOrNull()?.let { (shown, size) -> continueIn(dest, shown, size) }
                 then()
             }
             tell(result.fold(onSuccess = { app.getString(R.string.saved) }, onFailure = { app.getString(R.string.save_failed, it.message ?: "") }))
         }
+    }
+
+    /**
+     * Runs on the engine thread after [name] was written whole into [dest]. A new PPTX/PPSX/POTX
+     * (its shown name keeps the extension [name] was written as) becomes the opened file, so the
+     * next "Save" writes over it; returns its shown name and size, else null.
+     */
+    private fun newOpenedFile(dest: Uri, name: String, size: Long): Pair<String, Long>? {
+        val app = getApplication<Application>()
+        if (dest == source || ArchiveFiles.isCacheCopy(app, dest)) return null
+        val ext = name.substringAfterLast('.', "").lowercase(Locale.ROOT)
+        val shown = runCatching { FileInfo.of(app.contentResolver, dest).name }.getOrNull() ?: return null
+        if (!isPowerPoint(name) || shown.substringAfterLast('.', "").lowercase(Locale.ROOT) != ext) return null
+        source = dest
+        fileName = shown
+        incomplete = false
+        android.util.Log.i(SAVE_LOG_TAG, "Slides go on in the new file: $shown")
+        return shown to size
     }
 
     /** What the engine could not keep when it read the file (an .odp's styles, a .ppt's pictures…). */

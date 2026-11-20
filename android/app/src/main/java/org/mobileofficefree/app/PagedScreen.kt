@@ -215,12 +215,18 @@ fun PagedScreen(vm: PagedViewModel, state: PagedUiState, reading: ReadingSetting
     }
     val startWordSaveAs = { close: Boolean ->
         closeAfterWordSave = close
-        saveWordAs.launch(CreateFile.Request(wordName, "application/vnd.openxmlformats-officedocument.wordprocessingml.document"))
+        saveWordAs.launch(CreateFile.Request(wordName, "application/vnd.openxmlformats-officedocument.wordprocessingml.document", near = word?.openedUri))
     }
+    // Word and slides in another format (.doc, .ppt, .odp…): "Save" first explains that a new
+    // .docx/.pptx copy is made and the original stays as it is (whether to close afterwards).
+    var explainCopy by remember { mutableStateOf<Boolean?>(null) }
     // "Save": over the opened file when allowed; otherwise it says why and opens "Save as".
     val startWordSave = { close: Boolean ->
         if (word?.savesInPlace == true) {
             word.saveInPlace(then = { if (close) vm.answerClose(true) })
+        } else if (word?.convertsOnSave != null) {
+            explainCopy = close
+            android.util.Log.i(SAVE_LOG_TAG, "Word save: ${state.fileName} is saved as a new DOCX copy, asking first")
         } else {
             android.util.Log.i(SAVE_LOG_TAG, "Word save as: in-place save is off for ${state.fileName}")
             word?.inPlaceBlock?.let { Toast.makeText(context, it, Toast.LENGTH_LONG).show() }
@@ -236,15 +242,35 @@ fun PagedScreen(vm: PagedViewModel, state: PagedUiState, reading: ReadingSetting
     }
     val startSlidesSaveAs = { close: Boolean ->
         closeAfterWordSave = close
-        saveSlidesAs.launch(CreateFile.Request(slidesName, "application/vnd.openxmlformats-officedocument.presentationml.presentation"))
+        saveSlidesAs.launch(CreateFile.Request(slidesName, "application/vnd.openxmlformats-officedocument.presentationml.presentation", near = slides?.openedUri))
     }
     val startSlidesSave = { close: Boolean ->
         if (slides?.savesInPlace == true) {
             slides.saveInPlace(then = { if (close) vm.answerClose(true) })
+        } else if (slides?.convertsOnSave != null) {
+            explainCopy = close
+            android.util.Log.i(SAVE_LOG_TAG, "Slides save: ${state.fileName} is saved as a new PPTX copy, asking first")
         } else {
             android.util.Log.i(SAVE_LOG_TAG, "Slides save as: in-place save is off for ${state.fileName}")
             slides?.inPlaceBlock?.let { Toast.makeText(context, it, Toast.LENGTH_LONG).show() }
             startSlidesSaveAs(close)
+        }
+    }
+    explainCopy?.let { close ->
+        val ext = slides?.convertsOnSave ?: word?.convertsOnSave
+        if (ext == null) {
+            explainCopy = null
+        } else {
+            SaveAsCopyDialog(
+                ext = ext,
+                target = if (slides != null) "pptx" else "docx",
+                alsoNote = (slides?.inPlaceBlock?.takeIf { slides.isIncomplete } ?: word?.inPlaceBlock?.takeIf { word.isIncomplete }),
+                onSaveAs = {
+                    explainCopy = null
+                    if (slides != null) startSlidesSaveAs(close) else startWordSaveAs(close)
+                },
+                onCancel = { explainCopy = null },
+            )
         }
     }
     // Marks not yet blacked out would be saved with the text still under them: black them out first.

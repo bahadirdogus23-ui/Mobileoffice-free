@@ -32,6 +32,14 @@ Uygulama (`WordViewModel`, `SlidesViewModel`, `SheetViewModel`) böyle bir dosya
   kapatırken sorulan soruda (`UnsavedChangesDialog`) "Kaydet" yerine bu neden yazar, "Farklı kaydet", "Kaydetmeden çık",
   "Vazgeç" kalır (2026-11-16);
 - "Farklı kaydet" ile asıl dosya seçilirse yazmaz, `save_over_incomplete` / `save_over_truncated` iletisini gösterir;
+- motorun kendi biçiminde yazamadığı dosyada (`.xls`, `.xlsb`, `.ods`, `.csv`; `.doc`, `.udf`…; `.ppt`, `.odp`)
+  "Kaydet" önce kısa bir açıklama gösterir (`SaveAsCopyDialog`: "Bu dosya eski Excel (.xls) biçiminde… yeni bir .xlsx
+  kopyası oluşturulacak; asıl dosya değişmez", "Farklı kaydet (.xlsx)" / "Vazgeç"); seçici aynı adı yeni uzantıyla,
+  açılan dosyanın klasöründe (sağlayıcı izin verirse) önerir. "Farklı kaydet" yeni bir .xlsx/.xlsm, Word'ün kendi
+  biçimlerinden biri ya da PPTX yazınca oturum o dosyada sürer (Office gibi): sonraki "Kaydet" onun üzerine yazar.
+  Yeni dosyada belgenin bütün hâli olduğu için "tam okunmadı" engeli orada kalkar; asıl dosyaya hiç dokunulmaz
+  (2026-11-20). `.xlsm` artık kendi biçiminde kaydediliyor (GridCraft VBA projesini `.xlsm`'e geri yazar,
+  `macros_block_saving_over_an_xlsx_but_not_an_xlsm`); Word'de `.rtf` ve `.odt` zaten kendi biçiminde kaydediliyordu;
 - açılışta neyin okunamadığını Türkçe/İngilizce olarak (`values/`, `values-tr/`) notların **başında** gösterir.
 
 Tam açılan dosyalarda davranış değişmedi (testler: motorun örnek DOCX/PPTX'i, boş belgeler, düz RTF/HTML/MD).
@@ -52,7 +60,7 @@ olarak `.odt`'ye yazılmaz. `.doc`, `.dotx`, `.udf`, e-posta/e-kitap vb. her zam
 | TXT | `.txt` Metin ekranında açılır (aşağıda); kelime işlemciye gelmez | Güvenli |
 | Kalan | Tam okunan DOCX/ODT/RTF'de bile yazıcı her şeyi aynen geri yazmaz (tema bağları vb., [KAYIPSIZ-KAYIT-KORPUSU.md](KAYIPSIZ-KAYIT-KORPUSU.md)); ODT/RTF yazıcıları alt kümedir (`odt.rs:3-8`, `rtf.rs:3-8`), stiller sadeleşir. 50.000'den fazla üst bilgi/not/açıklama parçası (`docx/src/read.rs:54`) algılanmıyor (gerçekçi değil). Büyük harf duyarsız yinelenen zip adları (`package.rs:286`) algılanmıyor | **Kalan**: bilinen yazıcı kayıpları korpus betiğinde izleniyor; algılama yalnızca okuma tarafını kapsar |
 
-## Hesap tablosu (`SheetViewModel`, yalnızca `.xlsx` üzerine kaydedilir)
+## Hesap tablosu (`SheetViewModel`, yalnızca `.xlsx` ve `.xlsm` üzerine kaydedilir)
 
 | Risk (üst kaynak) | Durum |
 |---|---|

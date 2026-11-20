@@ -826,3 +826,87 @@ fn fill_shows_on_shapes_text_boxes_groups_and_tables() {
     let pic = saved.add_picture(0, png, 1, 1).unwrap();
     assert!(saved.style_object(0, pic, ObjectStyle::Fill(Some(0xFF0000))).is_err());
 }
+
+/// The colour drawn a few points inside cell (`row`, `col`) of the 2×2 table (object 6, 3 inches
+/// wide at (5, 6) inches) on grouped-text.pptx's slide: row 0 at its top, row 1 at its bottom
+/// (the header row grows with its text).
+fn table_cell_pixel(d: &DeckDoc, row: u32, col: u32) -> [u8; 3] {
+    let o = d.objects(0).unwrap().into_iter().find(|o| o.id == 6).unwrap();
+    let r = d.render_slide(0, 1.0).unwrap();
+    let y = if row == 0 { o.y + 4.0 } else { o.y + o.h - 4.0 };
+    let (x, y) = (360 + col * 108 + 4, y as u32);
+    let p = &r.pixels[((y * r.width + x) * 4) as usize..][..4];
+    [p[0], p[1], p[2]]
+}
+
+/// Tables keep the colours of their style: Office's built-in "Medium Style 2 - Accent 1" (the
+/// python-pptx default, referenced by GUID only), another built-in referenced the same way, and a
+/// style the file defines in `tableStyles.xml`, as PowerPoint writes the ones it uses.
+#[test]
+fn table_styles_from_the_file_are_drawn_in_their_colours() {
+    let deck = include_bytes!("../testdata/grouped-text.pptx");
+    // The theme's accent 1 is 4F81BD: a header row in it, the first body row in a light tint.
+    let d = DeckDoc::open(deck).unwrap();
+    assert_eq!(table_cell_pixel(&d, 0, 0), [0x4F, 0x81, 0xBD]);
+    let body = table_cell_pixel(&d, 1, 0);
+    assert!(body[2] > body[0] && body[0] > 0xB0, "a light blue band: {body:?}");
+
+    let slide = String::from_utf8(entry(deck, "ppt/slides/slide1.xml")).unwrap();
+    // Medium Style 2 - Accent 3 (accent 3 is 9BBB59), not defined in the file.
+    let accent3 = slide.replace("{5C22544A-7EE6-4342-B048-85BDC9FD1C3A}", "{F5AB1C69-6EDB-4FF4-983F-18BD219EF322}");
+    let d = DeckDoc::open(&with_entry(deck, "ppt/slides/slide1.xml", accent3.as_bytes())).unwrap();
+    assert_eq!(table_cell_pixel(&d, 0, 0), [0x9B, 0xBB, 0x59]);
+
+    // A style of the file's own: header row in accent 6 (F79646), the rest in accent 2 (C0504D).
+    let own = "{8EC20E35-A176-4012-BC5E-935CFFF8708E}";
+    let styles = format!(
+        r#"<?xml version="1.0" encoding="UTF-8" standalone="yes"?><a:tblStyleLst xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" def="{own}"><a:tblStyle styleId="{own}" styleName="Kendi stilim"><a:wholeTbl><a:tcStyle><a:fill><a:solidFill><a:schemeClr val="accent2"/></a:solidFill></a:fill></a:tcStyle></a:wholeTbl><a:firstRow><a:tcStyle><a:fill><a:solidFill><a:schemeClr val="accent6"/></a:solidFill></a:fill></a:tcStyle></a:firstRow></a:tblStyle></a:tblStyleLst>"#
+    );
+    let defined = with_entry(deck, "ppt/tableStyles.xml", styles.as_bytes());
+    let defined = with_entry(&defined, "ppt/slides/slide1.xml", slide.replace("{5C22544A-7EE6-4342-B048-85BDC9FD1C3A}", own).as_bytes());
+    let mut d = DeckDoc::open(&defined).unwrap();
+    assert_eq!(table_cell_pixel(&d, 0, 0), [0xF7, 0x96, 0x46]);
+    assert_eq!(table_cell_pixel(&d, 1, 1), [0xC0, 0x50, 0x4D]);
+    // Saved, the definition and the reference stay.
+    let saved = d.save("x.pptx").unwrap();
+    assert!(String::from_utf8(entry(&saved, "ppt/tableStyles.xml")).unwrap().contains("Kendi stilim"));
+    assert!(String::from_utf8(entry(&saved, "ppt/slides/slide1.xml")).unwrap().contains(own));
+}
+
+/// "Table style" gives a table one of Office's built-in styles in a theme colour: drawn at once,
+/// written as the style's GUID with the header and banded rows on (no style definition of the
+/// app's own, no engine name in the file), and drawn the same after reopening. Cell fills the
+/// table had cover a style, so they go; undo brings them back.
+#[test]
+fn a_table_style_from_the_picker_is_drawn_saved_and_reopened() {
+    let mut d = DeckDoc::open(include_bytes!("../testdata/grouped-text.pptx")).unwrap();
+    let choices = d.table_style_choices(0).unwrap();
+    assert_eq!(choices.len(), TABLE_STYLES.len());
+    assert_eq!(choices[2], TableStyleChoice { id: "medium2-accent3".into(), color: 0x9BBB59 });
+    d.style_object(0, 6, ObjectStyle::Fill(Some(0xFF0000))).unwrap();
+    assert_eq!(table_cell_pixel(&d, 0, 0), [255, 0, 0]);
+
+    d.set_table_style(0, 6, "medium2-accent3").unwrap();
+    assert_eq!(table_cell_pixel(&d, 0, 0), [0x9B, 0xBB, 0x59]);
+    let band = table_cell_pixel(&d, 1, 0);
+    assert!(band != [255, 0, 0] && band[1] > band[2] && band[0] > 0xB0, "a light green band: {band:?}");
+
+    let bytes = d.save("x.pptx").unwrap();
+    let slide = String::from_utf8(entry(&bytes, "ppt/slides/slide1.xml")).unwrap();
+    assert!(slide.contains("<a:tableStyleId>{F5AB1C69-6EDB-4FF4-983F-18BD219EF322}</a:tableStyleId>"), "{slide}");
+    assert!(slide.contains(r#"firstRow="1""#) && slide.contains(r#"bandRow="1""#), "{slide}");
+    assert!(!slide.contains("FF0000"), "{slide}");
+    let styles = String::from_utf8(entry(&bytes, "ppt/tableStyles.xml")).unwrap();
+    assert!(!styles.contains("<a:tblStyle ") && !styles.to_ascii_lowercase().contains("craft"), "{styles}");
+    // The model itself keeps the id DeckCraft draws from: saving again writes the same.
+    assert_eq!(d.save("y.pptx").unwrap().len(), bytes.len());
+
+    let again = DeckDoc::open(&bytes).unwrap();
+    assert_eq!(table_cell_pixel(&again, 0, 0), [0x9B, 0xBB, 0x59]);
+    assert_eq!(table_cell_pixel(&again, 1, 0), band);
+
+    assert!(d.undo());
+    assert_eq!(table_cell_pixel(&d, 0, 0), [255, 0, 0]);
+    assert!(d.set_table_style(0, 6, "no-such-style").is_err());
+    assert!(d.set_table_style(0, 2, "medium2-accent1").is_err(), "the title is not a table");
+}

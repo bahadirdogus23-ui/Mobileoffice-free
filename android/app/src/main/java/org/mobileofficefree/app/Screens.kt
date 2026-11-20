@@ -14,7 +14,6 @@ import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -113,9 +112,38 @@ internal val SPREADSHEET_TYPES = arrayOf(
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 internal fun SheetScreen(vm: SheetViewModel, state: SheetUiState) {
-    val saveAs = rememberLauncherForActivityResult(
-        ActivityResultContracts.CreateDocument(SPREADSHEET_TYPES[0]),
-    ) { uri -> if (uri != null) vm.saveTo(uri) else vm.saveCancelled() }
+    val saveAsPicker = rememberLauncherForActivityResult(CreateFile()) { uri -> if (uri != null) vm.saveTo(uri) else vm.saveCancelled() }
+    // "Save as" suggests the same name as an .xlsx, in the opened file's folder where the picker can.
+    val saveAs = remember(saveAsPicker) {
+        { name: String ->
+            val mime = if (name.endsWith(".xlsm", ignoreCase = true)) SPREADSHEET_TYPES[1] else SPREADSHEET_TYPES[0]
+            saveAsPicker.launch(CreateFile.Request(name, mime, near = vm.openedUri))
+        }
+    }
+    // An .xls, .csv, .ods…: "Save" first says that a new .xlsx copy is made and the original stays.
+    var explainCopy by remember { mutableStateOf(false) }
+    val save: () -> Unit = {
+        when {
+            vm.canSaveInPlace -> vm.saveInPlace()
+            vm.convertsOnSave != null -> { explainCopy = true }
+            else -> {
+                vm.explainSaveAs()
+                saveAs(saveName(state.fileName))
+            }
+        }
+    }
+    vm.convertsOnSave?.takeIf { explainCopy }?.let { ext ->
+        SaveAsCopyDialog(
+            ext = ext,
+            target = "xlsx",
+            alsoNote = vm.inPlaceBlock?.takeIf { vm.isIncomplete },
+            onSaveAs = {
+                explainCopy = false
+                saveAs(saveName(state.fileName))
+            },
+            onCancel = { explainCopy = false },
+        )
+    }
     var pdfSetup by remember { mutableStateOf(PdfSetup()) }
     var finding by remember { mutableStateOf(false) }
     var showPdf by remember { mutableStateOf(false) }
@@ -125,12 +153,7 @@ internal fun SheetScreen(vm: SheetViewModel, state: SheetUiState) {
         activity?.shortcutHandler = { key ->
             when (key) {
                 Shortcut.SAVE -> {
-                    if (vm.canSaveInPlace) {
-                        vm.saveInPlace()
-                    } else {
-                        vm.explainSaveAs()
-                        saveAs.launch(saveName(state.fileName))
-                    }
+                    save()
                     true
                 }
                 Shortcut.FIND -> { finding = true; true }
@@ -172,17 +195,11 @@ internal fun SheetScreen(vm: SheetViewModel, state: SheetUiState) {
                 }
             },
             actions = {
-                // After any change "Save" is here. When it cannot write over the opened file (not
-                // read whole, not an .xlsx, a cache copy, a new workbook) it says why and opens "Save as".
+                // After any change "Save" is here. When it cannot write over the opened file it
+                // says why and opens "Save as": another format (.xls, .csv…) in a short dialog
+                // first, not read whole or a cache copy in a snackbar, a new workbook straight away.
                 if (vm.hasUnsaved) {
-                    TextButton(onClick = {
-                        if (vm.canSaveInPlace) {
-                            vm.saveInPlace()
-                        } else {
-                            vm.explainSaveAs()
-                            saveAs.launch(saveName(state.fileName))
-                        }
-                    }) { Text(stringResource(R.string.save)) }
+                    TextButton(onClick = save) { Text(stringResource(R.string.save)) }
                 }
                 TextButton(onClick = { finding = !finding }, modifier = Modifier.described(stringResource(R.string.a11y_find))) { Text("🔍") }
                 // PDF and "Save as" sit behind ⋮: with large text (and Turkish's longer words) they
@@ -193,7 +210,7 @@ internal fun SheetScreen(vm: SheetViewModel, state: SheetUiState) {
                     DropdownMenu(expanded = more, onDismissRequest = { more = false }) {
                         DropdownMenuItem(text = { Text(stringResource(R.string.save_as)) }, onClick = {
                             more = false
-                            saveAs.launch(saveName(state.fileName))
+                            saveAs(saveName(state.fileName))
                         })
                         DropdownMenuItem(text = { Text("PDF") }, onClick = {
                             more = false
@@ -388,7 +405,7 @@ internal fun SheetScreen(vm: SheetViewModel, state: SheetUiState) {
             blockedReason = vm.inPlaceBlock,
             onSaveAs = {
                 vm.answerClose(true)
-                saveAs.launch(saveName(state.fileName))
+                saveAs(saveName(state.fileName))
             },
             onDiscard = { vm.answerClose(false) },
             onStay = { vm.answerClose(null) },
@@ -821,7 +838,7 @@ private fun FormulaHelpSheet(docs: List<FunctionDoc>, onDismiss: () -> Unit, onP
 /** Saving always writes XLSX, so CSV/XLS imports get a .xlsx name. */
 private fun saveName(fileName: String): String {
     val stem = fileName.substringBeforeLast('.', fileName)
-    return if (fileName.endsWith(".xlsx", ignoreCase = true)) fileName else "$stem.xlsx"
+    return if (SheetViewModel.writesInPlace(fileName)) fileName else "$stem.xlsx"
 }
 
 /** Page Setup for a spreadsheet PDF: which sheets or range, paper, orientation, margins, scaling. */

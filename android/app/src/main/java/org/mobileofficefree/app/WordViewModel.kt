@@ -37,8 +37,8 @@ data class WordFormat(
  */
 class WordViewModel(app: Application) : PagedViewModel(app, DocumentKind.WORD) {
     private var doc: WordDocument? = null
-    private var source: Uri? = null
-    private var fileName: String = ""
+    @Volatile private var source: Uri? = null
+    @Volatile private var fileName: String = ""
     /**
      * Opening left out something the file holds (a damaged part, an ODT's notes, a web page's
      * style sheets…): saving over [source] would delete it, so only "Save as" is offered.
@@ -98,6 +98,19 @@ class WordViewModel(app: Application) : PagedViewModel(app, DocumentKind.WORD) {
                 else -> null
             }
         }
+
+    /**
+     * The opened file's extension ("doc", "udf"…) when WordCraft cannot write it back in that
+     * format: "Save" first explains that a new .docx copy is made and the original stays as it is.
+     */
+    val convertsOnSave: String?
+        get() = fileName.substringAfterLast('.', "").lowercase(Locale.ROOT).takeIf { source != null && it !in IN_PLACE }
+
+    /** Opening left something out: said again when "Save" makes a new copy. */
+    val isIncomplete: Boolean get() = incomplete
+
+    /** The opened file: "Save as" opens in its folder where it can. */
+    val openedUri: Uri? get() = source
 
     fun startEditing() {
         editing = true
@@ -295,16 +308,36 @@ class WordViewModel(app: Application) : PagedViewModel(app, DocumentKind.WORD) {
                     app.contentResolver.openOutputStream(dest, "wt")?.use { it.write(bytes) } ?: error("cannot write")
                     android.util.Log.i(SAVE_LOG_TAG, "Word save written: $name, ${bytes.size} bytes")
                     d.markSaved()
+                    newOpenedFile(dest, name, bytes.size.toLong())
                 }
             }
             result.exceptionOrNull()?.let { android.util.Log.w(SAVE_LOG_TAG, "Word save failed: $name", it) }
             if (result.isSuccess) {
                 dirty = false
                 savedCleanly()
+                result.getOrNull()?.let { (shown, size) -> continueIn(dest, shown, size) }
                 then()
             }
             tell(result.fold(onSuccess = { app.getString(R.string.saved) }, onFailure = { app.getString(R.string.save_failed, it.message ?: "") }))
         }
+    }
+
+    /**
+     * Runs on the engine thread after [name] was written whole into [dest]. A new file in a format
+     * WordCraft writes back (its shown name keeps the extension [name] was written as) becomes the
+     * opened one, so the next "Save" writes over it; returns its shown name and size, else null.
+     */
+    private fun newOpenedFile(dest: Uri, name: String, size: Long): Pair<String, Long>? {
+        val app = getApplication<Application>()
+        if (dest == source || ArchiveFiles.isCacheCopy(app, dest)) return null
+        val ext = name.substringAfterLast('.', "").lowercase(Locale.ROOT)
+        val shown = runCatching { FileInfo.of(app.contentResolver, dest).name }.getOrNull() ?: return null
+        if (ext !in IN_PLACE || shown.substringAfterLast('.', "").lowercase(Locale.ROOT) != ext) return null
+        source = dest
+        fileName = shown
+        incomplete = false
+        android.util.Log.i(SAVE_LOG_TAG, "Word goes on in the new file: $shown")
+        return shown to size
     }
 
     override fun load(uri: Uri, name: String): List<Pair<Float, Float>> {

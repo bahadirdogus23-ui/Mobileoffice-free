@@ -1037,6 +1037,14 @@ pub struct OcrWord {
     pub bottom: f64,
 }
 
+/// A table style the slide editor offers: its id (for `set_table_style`) and the theme colour it
+/// is made from (0xRRGGBB), for a swatch.
+#[derive(uniffi::Record)]
+pub struct SlideTableStyle {
+    pub id: String,
+    pub color: u32,
+}
+
 /// An object on a slide that can be moved: its id, its box in points and what it is.
 #[derive(uniffi::Record)]
 pub struct SlideObject {
@@ -1195,6 +1203,18 @@ impl SlidesDocument {
     /// Object `id` brought in front of the others, or sent behind them.
     pub fn arrange_object(&self, slide: u32, id: u32, to_front: bool) -> Result<(), MoError> {
         Ok(self.doc().arrange_object(slide, id, to_front)?)
+    }
+
+    /// The table styles offered for tables on `slide` (PowerPoint's built-in Medium Style 2 in
+    /// the theme's accents and dark text colour), with their colours in its theme.
+    pub fn table_styles(&self, slide: u32) -> Result<Vec<SlideTableStyle>, MoError> {
+        Ok(self.doc().table_style_choices(slide)?.into_iter().map(|c| SlideTableStyle { id: c.id, color: c.color }).collect())
+    }
+
+    /// Gives table `id` on `slide` the table style `style` (an id from `table_styles`), with its
+    /// header row and banded rows on; the table's own cell fills are taken off.
+    pub fn set_table_style(&self, slide: u32, id: u32, style: String) -> Result<(), MoError> {
+        Ok(self.doc().set_table_style(slide, id, &style)?)
     }
 
     /// Changes the look of object `id`'s text or box.

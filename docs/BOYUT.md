@@ -221,3 +221,38 @@ motorlara veriliyor. `.ttf` varlıkları APK'da sıkıştırılarak (deflate) sa
   Word JetBrains Mono ile, slaytlar Inter ile çiziyor).
 - Bellek: dosyalar yalnızca ilgili motor ilk kez belge açınca okunuyor; her motor kendi kopyasını tutuyor
   (~6,2 MB; ikisi birden ~12,5 MB). Okuma ve kayıt süresi Ölçümler'de "Sunu/Word: yazı tiplerini yükleme".
+
+## "APK 57,4 MB'tan 71,6 MB'a çıktı" (dev.214 → dev.225, 20 Kasım 2026)
+
+Sahibinin Ölçümler raporu dev.214'te APK 57,4 MB, dev.225'te 71,6 MB gösteriyordu (`libmo_ffi.so`
+43,1 → 43,2 MB). CI'nin paket boyutu satırları (Android APK işinin günlüğü, "Verify packaged engines
+and report package sizes"; CI ondalık MB yazar) iki derleme için:
+
+| APK (arm64-v8a) | dev.214 | dev.225 | Fark |
+|---|---:|---:|---:|
+| Hata ayıklama (`app-arm64-v8a-debug.apk`, yayımlanan adı `MobileOffice-Free.apk`) | 71,7 MB | 75,0 MB | **+3,3 MB** |
+| Yayın (`app-arm64-v8a-release.apk`, yayımlanan adı `MobileOffice-Free-yayin-denemesi.apk`) | 60,2 MB | 63,3 MB | **+3,1 MB** |
+| armeabi-v7a hata ayıklama / yayın | 59,6 / 48,2 MB | 63,0 / 51,3 MB | +3,4 / +3,1 MB |
+
+- **Gerçek büyüme ~3,1–3,3 MB ve tamamı Office yazı tipleri** (yukarıdaki bölüm, ölçülen +3,01 MB;
+  kalanı arada eklenen kod). İki derleme arasında `assets/` içine yazı tiplerinden başka dosya girmedi
+  (`git diff a525fdd aa3f8c1 -- android/app/src/main/assets`: yalnızca 16 `.ttf` + lisanslar);
+  Gradle paketleme ayarları, `noCompress` (yalnızca `traineddata`, 7 Kasım'dan beri) ve bağımlılıklar
+  değişmedi. Yazı tipleri sıkıştırılarak saklanıyor; Liberation yazı tiplerinin PDF için ikinci bir
+  kopyası, örnek/mağaza dosyası ya da hata ayıklama bilgisi pakette yok.
+- **57,4 → 71,6 farkının ~11,5 MB'ı birim ve derleme türünden.** Ölçümler ekranı boyutu 1024×1024
+  baytlık MB ile yazıyor (`Diagnostics.mb`): 57,4 MB = 60,2 milyon bayt, yani dev.214'ün **yayın**
+  APK'sı; 71,6 MB ≈ 75,0 milyon bayt, yani dev.225'in **hata ayıklama** APK'sı. Hata ayıklama APK'sı
+  her derlemede yayın APK'sından ~11,5 MB büyük: R8 küçültmesi ve kaynak ayıklama yok, Compose
+  kitaplıkları ve `ui-tooling` olduğu gibi giriyor (`.so` ikisinde de aynı, yayın profiliyle derlenmiş).
+  Play'e giden paket (AAB → cihaza özel APK) yayın derlemesidir.
+- Yayımlama işi (`ci.yml`, "Publish test build") telefonlar için **`MobileOffice-Free.apk` = arm64 hata
+  ayıklama APK'sını** koyuyor; arm64 yayın APK'sı `MobileOffice-Free-yayin-denemesi.apk` adıyla
+  yanında. Yükleme anahtarı tanımlı olmadığından ikisi de aynı hata ayıklama anahtarıyla imzalı ve
+  birbirinin üzerine kurulabiliyor; sahibi dev.214'te yayın, dev.225'te hata ayıklama APK'sını kurmuş.
+- Düzeltme: kazara büyüme olmadığı için paketten bir şey çıkarılmadı. Ölçümler'in APK satırı artık
+  derleme türünü ve CI ile karşılaştırılabilen ondalık boyutu da yazıyor
+  ("APK: 71,6 MB (= 75,0 milyon bayt) · hata ayıklama derlemesi (debug)").
+- Karar sahibinde: ana indirme bağlantısını yayın APK'sına çevirmek telefona ~11,5 MB daha küçük ve
+  daha hızlı bir uygulama kurar (emülatör testi zaten yayın APK'sını sınıyor); yükleme anahtarı
+  eklenince yayın APK'sı farklı imzalanacağından o gün hata ayıklama kurulumunun üzerine kurulamaz.

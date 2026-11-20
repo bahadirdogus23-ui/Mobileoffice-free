@@ -123,8 +123,11 @@ class SheetViewModel(app: Application) : AndroidViewModel(app) {
     var functionDocs by mutableStateOf<List<FunctionDoc>>(emptyList())
         private set
 
-    /** The opened file, saved over by "Save" when it is an XLSX. */
-    private var source: Uri? = null
+    /** The opened file, saved over by "Save" when it is an .xlsx or .xlsm. */
+    @Volatile private var source: Uri? = null
+
+    /** The opened file (null for a new workbook): "Save as" opens in its folder where it can. */
+    val openedUri: Uri? get() = source
     /**
      * The opened file holds something the workbook does not (a sheet or its shared strings cut
      * part-way, a sheet or part not read, anything in `losses()`): saving over [source] would
@@ -135,11 +138,20 @@ class SheetViewModel(app: Application) : AndroidViewModel(app) {
     @Volatile private var rowsCut = false
     var canSaveInPlace by mutableStateOf(false)
         private set
+    /** Opening left something out ([truncated]): said again when "Save" makes a new copy. */
+    val isIncomplete: Boolean get() = truncated
     /**
      * Why "Save" cannot write over the opened file, in one line for the person (null when it can,
      * or when there is no file yet: a new workbook). "Save" then goes to "Save as".
      */
     var inPlaceBlock by mutableStateOf<String?>(null)
+        private set
+    /**
+     * The opened file's extension ("xls", "csv", "ods"…) when the workbook cannot be written back
+     * in that format: "Save" first explains that a new .xlsx copy is made and the original stays
+     * as it is (null for an .xlsx/.xlsm and for a new workbook).
+     */
+    var convertsOnSave by mutableStateOf<String?>(null)
         private set
     var hasUnsaved by mutableStateOf(false)
         private set
@@ -309,11 +321,14 @@ class SheetViewModel(app: Application) : AndroidViewModel(app) {
                     source = uri
                     truncated = doc?.openedIncomplete() == true
                     rowsCut = doc?.truncatedSheets().orEmpty().isNotEmpty() || doc?.sharedStringsKept() != null
-                    val xlsx = name.endsWith(".xlsx", ignoreCase = true)
+                    // GridCraft writes .xlsx and .xlsm back whole (an .xlsm keeps its VBA project);
+                    // anything it reads but cannot keep is in `losses()` and so in [truncated].
+                    val xlsx = writesInPlace(name)
                     // A copy in the app's cache (an archive entry, an attachment) is thrown away
                     // later: saving "in place" there would lose the work.
                     val cacheCopy = ArchiveFiles.isCacheCopy(getApplication(), uri)
                     canSaveInPlace = xlsx && !truncated && !cacheCopy
+                    convertsOnSave = if (xlsx) null else name.substringAfterLast('.', "").lowercase(Locale.ROOT)
                     inPlaceBlock = when {
                         truncated -> text(R.string.save_blocked_incomplete)
                         !xlsx -> text(R.string.save_blocked_format, name.substringAfterLast('.', "").uppercase(Locale.ROOT), "XLSX")
@@ -336,7 +351,7 @@ class SheetViewModel(app: Application) : AndroidViewModel(app) {
                         val unread = d?.unreadSheets().orEmpty().map { text(R.string.sheet_unread, it) }
                         val parts = d?.skippedParts().orEmpty().takeIf { it.isNotEmpty() }?.let { listOf(text(R.string.parts_skipped, it.joinToString(", "))) }.orEmpty()
                         val kept = d?.losses().orEmpty().map { text(sheetLossText(it)) }
-                        val lost = if (kept.isEmpty() || !name.endsWith(".xlsx", ignoreCase = true)) kept else kept + text(R.string.save_in_place_off)
+                        val lost = if (kept.isEmpty() || !writesInPlace(name)) kept else kept + text(R.string.save_in_place_off)
                         cuts + strings + unread + parts + lost + d?.warnings().orEmpty()
                     }
                     recoveryOffer = recovery.find(uri)
@@ -361,6 +376,7 @@ class SheetViewModel(app: Application) : AndroidViewModel(app) {
             rowsCut = false
             canSaveInPlace = false
             inPlaceBlock = null
+            convertsOnSave = null
             screen = Screen.Sheet(withContext(engine) { replaceDocument(SheetDocument.blank()) }.copy(fileName = name))
         }
     }
@@ -926,7 +942,7 @@ class SheetViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
-    /** Writes over the opened XLSX. */
+    /** Writes over the opened .xlsx or .xlsm. */
     fun saveInPlace() {
         source?.let(::saveTo)
     }
@@ -953,6 +969,11 @@ class SheetViewModel(app: Application) : AndroidViewModel(app) {
                     Diagnostics.event("Excel kaydedildi: ${bytes.size / 1024} KB")
                     // "wt" truncates: without it some providers leave the old file's tail behind.
                     resolver.openOutputStream(uri, "wt")?.use { it.write(bytes) } ?: error("cannot write")
+                    // A new .xlsx/.xlsm holds the whole workbook as it is now: the session goes on
+                    // in it (as Office does after "Save as"), so the next "Save" writes over it.
+                    val continues = uri != source && writesInPlace(name) && !ArchiveFiles.isCacheCopy(getApplication(), uri)
+                    if (continues) RecentFiles(getApplication()).remember(uri, name, DocumentKind.SHEET, bytes.size.toLong())
+                    name.takeIf { continues }
                 }
             }
             if (doc !== owner) return@launch
@@ -961,13 +982,28 @@ class SheetViewModel(app: Application) : AndroidViewModel(app) {
                 onSuccess = { text(if (wasTruncated) R.string.saved_truncated else R.string.saved) },
                 onFailure = { text(R.string.save_failed, it.message ?: "") },
             )
+            if (completed.isSuccess && revision == editRevision) source?.let(recovery::clear)
+            completed.getOrNull()?.let { name -> continueIn(uri, name) }
             if (completed.isSuccess && revision == editRevision) {
                 unsaved = false
-                source?.let(recovery::clear)
                 if (shouldClose && screen is Screen.Sheet) close()
             }
             closeAfterSave = false
         }
+    }
+
+    /**
+     * After "Save as" wrote the new file [uri] named [name]: it becomes the opened file. What it
+     * holds is exactly the workbook, so nothing it could lose is left out ([truncated] ends).
+     */
+    private fun continueIn(uri: Uri, name: String) {
+        source = uri
+        truncated = false
+        rowsCut = false
+        canSaveInPlace = true
+        inPlaceBlock = null
+        convertsOnSave = null
+        (screen as? Screen.Sheet)?.let { screen = Screen.Sheet(it.state.copy(fileName = name)) }
     }
 
     /**
@@ -1149,6 +1185,10 @@ class SheetViewModel(app: Application) : AndroidViewModel(app) {
 
         private fun blockKey(sheet: Int, br: Int, bc: Int): Long =
             (sheet.toLong() shl 48) or (br.toLong() shl 20) or bc.toLong()
+
+        /** Formats GridCraft writes back without losing what it read (see `losses()`). */
+        fun writesInPlace(name: String): Boolean =
+            name.substringAfterLast('.', "").lowercase(Locale.ROOT) in setOf("xlsx", "xlsm")
 
         fun displayName(resolver: ContentResolver, uri: Uri): String =
             resolver.query(uri, arrayOf(OpenableColumns.DISPLAY_NAME), null, null, null)?.use { c ->
