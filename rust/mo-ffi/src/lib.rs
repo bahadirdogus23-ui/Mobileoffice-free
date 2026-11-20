@@ -39,6 +39,10 @@ pub enum MoError {
     /// Text has a letter the chosen encoding cannot store; the message is that letter alone.
     #[error("{0}")]
     Unencodable(String),
+    /// Black-out marks cover part of pictures whose pixels can't be read, so nothing was blacked
+    /// out (removing them would lose what lies outside the marks); the message is their number.
+    #[error("{0}")]
+    Unredactable(String),
 }
 
 impl From<GridError> for MoError {
@@ -83,6 +87,7 @@ impl From<PdfError> for MoError {
             PdfError::Edit(m) => MoError::Command(m),
             PdfError::Save(m) => MoError::Save(m),
             e @ PdfError::NoPages => MoError::NoPages(e.to_string()),
+            PdfError::Unredactable(n) => MoError::Unredactable(n.to_string()),
         }
     }
 }

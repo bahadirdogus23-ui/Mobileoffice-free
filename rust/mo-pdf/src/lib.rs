@@ -11,6 +11,7 @@ use pdfcraft_organize as organize;
 
 mod create;
 mod form;
+mod redact_images;
 mod stamp;
 mod standin;
 mod text;
@@ -58,6 +59,11 @@ pub enum PdfError {
     /// their document.
     #[error("no page of this PDF could be read; the file is too damaged")]
     NoPages,
+    /// Black-out marks cover part of this many pictures whose pixels can't be read (JPEG 2000, a
+    /// CMYK JPEG…): blacking out only the covered part is impossible, and removing them would
+    /// lose what lies outside the marks, so nothing was changed.
+    #[error("{0} picture(s) under the marks cannot be blacked out in part; nothing was changed")]
+    Unredactable(u32),
 }
 
 /// One open PDF being edited.
@@ -764,14 +770,18 @@ impl PdfDoc {
     }
 
     /// Removes the text, pictures and drawings under every black-out mark for good and paints the
-    /// places black. Returns how many marks were applied.
+    /// places black. A picture a mark covers in part keeps everything outside the mark: only the
+    /// covered pixels turn black (see [`redact_images`]). Returns how many marks were applied; on
+    /// an error ([`PdfError::Unredactable`] among them) nothing changed.
     pub fn apply_redactions(&mut self) -> Result<u32, PdfError> {
         self.refuse_restricted()?;
         self.text = None;
-        let report = pdfcraft_redact::apply(&mut self.doc, None).map_err(edit)?;
+        let mut work = self.doc.clone();
+        let marks = redact_images::apply(&mut work)?;
+        self.doc = work;
         // Undo positions no longer hold: the marks are gone.
         self.added.clear();
-        Ok(report.marks as u32)
+        Ok(marks as u32)
     }
 
     /// Matches of `matcher` over each page's text, as page fractions.

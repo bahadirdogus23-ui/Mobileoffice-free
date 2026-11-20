@@ -2420,12 +2420,14 @@ name = "mo-pdf"
 version = "0.1.0"
 dependencies = [
  "gridcraft-pdf",
+ "image",
  "miniz_oxide 0.8.9",
  "mo-fuzz",
  "pdfcraft-annot",
  "pdfcraft-cos",
  "pdfcraft-create",
  "pdfcraft-edit",
+ "pdfcraft-filters",
  "pdfcraft-fonts",
  "pdfcraft-forms",
  "pdfcraft-optimize",

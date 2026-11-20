@@ -249,7 +249,7 @@
     <string name="redact_find">Find and mark</string>
     <string name="redact_apply">Black out for good</string>
     <string name="redact_apply_short">Black out</string>
-    <string name="redact_confirm">The text, pictures and drawings under the marks are removed from the PDF, not just covered; this cannot be undone in the copy. Save it as a new file afterwards.</string>
+    <string name="redact_confirm">The text and drawings under the marks are removed from the PDF, not just covered; the marked part of a picture is painted black for good and the rest of it stays. This cannot be undone in the copy. Save it as a new file afterwards.</string>
     <plurals name="redact_marked">
         <item quantity="one">%d place marked</item>
         <item quantity="other">%d places marked</item>
@@ -263,6 +263,10 @@
         <item quantity="other">%d places are marked (red frames on the page).</item>
     </plurals>
     <string name="redact_before_save">Some places are marked but not yet blacked out. Black them out first, or the text under them is saved.</string>
+    <plurals name="redact_unreadable_images">
+        <item quantity="one">A mark covers part of a picture whose format cannot be read (such as JPEG 2000 or a CMYK JPEG). Removing the picture would also destroy what lies outside the mark, so nothing was blacked out; the marks are still there.</item>
+        <item quantity="other">The marks cover part of %d pictures whose format cannot be read (such as JPEG 2000 or a CMYK JPEG). Removing them would also destroy what lies outside the marks, so nothing was blacked out; the marks are still there.</item>
+    </plurals>
     <string name="redact_clear">Remove the marks</string>
     <string name="images_to_pdf">Pictures to PDF</string>
     <string name="images_a4">On A4 pages</string>

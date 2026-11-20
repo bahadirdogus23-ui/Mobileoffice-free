@@ -248,7 +248,7 @@
     <string name="redact_find">Bul ve işaretle</string>
     <string name="redact_apply">Kalıcı olarak karart</string>
     <string name="redact_apply_short">Karart</string>
-    <string name="redact_confirm">İşaretli yerlerdeki yazı, resim ve çizimler yalnızca örtülmez, PDF\'ten silinir; bu kopyada geri alınamaz. Ardından yeni bir dosya olarak kaydedin.</string>
+    <string name="redact_confirm">İşaretli yerlerdeki yazı ve çizimler yalnızca örtülmez, PDF\'ten silinir; resimlerin işaretli kısmı kalıcı olarak siyaha boyanır, geri kalanı olduğu gibi kalır. Bu kopyada geri alınamaz. Ardından yeni bir dosya olarak kaydedin.</string>
     <plurals name="redact_marked">
         <item quantity="one">%d yer işaretlendi</item>
         <item quantity="other">%d yer işaretlendi</item>
@@ -262,6 +262,10 @@
         <item quantity="other">%d yer işaretli (sayfada kırmızı çerçeve).</item>
     </plurals>
     <string name="redact_before_save">İşaretli yerler henüz karartılmadı. Önce karartın; yoksa altlarındaki yazı da kaydedilir.</string>
+    <plurals name="redact_unreadable_images">
+        <item quantity="one">İşaretli yerlerden biri bir resmin yalnızca bir kısmını örtüyor ve bu resmin biçimi okunamıyor (ör. JPEG 2000 ya da CMYK JPEG). Resmi silmek işaretin dışında kalan kısmı da yok edeceği için hiçbir şey karartılmadı; işaretler duruyor.</item>
+        <item quantity="other">İşaretli yerler %d resmin yalnızca bir kısmını örtüyor ve bu resimlerin biçimi okunamıyor (ör. JPEG 2000 ya da CMYK JPEG). Resimleri silmek işaretin dışında kalan kısımları da yok edeceği için hiçbir şey karartılmadı; işaretler duruyor.</item>
+    </plurals>
     <string name="redact_clear">İşaretleri kaldır</string>
     <string name="images_to_pdf">Resimden PDF</string>
     <string name="images_a4">A4 sayfalara</string>

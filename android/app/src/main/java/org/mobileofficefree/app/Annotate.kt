@@ -12,6 +12,10 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.material3.FilterChip
+import androidx.compose.material3.FilledTonalButton
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.width
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -86,17 +90,33 @@ fun AnnotationBar(tool: AnnotTool, onTool: (AnnotTool) -> Unit, canUndo: Boolean
                     modifier = Modifier.padding(start = 12.dp, top = 6.dp),
                 )
             }
-            Row(Modifier.horizontalScroll(rememberScrollState()).padding(horizontal = 8.dp), verticalAlignment = Alignment.CenterVertically) {
-                for (t in AnnotTool.entries) {
-                    FilterChip(
-                        selected = t == tool,
-                        onClick = { onTool(t) },
-                        label = { Text(stringResource(t.label)) },
-                        modifier = Modifier.padding(end = 6.dp),
-                    )
+            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                // The tools scroll; Undo and Done stay on screen beside them whatever is scrolled
+                // (at the end of the scrolling row, Undo was off a phone's screen).
+                Row(
+                    Modifier.weight(1f).horizontalScroll(rememberScrollState()).padding(start = 8.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    for (t in AnnotTool.entries) {
+                        FilterChip(
+                            selected = t == tool,
+                            onClick = { onTool(t) },
+                            label = { Text(stringResource(t.label)) },
+                            modifier = Modifier.padding(end = 6.dp),
+                        )
+                    }
                 }
-                TextButton(onClick = onUndo, enabled = canUndo) { Text(stringResource(R.string.undo)) }
-                TextButton(onClick = onDone) { Text(stringResource(R.string.done)) }
+                FilledTonalButton(
+                    onClick = onUndo,
+                    enabled = canUndo,
+                    contentPadding = PaddingValues(horizontal = 12.dp),
+                    modifier = Modifier.padding(start = 4.dp).heightIn(min = 48.dp),
+                ) {
+                    Text("↶", fontSize = 20.sp, modifier = Modifier.decorative())
+                    Spacer(Modifier.width(4.dp))
+                    Text(stringResource(R.string.undo))
+                }
+                TextButton(onClick = onDone, modifier = Modifier.padding(end = 4.dp).heightIn(min = 48.dp)) { Text(stringResource(R.string.done)) }
             }
         }
     }

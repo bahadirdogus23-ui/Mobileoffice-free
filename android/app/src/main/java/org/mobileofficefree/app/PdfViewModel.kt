@@ -549,6 +549,11 @@ class PdfViewModel(app: Application) : PagedViewModel(app, DocumentKind.PDF) {
     /** Why an edit failed, for the person: running out of memory is said plainly. */
     private fun editFailed(e: Throwable): String {
         val app = getApplication<Application>()
+        if (e is MoException.Unredactable) {
+            // Pictures a mark covers in part whose pixels the engine cannot read: nothing was blacked out.
+            val n = e.message?.trim()?.toIntOrNull() ?: 1
+            return app.resources.getQuantityString(R.plurals.redact_unreadable_images, n, n)
+        }
         return if (e.isOutOfMemory()) app.getString(R.string.pdf_out_of_memory) else app.getString(R.string.pdf_edit_failed, e.message ?: e.javaClass.simpleName)
     }
 
