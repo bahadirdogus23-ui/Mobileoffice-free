@@ -740,4 +740,70 @@
     <string name="cad_memory_recovery">Açmadan önce diğer açık belgelerinizdeki kaydedilmemiş değişikliklerin kurtarma kopyası alınır.</string>
     <string name="cad_memory_open_anyway">Yine de aç</string>
     <string name="cad_memory_cancel">Vazgeç</string>
+    <!-- Ana liste: dosya yönetimi (yeniden adlandırma, kopya, silme, bilgi). -->
+    <string name="file_open">Aç</string>
+    <string name="file_rename">Yeniden adlandır</string>
+    <string name="file_rename_confirm">Yeniden adlandır</string>
+    <string name="rename_title">Dosyayı yeniden adlandır</string>
+    <string name="file_duplicate">Kopyasını oluştur</string>
+    <string name="file_open_with">Başka uygulamayla aç</string>
+    <string name="file_info">Bilgi</string>
+    <string name="file_select">Seç</string>
+    <string name="copy_word">kopya</string>
+    <string name="rename_label">Dosya adı</string>
+    <string name="rename_error_empty">Ad boş olamaz.</string>
+    <string name="rename_error_illegal">Ad şu karakterleri içeremez: %1$s</string>
+    <string name="rename_error_hidden">Ad nokta ile başlayamaz (dosya gizlenir).</string>
+    <string name="rename_error_long">Ad çok uzun.</string>
+    <string name="rename_error_exists">Bu klasörde aynı adlı bir dosya zaten var.</string>
+    <string name="rename_ext_warning">Uzantı değişiyor (.%1$s → .%2$s): dosya artık açılmayabilir ya da başka bir uygulamada açılabilir.</string>
+    <string name="rename_done">Yeniden adlandırıldı: %1$s</string>
+    <string name="file_no_permission">Uygulamanın bu dosyayı değiştirme izni yok. Ayarlar\'dan “Tüm dosyalara erişim”i açın, klasörünü yeniden seçin ya da dosyayı Dosyalar uygulamasında yönetin.</string>
+    <string name="file_not_here">Bu dosya buradan değiştirilemiyor (başka bir uygulama gönderdi). Onu o uygulamada ya da Dosyalar uygulamasında yönetin.</string>
+    <string name="file_action_failed">Dosya değiştirilemedi.</string>
+    <string name="file_action_failed_because">Dosya değiştirilemedi: %1$s</string>
+    <string name="duplicate_done">Kopya oluşturuldu: %1$s</string>
+    <string name="duplicate_failed">Kopya oluşturulamadı. %1$s</string>
+    <string name="duplicate_pick_place">Uygulama bu dosyanın klasörüne yazamıyor: kopyanın kaydedileceği yeri seçin.</string>
+    <string name="duplicate_same_file">Kopya, asıl dosyanın üzerine kaydedilemez.</string>
+    <string name="delete_title">Silinsin mi?</string>
+    <string name="delete_cannot_title">Silinemiyor</string>
+    <string name="delete_trash_body">“%1$s” çöp kutusuna taşınacak, 30 gün içinde geri alınabilir (Dosyalar veya Galeri uygulaması → Çöp kutusu).</string>
+    <string name="delete_permanent_body">“%1$s” kalıcı olarak silinecek. Bu işlem geri alınamaz.</string>
+    <string name="delete_trash_confirm">Çöp kutusuna taşı</string>
+    <string name="delete_permanent_confirm">Kalıcı olarak sil</string>
+    <string name="delete_trash_unavailable">Android bu dosyayı çöp kutusuna taşımadı.</string>
+    <string name="delete_trash_failed_title">Çöp kutusu kullanılamıyor</string>
+    <string name="delete_trash_failed_body">Şu dosyalar çöp kutusuna taşınamadı:\n%1$s\n\nKalıcı olarak silinsinler mi? Bu işlem geri alınamaz.</string>
+    <string name="delete_done_trash">Çöp kutusuna taşındı: %1$s</string>
+    <string name="delete_done">Silindi: %1$s</string>
+    <string name="delete_failed">“%1$s” silinemedi. %2$s</string>
+    <plurals name="delete_many_trash">
+        <item quantity="one">%1$d dosya çöp kutusuna taşınacak, 30 gün içinde geri alınabilir.</item>
+        <item quantity="other">%1$d dosya çöp kutusuna taşınacak, 30 gün içinde geri alınabilir.</item>
+    </plurals>
+    <plurals name="delete_many_permanent">
+        <item quantity="one">%1$d dosya kalıcı olarak silinecek; bu işlem geri alınamaz.</item>
+        <item quantity="other">%1$d dosya kalıcı olarak silinecek; bu işlem geri alınamaz.</item>
+    </plurals>
+    <plurals name="delete_many_skipped">
+        <item quantity="one">%1$d dosya buradan silinemiyor ve olduğu gibi kalacak:</item>
+        <item quantity="other">%1$d dosya buradan silinemiyor ve olduğu gibi kalacak:</item>
+    </plurals>
+    <plurals name="delete_many_done_trash">
+        <item quantity="one">%1$d dosya çöp kutusuna taşındı</item>
+        <item quantity="other">%1$d dosya çöp kutusuna taşındı</item>
+    </plurals>
+    <plurals name="delete_many_done">
+        <item quantity="one">%1$d dosya silindi</item>
+        <item quantity="other">%1$d dosya silindi</item>
+    </plurals>
+    <string name="open_with_title">“%1$s” şununla açılsın</string>
+    <string name="info_title">Dosya bilgisi</string>
+    <string name="info_name">Ad</string>
+    <string name="info_type">Tür</string>
+    <string name="info_size">Boyut</string>
+    <string name="info_folder">Klasör</string>
+    <string name="info_modified">Değiştirilme</string>
+    <string name="info_unknown">Bilinmiyor</string>
 </resources>

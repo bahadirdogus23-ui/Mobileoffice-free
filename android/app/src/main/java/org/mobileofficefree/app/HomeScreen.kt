@@ -5,7 +5,6 @@ import androidx.compose.runtime.rememberCoroutineScope
 import kotlinx.coroutines.launch
 import android.Manifest
 import android.content.ActivityNotFoundException
-import android.content.Intent
 import android.net.Uri
 import android.os.Build
 import android.text.format.Formatter
@@ -44,6 +43,9 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.minimumInteractiveComponentSize
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.CustomAccessibilityAction
+import androidx.compose.ui.semantics.customActions
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
@@ -173,10 +175,18 @@ private data class HomeItem(
 ) {
     /** The name folded for search, worked out once per row rather than on every keystroke. */
     val foldedName: String by lazy(LazyThreadSafetyMode.NONE) { name.searchFold() }
+
+    fun target() = FileTarget(uri, name, kind, size, date)
 }
 
+/** One entry of a row's ⋮ menu, also offered to TalkBack as a custom action of the row. */
+private class RowAction(val label: String, val destructive: Boolean = false, val run: () -> Unit)
+
+/** Families whose screen has an editing mode of its own ("Edit" opens straight into it; a sheet is always editable). */
+private val editableKinds = setOf(DocumentKind.WORD, DocumentKind.SHEET, DocumentKind.SLIDES, DocumentKind.TEXT)
+
 @Composable
-fun HomeScreen(home: HomeViewModel, onOpen: (Uri) -> Unit, onNewSheet: () -> Unit, onDiagnostics: () -> Unit, engineVersion: String, onNeedEngineVersion: () -> Unit, reading: ReadingSettings) {
+fun HomeScreen(home: HomeViewModel, onOpen: (Uri) -> Unit, onEdit: (Uri) -> Unit, onNewSheet: () -> Unit, onDiagnostics: () -> Unit, engineVersion: String, onNeedEngineVersion: () -> Unit, reading: ReadingSettings) {
     val context = LocalContext.current
     val recents = remember { RecentFiles(context) }
     // The lists, tab, filter, search and scroll position live in [home]: this screen leaves
@@ -212,8 +222,25 @@ fun HomeScreen(home: HomeViewModel, onOpen: (Uri) -> Unit, onNewSheet: () -> Uni
     }
     val imagesToPdf = rememberImagesToPdf(onOpen)
     val mergePdfs = rememberPdfMerge(onOpen)
-    // Rows chosen by holding them (for combining PDFs): their addresses, in the order chosen.
+    // Rows chosen by holding them (to share, delete or combine them), in the order chosen.
     var chosen by remember { mutableStateOf<List<HomeItem>>(emptyList()) }
+    // Rename, copy, delete, details: the list follows each change at once, then looks again quietly.
+    val actions = rememberFileActions { change ->
+        when (change) {
+            is FileChange.Renamed -> {
+                home.device = home.device?.map { if (it.uri == change.old) it.copy(uri = change.new, name = change.name) else it }
+                chosen = emptyList()
+            }
+            is FileChange.Deleted -> {
+                home.device = home.device?.filter { it.uri !in change.uris }
+                chosen = chosen.filter { it.uri !in change.uris }
+            }
+            FileChange.Added -> Unit
+        }
+        reloadRecents()
+        home.changes++
+    }
+    FileActionDialogs(actions)
     var showSettings by remember { mutableStateOf(false) }
     if (showSettings) {
         LaunchedEffect(Unit) { onNeedEngineVersion() }
@@ -278,7 +305,7 @@ fun HomeScreen(home: HomeViewModel, onOpen: (Uri) -> Unit, onNewSheet: () -> Uni
     }
     // With "All files access" the whole device is listed; without it, the folders the person picked.
     val listsDevice = access || folders.isNotEmpty()
-    LaunchedEffect(access, folders, home.refresh) {
+    LaunchedEffect(access, folders, home.refresh, home.changes) {
         val key = listOf(access, folders, home.refresh)
         // The same list again (back from a document): shown at once from [home], and looked at
         // again quietly only when files may have changed (a save, a "Save as"), never walked in full.
@@ -341,7 +368,8 @@ fun HomeScreen(home: HomeViewModel, onOpen: (Uri) -> Unit, onNewSheet: () -> Uni
     }
     Scaffold(
         floatingActionButton = {
-            Box {
+            // Hidden while rows are chosen: the selection bar's actions take its place.
+            if (chosen.isEmpty()) Box {
                 ExtendedFloatingActionButton(onClick = { newMenu = true }, text = { Text(stringResource(R.string.new_document)) }, icon = { Text("＋", fontSize = 20.sp, modifier = Modifier.decorative()) })
                 DropdownMenu(expanded = newMenu, onDismissRequest = { newMenu = false }) {
                     DropdownMenuItem(text = { Text("📝  " + stringResource(R.string.new_word)) }, onClick = {
@@ -369,16 +397,38 @@ fun HomeScreen(home: HomeViewModel, onOpen: (Uri) -> Unit, onNewSheet: () -> Uni
         },
         bottomBar = {
             if (chosen.isNotEmpty()) {
-                // Chosen rows: combine the PDFs among them, or let them go.
+                // Chosen rows: share or delete them, rename, copy or look at one, combine the PDFs
+                // among them, or let them go. The tool bar keeps clear of the navigation bar
+                // (three-button navigation draws over an edge-to-edge app otherwise).
                 val pdfs = chosen.filter { it.kind == DocumentKind.PDF }
-                androidx.compose.material3.Surface(tonalElevation = 3.dp) {
-                    Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 6.dp), verticalAlignment = Alignment.CenterVertically) {
-                        Text(stringResource(R.string.selected_count, chosen.size), modifier = Modifier.weight(1f))
-                        Button(enabled = pdfs.size >= 2, onClick = {
-                            mergePdfs.with(pdfs.map { it.uri to it.name })
+                val one = chosen.singleOrNull()
+                Column {
+                    androidx.compose.material3.Surface(color = MaterialTheme.colorScheme.surfaceContainer, modifier = Modifier.fillMaxWidth()) {
+                        Row(Modifier.fillMaxWidth().padding(start = 16.dp, end = 4.dp, top = 2.dp), verticalAlignment = Alignment.CenterVertically) {
+                            Text(stringResource(R.string.selected_count, chosen.size), style = MaterialTheme.typography.titleSmall, modifier = Modifier.weight(1f))
+                            TextButton(onClick = { chosen = emptyList() }) { Text(stringResource(R.string.cancel)) }
+                        }
+                    }
+                    SoftToolbar {
+                        ToolItem("⤴", stringResource(R.string.share)) {
+                            actions.share(chosen.map { it.target() })
                             chosen = emptyList()
-                        }) { Text("📑 " + stringResource(R.string.merge_selected)) }
-                        TextButton(onClick = { chosen = emptyList() }) { Text(stringResource(R.string.cancel)) }
+                        }
+                        if (one != null) {
+                            ToolItem("✎", stringResource(R.string.file_rename)) { actions.rename(one.target()) }
+                            ToolItem("⧉", stringResource(R.string.file_duplicate)) {
+                                actions.duplicate(one.target())
+                                chosen = emptyList()
+                            }
+                            ToolItem("ⓘ", stringResource(R.string.file_info)) { actions.details(one.target()) }
+                        }
+                        if (pdfs.isNotEmpty()) {
+                            ToolItem("📑", stringResource(R.string.merge_selected), enabled = pdfs.size >= 2) {
+                                mergePdfs.with(pdfs.map { it.uri to it.name })
+                                chosen = emptyList()
+                            }
+                        }
+                        ToolItem("🗑", stringResource(R.string.delete)) { actions.delete(chosen.map { it.target() }) }
                     }
                 }
             } else NavigationBar {
@@ -413,6 +463,8 @@ fun HomeScreen(home: HomeViewModel, onOpen: (Uri) -> Unit, onNewSheet: () -> Uni
             }
             // Search, as a soft pill.
             SearchPill(query, onChange = { home.query = it }, modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp))
+            // A rename, copy or delete at work (each runs off the main thread).
+            if (actions.busy) androidx.compose.material3.LinearProgressIndicator(Modifier.fillMaxWidth().padding(horizontal = 16.dp))
             // Searching inside the files: started on purpose (it reads them), answered as it goes.
             var contentHits by remember(query, tab) { mutableStateOf<List<ContentSearch.Hit>?>(null) }
             var contentProgress by remember(query, tab) { mutableStateOf<Pair<Int, Int>?>(null) }
@@ -442,7 +494,47 @@ fun HomeScreen(home: HomeViewModel, onOpen: (Uri) -> Unit, onNewSheet: () -> Uni
             val listState = remember(tab, source, extraName, sort) { home.listStateFor(listOf(tab, source, extraName, sort)) }
             val windowWidth = with(androidx.compose.ui.platform.LocalDensity.current) { androidx.compose.ui.platform.LocalWindowInfo.current.containerSize.width.toDp() }
             val columns = if (windowWidth >= 720.dp) 2 else 1
+            val openLabel = stringResource(R.string.file_open)
+            val editLabel = stringResource(R.string.edit)
+            val renameLabel = stringResource(R.string.file_rename)
+            val duplicateLabel = stringResource(R.string.file_duplicate)
+            val shareLabel = stringResource(R.string.share)
+            val openWithLabel = stringResource(R.string.file_open_with)
+            val infoLabel = stringResource(R.string.file_info)
+            val selectLabel = stringResource(R.string.file_select)
+            val forgetLabel = stringResource(R.string.remove_from_list)
+            val deleteLabel = stringResource(R.string.delete)
+            val forgets = source == 1 || !listsDevice
             val docRow: @Composable (HomeItem) -> Unit = { f ->
+                val open = {
+                    FileInfo.rememberName(f.uri, f.name)
+                    onOpen(f.uri)
+                }
+                val rowActions = run {
+                    val t = f.target()
+                    buildList {
+                        add(RowAction(openLabel) { open() })
+                        if (f.kind in editableKinds) {
+                            add(RowAction(editLabel) {
+                                FileInfo.rememberName(f.uri, f.name)
+                                onEdit(f.uri)
+                            })
+                        }
+                        add(RowAction(renameLabel) { actions.rename(t) })
+                        add(RowAction(duplicateLabel) { actions.duplicate(t) })
+                        add(RowAction(shareLabel) { actions.share(listOf(t)) })
+                        add(RowAction(openWithLabel) { actions.openWith(t) })
+                        add(RowAction(infoLabel) { actions.details(t) })
+                        add(RowAction(selectLabel) { chosen = chosen.filter { it.uri != f.uri } + f })
+                        if (forgets) {
+                            add(RowAction(forgetLabel) {
+                                recents.forget(f.uri)
+                                reloadRecents()
+                            })
+                        }
+                        add(RowAction(deleteLabel, destructive = true) { actions.delete(listOf(t)) })
+                    }
+                }
                 DocumentRow(
                     file = f,
                     dateFormat = shortDate,
@@ -452,26 +544,12 @@ fun HomeScreen(home: HomeViewModel, onOpen: (Uri) -> Unit, onNewSheet: () -> Uni
                             // Choosing: a tap adds or removes the row.
                             chosen = if (chosen.any { it.uri == f.uri }) chosen.filter { it.uri != f.uri } else chosen + f
                         } else {
-                            FileInfo.rememberName(f.uri, f.name)
-                            onOpen(f.uri)
+                            open()
                         }
                     },
                     onHold = { if (chosen.none { it.uri == f.uri }) chosen = chosen + f },
-                    onShare = {
-                        val send = Intent(Intent.ACTION_SEND)
-                            .setType(context.contentResolver.getType(f.uri) ?: "*/*")
-                            .putExtra(Intent.EXTRA_STREAM, shareable(context, f.uri))
-                            .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-                        context.startActivity(Intent.createChooser(send, f.name))
-                    },
-                    onForget = if (source == 1 || !listsDevice) {
-                        {
-                            recents.forget(f.uri)
-                            reloadRecents()
-                        }
-                    } else {
-                        null
-                    },
+                    holdLabel = selectLabel,
+                    actions = rowActions,
                 )
             }
             LazyColumn(Modifier.fillMaxSize(), state = listState, contentPadding = PaddingValues(bottom = 96.dp)) {
@@ -636,7 +714,7 @@ fun HomeScreen(home: HomeViewModel, onOpen: (Uri) -> Unit, onNewSheet: () -> Uni
 
 @Composable
 @OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
-private fun DocumentRow(file: HomeItem, dateFormat: DateFormat, onOpen: () -> Unit, onShare: () -> Unit, onForget: (() -> Unit)?, chosen: Boolean = false, onHold: () -> Unit = {}) {
+private fun DocumentRow(file: HomeItem, dateFormat: DateFormat, onOpen: () -> Unit, actions: List<RowAction>, chosen: Boolean = false, onHold: () -> Unit = {}, holdLabel: String? = null) {
     val context = LocalContext.current
     var menu by remember { mutableStateOf(false) }
     val ext = remember(file.name) { file.name.substringAfterLast('.', "").uppercase(Locale.ROOT) }
@@ -648,7 +726,9 @@ private fun DocumentRow(file: HomeItem, dateFormat: DateFormat, onOpen: () -> Un
     Row(
         Modifier.fillMaxWidth()
             .background(if (chosen) MaterialTheme.colorScheme.secondaryContainer else Color.Transparent)
-            .combinedClickable(onClick = onOpen, onLongClick = onHold)
+            .combinedClickable(onClick = onOpen, onLongClick = onHold, onLongClickLabel = holdLabel)
+            // TalkBack: the ⋮ menu's entries are also the row's actions (rename, delete…).
+            .semantics { customActions = actions.map { a -> CustomAccessibilityAction(a.label) { a.run(); true } } }
             .padding(horizontal = 16.dp, vertical = 12.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
@@ -676,9 +756,15 @@ private fun DocumentRow(file: HomeItem, dateFormat: DateFormat, onOpen: () -> Un
         Box {
             IconButton(onClick = { menu = true }, modifier = Modifier.described(stringResource(R.string.a11y_more))) { Text("⋮", fontSize = 22.sp) }
             DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
-                DropdownMenuItem(text = { Text(stringResource(R.string.share)) }, onClick = { menu = false; onShare() })
-                if (onForget != null) {
-                    DropdownMenuItem(text = { Text(stringResource(R.string.remove_from_list)) }, onClick = { menu = false; onForget() })
+                for (a in actions) {
+                    if (a.destructive) HorizontalDivider()
+                    DropdownMenuItem(
+                        text = { Text(a.label, color = if (a.destructive) MaterialTheme.colorScheme.error else Color.Unspecified) },
+                        onClick = {
+                            menu = false
+                            a.run()
+                        },
+                    )
                 }
             }
         }
@@ -815,11 +901,3 @@ private fun QuickTile(glyph: String, label: String, tint: Color, modifier: Modif
         )
     }
 }
-
-/** A content address other apps can open: files listed by path go through the app's provider. */
-private fun shareable(context: android.content.Context, uri: Uri): Uri =
-    if (uri.scheme == "file") {
-        runCatching { androidx.core.content.FileProvider.getUriForFile(context, "${context.packageName}.files", java.io.File(uri.path!!)) }.getOrDefault(uri)
-    } else {
-        uri
-    }

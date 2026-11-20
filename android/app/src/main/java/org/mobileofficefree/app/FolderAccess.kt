@@ -17,12 +17,16 @@ class FolderAccess(context: Context) {
     fun all(): List<Uri> = prefs.getStringSet(KEY, emptySet()).orEmpty().sorted().map(Uri::parse)
 
     fun add(tree: Uri) {
-        runCatching { app.contentResolver.takePersistableUriPermission(tree, Intent.FLAG_GRANT_READ_URI_PERMISSION) }
+        // Write access too where the picker gave it (it does by default): renaming, copying and
+        // deleting from the home list then work in this folder. Read access alone otherwise.
+        runCatching { app.contentResolver.takePersistableUriPermission(tree, READ_WRITE) }
+            .onFailure { runCatching { app.contentResolver.takePersistableUriPermission(tree, Intent.FLAG_GRANT_READ_URI_PERMISSION) } }
         prefs.edit { putStringSet(KEY, all().map(Uri::toString).toSet() + tree.toString()) }
     }
 
     fun remove(tree: Uri) {
-        runCatching { app.contentResolver.releasePersistableUriPermission(tree, Intent.FLAG_GRANT_READ_URI_PERMISSION) }
+        runCatching { app.contentResolver.releasePersistableUriPermission(tree, READ_WRITE) }
+            .onFailure { runCatching { app.contentResolver.releasePersistableUriPermission(tree, Intent.FLAG_GRANT_READ_URI_PERMISSION) } }
         prefs.edit { putStringSet(KEY, all().map(Uri::toString).toSet() - tree.toString()) }
     }
 
@@ -86,5 +90,6 @@ class FolderAccess(context: Context) {
     private companion object {
         const val KEY = "trees"
         const val MAX_DEPTH = 6
+        const val READ_WRITE = Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION
     }
 }

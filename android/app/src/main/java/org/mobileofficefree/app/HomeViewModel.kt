@@ -32,6 +32,12 @@ class HomeViewModel : ViewModel() {
     /** Grows to ask for a new device scan (back from Settings or from another app). */
     var refresh by mutableIntStateOf(0)
 
+    /**
+     * Grows after a rename, copy or delete from the home list: the list is looked at again quietly
+     * (MediaStore's change counter has moved), without walking the folders in full.
+     */
+    var changes by mutableIntStateOf(0)
+
     /** What [device] was last scanned for (access, folders, [refresh]): the same home list again is not scanned again in full. */
     var scannedFor: Any? = null
     /** MediaStore's change counter when [device] was scanned (Android 11+): unchanged means no file was added, changed or removed. */

@@ -47,12 +47,32 @@ class RecentFiles(context: Context) {
         if (ArchiveFiles.isCacheCopy(app, uri)) return
         // Incognito: nothing is listed (the file opens all the same).
         if (PrivacySettings.get(app).incognito) return
-        runCatching {
-            app.contentResolver.takePersistableUriPermission(uri, Intent.FLAG_GRANT_READ_URI_PERMISSION)
-        }
+        keepAccess(uri)
         val previous = all().firstOrNull { it.uri == uri }
         save(listOf(RecentFile(uri, name, kind, size, System.currentTimeMillis(), previous?.progress ?: 0)) +
             all().filter { it.uri != uri })
+    }
+
+    /**
+     * The file at [old] was renamed from the home list: its entry keeps its place and progress,
+     * under [name] and the file's address now ([new], the same for MediaStore renames).
+     */
+    fun replace(old: Uri, new: Uri, name: String) {
+        val files = all()
+        if (files.none { it.uri == old }) return
+        if (new != old) {
+            keepAccess(new)
+            release(old)
+        }
+        val kind = DocumentKind.of(name, null).takeIf { it != DocumentKind.OTHER }
+        save(files.filter { it.uri != new || new == old }.map { if (it.uri == old) it.copy(uri = new, name = name, kind = kind ?: it.kind) else it })
+    }
+
+    /** Keeps read access to [uri] across restarts, where its provider allows that. */
+    private fun keepAccess(uri: Uri) {
+        // Write access too where the picker gave it (rename and delete from the home list), else read.
+        runCatching { app.contentResolver.takePersistableUriPermission(uri, READ_WRITE) }
+            .onFailure { runCatching { app.contentResolver.takePersistableUriPermission(uri, Intent.FLAG_GRANT_READ_URI_PERMISSION) } }
     }
 
     fun setProgress(uri: Uri, progress: Int) {
@@ -65,10 +85,13 @@ class RecentFiles(context: Context) {
     }
 
     fun forget(uri: Uri) {
-        runCatching {
-            app.contentResolver.releasePersistableUriPermission(uri, Intent.FLAG_GRANT_READ_URI_PERMISSION)
-        }
+        release(uri)
         save(all().filter { it.uri != uri })
+    }
+
+    private fun release(uri: Uri) {
+        runCatching { app.contentResolver.releasePersistableUriPermission(uri, READ_WRITE) }
+            .onFailure { runCatching { app.contentResolver.releasePersistableUriPermission(uri, Intent.FLAG_GRANT_READ_URI_PERMISSION) } }
     }
 
     private fun save(files: List<RecentFile>) {
@@ -90,5 +113,6 @@ class RecentFiles(context: Context) {
     private companion object {
         const val KEY = "files"
         const val MAX = 200
+        const val READ_WRITE = Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION
     }
 }

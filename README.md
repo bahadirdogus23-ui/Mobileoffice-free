@@ -14,6 +14,7 @@ Android için **ücretsiz, reklamsız, hesapsız ve internetsiz** çalışan ofi
 - **PDF** (PdfRenderer + PdfCraft): sayfa araçları (döndürme, silme, ayıklama, birleştirme), elle imza ve kayıtlı imzalar, kalem/fosforlu kalem/not, form doldurma (Türkçe harflerle), parola koyma/kaldırma ve parolalı PDF açma, küçültme, **kişisel veri karartma** (T.C. kimlik no, IBAN, telefon, e-posta), Türkçe duyarlı arama ve sesli okuma (tüm Android sürümlerinde), TXT ve JPEG'e dönüştürme.
 - **Tarama ve oluşturma:** kamerayla belge tarama (köşe düzeltme, belge/siyah-beyaz görünüm), resimlerden PDF.
 - **Diğer:** DWG/DXF görüntüleme (CADCraft), GİB e-Fatura/e-Arşiv/e-İrsaliye görüntüleme, görsel, düz metin (kodlama seçimi ve onarımı), ZIP; gece modu, sesli okuma, ses tuşlarıyla sayfa çevirme, yazdırma; ana ekranda Türkçe duyarsız dosya araması ve Türkiye'ye özel dosya filtreleri.
+- **Dosya yönetimi** (ana ekran, satırın ⋮ menüsü ya da basılı tutup seçme): aç, düzenlemede aç, yeniden adlandır, kopyasını oluştur, sil (onaydan sonra; Android 11+ sistemin çöp kutusuna, 30 gün içinde geri alınabilir), paylaş (birden çok dosya da), başka uygulamayla aç, dosya bilgisi. *English:* file management on the home list (row ⋮ menu or long-press selection): open, open for editing, rename, make a copy, delete (after confirmation; to the system trash on Android 11+, restorable for 30 days), share (several files too), open with another app, file details.
 
 Kapsamlı rapor ve proje planı: [docs/RAPOR-VE-PLAN.md](docs/RAPOR-VE-PLAN.md)
 

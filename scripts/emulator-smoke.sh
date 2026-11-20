@@ -120,6 +120,16 @@
 # "BadoRecovery" log lines for the file are added to the detail. A UI path that cannot be found
 # is a SKIP, as in the save pass. Its own summary section.
 #
+# Before it, "Dosya yönetimi" (file management; cosmetic, never fails the run, a problem is a warning;
+# SMOKE_FILES_PASS=0 leaves it out): a small text file is pushed to Documents as mo-files-test.txt
+# and the home screen is started cold (its first scan indexes the file). The row's "More options"
+# (⋮, the one beside the name) → "Rename": the dialog's field must show the whole name with the base
+# selected, so typing "mo-files-renamed" gives "mo-files-renamed.txt"; its "Rename" button, then the
+# device's folder must have the new name and not the old one. Then ⋮ → "Delete": the confirmation
+# must come up with the file still there; "Move to trash" (or "Delete permanently") and Android's own
+# "Allow" if it asks; the file must be gone from the folder (moved to ".trashed-…" by the trash).
+# Notes in OUT_DIR/file-actions.tsv and its summary section; the files are removed afterwards.
+#
 # Last pass, "Mağaza ekran görüntüleri" (Google Play phone screenshots; cosmetic, never fails the
 # run, a problem is a warning): with SAMPLES_DIR/store from scripts/make_store_samples.py, the
 # display is set to 1080x1920 at 420 dpi (9:16, as Play recommends), the font scale to 1.0, the light
@@ -189,6 +199,7 @@ RECOVERY_PASS=${SMOKE_RECOVERY_PASS:-1}
 RECOVERY_TIME_LIMIT=${SMOKE_RECOVERY_TIME_LIMIT:-$((SAVE_TIME_LIMIT + 2))}
 RECOVERY_WAIT=${SMOKE_RECOVERY_WAIT:-7}
 SHOTS_PASS=${SMOKE_SHOTS_PASS:-1}
+FILES_PASS=${SMOKE_FILES_PASS:-1}
 SHOTS_TIME_LIMIT=${SMOKE_SHOTS_TIME_LIMIT:-$((RECOVERY_TIME_LIMIT + 4))}
 SHOTS_LOCALES=${SMOKE_SHOTS_LOCALES:-tr-TR en-US}
 SHOTS_SIZE=${SMOKE_SHOTS_SIZE:-1080x1920}
@@ -2300,7 +2311,7 @@ shots_locale() {
 # "mo-recover-" file anywhere, and the save pass's "…-duzenlendi" copies (Download) go; MediaStore
 # rows left for them are deleted too. What MediaStore still lists is logged.
 SAMPLE_ROWS="_data LIKE '%/.mo-smoke/%' OR _display_name LIKE 'mo-smoke-%' OR _display_name LIKE 'mo-save-%'"
-SAMPLE_ROWS="$SAMPLE_ROWS OR _display_name LIKE 'mo-recover-%' OR _display_name LIKE '%-duzenlendi%'"
+SAMPLE_ROWS="$SAMPLE_ROWS OR _display_name LIKE 'mo-recover-%' OR _display_name LIKE '%-duzenlendi%' OR _display_name LIKE '%mo-files-%'"
 shots_forget_samples() {
     local left
     sh_adb rm -rf "$DEVICE_DIR" > /dev/null 2>&1 || true
@@ -2344,6 +2355,167 @@ shots_pass() {
         sh_adb "rm -f $(device_quote "$SHOTS_DEVICE_DIR/$name")" > /dev/null 2>&1 || true
     done 3< "$SHOTS_STORE/shots.tsv"
     log "screenshots: $(find "$SHOTS_DIR" -name '*.png' | wc -l) saved in $SHOTS_DIR"
+}
+
+# --------------------------------------------------------------------------------------------
+# File management pass (cosmetic: a problem is a warning, never a failure)
+
+FILES_LOG="$OUT/file-actions.tsv"
+FILES_DEVICE_DIR=/sdcard/Documents
+FILES_OLD=mo-files-test
+FILES_NEW=mo-files-renamed
+FILES_STARTED=""
+FILES_ENDED=""
+# The row menu and its dialogs (a11y_more, file_rename, delete, delete_trash_confirm,
+# delete_permanent_confirm); the system's trash/delete confirmation button.
+MORE_LABELS=("More options" "Diğer seçenekler")
+RENAME_LABELS=("Rename" "Yeniden adlandır")
+DELETE_LABELS=("Delete" "Sil")
+DELETE_CONFIRM_LABELS=("Move to trash" "Delete permanently")
+SYSTEM_ALLOW_LABELS=("Allow" "ALLOW" "İzin ver")
+
+# files_note STEP RESULT DETAIL
+files_note() {
+    printf '%s\t%s\t%s\n' "$1" "$2" "$3" >> "$FILES_LOG"
+    log "file actions $1: $2 - $3"
+    [ "$2" = OK ] || echo "::warning title=File actions $1::$3"
+}
+
+# files_more_near FILE NAME: "x y" of the "More options" button on the row that shows NAME (the
+# one nearest to it vertically); status 1 if either is not on screen.
+files_more_near() {
+    python3 - "$1" "$2" "${MORE_LABELS[@]}" << 'PY'
+import re
+import sys
+import xml.etree.ElementTree as ET
+
+path, name, more = sys.argv[1], sys.argv[2], sys.argv[3:]
+try:
+    nodes = list(ET.parse(path).getroot().iter("node"))
+except (ET.ParseError, OSError):
+    sys.exit(1)
+
+
+def box(node):
+    return list(map(int, re.findall(r"\d+", node.get("bounds", "[0,0][0,0]"))))
+
+
+rows = [box(n) for n in nodes if (n.get("text") or "") == name]
+buttons = [box(n) for n in nodes if (n.get("content-desc") or "") in more]
+if not rows or not buttons:
+    sys.exit(1)
+y = (rows[0][1] + rows[0][3]) // 2
+best = min(buttons, key=lambda b: abs((b[1] + b[3]) // 2 - y))
+if abs((best[1] + best[3]) // 2 - y) > 200:
+    sys.exit(1)
+print(f"{(best[0] + best[2]) // 2} {(best[1] + best[3]) // 2}")
+PY
+}
+
+files_exists() { [ -n "$(sh_adb "ls $(device_quote "$FILES_DEVICE_DIR/$1") 2> /dev/null" 2> /dev/null | tr -d '\r')" ]; }
+
+files_cleanup() {
+    sh_adb "rm -f $FILES_DEVICE_DIR/mo-files-* $FILES_DEVICE_DIR/.trashed-*mo-files-*" > /dev/null 2>&1 || true
+    sh_adb content delete --uri content://media/external/file --where "\"_display_name LIKE '%mo-files-%'\"" > /dev/null 2>&1 || true
+}
+
+# A copy of a text file in Documents is renamed and then deleted through the home list's row menu;
+# the device's folder must show the new name, then no file by that name (the trash keeps it as
+# ".trashed-…"). The app indexes the pushed file itself on its first scan ("All files access").
+files_pass() {
+    local xml at deadline trashed
+    : > "$FILES_LOG"
+    files_cleanup
+    printf 'BadoOffice dosya yönetimi denemesi\r\n' > "$OUT/$FILES_OLD.txt"
+    sh_adb mkdir -p "$FILES_DEVICE_DIR" || true
+    if ! timeout 60 adb push "$OUT/$FILES_OLD.txt" "$FILES_DEVICE_DIR/$FILES_OLD.txt" > /dev/null 2>&1 < /dev/null; then
+        files_note setup SKIP "could not push the test file"
+        return 0
+    fi
+    sh_adb am force-stop "$PKG" || true
+    sh_adb am start -W -n "$ACTIVITY" > /dev/null 2>&1 || true
+    if ! wait_label files-list 45 exact "$FILES_OLD"; then
+        files_note rename SKIP "the home list did not show $FILES_OLD within 45 s"
+        return 0
+    fi
+    xml="$OUT/files-list.window.xml"
+    at=$(files_more_near "$xml" "$FILES_OLD") || { files_note rename SKIP "no \"More options\" button next to $FILES_OLD"; return 0; }
+    tap_at "$at"
+    if ! wait_label files-menu 10 exact "${RENAME_LABELS[@]}" || ! tap_label files-menu center-exact "${RENAME_LABELS[@]}"; then
+        files_note rename SKIP "the row menu has no \"Rename\""
+        return 0
+    fi
+    sleep 2
+    ui_dump "$OUT/files-rename.window.xml" || true
+    if [ "$(field_text files-rename)" != "$FILES_OLD.txt" ]; then
+        files_note rename SKIP "the rename dialog's field shows \"$(field_text files-rename)\", not $FILES_OLD.txt"
+        sh_adb input keyevent KEYCODE_ESCAPE > /dev/null 2>&1 || true
+        return 0
+    fi
+    # The name without its extension is selected: typing replaces just that.
+    sh_adb input text "$FILES_NEW" || true
+    sleep 1
+    ui_dump "$OUT/files-rename-typed.window.xml" || true
+    if [ "$(field_text files-rename-typed)" != "$FILES_NEW.txt" ]; then
+        files_note rename WARN "after typing, the field shows \"$(field_text files-rename-typed)\" (expected $FILES_NEW.txt: the base name was not selected?)"
+        sh_adb input keyevent KEYCODE_ESCAPE > /dev/null 2>&1 || true
+        return 0
+    fi
+    screenshot files-rename-dialog
+    if ! tap_label files-rename-typed center-enabled "${RENAME_LABELS[@]}"; then
+        files_note rename WARN "no enabled \"Rename\" button in the dialog"
+        return 0
+    fi
+    deadline=$(($(date +%s) + 20))
+    until files_exists "$FILES_NEW.txt" && ! files_exists "$FILES_OLD.txt"; do
+        if [ "$(date +%s)" -ge "$deadline" ]; then
+            files_note rename WARN "after 20 s the folder has: $(sh_adb "ls $FILES_DEVICE_DIR" 2> /dev/null | tr -d '\r' | grep mo-files | tr '\n' ' ')"
+            return 0
+        fi
+        sleep 1
+    done
+    files_note rename OK "$FILES_OLD.txt renamed to $FILES_NEW.txt on the device"
+
+    if ! wait_label files-list2 20 exact "$FILES_NEW"; then
+        files_note delete SKIP "the home list did not show $FILES_NEW within 20 s"
+        return 0
+    fi
+    at=$(files_more_near "$OUT/files-list2.window.xml" "$FILES_NEW") || { files_note delete SKIP "no \"More options\" button next to $FILES_NEW"; return 0; }
+    tap_at "$at"
+    if ! wait_label files-menu2 10 exact "${DELETE_LABELS[@]}" || ! tap_label files-menu2 center-exact "${DELETE_LABELS[@]}"; then
+        files_note delete SKIP "the row menu has no \"Delete\""
+        return 0
+    fi
+    if ! wait_label files-delete 10 exact "${DELETE_CONFIRM_LABELS[@]}"; then
+        files_note delete WARN "no delete confirmation came up"
+        return 0
+    fi
+    screenshot files-delete-dialog
+    # Nothing may be deleted before the confirmation: the file is still there.
+    if ! files_exists "$FILES_NEW.txt"; then
+        files_note delete WARN "the file was gone before the confirmation was answered"
+        return 0
+    fi
+    tap_label files-delete center-exact "${DELETE_CONFIRM_LABELS[@]}" || true
+    # Android's own trash/delete confirmation (not shown to apps with "All files access" on most versions).
+    sleep 3
+    if ui_dump "$OUT/files-system.window.xml" && at=$(ui_query "$OUT/files-system.window.xml" center-exact "${SYSTEM_ALLOW_LABELS[@]}"); then
+        tap_at "$at"
+    fi
+    deadline=$(($(date +%s) + 20))
+    while files_exists "$FILES_NEW.txt"; do
+        if [ "$(date +%s)" -ge "$deadline" ]; then
+            files_note delete WARN "after 20 s $FILES_NEW.txt is still in the folder"
+            return 0
+        fi
+        sleep 1
+    done
+    trashed=$(sh_adb "ls -a $FILES_DEVICE_DIR" 2> /dev/null | tr -d '\r' | grep -c "^\.trashed-.*$FILES_NEW" || true)
+    if [ "${trashed:-0}" -gt 0 ]; then
+        files_note delete OK "$FILES_NEW.txt moved to the system trash"
+    else
+        files_note delete OK "$FILES_NEW.txt deleted (no .trashed- copy in the folder)"
+    fi
 }
 
 finish() {
@@ -2411,6 +2583,18 @@ finish() {
                 "viewer's search finds the typed word). *discard-*: \"Discard\" must show the file as it is and the next" \
                 "open must offer nothing. Every case: the opened file keeps its bytes and nothing appears next to it." \
                 "Pass: $(((${RECOVERY_ENDED:-$(date +%s)} - ${RECOVERY_STARTED:-$(date +%s)}) / 60)) min."
+        fi
+        if [ -s "$FILES_LOG" ]; then
+            echo
+            echo "### Dosya yönetimi"
+            echo
+            echo "| Step | Result | Detail |"
+            echo "|---|---|---|"
+            awk -F '\t' '{ gsub(/\|/, "\\|", $3); printf "| %s | %s | %s |\n", $1, $2, $3 }' "$FILES_LOG"
+            echo
+            echo "A text file in Documents renamed and then deleted through the home list's row menu (⋮ → Rename," \
+                "⋮ → Delete), checked with \`ls\` on the device (cosmetic: problems are warnings, never a failure)." \
+                "Pass: $(((${FILES_ENDED:-$(date +%s)} - ${FILES_STARTED:-$(date +%s)}) / 60)) min."
         fi
         if [ -s "$SHOTS_LOG" ]; then
             echo
@@ -2503,6 +2687,21 @@ fi
 # After saving, still in English: it leaves recovery copies in the app's own folder.
 if [ "$RECOVERY_PASS" = 1 ]; then
     recovery_pass
+fi
+
+# Cosmetic, like the screenshots: rename and delete through the home list's row menu. A subshell
+# on the left of `||` runs without errexit and cannot change FAILED.
+if [ "$FILES_PASS" = 1 ]; then
+    FILES_STARTED=$(date +%s)
+    if [ $((($(date +%s) - RUN_STARTED) / 60)) -lt $((SHOTS_TIME_LIMIT - 5)) ]; then
+        (files_pass) || echo "::warning title=File actions::the file actions pass stopped early (status $?)"
+    else
+        : > "$FILES_LOG"
+        files_note all SKIP "too close to the $SHOTS_TIME_LIMIT min limit"
+    fi
+    files_cleanup
+    sh_adb am force-stop "$PKG" || true
+    FILES_ENDED=$(date +%s)
 fi
 
 # Last and cosmetic: the Google Play screenshots. A subshell on the left of `||` runs without

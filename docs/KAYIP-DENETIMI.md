@@ -120,6 +120,39 @@ U+FFFD'ye dönüşür ve kayıtta öyle yazılır; karışık satır sonları te
 | Resim, arşiv, e-fatura | Yok (salt okunur) | Güvenli |
 | Yeni belge / şablon (`HomeScreen`) | Kişinin seçtiği yeni dosyaya yazar | Güvenli |
 | Kurtarma kopyası | Uygulamanın önbelleğine yazar; geri alınınca kaynak dosyanın "tam okunmadı" bayrağı korunur | Güvenli |
+| Ana ekranda yeniden adlandırma, kopya, silme (`FileOps`, `FileActions`) | Aşağıda | Güvenli |
+
+### Ana ekranda dosya yönetimi (2026-11-20)
+
+Ana listenin ⋮ menüsü ve seçim çubuğu dosyanın kendisini değiştirir; kurallar:
+
+- **Silme asla onaysız değildir.** Önce uygulamanın kendi penceresi dosya adını ve ne olacağını söyler: Android 11+'da
+  MediaStore'un bildiği her dosya (kendi adresiyle, yoluyla ya da Dosyalar uygulamasından seçilmişse
+  `MediaStore.getMediaUri` ile bulunur) `MediaStore.createTrashRequest` ile **sistemin çöp kutusuna** taşınır
+  ("30 gün içinde geri alınabilir"); Android gerekirse kendi onayını da sorar. Çöp kutusu yoksa (Android 10 ve öncesi,
+  dizine alınmamış dosya, SAF belgesi) pencere "kalıcı olarak silinecek, geri alınamaz" der. Çöp kutusu isteği o an
+  reddedilirse dosyalar silinmez; ayrı bir ikinci "kalıcı olarak sil" onayı istenir. Kalıcı silme: "Tüm dosyalara
+  erişim" ile `File.delete`, yoksa `MediaStore.createDeleteRequest` (sistem onayı), Android 10'da
+  `RecoverableSecurityException` onayı, SAF'ta `DocumentsContract.deleteDocument`. Kişi sistem onayında "hayır"
+  derse hiçbir dosya silinmez (çoklu seçimde kalanlar da).
+- **Hiçbir dosyanın üzerine yazılmaz.** Yeniden adlandırmada hedef adın klasörde olup olmadığı önce sorulur (dosya
+  yolu, MediaStore `RELATIVE_PATH`, SAF klasörü); kopya `"<ad> (kopya).ext"`, varsa `(kopya 2)`… adını alır ve
+  `createNewFile` / yeni MediaStore kaydı / `createDocument` ile **yeni** bir dosyaya yazılır. Kopyalama yarıda
+  kalırsa yalnızca uygulamanın o an oluşturduğu yarım kopya silinir, asıl dosyaya dokunulmaz. Klasöre yazılamıyorsa
+  sistemin "Kaydet" penceresi açılır; aynı dosya seçilirse reddedilir.
+- **Ad değişince hiçbir şey eski adresi göstermez:** son açılanlar listesi kaydı (yeri ve okuma ilerlemesiyle),
+  kurtarma kopyası (`RecoveryStore.move`) ve listenin adı izler. MediaStore yeniden adlandırması adresi korur.
+  Silinen dosyanın son açılanlar kaydı ve kurtarma kopyası da silinir.
+- **Uzantı korunur:** pencere yalnızca uzantısız adı seçer; uzantı değişirse uyarı gösterilir. Boş ad, `/ \ : * ? " < > |`,
+  nokta ile başlayan ve 255 bayttan uzun adlar reddedilir (`FileNames`, birim testli; uzantı karşılaştırması
+  `Locale.ROOT`).
+- Bütün dosya işleri ana iş parçacığı dışında yapılır. Ana ekran açıkken hiçbir belge açık olmadığından açık bir
+  belgenin adresi eskimez.
+- **Kalan (düşük):** aynı dosya son açılanlarda başka bir adresle (ör. Dosyalar uygulamasından açılmış belge adresi)
+  de duruyorsa, cihaz listesinden yapılan yeniden adlandırma o kaydı güncellemez; kayıt açılamazsa kişi listeden
+  kaldırabilir. Android 8–9'da yazma izni istenmediği için yalnızca SAF ile verilmiş dosyalar değiştirilebilir;
+  diğerlerinde neden yapılamadığı söylenir. Emülatör duman testinin "Dosya yönetimi" bölümü (kozmetik, uyarı verir)
+  bir metin dosyasını arayüzden yeniden adlandırıp siler ve cihazda denetler.
 
 ## Testler
 

@@ -741,4 +741,70 @@
     <string name="cad_memory_recovery">Before opening, a recovery copy of your other open documents\' unsaved changes is made.</string>
     <string name="cad_memory_open_anyway">Open anyway</string>
     <string name="cad_memory_cancel">Cancel</string>
+    <!-- Home list: file management (rename, copy, delete, details). -->
+    <string name="file_open">Open</string>
+    <string name="file_rename">Rename</string>
+    <string name="file_rename_confirm">Rename</string>
+    <string name="rename_title">Rename file</string>
+    <string name="file_duplicate">Make a copy</string>
+    <string name="file_open_with">Open with another app</string>
+    <string name="file_info">Details</string>
+    <string name="file_select">Select</string>
+    <string name="copy_word">copy</string>
+    <string name="rename_label">File name</string>
+    <string name="rename_error_empty">The name cannot be empty.</string>
+    <string name="rename_error_illegal">The name cannot contain these characters: %1$s</string>
+    <string name="rename_error_hidden">The name cannot start with a dot (the file would be hidden).</string>
+    <string name="rename_error_long">The name is too long.</string>
+    <string name="rename_error_exists">There is already a file with this name in this folder.</string>
+    <string name="rename_ext_warning">The extension changes (.%1$s → .%2$s): the file may no longer open, or may open in another app.</string>
+    <string name="rename_done">Renamed: %1$s</string>
+    <string name="file_no_permission">The app may not change this file. Turn on “All files access” for it in Settings, pick its folder again, or manage the file in the Files app.</string>
+    <string name="file_not_here">This file cannot be changed from here (another app handed it over). Manage it in that app or in the Files app.</string>
+    <string name="file_action_failed">The file could not be changed.</string>
+    <string name="file_action_failed_because">The file could not be changed: %1$s</string>
+    <string name="duplicate_done">Copy made: %1$s</string>
+    <string name="duplicate_failed">The copy could not be made. %1$s</string>
+    <string name="duplicate_pick_place">The app cannot write in this file\'s folder: choose where to save the copy.</string>
+    <string name="duplicate_same_file">The copy cannot be saved over the original.</string>
+    <string name="delete_title">Delete?</string>
+    <string name="delete_cannot_title">Cannot delete</string>
+    <string name="delete_trash_body">“%1$s” will be moved to the trash. It can be restored within 30 days (Files or Gallery app → Trash).</string>
+    <string name="delete_permanent_body">“%1$s” will be deleted permanently. This cannot be undone.</string>
+    <string name="delete_trash_confirm">Move to trash</string>
+    <string name="delete_permanent_confirm">Delete permanently</string>
+    <string name="delete_trash_unavailable">Android would not move this file to the trash.</string>
+    <string name="delete_trash_failed_title">Trash not available</string>
+    <string name="delete_trash_failed_body">These files could not be moved to the trash:\n%1$s\n\nDelete them permanently? This cannot be undone.</string>
+    <string name="delete_done_trash">Moved to the trash: %1$s</string>
+    <string name="delete_done">Deleted: %1$s</string>
+    <string name="delete_failed">Could not delete “%1$s”. %2$s</string>
+    <plurals name="delete_many_trash">
+        <item quantity="one">%1$d file will be moved to the trash; it can be restored within 30 days.</item>
+        <item quantity="other">%1$d files will be moved to the trash; they can be restored within 30 days.</item>
+    </plurals>
+    <plurals name="delete_many_permanent">
+        <item quantity="one">%1$d file will be deleted permanently; this cannot be undone.</item>
+        <item quantity="other">%1$d files will be deleted permanently; this cannot be undone.</item>
+    </plurals>
+    <plurals name="delete_many_skipped">
+        <item quantity="one">%1$d file cannot be deleted from here and is left as it is:</item>
+        <item quantity="other">%1$d files cannot be deleted from here and are left as they are:</item>
+    </plurals>
+    <plurals name="delete_many_done_trash">
+        <item quantity="one">%1$d file moved to the trash</item>
+        <item quantity="other">%1$d files moved to the trash</item>
+    </plurals>
+    <plurals name="delete_many_done">
+        <item quantity="one">%1$d file deleted</item>
+        <item quantity="other">%1$d files deleted</item>
+    </plurals>
+    <string name="open_with_title">Open “%1$s” with</string>
+    <string name="info_title">File details</string>
+    <string name="info_name">Name</string>
+    <string name="info_type">Type</string>
+    <string name="info_size">Size</string>
+    <string name="info_folder">Folder</string>
+    <string name="info_modified">Modified</string>
+    <string name="info_unknown">Not known</string>
 </resources>

@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
@@ -51,7 +52,9 @@ fun AppRoot(home: HomeViewModel, sheet: SheetViewModel, word: WordViewModel, pdf
     var crashReport by remember { mutableStateOf(Diagnostics.takeCrashReport(context)) }
 
     val scope = rememberCoroutineScope()
-    val openAny: (Uri) -> Unit = { uri ->
+    // "Edit" on the home list: the file whose screen opens straight in its editing mode.
+    var editRequest by remember { mutableStateOf<Uri?>(null) }
+    val openDocument: (Uri, Boolean) -> Unit = { uri, edit ->
         scope.launch {
             val resolver = context.contentResolver
             // The provider is asked off the main thread: a slow one (a cloud drive, a large
@@ -70,6 +73,9 @@ fun AppRoot(home: HomeViewModel, sheet: SheetViewModel, word: WordViewModel, pdf
             if (unreadable != null) notice = resources.getString(R.string.open_failed, unreadable.message ?: unreadable.javaClass.simpleName)
             if (found.isFailure) notice = resources.getString(R.string.open_failed, found.exceptionOrNull()?.message ?: "")
             if (info == null || unreadable != null) return@launch
+            // Set in the same main-thread step as open(), which marks its screen as loading:
+            // the effect below waits for the screen and then starts editing.
+            editRequest = if (edit && info.kind in setOf(DocumentKind.WORD, DocumentKind.SLIDES, DocumentKind.TEXT)) uri else null
             when (info.kind) {
                 DocumentKind.WORD -> word.open(uri)
                 DocumentKind.SHEET -> sheet.open(uri)
@@ -84,6 +90,19 @@ fun AppRoot(home: HomeViewModel, sheet: SheetViewModel, word: WordViewModel, pdf
                 else -> notice = resources.getString(R.string.unsupported_file)
             }
         }
+    }
+    val openAny: (Uri) -> Unit = { openDocument(it, false) }
+    val anyLoading = word.loading || slides.loading || text.loading
+    LaunchedEffect(editRequest, anyLoading, word.state?.uri, slides.state?.uri, text.state?.uri) {
+        val wanted = editRequest ?: return@LaunchedEffect
+        if (anyLoading) return@LaunchedEffect
+        // Opened (or failed to open: then nothing matches and the request is dropped).
+        when (wanted) {
+            word.state?.uri -> if (!word.editing) word.startEditing()
+            slides.state?.uri -> slides.editing = true
+            text.state?.uri -> if (!text.editing) text.startEditing()
+        }
+        editRequest = null
     }
 
     LaunchedEffect(openRequest) {
@@ -157,7 +176,7 @@ fun AppRoot(home: HomeViewModel, sheet: SheetViewModel, word: WordViewModel, pdf
 
     // No insets here: each screen's top bar keeps clear of the status bar and its bottom bar (or
     // padding) of the navigation bar. Adding them here as well left empty bands at the top and bottom.
-    Scaffold(contentWindowInsets = WindowInsets(0, 0, 0, 0), snackbarHost = { SnackbarHost(snackbar) }) { padding ->
+    Scaffold(contentWindowInsets = WindowInsets(0, 0, 0, 0), snackbarHost = { SnackbarHost(snackbar, Modifier.navigationBarsPadding()) }) { padding ->
         Box(Modifier.padding(padding).fillMaxSize()) {
             val sheetScreen = sheet.screen
             val wordState = word.state
@@ -197,6 +216,7 @@ fun AppRoot(home: HomeViewModel, sheet: SheetViewModel, word: WordViewModel, pdf
                 else -> HomeScreen(
                     home = home,
                     onOpen = openAny,
+                    onEdit = { openDocument(it, true) },
                     onNewSheet = sheet::newBlank,
                     onDiagnostics = { showDiagnostics = true },
                     engineVersion = sheet.engineVersion,

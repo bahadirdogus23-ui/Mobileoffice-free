@@ -56,6 +56,24 @@ class RecoveryStore(context: Context) {
         if (had) Log.i(RECOVERY_LOG_TAG, "copy cleared: ${logName(uri)}")
     }
 
+    /**
+     * The file at [old] was renamed (or got a new address, [new]) from the home list: its copy, if
+     * any, follows it and is offered under [name] (the format it opens as may follow the new extension).
+     */
+    fun move(old: Uri, new: Uri, name: String) {
+        val from = key(old)
+        val bin = File(dir, "$from.bin")
+        if (!bin.isFile) return
+        val to = key(new)
+        if (from != to) {
+            if (!bin.renameTo(File(dir, "$to.bin"))) return
+            File(dir, "$from.name").delete()
+            File(dir, "$from.tmp").delete()
+        }
+        File(dir, "$to.name").writeText(name)
+        Log.i(RECOVERY_LOG_TAG, "copy moved: ${logName(old)} -> ${logName(new)}")
+    }
+
     /** Notes in the log that [what] happened to the copy of the file at [uri] ("copy restored"…). */
     fun note(uri: Uri, what: String) {
         Log.i(RECOVERY_LOG_TAG, "$what: ${logName(uri)}")

@@ -29,6 +29,21 @@ object DeviceFiles {
     /** Documents the last walk found that the system would not index: listed by path every scan. */
     @Volatile private var byPath: List<java.io.File> = emptyList()
 
+    /** A file listed by path was renamed from the home list: listed under its new name until the next walk. */
+    fun pathRenamed(old: java.io.File, new: java.io.File) {
+        byPath = byPath.map { if (it.path == old.path) new else it }
+    }
+
+    /** A copy the system would not index was made from the home list: listed by path. */
+    fun pathAdded(file: java.io.File) {
+        if (byPath.none { it.path == file.path }) byPath = byPath + file
+    }
+
+    /** A file listed by path was deleted from the home list. */
+    fun pathRemoved(file: java.io.File) {
+        byPath = byPath.filter { it.path != file.path }
+    }
+
     fun hasAccess(context: Context): Boolean =
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
             Environment.isExternalStorageManager()
