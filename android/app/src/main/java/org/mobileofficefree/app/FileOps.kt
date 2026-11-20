@@ -8,15 +8,20 @@ import android.content.IntentSender
 import android.media.MediaScannerConnection
 import android.net.Uri
 import android.os.Build
+import android.os.Bundle
 import android.os.Environment
 import android.provider.DocumentsContract
 import android.provider.MediaStore
 import android.provider.OpenableColumns
+import android.util.Log
 import androidx.core.content.FileProvider
 import java.io.File
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
+
+/** The logcat tag for the home list's file actions (rename, copy, trash, delete). */
+internal const val FILES_LOG_TAG = "BadoFiles"
 
 /** What a file action came to. */
 sealed interface FileOutcome {
@@ -53,6 +58,14 @@ data class FileDetails(val name: String, val mime: String?, val size: Long, val 
  * Every function does I/O: call off the main thread.
  */
 object FileOps {
+    private fun log(message: String) {
+        Log.i(FILES_LOG_TAG, message)
+    }
+
+    private fun warn(message: String, e: Throwable? = null) {
+        Log.w(FILES_LOG_TAG, message, e)
+    }
+
     private fun isMedia(uri: Uri) = uri.scheme == "content" && uri.authority == MediaStore.AUTHORITY
 
     private fun isDocument(context: Context, uri: Uri) = runCatching { DocumentsContract.isDocumentUri(context, uri) }.getOrDefault(false)
@@ -173,46 +186,62 @@ object FileOps {
     fun rename(context: Context, uri: Uri, oldName: String, newName: String, consented: Boolean = false): FileOutcome {
         val name = newName.trim()
         if (name == oldName) return FileOutcome.Done(uri, name)
-        if (nameTaken(context, uri, oldName, name)) return FileOutcome.Failed(context.getString(R.string.rename_error_exists))
+        if (nameTaken(context, uri, oldName, name)) {
+            log("rename: $uri \"$oldName\" -> \"$name\": the name is taken")
+            return FileOutcome.Failed(context.getString(R.string.rename_error_exists))
+        }
         val file = pathOf(context, uri)?.takeIf { it.isFile }
         val target = file?.parentFile?.let { File(it, name) }
+        log("rename: $uri \"$oldName\" -> \"$name\" (file ${file?.path}, all files access ${canWriteFiles()}, consented $consented)")
 
         if (isMedia(uri) && Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
             // MediaStore renames the file itself and keeps its address (recent files keep working).
             try {
                 val changed = context.contentResolver.update(uri, ContentValues().apply { put(MediaStore.MediaColumns.DISPLAY_NAME, name) }, null, null)
+                log("rename: MediaStore update changed $changed row(s); new file there: ${target?.exists()}")
                 if (changed > 0 && (target == null || target.exists())) return FileOutcome.Done(uri, displayName(context, uri) ?: name)
             } catch (e: SecurityException) {
+                warn("rename: MediaStore refused the update", e)
                 if (!canWriteFiles()) {
                     if (consented) return FileOutcome.Failed(context.getString(R.string.file_no_permission))
                     val ask = writeConsent(context, uri, e) ?: return FileOutcome.Failed(context.getString(R.string.file_no_permission))
                     return FileOutcome.NeedsConsent(ask, granted = null)
                 }
-            } catch (_: Exception) {
+            } catch (e: Exception) {
                 // Tried below on the file itself where the app may.
+                warn("rename: MediaStore update failed", e)
             }
         }
 
         if (file != null && target != null && canWriteFiles()) {
-            if (!file.renameTo(target)) return FileOutcome.Failed(context.getString(R.string.file_action_failed))
+            if (!file.renameTo(target)) {
+                log("rename: File.renameTo(${target.path}) failed")
+                return FileOutcome.Failed(context.getString(R.string.file_action_failed))
+            }
+            // MediaStore must follow (the old path dropped, the new one indexed), so that later
+            // actions (delete, trash, details) find the file under its new name.
             val indexed = scan(context, listOf(file.path, target.path))[target.path]
             val newUri = when {
                 isMedia(uri) -> indexed ?: mediaUriFor(context, target) ?: Uri.fromFile(target)
                 uri.scheme == "file" -> indexed ?: Uri.fromFile(target).also { DeviceFiles.pathRenamed(file, target) }
                 else -> runCatching { FileProvider.getUriForFile(context, ArchiveFiles.authority(context), target) }.getOrDefault(Uri.fromFile(target))
             }
+            log("rename: renamed on disk to ${target.path}; indexed as $indexed; listed as $newUri")
             return FileOutcome.Done(newUri, name)
         }
 
         if (isDocument(context, uri)) {
             return try {
                 val renamed = DocumentsContract.renameDocument(context.contentResolver, uri, name) ?: uri
+                log("rename: document renamed, now $renamed")
                 // A provider may change the name a little to keep it unique ("ad (1).pdf").
                 FileOutcome.Done(renamed, displayName(context, renamed) ?: name)
-            } catch (_: Exception) {
+            } catch (e: Exception) {
+                warn("rename: document rename failed", e)
                 FileOutcome.Failed(context.getString(R.string.file_no_permission))
             }
         }
+        log("rename: no way to rename $uri from here")
         return FileOutcome.Failed(context.getString(if (isMedia(uri) || file != null) R.string.file_no_permission else R.string.file_not_here))
     }
 
@@ -308,19 +337,61 @@ object FileOps {
         isMedia(uri) && Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q -> DeleteWay.PERMANENT
         isDocument(context, uri) -> DeleteWay.PERMANENT
         else -> DeleteWay.NONE
+    }.also { log("delete way for $uri: $it") }
+
+    /**
+     * Moves the file at [uri] to the system's trash without asking Android first, which an app with
+     * "All files access" may do on Android 11+ (MediaStore renames it to ".trashed-<expiry>-<name>"
+     * and removes it after about 30 days). Only after the person confirmed in the app's own dialog.
+     * False when it could not (the caller then asks Android through [trash]); the file is then left
+     * as it was.
+     */
+    fun trashDirectly(context: Context, uri: Uri): Boolean {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.R) return false
+        if (!canWriteFiles()) {
+            log("trash directly: no all files access for $uri")
+            return false
+        }
+        val media = mediaFor(context, uri)
+        if (media == null) {
+            log("trash directly: MediaStore has no record of $uri")
+            return false
+        }
+        val before = pathOf(context, media)?.takeIf { it.isFile }
+        return try {
+            val changed = context.contentResolver.update(media, ContentValues().apply { put(MediaStore.MediaColumns.IS_TRASHED, 1) }, null, null)
+            val stillThere = before?.exists() == true
+            log("trash directly: $uri (record $media, file ${before?.path}): $changed row(s) changed, file still at its path: $stillThere")
+            if (changed > 0 && !stillThere) return true
+            if (changed > 0) {
+                // Marked as trashed but not moved: undone, so the record matches the file again.
+                val extras = Bundle().apply { putInt(MediaStore.QUERY_ARG_MATCH_TRASHED, MediaStore.MATCH_INCLUDE) }
+                val undo = ContentValues().apply { put(MediaStore.MediaColumns.IS_TRASHED, 0) }
+                val undone = runCatching { context.contentResolver.update(media, undo, extras) }.getOrDefault(0)
+                log("trash directly: the file did not move; trashed flag undone on $undone row(s)")
+            }
+            false
+        } catch (e: Exception) {
+            warn("trash directly: MediaStore refused to trash $media", e)
+            false
+        }
     }
 
     /**
      * The system's request to move [uris] to its trash (Android 11+; kept about 30 days, then
-     * removed). Failed when Android will not trash them (the caller then asks about deleting for good).
+     * removed). Failed when Android will not trash them (the caller then asks about deleting for
+     * good): Android makes such requests only for photos, videos and music, and throws for
+     * documents addressed through MediaStore's "files" table, as the home list's are.
      */
     fun trash(context: Context, uris: List<Uri>): FileOutcome {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.R) return FileOutcome.Failed(context.getString(R.string.delete_trash_unavailable))
         val media = uris.mapNotNull { mediaFor(context, it) }
+        log("trash request: ${uris.size} file(s), MediaStore records: ${media.joinToString()}")
         if (media.size != uris.size || media.isEmpty()) return FileOutcome.Failed(context.getString(R.string.delete_trash_unavailable))
         return try {
             FileOutcome.NeedsConsent(MediaStore.createTrashRequest(context.contentResolver, media, true).intentSender, FileOutcome.Done(uris.first(), ""))
-        } catch (_: Exception) {
+        } catch (e: Exception) {
+            warn("trash request: Android would not make one", e)
             FileOutcome.Failed(context.getString(R.string.delete_trash_unavailable))
         }
     }
@@ -328,16 +399,22 @@ object FileOps {
     /** Deletes the file at [uri] for good. Only after the person confirmed that it cannot be undone. */
     fun deletePermanently(context: Context, uri: Uri, consented: Boolean = false): FileOutcome {
         val file = pathOf(context, uri)?.takeIf { it.isFile }
+        log("delete for good: $uri (file ${file?.path}, all files access ${canWriteFiles()}, consented $consented)")
         if (file != null && canWriteFiles()) {
-            if (!file.delete()) return FileOutcome.Failed(context.getString(R.string.file_action_failed))
+            if (!file.delete()) {
+                log("delete for good: File.delete failed for ${file.path}")
+                return FileOutcome.Failed(context.getString(R.string.file_action_failed))
+            }
             scan(context, listOf(file.path))
             DeviceFiles.pathRemoved(file)
+            log("delete for good: ${file.path} deleted")
             return FileOutcome.Done(uri, file.name)
         }
         if (isMedia(uri) && Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
             return try {
                 FileOutcome.NeedsConsent(MediaStore.createDeleteRequest(context.contentResolver, listOf(uri)).intentSender, FileOutcome.Done(uri, ""))
-            } catch (_: Exception) {
+            } catch (e: Exception) {
+                warn("delete for good: Android would not make a delete request for $uri", e)
                 FileOutcome.Failed(context.getString(R.string.file_no_permission))
             }
         }

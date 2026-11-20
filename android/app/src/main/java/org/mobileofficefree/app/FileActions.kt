@@ -8,6 +8,7 @@ import android.content.Intent
 import android.content.IntentSender
 import android.net.Uri
 import android.text.format.Formatter
+import android.util.Log
 import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.ActivityResultLauncher
@@ -263,19 +264,36 @@ class FileActions internal constructor(
             try {
                 val trash = plan.items.filter { it.second == DeleteWay.TRASH }.map { it.first }
                 val permanent = plan.items.filter { it.second == DeleteWay.PERMANENT }.map { it.first }
+                Log.i(FILES_LOG_TAG, "delete confirmed: ${trash.size} to the trash, ${permanent.size} for good")
                 val trashed = ArrayList<FileTarget>()
                 var trashRefused = emptyList<FileTarget>()
                 if (trash.isNotEmpty()) {
-                    when (perform { FileOps.trash(context, trash.map { it.uri }) }) {
-                        is FileOutcome.Done -> trashed += trash
-                        is FileOutcome.Failed -> trashRefused = trash
-                        // The person said no to the system: nothing else is deleted either.
-                        else -> return@launch
+                    // With "All files access" the app moves them to the trash itself (no system dialog);
+                    // Android is asked only for what that did not take.
+                    val direct = withContext(Dispatchers.IO) { trash.filter { FileOps.trashDirectly(context, it.uri) } }
+                    trashed += direct
+                    val rest = trash.filter { it !in direct }
+                    if (rest.isNotEmpty()) {
+                        val outcome = perform { FileOps.trash(context, rest.map { it.uri }) }
+                        Log.i(FILES_LOG_TAG, "trash request for ${rest.size} file(s): ${outcome.javaClass.simpleName}")
+                        when (outcome) {
+                            is FileOutcome.Done -> trashed += rest
+                            is FileOutcome.Failed -> trashRefused = rest
+                            else -> {
+                                // The person said no to the system: nothing else is deleted either.
+                                finish(trashed, emptyList())
+                                return@launch
+                            }
+                        }
                     }
                 }
                 val deleted = deleteForGood(permanent)
                 finish(trashed, deleted)
-                if (trashRefused.isNotEmpty()) permanentAfterTrash = trashRefused
+                if (trashRefused.isNotEmpty()) {
+                    // Nothing is deleted for good without the app's own second "yes".
+                    Log.i(FILES_LOG_TAG, "trash refused for ${trashRefused.size} file(s): asking about deleting them for good")
+                    permanentAfterTrash = trashRefused
+                }
             } finally {
                 busy = false
             }
@@ -392,6 +410,7 @@ fun rememberFileActions(onChanged: (FileChange) -> Unit): FileActions {
     val latest = rememberUpdatedState(onChanged)
     val actions = remember { FileActions(context, scope) { latest.value(it) } }
     actions.consentLauncher = rememberLauncherForActivityResult(ActivityResultContracts.StartIntentSenderForResult()) {
+        Log.i(FILES_LOG_TAG, "system confirmation answered: result code ${it.resultCode}")
         actions.consentAnswered(it.resultCode == Activity.RESULT_OK)
     }
     actions.placeLauncher = rememberLauncherForActivityResult(CreateFile()) { actions.placeAnswered(it) }

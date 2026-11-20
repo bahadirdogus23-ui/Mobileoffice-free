@@ -127,8 +127,12 @@
 # selected, so typing "mo-files-renamed" gives "mo-files-renamed.txt"; its "Rename" button, then the
 # device's folder must have the new name and not the old one. Then ⋮ → "Delete": the confirmation
 # must come up with the file still there; "Move to trash" (or "Delete permanently") and Android's own
-# "Allow" if it asks; the file must be gone from the folder (moved to ".trashed-…" by the trash).
-# Notes in OUT_DIR/file-actions.tsv and its summary section; the files are removed afterwards.
+# "Allow" if it asks; the file must be gone from the folder (moved to ".trashed-…" by the trash; with
+# "All files access" the app trashes it itself, without a system dialog). If the app instead says
+# the trash is not available, its "Delete permanently" is tapped and the step is a warning. When a
+# step does not happen, the app's "BadoFiles" log lines, the labels on screen and the folder are
+# printed into the job log. Notes in OUT_DIR/file-actions.tsv and its summary section; the files
+# are removed afterwards.
 #
 # Last pass, "Mağaza ekran görüntüleri" (Google Play phone screenshots; cosmetic, never fails the
 # run, a problem is a warning): with SAMPLES_DIR/store from scripts/make_store_samples.py, the
@@ -2371,8 +2375,14 @@ FILES_ENDED=""
 MORE_LABELS=("More options" "Diğer seçenekler")
 RENAME_LABELS=("Rename" "Yeniden adlandır")
 DELETE_LABELS=("Delete" "Sil")
-DELETE_CONFIRM_LABELS=("Move to trash" "Delete permanently")
+DELETE_CONFIRM_LABELS=("Move to trash" "Delete permanently" "Çöp kutusuna taşı" "Kalıcı olarak sil")
 SYSTEM_ALLOW_LABELS=("Allow" "ALLOW" "İzin ver")
+# The app's second question when Android would not take the file into its trash
+# (delete_trash_failed_title, delete_permanent_confirm).
+TRASH_REFUSED_TITLES=("Trash not available" "Çöp kutusu kullanılamıyor")
+PERMANENT_LABELS=("Delete permanently" "Kalıcı olarak sil")
+# The app's logcat tag for file actions (FILES_LOG_TAG in FileOps.kt).
+FILES_LOG_TAG=BadoFiles
 
 # files_note STEP RESULT DETAIL
 files_note() {
@@ -2412,6 +2422,20 @@ print(f"{(best[0] + best[2]) // 2} {(best[1] + best[3]) // 2}")
 PY
 }
 
+# files_diag STEP: prints the app's file-action log lines (FILES_LOG_TAG), the labels on screen
+# and the test files in the folder into the job log (and OUT_DIR/STEP.files-log.txt), so a step
+# that did not happen can be understood without the uploaded screenshots and window dumps.
+files_diag() {
+    local xml="$OUT/$1.diag.window.xml"
+    ui_dump "$xml" || true
+    { sh_adb logcat -d -v time -s "$FILES_LOG_TAG:*" 2> /dev/null || true; } | tr -d '\r' | tail -n 40 > "$OUT/$1.files-log.txt" || true
+    echo "::group::file actions $1: app log ($FILES_LOG_TAG), screen and folder"
+    cat "$OUT/$1.files-log.txt" || true
+    echo "--- on screen: $(ui_labels "$xml")"
+    echo "--- in $FILES_DEVICE_DIR: $(sh_adb "ls -a $FILES_DEVICE_DIR" 2> /dev/null | tr -d '\r' | grep mo-files | tr '\n' ' ' || true)"
+    echo "::endgroup::"
+}
+
 files_exists() { [ -n "$(sh_adb "ls $(device_quote "$FILES_DEVICE_DIR/$1") 2> /dev/null" 2> /dev/null | tr -d '\r')" ]; }
 
 files_cleanup() {
@@ -2423,7 +2447,7 @@ files_cleanup() {
 # the device's folder must show the new name, then no file by that name (the trash keeps it as
 # ".trashed-…"). The app indexes the pushed file itself on its first scan ("All files access").
 files_pass() {
-    local xml at deadline trashed
+    local xml at deadline trashed how sys
     : > "$FILES_LOG"
     files_cleanup
     printf 'BadoOffice dosya yönetimi denemesi\r\n' > "$OUT/$FILES_OLD.txt"
@@ -2469,7 +2493,8 @@ files_pass() {
     deadline=$(($(date +%s) + 20))
     until files_exists "$FILES_NEW.txt" && ! files_exists "$FILES_OLD.txt"; do
         if [ "$(date +%s)" -ge "$deadline" ]; then
-            files_note rename WARN "after 20 s the folder has: $(sh_adb "ls $FILES_DEVICE_DIR" 2> /dev/null | tr -d '\r' | grep mo-files | tr '\n' ' ')"
+            files_diag files-rename
+            files_note rename WARN "after 20 s the folder has: $(sh_adb "ls $FILES_DEVICE_DIR" 2> /dev/null | tr -d '\r' | grep mo-files | tr '\n' ' '); on screen: $(ui_labels "$OUT/files-rename.diag.window.xml")"
             return 0
         fi
         sleep 1
@@ -2496,25 +2521,47 @@ files_pass() {
         files_note delete WARN "the file was gone before the confirmation was answered"
         return 0
     fi
-    tap_label files-delete center-exact "${DELETE_CONFIRM_LABELS[@]}" || true
-    # Android's own trash/delete confirmation (not shown to apps with "All files access" on most versions).
+    if ! tap_label files-delete center-exact "${DELETE_CONFIRM_LABELS[@]}"; then
+        files_diag files-delete
+        files_note delete WARN "could not tap the confirmation's button; on screen: $(ui_labels "$OUT/files-delete.diag.window.xml")"
+        return 0
+    fi
+    # With "All files access" the app moves the file to the trash itself. Otherwise Android may ask
+    # ("Allow"), or the app may ask once more when Android would not take the file into its trash
+    # (then "Delete permanently": it is the test file, and the note says the trash was not used).
     sleep 3
-    if ui_dump "$OUT/files-system.window.xml" && at=$(ui_query "$OUT/files-system.window.xml" center-exact "${SYSTEM_ALLOW_LABELS[@]}"); then
-        tap_at "$at"
+    how=""
+    sys="$OUT/files-system.window.xml"
+    if ui_dump "$sys"; then
+        if at=$(ui_query "$sys" center-exact "${SYSTEM_ALLOW_LABELS[@]}"); then
+            tap_at "$at"
+            how="Android asked first (\"Allow\" tapped)"
+        elif ui_query "$sys" exact "${TRASH_REFUSED_TITLES[@]}" > /dev/null; then
+            files_diag files-trash-refused
+            how="the trash was refused, deleted for good after the app's second confirmation"
+            if ! tap_label files-system center-exact "${PERMANENT_LABELS[@]}"; then
+                files_note delete WARN "the app said the trash was not available and its \"Delete permanently\" could not be tapped"
+                return 0
+            fi
+        fi
     fi
     deadline=$(($(date +%s) + 20))
     while files_exists "$FILES_NEW.txt"; do
         if [ "$(date +%s)" -ge "$deadline" ]; then
-            files_note delete WARN "after 20 s $FILES_NEW.txt is still in the folder"
+            files_diag files-delete-stuck
+            files_note delete WARN "after 20 s $FILES_NEW.txt is still in the folder${how:+ ($how)}; on screen: $(ui_labels "$OUT/files-delete-stuck.diag.window.xml"); app log: $(tail -n 3 "$OUT/files-delete-stuck.files-log.txt" 2> /dev/null | tr '\n' ' ' || true)"
             return 0
         fi
         sleep 1
     done
     trashed=$(sh_adb "ls -a $FILES_DEVICE_DIR" 2> /dev/null | tr -d '\r' | grep -c "^\.trashed-.*$FILES_NEW" || true)
     if [ "${trashed:-0}" -gt 0 ]; then
-        files_note delete OK "$FILES_NEW.txt moved to the system trash"
+        files_note delete OK "$FILES_NEW.txt moved to the system trash${how:+ ($how)}"
+    elif [ -n "$how" ] && [ "${how#the trash was refused}" != "$how" ]; then
+        files_note delete WARN "$FILES_NEW.txt gone, but $how"
     else
-        files_note delete OK "$FILES_NEW.txt deleted (no .trashed- copy in the folder)"
+        files_diag files-delete-done
+        files_note delete OK "$FILES_NEW.txt deleted (no .trashed- copy in the folder)${how:+ ($how)}"
     fi
 }
 
